@@ -27,6 +27,21 @@ pydantic_core==2.20.1
 python-dateutil==2.9.0.post0
 python-dotenv==1.1.1
 python-jose==3.3.0
+# --- Automation Module: missing dependency, found while building the image ---
+# app/routers/session.py does `import jwt as pyjwt`, which is PyJWT -- a
+# different package from python-jose above, which provides `jose.jwt`. PyJWT
+# was never listed here, so the application imports only on machines where it
+# happens to be installed some other way (on this dev host it sits in the
+# user-global site-packages, outside the project).
+#
+# The consequence is not subtle: `pip install -r requirements.txt` in a clean
+# environment produces a backend that cannot start, failing at import with
+# ModuleNotFoundError: No module named 'jwt'. Found when the Automation Module
+# first ran the app inside the built image.
+#
+# Only used for `decode(..., verify_signature=False)` to read claims from a
+# token already verified elsewhere, so any 2.x is compatible.
+PyJWT==2.9.0
 python-multipart==0.0.20
 pytz==2025.2
 PyYAML==6.0.3

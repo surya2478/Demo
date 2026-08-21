@@ -1,0 +1,65 @@
+# --- Automation Module: added -- there was no .dockerignore here -------------
+# Without one, `COPY . /app` copied the entire directory into the image. That
+# layer measured 229 MB and included things that should never ship:
+#
+#   .env        the JWT SECRET_KEY, readable from the image with `docker cp`
+#   admin.db    17 real user rows, and local auth stores passwords in plaintext
+#   .venv312    214 MB of Windows virtualenv, inert inside a Linux container
+#
+# Neither .env nor admin.db is needed at runtime: docker-compose supplies the
+# environment with env_file from the host, and DATABASE_URL points at the
+# volume-mounted database under /app/external-db.
+
+# ── Secrets ──────────────────────────────────────────────────────────────────
+.env
+.env.*
+*.env
+.env_bkp
+*.env_bkp
+!.env.example
+# Written by the Settings screen; environment.json holds the Solutions API token.
+app/config.json
+app/environment.json
+.build-proxy
+
+# ── Data ─────────────────────────────────────────────────────────────────────
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# ── Environments and caches ──────────────────────────────────────────────────
+.venv
+.venv*/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# ── Build and runtime output ─────────────────────────────────────────────────
+storage/
+automation_workspace/
+playwright-report/
+test-results/
+*.log
+logs/
+data/
+
+# ── Repository and editor metadata ───────────────────────────────────────────
+.git
+.gitignore
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ── Documentation and one-off scripts ────────────────────────────────────────
+# Kept out of the image because they are read by people, not run by the app.
+*.md
+diagrams/
+docker-compose*.yml
