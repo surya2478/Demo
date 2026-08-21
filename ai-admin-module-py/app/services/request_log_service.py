@@ -231,6 +231,109 @@ class RequestLogService:
 
         return logs, total
 
+    # --- Automation Module: server-side token quota ---------------------------
+    # The quota check in the Test Assistant tabs runs entirely in the browser
+    # (see TestCases.tsx: it compares userTokensUsed against token_allocation
+    # and simply shows a warning). Nothing stops a caller ignoring it.
+    #
+    # An automation run costs real server CPU, memory and browser time, so the
+    # Automation Module has to enforce the quota where it cannot be bypassed.
+    # That needs a per-user total, which until now existed only inside the
+    # /request-tracker/token-stats endpoint -- as part of a top-10 grouped
+    # dashboard query, not callable from anywhere else.
+    #
+    # Added here rather than refactored out of that endpoint: this is a
+    # different query (one user, lifetime by default, no grouping), so the
+    # endpoint keeps working exactly as before and nothing existing changes.
+    @staticmethod
+    def get_user_token_usage(
+        db: Session,
+        username: str,
+        days: Optional[int] = None,
+    ) -> dict:
+        """Total tokens consumed by one user.
+
+        days=None (the default) totals the user's whole history, matching what
+        the frontend compares against users.token_allocation. Pass a number to
+        restrict to a rolling window instead.
+
+        Rows predating token tracking have NULL token columns; coalesce treats
+        those as 0 rather than returning None, so a caller never has to guard.
+        """
+        from sqlalchemy import func
+
+        query = db.query(
+            func.coalesce(func.sum(RequestLog.total_tokens), 0),
+            func.coalesce(func.sum(RequestLog.prompt_tokens), 0),
+            func.coalesce(func.sum(RequestLog.response_tokens), 0),
+            func.count(RequestLog.id),
+        ).filter(RequestLog.user == username)
+
+        if days is not None:
+            cutoff = datetime.utcnow() - timedelta(days=days)
+            query = query.filter(RequestLog.timestamp >= cutoff)
+
+        total, prompt, response, count = query.first()
+
+        return {
+            "user": username,
+            "period_days": days,
+            "total_tokens": int(total or 0),
+            "prompt_tokens": int(prompt or 0),
+            "response_tokens": int(response or 0),
+            "request_count": int(count or 0),
+        }
+
+    @staticmethod
+    def check_token_quota(
+        db: Session,
+        username: str,
+        allocation: Optional[int],
+        is_admin: bool = False,
+    ) -> dict:
+        """Whether `username` may start another billable action.
+
+        Returns a verdict rather than raising, so the caller decides whether a
+        breach blocks the action or only warns. Keys: allowed, used, allocation,
+        remaining, reason.
+
+        Admins and users with no allocation set are unlimited -- the same rule
+        the frontend applies, kept identical here so the two cannot disagree
+        about who is over quota.
+        """
+        usage = RequestLogService.get_user_token_usage(db, username)
+        used = usage["total_tokens"]
+
+        if is_admin or not allocation or allocation <= 0:
+            return {
+                "allowed": True,
+                "used": used,
+                "allocation": allocation,
+                "remaining": None,
+                "reason": "unlimited",
+            }
+
+        remaining = allocation - used
+        if remaining <= 0:
+            return {
+                "allowed": False,
+                "used": used,
+                "allocation": allocation,
+                "remaining": 0,
+                "reason": (
+                    f"Token allocation exhausted: {used:,} of {allocation:,} used. "
+                    "Ask an administrator to increase your allocation."
+                ),
+            }
+
+        return {
+            "allowed": True,
+            "used": used,
+            "allocation": allocation,
+            "remaining": remaining,
+            "reason": "within allocation",
+        }
+
     @staticmethod
     def get_stats_by_tab(db: Session) -> dict:
         """Get statistics grouped by tab"""
