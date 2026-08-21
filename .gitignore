@@ -13,6 +13,11 @@
 !.env.example
 !**/.env.example
 
+# BuildKit secret file holding the authenticated build proxy URL. Written just
+# before `docker build --secret` and deleted after; never committed.
+.build-proxy
+**/.build-proxy
+
 # Runtime config written by the Settings screen — app/environment.json holds
 # SOLUTIONS_API_AUTH_TOKEN, app/config.json holds the live AI endpoint config.
 ai-admin-module-py/app/config.json
