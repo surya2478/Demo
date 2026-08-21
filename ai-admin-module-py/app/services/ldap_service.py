@@ -14,6 +14,38 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+# --- Automation Module: configuration preflight -------------------------------
+# LDAP settings moved from hardcoded defaults in config.py to .env. Nothing in
+# the call sites changed -- they already read through `settings` -- but an
+# unset .env now yields empty values instead of the old baked-in corporate
+# ones. Checking that up front turns a confusing ldap3 bind error into a
+# message that names the missing keys.
+#
+# LDAP_USER_SEARCH_FILTER is excluded deliberately: it still has a sensible
+# default in config.py, so it is never missing.
+REQUIRED_LDAP_SETTINGS = (
+    "LDAP_SERVER_URL",
+    "LDAP_SEARCH_BASE",
+    "LDAP_SERVICE_ACCOUNT_DN",
+    "LDAP_SERVICE_ACCOUNT_PASSWORD",
+)
+
+
+def get_missing_ldap_settings() -> list:
+    """Names of required LDAP settings that are unset or blank."""
+    return [
+        name
+        for name in REQUIRED_LDAP_SETTINGS
+        if not str(getattr(settings, name, "") or "").strip()
+    ]
+
+
+def is_ldap_configured() -> bool:
+    """Whether this deployment has enough configuration to reach a directory."""
+    return not get_missing_ldap_settings()
+
+
 def check_user_authorized_for_ldap(username: str, db: Session) -> bool:
     """
     Check if user exists in SQLite database with auth_source='ldap'.
@@ -67,12 +99,26 @@ def ldap_authenticate_with_service_account(username: str, password: str) -> bool
         True if LDAP authentication succeeds, False otherwise
     """
     try:
+        # --- Automation Module: fail fast on missing configuration ------------
+        # Settings now come from .env rather than hardcoded defaults, so an
+        # unconfigured deployment reaches here with empty values. Naming the
+        # missing keys beats an opaque bind failure, and returning early keeps
+        # a configuration problem from reaching the fallback below.
+        missing = get_missing_ldap_settings()
+        if missing:
+            logger.error(
+                "LDAP is not configured: %s missing from .env. "
+                "LDAP authentication cannot proceed. See .env.example.",
+                ", ".join(missing),
+            )
+            return _demo_fallback(username, password, reason="LDAP not configured")
+
         # Try to import ldap3
         try:
             from ldap3 import Server, Connection, ALL, SIMPLE, SUBTREE
             ldap3_available = True
         except ImportError:
-            logger.warning("ldap3 not installed, using demo mode. Install with: pip install ldap3")
+            logger.warning("ldap3 not installed. Install with: pip install ldap3")
             ldap3_available = False
         
         # If ldap3 is available, try real LDAP authentication
@@ -175,13 +221,48 @@ def ldap_authenticate_with_service_account(username: str, password: str) -> bool
                 # Fall through to demo mode
                 # Fall through to demo mode
         
-        # Demo/fallback mode: accept "ldappass" as password
-        logger.info(f"Using demo LDAP mode for user: {username}")
-        return password == "ldappass"
-        
+        return _demo_fallback(username, password, reason="LDAP server unreachable")
+
     except Exception as e:
         logger.error(f"LDAP authentication error for {username}: {e}")
         return False
+
+
+# --- Automation Module: demo fallback is now opt-in and fails closed ----------
+# This function replaces an unconditional `return password == "ldappass"` that
+# sat at the end of ldap_authenticate_with_service_account().
+#
+# The old behaviour: any exception in the LDAP block -- server unreachable,
+# service-account bind rejected, credentials missing -- fell through to
+# accepting one shared literal password for any user already whitelisted with
+# auth_source='ldap'. So a directory outage did not deny access; it silently
+# replaced real authentication with a password that is printed in this
+# repository's own documentation (IMPLEMENTATION_CHECKLIST.md).
+#
+# It is now gated behind LDAP_ALLOW_DEMO_FALLBACK, default False, so the
+# failure mode is denial rather than downgrade. Every refusal and every
+# acceptance is logged with the reason, so an operator can tell a directory
+# problem from a wrong password.
+def _demo_fallback(username: str, password: str, reason: str) -> bool:
+    """Developer-only fallback. Refuses unless explicitly enabled in .env."""
+    if not getattr(settings, "LDAP_ALLOW_DEMO_FALLBACK", False):
+        logger.error(
+            "LDAP authentication denied for '%s': %s, and the demo fallback is "
+            "disabled. Set LDAP_ALLOW_DEMO_FALLBACK=true in .env only on a "
+            "developer machine with no directory available.",
+            username,
+            reason,
+        )
+        return False
+
+    logger.warning(
+        "LDAP DEMO FALLBACK ACTIVE for '%s' (%s). Authentication is NOT being "
+        "verified against a directory. This must never be enabled outside "
+        "local development.",
+        username,
+        reason,
+    )
+    return password == "ldappass"
 
 
 def ldap_authenticate(username: str, password: str, db: Session = None) -> bool:

@@ -46,27 +46,45 @@ class Settings(BaseSettings):
     # keep as comma/string for dotenv compatibility
     CORS_ALLOW_ORIGINS: str = Field(default="https://dx12348.etisalat.corp.ae,https://dx12348.etisalat.corp.ae,http://localhost:5175")
 
-    # LDAP Configuration
-    LDAP_SERVER_URL: str = Field(default="ldaps://etisalat.corp.ae:636")
-    LDAP_BASE_DN: str = Field(default="dc=etisalat,dc=corp,dc=ae")
-    
-    # LDAP Search Base - Where to search for users (use base DN for corporate AD)
-    LDAP_SEARCH_BASE: str = Field(default="DC=etisalat,DC=corp,DC=ae")
-    
-    # LDAP User Search Filter - Use sAMAccountName for Active Directory
-    LDAP_USER_SEARCH_FILTER: str = Field(default="(sAMAccountName={username})")
-    
-    # LDAP Service Account for binding and searching
-    LDAP_SERVICE_ACCOUNT_DN: str = Field(default="cn=SRVQQ239,OU=Non-Prod_ServiceAccounts,OU=Service_Accounts_IDM,dc=etisalat,dc=corp,dc=ae")
-    # --- Automation Module: secret externalised --------------------------------
-    # Was a literal default in source. Moved to .env (gitignored) so the AD
-    # service-account password is not committed. Set
-    # LDAP_SERVICE_ACCOUNT_PASSWORD in .env or LDAP authentication will fail.
+    # --- Automation Module: LDAP configuration moved to .env -------------------
+    # Every value below previously shipped as a literal default in this file,
+    # which meant .env was never consulted: the corporate AD topology (server
+    # host, domain DN, and the service-account DN with its full OU path) was
+    # baked into source, and one environment could not be pointed at a
+    # different directory without editing code.
+    #
+    # They now default to empty and are read from .env. ldap_service.py already
+    # reads them through `settings`, so no call site changes -- but LDAP
+    # authentication will fail with a clear configuration error until .env
+    # supplies them. See .env.example for the full key list.
+    #
+    # Local (non-LDAP) authentication is unaffected.
+    #
+    # Removed as part of this change: LDAP_BASE_DN and LDAP_BIND_DN_TEMPLATE.
+    # Both had zero usages outside this file -- LDAP_BIND_DN_TEMPLATE described
+    # a direct-bind flow the service-account flow replaced, and its default
+    # ("uid=...,ou=people,...") did not even match this Active Directory.
+    LDAP_SERVER_URL: str = Field(default="")
+    LDAP_SEARCH_BASE: str = Field(default="")
+    LDAP_SERVICE_ACCOUNT_DN: str = Field(default="")
     LDAP_SERVICE_ACCOUNT_PASSWORD: str = Field(default="")
-    
-    # Legacy binding template (kept for backward compatibility)
-    LDAP_BIND_DN_TEMPLATE: str = Field(default="uid={username},ou=people,dc=etisalat,dc=corp,dc=ae")
-    
+
+    # Kept as a default: this is the standard Active Directory lookup pattern,
+    # carries nothing site-specific, and is still overridable from .env.
+    LDAP_USER_SEARCH_FILTER: str = Field(default="(sAMAccountName={username})")
+
+    # --- Automation Module: demo fallback is now opt-in ------------------------
+    # ldap_service.py ended with a fallback that accepted the literal password
+    # "ldappass" for any whitelisted LDAP user whenever the LDAP block raised --
+    # including when the service-account bind failed because credentials were
+    # missing or wrong. An unreachable directory therefore downgraded to a
+    # shared password rather than denying access, and the string is printed in
+    # the repository's own documentation.
+    #
+    # It is now off unless explicitly enabled, so authentication fails closed.
+    # Enable only on a developer machine with no directory available.
+    LDAP_ALLOW_DEMO_FALLBACK: bool = Field(default=False)
+
     COOKIE_SECURE: bool = Field(default=False)
     COOKIE_SAMESITE: str = Field(default="lax")
     COOKIE_DOMAIN: Optional[str] = Field(default=None)
