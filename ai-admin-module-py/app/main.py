@@ -56,7 +56,7 @@ app.add_middleware(
 )
 
 # Import routers
-from .routers import audit, auth, dashboard, users, settings as settings_router, session as session_router, request_tracker, oslc_rqm_rtc, solutions_proxy, test_case_reviews
+from .routers import audit, auth, dashboard, users, settings as settings_router, session as session_router, request_tracker, oslc_rqm_rtc, solutions_proxy, test_case_reviews, automation
 
 # Include routers
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
@@ -84,3 +84,5 @@ app.include_router(request_tracker.router, prefix="/request-tracker", tags=["Req
 app.include_router(oslc_rqm_rtc.router, prefix="/oslc-rqm-rtc", tags=["OSLC RQM/RTC"])
 app.include_router(solutions_proxy.router, tags=["Solutions Proxy"])
 app.include_router(test_case_reviews.router, prefix="/test-case-reviews", tags=["Test Case Reviews"])
+# --- Automation Module: the module's single mount point -----------------------
+app.include_router(automation.router, prefix="/automation", tags=["Automation Studio"])

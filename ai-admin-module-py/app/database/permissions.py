@@ -17,7 +17,14 @@ ROLE_PERMISSIONS = {
             "view_testdata",
             "view_changes",
             "view_unit",
-            "view_kb"
+            "view_kb",
+            # --- Automation Module: new permissions ---------------------------
+            # Purely additive -- no existing permission changes meaning.
+            # automation.execute is enforced server-side because a run spends
+            # real CPU, memory and browser time on the backend host.
+            "automation.view",
+            "automation.execute",
+            "automation.approve"
         ]
     },
     "manager": {
@@ -29,7 +36,12 @@ ROLE_PERMISSIONS = {
             "user.manage",
             "testassistant.view",
             "view_testcases",
-            "view_testdata"
+            "view_testdata",
+            # --- Automation Module ---
+            # A manager can see and run automation, but script approval stays
+            # with admins for now.
+            "automation.view",
+            "automation.execute"
         ]
     },
     "user": {
