@@ -143,6 +143,47 @@ class Settings(BaseSettings):
     # logged -- audit before enforcing on a deployment with unusual scripts.
     AUTOMATION_RUNNER_ENV_ALLOWLIST_ENFORCED: bool = Field(default=True)
 
+    # --- Automation Module: LLM provider ---------------------------------------
+    # Where the Studio's own LLM work (test-case refinement, script generation)
+    # sends its prompts.
+    #
+    # "ai_service" is the existing path: the AI service at ai_config.BASE_URL
+    # owns the model and its credentials, and this backend holds no key at all.
+    # "openrouter" makes this backend the caller, which is why the key lives
+    # here and not in ai_config.
+    #
+    # THE KEY IS SERVER-SIDE ON PURPOSE. It must never move into ai_config, the
+    # Settings screen, or a VITE_ variable: ai_config is served to every
+    # authenticated user by GET /settings/ai-config and cached in their
+    # localStorage, and VITE_ values are inlined into the JavaScript bundle at
+    # build time. A key in either is a key every user can read, and the browser
+    # calls the AI service directly, so it would also travel to the client on
+    # every request.
+    LLM_PROVIDER: str = Field(default="ai_service")
+
+    # Secret. Empty means "not configured" -- see openrouter_missing_keys(),
+    # which names what is absent rather than failing on an anonymous 401.
+    OPENROUTER_API_KEY: str = Field(default="")
+    OPENROUTER_BASE_URL: str = Field(default="https://openrouter.ai/api/v1")
+
+    # Deliberately no default. OpenRouter model ids are "vendor/model" slugs and
+    # the catalogue moves; guessing one here would silently bill a model nobody
+    # chose. Unset is a configuration error that names itself, which is how the
+    # LDAP keys above behave too. Pick one from https://openrouter.ai/models.
+    OPENROUTER_MODEL: str = Field(default="")
+
+    OPENROUTER_TIMEOUT_SECONDS: int = Field(default=120)
+    OPENROUTER_MAX_TOKENS: int = Field(default=8192)
+    # Low by default: this generates test scripts and structured JSON, where
+    # reproducibility matters more than variety.
+    OPENROUTER_TEMPERATURE: float = Field(default=0.1)
+
+    # Optional attribution, sent as HTTP-Referer and X-Title. OpenRouter uses
+    # them to identify the calling app in its dashboards and rankings; both are
+    # safe to leave empty.
+    OPENROUTER_SITE_URL: str = Field(default="")
+    OPENROUTER_APP_NAME: str = Field(default="AI Test Automation Studio")
+
     # AI Configuration stored under settings.ai_config (typed)
     ai_config: AiConfigModel = Field(default_factory=AiConfigModel)
 
@@ -169,6 +210,27 @@ class Settings(BaseSettings):
                     pass
             return [s.strip() for s in raw.split(",") if s.strip()]
         return []
+
+    def openrouter_missing_keys(self) -> List[str]:
+        """Which required OpenRouter settings are absent.
+
+        Returned as names rather than a bare bool so a caller can say exactly
+        what to set. The same shape as the LDAP checks: a configuration problem
+        should name itself instead of surfacing later as an opaque 401 from a
+        provider the operator may not even know is being used.
+        """
+        missing = []
+        if not (self.OPENROUTER_API_KEY or "").strip():
+            missing.append("OPENROUTER_API_KEY")
+        if not (self.OPENROUTER_MODEL or "").strip():
+            missing.append("OPENROUTER_MODEL")
+        if not (self.OPENROUTER_BASE_URL or "").strip():
+            missing.append("OPENROUTER_BASE_URL")
+        return missing
+
+    @property
+    def openrouter_configured(self) -> bool:
+        return not self.openrouter_missing_keys()
 
 # single settings instance to import across the app
 settings = Settings()

@@ -40,6 +40,12 @@ const menuGroups: MenuGroup[] = [
       //{ path: '/settings', label: 'Settings', permission: 'settings.manage' },
       { path: '/test-assistant', label: 'Test Assistant', permission: 'testassistant.view' }
     ]
+  },
+  {
+    heading: 'Test Automation',
+    items: [
+      { path: '/automation', label: 'Automation Studio', permission: 'automation.view' }
+    ]
   }
 ]
 

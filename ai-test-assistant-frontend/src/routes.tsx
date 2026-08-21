@@ -26,6 +26,11 @@ import RequestTrackerReport from './pages/RequestTrackerReport';
 
 import TestAssistant from './pages/TestAssistant'
 import TestCases from './pages/test-assistant/TestCases'
+// Automation Studio and tabs
+import Automation from './pages/Automation'
+import Candidates from './pages/automation/Candidates'
+import Runs from './pages/automation/Runs'
+import RunDetail from './pages/automation/RunDetail'
 import Visual from './pages/test-assistant/Visual'
 import DataTab from './pages/test-assistant/DataTab'
 import Changes from './pages/test-assistant/Changes'
@@ -202,6 +207,22 @@ const AppRoutes: React.FC = () => {
           <Route path="changes" element={<Changes />} />
           <Route path="unit" element={<Unit />} />
           <Route path="kb" element={<KB />} />
+        </Route>
+
+        {/* Automation Studio with nested tab routes. Run Detail sits under
+            the runs tab so the workspace chrome stays put when opening one. */}
+        <Route
+          path="automation"
+          element={
+            <ProtectedRoute allowedPermissions={['automation.view']}>
+              <Automation />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="candidates" replace />} />
+          <Route path="candidates" element={<Candidates />} />
+          <Route path="runs" element={<Runs />} />
+          <Route path="runs/:runKey" element={<RunDetail />} />
         </Route>
       </Route>
 

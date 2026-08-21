@@ -7,7 +7,8 @@ import {
   HiCog,
   HiOutlineSparkles,
   HiChartBar,
-  HiClipboardCheck
+  HiClipboardCheck,
+  HiOutlineLightningBolt
 } from 'react-icons/hi'
 
 export const menuIcons = {
@@ -19,5 +20,6 @@ export const menuIcons = {
   'request-tracker-report': HiChartBar,
   settings: HiCog,
   'test-assistant': HiOutlineSparkles,
-  'manager-review': HiClipboardCheck
+  'manager-review': HiClipboardCheck,
+  automation: HiOutlineLightningBolt
 }

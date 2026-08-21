@@ -17,6 +17,9 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
+
+from ...config import settings
 
 
 @dataclass(slots=True)
@@ -24,6 +27,32 @@ class FrameworkSupport:
     framework: str
     available: bool
     detail: str  # short, human-readable, and actionable when False
+
+
+@lru_cache(maxsize=None)
+def resolve_node_tool(name: str) -> str | None:
+    """Absolute path to a Node toolchain executable, or None if absent.
+
+    Windows installs npm and npx as `.CMD` shims. `shutil.which` finds them
+    because it honours PATHEXT, but subprocess does not: CreateProcess resolves
+    a bare name against PATH with `.exe` only, so `["npx", ...]` raises
+    FileNotFoundError on Windows while the identical list works in the Linux
+    container. Detection would then report "@playwright/test is not installed"
+    on a host where it plainly is.
+
+    Resolving to a full path before handing the name to subprocess is what lets
+    one code path serve both. An absolute path is taken as given, so
+    AUTOMATION_NODE_PATH can point at a specific toolchain.
+    """
+    candidate = Path(name)
+    if candidate.is_absolute():
+        return str(candidate) if candidate.exists() else None
+    return shutil.which(name)
+
+
+def npx_command() -> str | None:
+    """How to invoke npx here, honouring AUTOMATION_NODE_PATH."""
+    return resolve_node_tool((settings.AUTOMATION_NODE_PATH or "npx").strip() or "npx")
 
 
 def _capture_version(args: list[str]) -> str | None:
@@ -39,7 +68,8 @@ def _capture_version(args: list[str]) -> str | None:
 
 @lru_cache(maxsize=1)
 def _detect_playwright() -> FrameworkSupport:
-    if not shutil.which("npx"):
+    npx = npx_command()
+    if not npx:
         return FrameworkSupport(
             "playwright",
             False,
@@ -47,7 +77,7 @@ def _detect_playwright() -> FrameworkSupport:
             "@playwright/test; rebuild it, or install Node on the host running "
             "the backend.",
         )
-    version = _capture_version(["npx", "--yes", "playwright", "--version"])
+    version = _capture_version([npx, "--yes", "playwright", "--version"])
     if not version:
         return FrameworkSupport(
             "playwright",
@@ -61,7 +91,8 @@ def _detect_playwright() -> FrameworkSupport:
 
 @lru_cache(maxsize=1)
 def _detect_node() -> FrameworkSupport:
-    version = _capture_version(["node", "--version"])
+    node = resolve_node_tool("node")
+    version = _capture_version([node, "--version"]) if node else None
     if not version:
         return FrameworkSupport("node", False, "node is not on PATH")
     return FrameworkSupport("node", True, version)

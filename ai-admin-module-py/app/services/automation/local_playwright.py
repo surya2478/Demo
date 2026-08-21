@@ -30,7 +30,7 @@ from pathlib import Path
 
 from .base import AutomationRunner, PerTestResult, RunnerResult, await_process
 from .env_policy import build_runner_env
-from .preflight import is_available
+from .preflight import is_available, npx_command
 
 _ANSI_ESCAPE_RE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
@@ -80,7 +80,9 @@ class LocalPlaywrightRunner(AutomationRunner):
         log_path = workspace_dir / "run.log"
         # --reporter=json overrides whatever the workspace config says, so a
         # generated config cannot leave the run unparseable.
-        cmd = ["npx", "--yes", "playwright", "test", script_file_name, "--reporter=json"]
+        # Full path, not a bare name: on Windows npx is a .CMD shim that
+        # subprocess cannot launch. See preflight.resolve_node_tool.
+        cmd = [npx_command() or "npx", "--yes", "playwright", "test", script_file_name, "--reporter=json"]
 
         env, withheld_env = build_runner_env(
             source=os.environ,

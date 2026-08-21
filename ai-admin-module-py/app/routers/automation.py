@@ -409,9 +409,19 @@ def get_run(
         .all()
     )
 
+    metadata = run.run_metadata or {}
+
     return {
         **_run_summary(run),
         "has_log": bool(run.log_path and Path(run.log_path).exists()),
+        # What actually executed, so the spec can be read beside its results.
+        # Only on this endpoint: a code blob per row would inflate the runs
+        # list many times over for a column nobody reads there.
+        "spec": {
+            "code": metadata.get("code"),
+            "file_name": metadata.get("file_name"),
+            "base_url": metadata.get("base_url"),
+        },
         "results": [
             {
                 "id": r.id,

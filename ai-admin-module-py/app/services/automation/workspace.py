@@ -27,12 +27,14 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shutil
 import subprocess
 from functools import lru_cache
 from pathlib import Path
 
 from ...config import settings
+from .preflight import resolve_node_tool
 
 logger = logging.getLogger(__name__)
 
@@ -186,8 +188,14 @@ def _npm_global_root() -> str | None:
     /usr/local/lib/node_modules — hence asking npm rather than guessing.
     Cached for the process lifetime; restart the backend after a Node reinstall.
     """
+    # Resolved to a full path first: on Windows npm is a .CMD shim that
+    # subprocess cannot launch by bare name. See preflight.resolve_node_tool.
+    npm = resolve_node_tool("npm")
+    if not npm:
+        logger.warning("npm not found while resolving the global module root")
+        return None
     try:
-        proc = subprocess.run(["npm", "root", "-g"], capture_output=True, text=True, timeout=20)
+        proc = subprocess.run([npm, "root", "-g"], capture_output=True, text=True, timeout=20)
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         logger.warning("npm not found while resolving the global module root")
         return None
@@ -228,14 +236,37 @@ def _link_npm_global_modules(workspace: Path) -> None:
 
     try:
         link.symlink_to(target_path, target_is_directory=True)
+        return
     except OSError as exc:
-        # Windows without developer mode refuses symlinks, and a copy is a
-        # workable last resort on a developer machine. It is slow and large,
-        # so it stays a fallback rather than the default.
-        logger.warning(
-            "Could not symlink %s -> %s (%s); falling back to a copy", link, target_path, exc
-        )
+        logger.info("Could not symlink %s -> %s (%s); trying a junction", link, target_path, exc)
+
+    # Windows refuses symlinks without developer mode or elevation, but a
+    # directory junction needs neither and resolves to the same files.
+    #
+    # That identity is the whole point. A copy does NOT work here: `npx
+    # playwright test` loads the runner from the global install while the spec
+    # imports @playwright/test from the workspace, and two physical copies are
+    # two module instances. Playwright detects that and refuses with "Playwright
+    # Test did not expect test() to be called here", reporting zero tests.
+    if os.name == "nt":
         try:
-            shutil.copytree(target_path, link, symlinks=True, dirs_exist_ok=True)
-        except OSError as copy_exc:
-            logger.warning("Copy fallback also failed: %s", copy_exc)
+            proc = subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(link), str(target_path)],
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+            if proc.returncode == 0:
+                return
+            logger.warning("mklink /J failed: %s", (proc.stderr or proc.stdout).strip())
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+            logger.warning("Could not create a junction for %s: %s", link, exc)
+
+    # Last resort. Kept because it is better than nothing on a platform with
+    # neither symlinks nor junctions, but expect the duplicate-instance error
+    # above if the global runner is what ends up executing the spec.
+    logger.warning("Falling back to copying %s -> %s", target_path, link)
+    try:
+        shutil.copytree(target_path, link, symlinks=True, dirs_exist_ok=True)
+    except OSError as copy_exc:
+        logger.warning("Copy fallback also failed: %s", copy_exc)

@@ -9,6 +9,12 @@
 *.env_bkp
 .env_bkp
 
+# Any .env kept aside under a suffix -- .env_prod, .env_local, .env_old. These
+# are the ones that bite: renaming .env to .env_prod moves a live SECRET_KEY out
+# from under the patterns above and into `git add -A`. Matches the underscore
+# form only, so .env.example below is unaffected.
+.env_*
+
 # Templates carry key names only, never values, and are meant to be committed.
 !.env.example
 !**/.env.example
