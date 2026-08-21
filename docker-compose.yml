@@ -15,7 +15,23 @@ services:
       - "8002:8002" # Optional: useful for direct backend debugging
     volumes:
       - ./db-backup:/app/external-db
+    # The image deliberately contains no .env (see ai-admin-module-py/
+    # .dockerignore): baking the JWT signing key into a layer leaves it
+    # readable with `docker cp`. The secrets are injected here at runtime.
+    #
+    # This is not optional. Without it the container starts with SECRET_KEY
+    # empty, which does not fail loudly -- it issues tokens that never
+    # validate, so every login breaks with no clue why. LDAP_* and the
+    # Solutions token reach the app through this file too.
+    #
+    # Compose refuses to start when the file is missing, which is the right
+    # behaviour for a secrets file: a hard stop beats a silent half-boot.
+    env_file:
+      - ./ai-admin-module-py/.env
     environment:
+      # Listed after env_file deliberately -- `environment` takes precedence,
+      # so the container's volume-mounted database wins over whatever
+      # DATABASE_URL that file carries for host-local runs.
       - DATABASE_URL=sqlite:////app/external-db/admin.db
     networks:
       - existing-network

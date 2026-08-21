@@ -9,6 +9,12 @@
 # Neither .env nor admin.db is needed at runtime: docker-compose supplies the
 # environment with env_file from the host, and DATABASE_URL points at the
 # volume-mounted database under /app/external-db.
+#
+# That env_file line has to actually be there. It was not, for a while, and the
+# omission is invisible from inside the image: the app falls back to the empty
+# SECRET_KEY default and issues tokens that never validate. If you fork this
+# compose file, keep `env_file: ./ai-admin-module-py/.env` on the backend
+# service, or put the secrets in via some other runtime mechanism.
 
 # ── Secrets ──────────────────────────────────────────────────────────────────
 .env

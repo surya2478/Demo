@@ -1,10 +1,71 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
+import re
 from .database.init_db import init_db
 from .database.connection import get_db
 from .database.sessions import purge_expired_sessions
 from .config import settings  # changed from `from config import settings`
+
+
+# --- Automation Module: refuse to start on unusable configuration ------------
+
+def _masked_database_url() -> str:
+    """The database URL with any embedded password removed."""
+    return re.sub(r"://([^:/@]+):[^@]*@", r"://\1:***@", settings.DATABASE_URL or "")
+
+
+def _verify_runtime_configuration() -> None:
+    """Stop the process rather than serve a configuration that cannot work.
+
+    Both checks guard failure modes that are otherwise completely silent:
+
+      * An empty SECRET_KEY raises nowhere. It signs tokens that never
+        validate, so every login fails and nothing in the logs says why.
+      * A CORS list without the real frontend origin leaves the backend
+        looking healthy in its own logs while the browser refuses every call.
+
+    This matters most in a container. The image deliberately carries no .env
+    (see .dockerignore), so the whole configuration arrives through the
+    `env_file:` entry on the backend service in docker-compose.yml. Before this
+    guard, a missing or wrong env_file still produced a process that started,
+    answered /docs, and was broken for every real user.
+
+    Called at import time, ahead of init_db(), so a bad config never gets as
+    far as touching the database.
+    """
+    if not (settings.SECRET_KEY or "").strip():
+        raise RuntimeError(
+            "SECRET_KEY is empty. Every token this process issued would be "
+            "unusable and every login would fail. Set it in the backend's .env "
+            "(ai-admin-module-py/.env); in Docker that file reaches the "
+            "container through the `env_file:` entry on the backend service in "
+            "docker-compose.yml, so check it is present and readable. Generate "
+            'one with: python -c "import secrets; print(secrets.token_urlsafe(32))"'
+        )
+
+    origins = settings.cors_allow_origins
+    if not origins:
+        raise RuntimeError(
+            "CORS_ALLOW_ORIGINS resolved to an empty list, so no browser origin "
+            "can call this API. Set it in the backend's .env as a "
+            "comma-separated list of origins."
+        )
+
+    # Printed once, deliberately. Which origins are live is the single easiest
+    # thing to get wrong when moving between local and a deployment, and it is
+    # invisible from outside until a browser silently refuses a request.
+    print(f"[Config] APP_ENV={settings.APP_ENV}  CORS origins: {', '.join(origins)}")
+    print(f"[Config] Database: {_masked_database_url()}")
+    print(
+        "[Config] LDAP: "
+        + ("configured" if settings.LDAP_SERVER_URL else "not configured (local auth only)")
+        + f"  |  Automation: {'enabled' if settings.AUTOMATION_ENABLED else 'disabled'}"
+        + f"  |  LLM provider: {settings.LLM_PROVIDER}"
+    )
+
+
+_verify_runtime_configuration()
 
 # app = FastAPI()
 app = FastAPI(title="AI- Testing Assistant Admin",root_path="/admin")
