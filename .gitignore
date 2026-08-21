@@ -1,0 +1,83 @@
+# ---------------------------------------------------------------------------
+# Secrets and environment
+# ---------------------------------------------------------------------------
+# These carry LDAP service-account credentials, the JWT signing key, the
+# Solutions API token and the SSD login password. Never commit them.
+.env
+.env.*
+*.env
+*.env_bkp
+.env_bkp
+
+# Runtime config written by the Settings screen — app/environment.json holds
+# SOLUTIONS_API_AUTH_TOKEN, app/config.json holds the live AI endpoint config.
+ai-admin-module-py/app/config.json
+ai-admin-module-py/app/environment.json
+
+# ---------------------------------------------------------------------------
+# Databases
+# ---------------------------------------------------------------------------
+# admin.db contains real user rows. The -wal/-shm sidecars appear once WAL
+# journal mode is enabled (see app/database/connection.py).
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.venv*/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# ---------------------------------------------------------------------------
+# Node / frontend
+# ---------------------------------------------------------------------------
+node_modules/
+.pnpm-store/
+dist/
+dist.zip
+dist-org.zip
+dist.tar
+dist.tar.gz
+.vite/
+*.tsbuildinfo
+
+# ---------------------------------------------------------------------------
+# Automation Module — generated test assets and run evidence
+# ---------------------------------------------------------------------------
+# Materialised workspaces, generated specs and captured artifacts are run
+# output, not source. Regenerated on every run; large and non-reviewable.
+storage/
+ai-admin-module-py/storage/
+automation_workspace/
+playwright-report/
+test-results/
+*.webm
+*.zip.part
+
+# ---------------------------------------------------------------------------
+# Logs
+# ---------------------------------------------------------------------------
+*.log
+logs/
+
+# ---------------------------------------------------------------------------
+# Editor / OS
+# ---------------------------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

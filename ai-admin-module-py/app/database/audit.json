@@ -1,0 +1,7174 @@
+[
+  {
+    "timestamp": "2025-10-30T15:01:58.457407+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-286840b2756644ae985d4d7e08403966",
+      "ip": "127.0.0.1"
+    }
+  },
+  {
+    "timestamp": "2025-10-30T15:04:13.101633+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-1ba406cdeb7d47fd9483c4baa54581ff",
+      "ip": "127.0.0.1"
+    }
+  },
+  {
+    "timestamp": "2025-10-30T15:05:45.467113+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-75b2a66fe5c34cc8a7157c18ff970019",
+      "ip": "127.0.0.1"
+    }
+  },
+  {
+    "timestamp": "2025-10-30T15:10:36.686256+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-a1c6e279e4874ab4bd91dec9c826e288",
+      "ip": "127.0.0.1"
+    }
+  },
+  {
+    "timestamp": "2025-10-30T15:16:05.908312+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-de259704073b4618ad37f6837f472357",
+      "ip": "127.0.0.1"
+    }
+  },
+  {
+    "timestamp": "2025-10-30T15:17:42.814880+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-f2645a00b8e64621811b969cd3990d5e",
+      "ip": "127.0.0.1"
+    }
+  },
+  {
+    "timestamp": "2025-10-30T15:18:18.810315+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-83d530396cb14da987d7b53b13e50b3b",
+      "ip": "127.0.0.1"
+    }
+  },
+  {
+    "timestamp": "2025-10-30T15:18:28.254698+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-5e53d98bbd714565a0ae6e298a9de6ac",
+      "ip": "127.0.0.1"
+    }
+  },
+  {
+    "timestamp": "2025-10-30T15:24:09.440978+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-c2be273984634d66a91faf630965052b",
+      "ip": "127.0.0.1"
+    }
+  },
+  {
+    "timestamp": "2025-10-30T15:32:50.747982+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-c26ccd104b23419d8d99778e4ef92d75",
+      "ip": "127.0.0.1"
+    }
+  },
+  {
+    "timestamp": "2025-10-30T15:32:58.726684+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-10-30T15:32:58.732157+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-10-30T15:33:44.617244+04:00",
+    "actor": "manager",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "manager-8ab5a42d71b54244b6c6a59b2eb96dcb",
+      "ip": "127.0.0.1"
+    }
+  },
+  {
+    "timestamp": "2025-10-30T15:33:50.354555+04:00",
+    "actor": "manager",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-10-31T04:59:57.503287+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-25f3764aaed1426eb794f640aa3103ec"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T04:59:59.611633+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-10-31T04:59:59.640205+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-10-31T09:08:16.975993+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-ef35bdc6b760437196bc83f191799fff"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T09:08:20.216304+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-10-31T09:08:20.242125+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-10-31T09:09:56.131324+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-859e303113c6418e80cf61963fa737e6"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T09:36:16.073872+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-07ef77e7ee4e4a0bab444d9a3c80370e"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T09:36:18.431842+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-10-31T09:36:18.463706+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-10-31T09:40:11.827657+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-fbad0c3775f64dccaeab0d6bccac5606"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T09:40:14.669536+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-10-31T09:40:14.683841+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-10-31T09:42:18.702852+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-bc965ba692f540bc9503c119de35cf92"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T09:45:37.614001+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-e3e676e6179b417389c5601853cb0ba0"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T09:49:18.220243+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-54cedbc22b5b417eab82b62c2bdca808"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T09:49:20.356116+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-10-31T09:49:20.368513+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-10-31T09:50:49.157699+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-07ef77e7ee4e4a0bab444d9a3c80370e"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T10:25:51.406930+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-91df7f7654f14f4daf6ac2995670a6b6"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T10:30:58.751774+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-c7a52b25e00a4612b2fb9e51893d7149"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T10:31:01.656619+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-10-31T10:31:01.669454+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-10-31T11:16:43.735773+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-c981ce684a0a4215a245d448e6e2b202"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T11:46:36.136505+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-43e74540b89e4b9ca5706c4b7eb1b3b2"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T12:23:15.928033+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-5f21d72ee1e34f50a3e8b0b8e6c37229"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T12:45:09.360163+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-af9ec8a599f541c7b317f6f5b212d4c0"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T13:13:55.585740+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-44deefb5f48149ff9aa47d1cf4decae6"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T13:51:19.279909+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-697cced9a5b249b39e38a831d778b889"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T13:51:22.208361+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-10-31T13:51:22.305064+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-10-31T14:00:50.778568+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-4c8998cc08a14ef5929d92aa56494c26"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T14:29:40.953737+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-5281d9c5f6f54f6a986f3f141cd14eb4"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T14:50:49.365612+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-09f60e6ef5d546829165c7ef0b4e61e9"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T15:28:17.973741+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-38f620e94f75470499896b30cef4f11a"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T16:38:07.268538+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-34ca4ae7b3e4445190d285a7e547438b"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T16:38:11.357903+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-10-31T16:38:11.370740+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-10-31T17:12:50.855514+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-7c36af5ea9464072bf066326d7e7cc0d"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T17:35:40.721794+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-7826e341c5084cd1a742019967fcbbe3"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T17:51:11.211735+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-1069e873c56a4d5d8f3d961f69649f91"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T17:51:42.974911+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-545ceccd93544784b5a9caa62ff515b1"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T17:51:57.566295+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-29102321823e49419d25c2f2fd8242c4"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T17:52:01.633500+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-7826e341c5084cd1a742019967fcbbe3"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T17:52:02.707905+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-1069e873c56a4d5d8f3d961f69649f91"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T17:52:03.735156+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-545ceccd93544784b5a9caa62ff515b1"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T17:52:25.335227+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-c1331db3616947108c98d0ae483e8d83"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T18:54:17.513968+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-2beb2d1261b2435ca80919ee0e2ac8d9"
+    }
+  },
+  {
+    "timestamp": "2025-10-31T18:54:19.342384+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-10-31T18:54:19.368001+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-10-31T19:12:19.549731+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-995b3d2026ea492491be2b0670e2a37f"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T09:54:50.473390+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-b591774e98cd406f9005bf2a2d0fb6d9"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T09:55:07.027333+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-423c40bc14be4979be6723c82cb79307"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T09:55:09.940007+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T09:55:09.988402+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T10:00:11.965660+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-321b8f0f55b84efeba19a4c4d5d41785"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T10:00:19.328560+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T10:00:19.341127+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T10:33:27.326958+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-ad4c74c16dbd4d3fbf2866de263a9d3c"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T11:24:35.741649+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-0b483ade522d4ad589fd55fa87718957"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T12:21:58.633011+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-03f648b50cc949fa9a025d5c8c0213ee"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T12:22:38.346623+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T12:22:38.365240+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T12:22:51.394084+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-785b7ea78a58475c882fca540a06fdef"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T12:30:09.482037+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-aca565efef18444083e3d8d1c5b7857c"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T12:46:28.972416+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-dfb54377c0134a1b8fda60f9e66b227e"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T12:46:39.616261+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T12:46:39.633001+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T12:49:13.770048+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-d47ada36cad144b38e4e07b3303352bd"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T12:49:28.223513+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-dfb54377c0134a1b8fda60f9e66b227e"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T12:49:29.949400+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-d47ada36cad144b38e4e07b3303352bd"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T12:49:41.106235+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-a28447d74c0447ee81b5ec7b8f8eef02"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T12:54:02.290077+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-0c0b089d9703492ab0ee10ec83750404"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T13:14:21.233280+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-cc6681eec4a2412faaa6301718db76cc"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T13:14:25.384439+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T13:14:25.398403+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T13:14:35.050225+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-0c0b089d9703492ab0ee10ec83750404"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T13:14:36.413327+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-cc6681eec4a2412faaa6301718db76cc"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T13:14:43.813936+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-3895e904388446cc8974fd2133a8e30f"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T13:14:49.717996+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T13:14:49.726695+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T13:32:11.696724+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-fb333d2ade684e2088f30c3ccfabba3f"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T13:32:19.393813+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T13:32:19.416794+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T13:32:26.664228+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-3895e904388446cc8974fd2133a8e30f"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T13:32:27.828325+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-fb333d2ade684e2088f30c3ccfabba3f"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T13:32:35.058218+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-46689019d47f41c89394cec36e7d6eaa"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T13:32:39.114526+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T13:32:39.125127+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T13:43:31.187937+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T13:43:31.197335+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T13:56:37.954866+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-ea1a247db2d74d068ca046a4c7ae5e11"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T13:57:14.423595+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T13:57:14.433193+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T14:00:48.154911+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T14:00:48.163798+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T14:01:28.714514+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T14:01:48.429247+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T14:01:48.439868+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T14:25:39.642104+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-d5b7dcf0969d49bfa7b1216d478768ef"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T14:56:46.347453+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-6d71c1d13ea6468dab17a2f9fab8ca51"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T15:24:02.797748+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-e4c6d5bb7acd4195bf1276cdde3831b6"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T15:24:06.347009+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T15:24:06.363259+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T15:36:21.423230+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-4659e9d2dcc94e03b9687bdaa89fce45"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T15:37:33.042152+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T15:37:33.058507+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T15:56:19.743986+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-c840b2a2d5f34b59a430869522dbda09"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T15:56:28.756934+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T15:56:28.772343+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T16:03:11.827693+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-7daf294c12b347b7812332f0401bf871"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T16:03:22.488301+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T16:03:22.508198+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T16:06:40.164676+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-0b96cd4ffb8e4cb9b17721910ee97f7a"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T16:06:49.070565+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T16:06:49.077448+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-01T16:22:35.892687+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-21405c0622a94d809b226b20637b921a"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T17:28:11.522014+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-7ae0df49be6b4014a227c7e60404336e"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T17:28:28.929518+04:00",
+    "actor": "manager",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "manager-a8f6790ee1fe49a9b51540e5635bd7c1"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T17:28:55.599971+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-e64e06b0fae640e394a6eafedebce72f"
+    }
+  },
+  {
+    "timestamp": "2025-11-01T17:47:24.727883+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-92f22f2ed9a64883aa172bf100915723"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T00:03:19.512107+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-4c673737a76d44d29caceeb42368efa0"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T00:05:55.040410+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T00:05:55.062949+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T00:07:51.014353+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T00:07:51.031295+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T00:20:39.502549+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-910a408c06564a288d41fc6cd0bdf00d"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T00:21:06.385074+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-4c673737a76d44d29caceeb42368efa0"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T00:21:15.686938+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-bcdad1ef49a34ea7a3293d75cd105528"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T00:21:23.946459+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-910a408c06564a288d41fc6cd0bdf00d"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T00:22:04.665592+04:00",
+    "actor": "manager",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "manager-5d826df4a51144e7878b37eb30bac291"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T00:22:23.095940+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-cca5396e63984c17b80e61c99c7745dd"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T00:22:26.979249+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T00:22:27.006945+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T00:34:33.353656+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-ed84bd2005484a26af5d372cae9b7a50"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T00:39:46.525892+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-231df6b83ca1493890fb7eaefec4882c"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T00:40:46.784165+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-9298cf78746b45e1981b6e04b52b3726"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T00:45:11.155255+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-6aeebc42cf0243069c837dabc63f5627"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T00:45:27.549171+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-5042ca07ec57480ab0401b8dd2cd9b8c"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T00:45:53.307422+04:00",
+    "actor": "manager",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "manager-1f9161883e0b41f2adb97fd3bfe9d2a0"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T00:46:45.547128+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-364a733826814f75bac847cbd1a97c51"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T00:54:55.183547+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-072f02cc9bd740eaa40269961eef9843"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T01:07:36.882861+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-05225aed8cad4e9d8b959bb90e0e0a0a"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T01:08:21.717236+04:00",
+    "actor": "manager",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "manager-e11e4a515f7346748e9807d400a718e1"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T01:11:54.261868+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-b4d32f1b3b5841e5b92b54c3fde06253"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T01:12:14.660840+04:00",
+    "actor": "manager",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "manager-b1a88e4ae1c349b1b97744a66cdc2ffa"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T01:13:12.224577+04:00",
+    "actor": "manager",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "manager-41631a82a5e0423c952553da18440737"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T01:13:36.685241+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-51916bf74665443e96ebba7a9f856c4b"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T01:13:40.764227+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T01:13:40.780441+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T01:15:15.776605+04:00",
+    "actor": "test",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "test-aff39d9dc35d4bd69f359121415b36c6"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T01:15:58.646948+04:00",
+    "actor": "test",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "test-1ef2389f8c0f436290aab7d29b165807"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T01:23:01.242051+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-47f0af248773438f9ecf2471d154b511"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T01:23:39.200197+04:00",
+    "actor": "manager",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "manager-ca7329f8e9934c2685a8a4335f8966f4"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T01:24:13.580517+04:00",
+    "actor": "test",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "test-9ed0b6e54c394a6fbef39c9629d0c194"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T01:45:16.043831+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-77627b23772e4b53a54c8528ea2b5784"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T01:47:17.561188+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-79fb497f198d49bf808c293be0711f09"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T01:52:12.392377+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-df139aed11654c69bddd28858538b4b6"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T01:53:28.157470+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-af4bf519bacb44868189a4cc3c594352"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T01:53:33.963843+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T01:53:33.982092+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T01:56:12.410382+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T01:56:12.421784+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T01:56:21.675706+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-194c182e65484f2dbce130db07fa97b0"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T01:56:27.813033+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T01:56:27.819918+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T01:56:50.370410+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T01:56:50.382488+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T02:01:22.506312+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T02:01:22.522755+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T02:02:48.193505+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T02:14:38.750574+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-8e5407603b4b430e98434bf107b9fbe4"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T02:23:20.986298+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-72374a3976f748f28abbaaf195335825"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T02:24:04.736470+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-4fd8753561954a0d9d5d2a2dec8e6ec2"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T02:25:32.786684+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-b667c098ddeb46809517ddd3f04ac060"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T02:30:15.507763+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-492d8b3f57e341b3974935650de7d815"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T02:35:00.643762+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-2f2d2c8ac9aa4968a96e98d1a7a60301"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T02:38:29.054918+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-ffbe4fe766f840bea752aed2ed96c705"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T02:44:47.822667+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-1fb4650b12e54ec09279d981bddaedca"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T02:48:35.200468+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-eb6aa745a08d48be91773117ebecd7dc"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T02:49:55.431219+04:00",
+    "actor": "test",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "test-e892783c26fb4d48a6049bed00b5b0ea"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T02:50:12.363642+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-68b45d263e3c49a4900772966f995996"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T15:58:44.253893+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-70e4c9b7bb924413b81a9a8d8c80ae79"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T15:59:42.614355+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T15:59:42.653898+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T16:00:47.151476+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T16:00:47.202003+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T16:01:21.797086+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T16:01:21.850466+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T16:33:19.653212+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-2da6020a360e4a16b4e33ad8f19dda0e"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T16:33:24.562173+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T16:33:24.591107+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T16:55:37.520962+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-e759eb50c1fc400fb9bfdf952ce4ec7e"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T17:02:56.774400+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-70d9fc64570c46adbaf742eb02fcc123"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T17:05:31.922767+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T17:05:31.951441+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T17:07:07.147587+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-db5d4747768145c0bcbc6d00860b67b4"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T17:07:49.578838+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T17:07:49.601083+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T17:18:59.686993+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-879e20520d214bc1aa05e0e435e052ac"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T17:21:53.165494+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-f377aa97c036446b904ee12f8cdb25d5"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T20:49:30.323506+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-b7203a3fe74048bf93ef9cd8a4a055af"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T20:53:25.914347+04:00",
+    "actor": "test",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "test-1dbf8b8ff15c4813947563e971702a1e"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T20:55:09.094495+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-8e7efc8c80354a47b668d651c1c37db9"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T21:00:36.529100+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T21:00:36.545548+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T21:00:47.044323+04:00",
+    "actor": "admin",
+    "action": "update_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "guna144"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T21:00:47.063357+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T21:01:42.642445+04:00",
+    "actor": "guna144",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "guna144-c5877de25e594030958e2b1b7798db6c"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T21:11:44.117279+04:00",
+    "actor": "guna144",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T21:11:44.130050+04:00",
+    "actor": "guna144",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T21:19:27.005719+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-a58084a7efc44072a827842b17db6e7c"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T21:21:41.896218+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-136a1e3dd3094891bc59f07013092c88"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T21:24:43.913047+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-9c32fb0845b24a779d7f33d1bc9f7d81"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T21:26:40.332102+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-27f960b9d5b54fc3924f51a6c2b7cd92"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T21:28:16.967585+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T21:28:16.986897+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T21:29:14.499051+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-8c6933138cc8470a9b1e5f088a9251ff"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T21:34:10.584059+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-e2266e7308034c0eb356f030349a9cb7"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T21:35:12.566452+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-62da3e51e4c54f478abc8a10b9f4daa9"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T21:51:17.741997+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-fac7ae6de8ab48fb9e1d226ccd2521d9"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T22:50:05.509211+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-c12ebe88847b4fb987c838dfb59217df"
+    }
+  },
+  {
+    "timestamp": "2025-11-02T22:50:18.072677+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-02T22:50:18.086669+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-03T10:00:18.231700+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-d1044bf0811c4e76a6d6fe2526748e46"
+    }
+  },
+  {
+    "timestamp": "2025-11-03T10:00:23.562228+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-03T10:22:05.320030+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-03T10:32:26.866718+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-c89e28b9e28c4f88a9ee6c1783dfd17f"
+    }
+  },
+  {
+    "timestamp": "2025-11-03T11:00:33.916290+04:00",
+    "actor": "guna144",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "guna144-06c20a839831444abd617c4f48e81aa6"
+    }
+  },
+  {
+    "timestamp": "2025-11-03T11:00:40.885820+04:00",
+    "actor": "guna144",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-03T11:00:40.904210+04:00",
+    "actor": "guna144",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-03T12:05:43.582145+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-5b74e89cddbd44e585dd54c578afac05"
+    }
+  },
+  {
+    "timestamp": "2025-11-03T12:06:20.506755+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-b6d51f1e0e92450e9eb99b998a7440ef"
+    }
+  },
+  {
+    "timestamp": "2025-11-03T12:07:39.301999+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-03T12:07:39.327086+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-03T12:15:47.406448+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-03T12:15:47.428567+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-03T12:17:25.081619+04:00",
+    "actor": "admin",
+    "action": "create_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "created_username": "adel"
+    }
+  },
+  {
+    "timestamp": "2025-11-03T12:17:25.123087+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-03T12:20:32.046922+04:00",
+    "actor": "adel",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "adel-0b1013bcdeaf4619b65a2c3e48787a97"
+    }
+  },
+  {
+    "timestamp": "2025-11-03T12:21:06.022589+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-d231462caa1842caa3274fe139959c84"
+    }
+  },
+  {
+    "timestamp": "2025-11-03T12:27:05.496472+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-d231462caa1842caa3274fe139959c84"
+    }
+  },
+  {
+    "timestamp": "2025-11-03T12:27:08.321531+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "adel-0b1013bcdeaf4619b65a2c3e48787a97"
+    }
+  },
+  {
+    "timestamp": "2025-11-03T12:27:11.273997+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-b6d51f1e0e92450e9eb99b998a7440ef"
+    }
+  },
+  {
+    "timestamp": "2025-11-03T12:27:12.199083+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-5b74e89cddbd44e585dd54c578afac05"
+    }
+  },
+  {
+    "timestamp": "2025-11-03T12:39:25.522393+04:00",
+    "actor": "adel",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "adel-56246ce91f8145cd8acbdc76fabc3196"
+    }
+  },
+  {
+    "timestamp": "2025-11-03T12:41:00.613451+04:00",
+    "actor": "test",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "test-a64be2aeaa954f6391c326f2c82357d8"
+    }
+  },
+  {
+    "timestamp": "2025-11-03T12:41:19.604698+04:00",
+    "actor": "manager",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "manager-6808873d42614c2ca39516500f372f84"
+    }
+  },
+  {
+    "timestamp": "2025-11-03T12:41:45.102498+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-2aaa040e19fd41d39938c8f7996e22ba"
+    }
+  },
+  {
+    "timestamp": "2025-11-03T12:41:47.512225+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-03T12:41:47.539958+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-03T12:44:33.312642+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-03T12:44:33.336846+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-03T12:55:51.335905+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-1c0f3516262046c4b2f4b34b920463f5"
+    }
+  },
+  {
+    "timestamp": "2025-11-03T12:55:54.740047+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-03T12:55:54.773947+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-03T12:56:57.218164+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-03T12:56:57.236629+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T09:39:34.096819+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-2c6b77efe8b843068a6078a889093794"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T09:41:12.799727+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-38f1d71bd07b4484b269baeaaddd6971"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T09:41:15.322215+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T09:41:15.364322+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T09:41:25.227111+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T09:41:25.247438+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T09:44:56.645281+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T09:44:56.665881+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T09:45:37.697677+04:00",
+    "actor": "admin",
+    "action": "create_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "created_username": "testuser1"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T09:45:37.733950+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T09:45:53.075118+04:00",
+    "actor": "testuser1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "testuser1-7cd79d0b21a54358ac7d34ee744db681"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T09:46:25.177042+04:00",
+    "actor": "testuser1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "testuser1-255c34adf8fc4094a362d14006563960"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T09:47:12.390192+04:00",
+    "actor": "testuser1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "testuser1-a6882253167b4898974f3a78661229e8"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T09:48:14.231732+04:00",
+    "actor": "testuser1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "testuser1-bf0ba174dbf84e259403eef05813b7b1"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T09:50:59.440666+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-6142aed2c7374e228ef10eb03c956d83"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T09:51:01.697766+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T09:51:01.732346+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T09:51:22.146861+04:00",
+    "actor": "guna144",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "guna144-048d581a94a647ee8580a2a1639239c1"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T09:51:29.756372+04:00",
+    "actor": "guna144",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T09:51:29.775880+04:00",
+    "actor": "guna144",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T09:51:40.734952+04:00",
+    "actor": "guna144",
+    "action": "update_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "guna144"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T10:43:09.746012+04:00",
+    "actor": "testuser1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "testuser1-3b941a55f26b46a18e322177cbf3c1c4"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T10:44:01.467577+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-81191bf1da074932a6c6b79f06f5f25e"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T10:44:06.914205+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T10:44:06.949393+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T10:45:16.013927+04:00",
+    "actor": "admin",
+    "action": "update_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "testuser1"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T10:45:16.050897+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T10:45:57.660060+04:00",
+    "actor": "guna144",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "guna144-c5929a32ac7c4acc8680f82be108144c"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T12:52:00.529877+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-a4c0f5c881224abc8d1d83d848fb2cb6"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T12:52:02.981500+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T12:52:03.072477+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T12:52:26.592396+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T12:52:26.612538+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T12:54:42.939165+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-2a9fcc0e608441f1bd5963eb35ba4346"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T12:54:45.858585+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T12:54:45.881887+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T12:55:04.262548+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T12:55:04.283530+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T15:10:04.475755+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-0afec69cdb1f4f11bb83a69f42d53cac"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T15:10:06.960840+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T15:10:06.989254+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T15:10:32.960487+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-e1560d4195a44c2681ee31c23c9b6d9d"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T15:10:54.827663+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T16:56:20.524238+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-e414aa20baa149a9b41094ac2eb035e8"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T17:00:10.828820+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:00:10.872507+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:08:33.269310+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T17:08:33.292167+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T18:48:14.491968+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-e9f46b5fa407468793df7b0daa6ff90a"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T19:15:55.454551+04:00",
+    "actor": "guna144",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "guna144-62a6496731dd49c7aace7ecc570fdfce"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T19:16:13.542856+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-dbca6087eac74450858905d93a902b9f"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T19:16:15.350859+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T19:16:15.392648+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T19:16:23.580643+04:00",
+    "actor": "admin",
+    "action": "update_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "guna144"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T19:16:23.628445+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T19:17:33.795765+04:00",
+    "actor": "guna144",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "guna144-9245b1e93e1f4e21ba91e167439ddcae"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T19:26:53.937349+04:00",
+    "actor": "test",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "test-4aff2bc993494715a80974c06ec77e73"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T19:28:14.704365+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-74a7c144abdb46a4adc9d8005c764ad4"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T19:33:01.105430+04:00",
+    "actor": "test",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "test-142f5508ae5142e69225c9e7dab0f2d2"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T19:34:27.247642+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-c22e2227b3c849108f64ce94d937742e"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T19:34:28.827923+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T19:34:28.869694+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T19:34:40.803377+04:00",
+    "actor": "admin",
+    "action": "update_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "test"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T19:34:40.844924+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T19:34:59.462568+04:00",
+    "actor": "test",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "test-9bea2e2d131b473f9cc0acf8c0d00f97"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T19:38:20.250990+04:00",
+    "actor": "test",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "test-09ee6221ede549768568a5a0b7fd47bc"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T20:05:20.249744+04:00",
+    "actor": "guna144",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "guna144-fa78537690d74772bea5abd2b85406ba"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T20:05:48.835496+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-78fd9d3efd45489b9b49b3c485e949f9"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T20:05:50.850914+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T20:05:50.908678+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T20:09:12.984943+04:00",
+    "actor": "admin",
+    "action": "update_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "adel"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T20:09:13.041558+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T20:10:13.823637+04:00",
+    "actor": "adel",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "adel-d42a1ffa309a4f7f98e808915b591b31"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T20:11:20.243626+04:00",
+    "actor": "adel",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "adel-d924f68150ab4d0aa7febc86fc093d05"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T20:11:34.766823+04:00",
+    "actor": "adel",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "adel-32c462bdb0714cb6aed65337596492d9"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T20:33:13.657159+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-c4bd6b5b2a074380aeb9840ab3cc9fb9"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T20:33:16.200829+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T20:33:16.233528+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T20:34:32.506500+04:00",
+    "actor": "admin",
+    "action": "update_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "testuser1"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T20:34:32.566613+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T20:35:02.600715+04:00",
+    "actor": "admin",
+    "action": "update_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "adel"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T20:35:02.656844+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T20:35:07.588996+04:00",
+    "actor": "admin",
+    "action": "update_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "guna144"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T20:35:07.637430+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T20:35:12.672799+04:00",
+    "actor": "admin",
+    "action": "update_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "test"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T20:35:12.740945+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T20:35:45.944484+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-b8dd8895d37f45838eea51b0d0982bf7"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T20:35:47.660242+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T20:35:47.697185+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-04T20:36:09.873863+04:00",
+    "actor": "adel",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "adel-8a045baa54844d09b2eac035282e9523"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T21:33:03.631438+04:00",
+    "actor": "guna144",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "guna144-30e6dc8a4b3b48d5a63d324d21ce33c0"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T21:33:29.737337+04:00",
+    "actor": "guna144",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "guna144-8f4c8adbbd8649f992be04e134f74ffd"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T21:34:52.265491+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-1915293734a04741ba8075a243b87808"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T21:39:37.315125+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-5fe63374abf3476aa01357eaffca4ef9"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T21:51:56.553289+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-8048119aaa874e0cb7d7804e05caa8ed"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T21:58:30.905315+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-cf635bc7f52c4a46bae6985f2c0868ab"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T22:00:17.126839+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-cf635bc7f52c4a46bae6985f2c0868ab"
+    }
+  },
+  {
+    "timestamp": "2025-11-04T22:18:42.430658+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-85712fcf42c744e6892e1bcf32d160ed"
+    }
+  },
+  {
+    "timestamp": "2025-11-06T15:12:29.070161+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-929fab2c6308478096cdbe00710c6027"
+    }
+  },
+  {
+    "timestamp": "2025-11-06T15:12:54.956077+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-06T15:12:55.007818+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-06T15:36:27.996087+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-76697ea92c3b4686ae012532704df14c"
+    }
+  },
+  {
+    "timestamp": "2025-11-06T15:36:29.878530+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-06T15:36:29.921024+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-06T15:36:43.068923+04:00",
+    "actor": "admin",
+    "action": "update_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "user1"
+    }
+  },
+  {
+    "timestamp": "2025-11-06T15:36:43.116883+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-06T15:36:58.152693+04:00",
+    "actor": "user3",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user3-7e8f8ff3a394425c8f32ef5de3ec7c92"
+    }
+  },
+  {
+    "timestamp": "2025-11-06T15:37:10.077554+04:00",
+    "actor": "user2",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user2-b65a15da48c34b7881a1ce5ddd3f94ec"
+    }
+  },
+  {
+    "timestamp": "2025-11-06T15:37:24.116781+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-a8ac78b6662d4c2e9e2d0dbeb47e9bd2"
+    }
+  },
+  {
+    "timestamp": "2025-11-06T15:37:37.855286+04:00",
+    "actor": "adel",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "adel-f435c9001a4c4d85abfa16bd452c6ad4"
+    }
+  },
+  {
+    "timestamp": "2025-11-06T15:38:12.926969+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-53b628ad274a4c1dbec867d9095e1c8b"
+    }
+  },
+  {
+    "timestamp": "2025-11-06T15:38:14.892066+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-06T15:38:14.934606+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-06T15:38:40.342487+04:00",
+    "actor": "admin",
+    "action": "create_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "created_username": "user4"
+    }
+  },
+  {
+    "timestamp": "2025-11-06T15:38:40.403188+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-06T15:38:53.180252+04:00",
+    "actor": "user4",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user4-994838459a49473181302d85a28798bb"
+    }
+  },
+  {
+    "timestamp": "2025-11-06T15:40:17.036371+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-163be576dfff46ada82ef5bec89fcd4e"
+    }
+  },
+  {
+    "timestamp": "2025-11-06T15:41:44.792814+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-06T15:41:44.831701+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-07T16:35:59.116097+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-8e681a3781b24a6196118f2650953397"
+    }
+  },
+  {
+    "timestamp": "2025-11-07T16:36:55.768375+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-07T16:37:00.262127+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-07T16:37:00.295541+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-07T16:53:22.084795+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-07T17:02:37.047750+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-07T18:36:03.379122+04:00",
+    "actor": "user3",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user3-aa284fbdaa2b404bb72cf50e0c84fe9a"
+    }
+  },
+  {
+    "timestamp": "2025-11-08T21:16:17.022030+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-9934eea9ecc849bea27b7fcb89e1f09b"
+    }
+  },
+  {
+    "timestamp": "2025-11-08T21:16:35.140986+04:00",
+    "actor": "user3",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user3-1533c415a1e64c6b9b5b1baeb62eabbb"
+    }
+  },
+  {
+    "timestamp": "2025-11-08T21:45:50.072821+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-ff5fde9f0f11458bb82c675d3dd31514"
+    }
+  },
+  {
+    "timestamp": "2025-11-08T21:46:05.641011+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-9980216512104f1c9fdfeefb70ce236a"
+    }
+  },
+  {
+    "timestamp": "2025-11-08T21:46:21.663107+04:00",
+    "actor": "user3",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user3-4be62d6e728a4eb8b5daba6d43c93c01"
+    }
+  },
+  {
+    "timestamp": "2025-11-08T21:46:44.946639+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-f7b3e58448a24505b1196e9892ee1bdb"
+    }
+  },
+  {
+    "timestamp": "2025-11-08T21:46:59.434084+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-08T21:46:59.460426+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-10T11:01:19.977612+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-803a8ea28f6c4803a07ee2215b441fa6"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T14:26:08.197705+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-bb64f79139614888ac79371324780553"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T14:28:29.261301+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-543889fcf8e84e88b2dbfd0f6d59fcc5"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T14:44:14.386574+04:00",
+    "actor": "adel",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "adel-8662107b5d78430e8778b73952dc01c2"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T14:45:47.847506+04:00",
+    "actor": "adel",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "adel-09804ccc6cae4710991a3d2d5075d3d5"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T15:08:34.536757+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-22ceb7e3b53e418d8b56b5ac7a8ac7d2"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T15:11:30.347474+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-af9665fd64874e1d8a8f30d53b9136d8"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T15:15:25.098680+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-539f4860ab4e4b6bba7694b2378b7e60"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T15:16:14.588926+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-f56ab22756e34700a726656fe1957844"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T15:19:44.940058+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-40537388be7042ca8320eeb9d21fa913"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T15:22:13.007609+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-b1b78be36a2f47ccaaf7f8acc84360f3"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T15:23:58.107009+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-41a8cb6af689427c8b2e67bd8e5d2a5c"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T15:25:18.171345+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-a9e47328a09f4e6c9e5be17d9edc9f4d"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T15:31:41.054439+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-1fe5f7a995544b2ab98fe958af5386aa"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T15:31:55.694889+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-6d432211afe14e519b2d2e7080d79b43"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T15:33:17.400070+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-45c8a6a4a3ef4fdeb5ef36fd2f41d651"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T15:34:32.126677+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-10915e3983b54f44bd6cb980a638f0d0"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T15:39:00.673174+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-5dc50d661db8466b8d31a8f5ccea75d3"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T15:40:58.909571+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-99480d6e49b94e179e1b39a3ab1debc2"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T15:43:01.755686+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-afbb7e3f0d664600a81095b34cee5b5e"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T15:53:40.395397+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-36758e59e3554024923337e81dee09b0"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T16:05:59.328316+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-5a56ae8be9fe447385e7589e9c523b79"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T16:06:25.769240+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-79da49ff31504867aef177888755bd88"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T16:09:26.003425+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-286b49b180e546fdbd9db0cac4e17d63"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T16:09:53.270934+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-2904feed65eb41048b6db4ef28d19b8a"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T16:10:12.642174+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-3352abab754848439347a1e6fbb1ad0e"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T16:10:45.372135+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-fa4581b8756e470f92478443c385f798"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T16:11:14.543740+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-44013da443f3420fa7176043200ea242"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T16:11:20.173980+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T16:11:20.192310+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T16:11:28.299981+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T16:11:28.311723+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T16:21:18.502895+04:00",
+    "actor": "user2",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user2-14c27a277e9e4e5c9781dce4ff82eebf"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T16:29:43.851978+04:00",
+    "actor": "user2",
+    "action": "update_must_change_password",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "user2",
+      "must_change_password": false
+    }
+  },
+  {
+    "timestamp": "2025-11-11T17:09:25.819781+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-f1bf72198e484eb7ba0b382513c448f5"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T17:09:42.930895+04:00",
+    "actor": "user2",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user2-185b72459c674091b1516129074debd8"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T17:11:26.125537+04:00",
+    "actor": "admin",
+    "action": "update_password_and_must_change_flag",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "user2",
+      "must_change_password": false
+    }
+  },
+  {
+    "timestamp": "2025-11-11T17:12:16.158352+04:00",
+    "actor": "user2",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user2-30ba71d85e22405a894c37fb55ba99fb"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T17:12:33.897345+04:00",
+    "actor": "user2",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user2-530ec4c7c38e4c099eb42f5b71df36b5"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T17:12:41.320445+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-1433b920ec824a1680644a0dafe32290"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T17:12:50.981193+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-2cbcbc8f143845bd8bac74d4d56fcf66"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T17:22:37.281263+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-eec6eaf2334a4737a0be4a75b51c8815"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T17:27:42.798854+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-baa57831b882428a82a35d9c83f8c802"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T17:27:59.505086+04:00",
+    "actor": "user2",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user2-54c8827cdaf94e1e971443cedba13fa4"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T17:28:16.817885+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-362e36b005644e9dabbb7919889f89bb"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T17:28:38.538836+04:00",
+    "actor": "user1",
+    "action": "update_password_and_must_change_flag",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "user1",
+      "must_change_password": false
+    }
+  },
+  {
+    "timestamp": "2025-11-11T17:29:13.575508+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-3f7d78ee2c4943c6b5e424f397ec2b80"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T17:32:55.613280+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-d7f1678abe9748bf96985d68cc0f6e6b"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T17:33:09.683816+04:00",
+    "actor": "user2",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user2-fa1e6926852841d4bef3d5031e531c58"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T17:33:34.854052+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-ce54a025727d4dc6a63b218b6fa388b4"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T17:33:47.369974+04:00",
+    "actor": "user3",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user3-d0e759f863244f47a6552fc1b634e07f"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T17:35:24.328070+04:00",
+    "actor": "user3",
+    "action": "update_password_and_must_change_flag",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "user3",
+      "must_change_password": false
+    }
+  },
+  {
+    "timestamp": "2025-11-11T17:35:36.524107+04:00",
+    "actor": "user3",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user3-9dee12a9acf244c7a7664b4373d02e9d"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T19:02:01.672991+04:00",
+    "actor": "user4",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user4-f7b9d9df27f0412e860359aef9b7ffeb"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T19:03:46.252134+04:00",
+    "actor": "user4",
+    "action": "update_password_and_must_change_flag",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "user4",
+      "must_change_password": false
+    }
+  },
+  {
+    "timestamp": "2025-11-11T19:03:56.167368+04:00",
+    "actor": "user4",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user4-2f976081af164a26b2a3670dd292963f"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T19:05:29.716559+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-ff62c10d67a7483c86b6f4db9ce3d97b"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T19:05:35.450219+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T19:05:35.488711+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T19:06:13.378237+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-e719d31c3a504150a63523bc07b8848a"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T19:06:19.326170+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T19:06:19.360704+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T19:17:30.927304+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-3da8b9dc665a47e09788fcc7fd427b21"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T19:18:17.150914+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T19:18:17.210051+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T19:22:37.232013+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T19:25:28.179582+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T19:25:57.245306+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-eaa9bfdd546a494986cd99072a6cf604"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T19:26:04.055504+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T19:26:04.079714+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T19:26:47.901373+04:00",
+    "actor": "admin",
+    "action": "create_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "created_username": "user5"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T19:26:47.905910+04:00",
+    "actor": "admin",
+    "action": "create_user",
+    "resource": "users",
+    "status": "error",
+    "details": {
+      "error": "1 validation error for UserResponse\nmust_change_password\n  Field required [type=missing, input_value={'username': 'user5', 'em...11, 15, 26, 47, 883876)}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.8/v/missing"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T19:30:24.730333+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-4a569d9246de46c29c01e270354fe734"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T19:30:28.301471+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T19:30:28.333566+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T19:30:50.394974+04:00",
+    "actor": "admin",
+    "action": "create_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "created_username": "user6"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T19:30:50.401442+04:00",
+    "actor": "admin",
+    "action": "create_user",
+    "resource": "users",
+    "status": "error",
+    "details": {
+      "error": "1 validation error for UserResponse\nmust_change_password\n  Field required [type=missing, input_value={'username': 'user6', 'em...11, 15, 30, 50, 379395)}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.8/v/missing"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T19:36:01.271613+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-55e2cafb9e874815a0d1c6bfd7c41e88"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T19:36:07.003831+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T19:36:07.038115+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T19:41:27.826073+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T19:41:45.300799+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-a538e99a1417452998cf401037df7a64"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T19:41:51.490104+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T19:41:51.520703+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T19:42:15.374392+04:00",
+    "actor": "admin",
+    "action": "create_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "created_username": "user5"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T19:42:15.385554+04:00",
+    "actor": "admin",
+    "action": "create_user",
+    "resource": "users",
+    "status": "error",
+    "details": {
+      "error": "1 validation error for UserResponse\nmust_change_password\n  Field required [type=missing, input_value={'username': 'user5', 'em...11, 15, 42, 15, 335162)}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.8/v/missing"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T19:48:07.624415+04:00",
+    "actor": "admin",
+    "action": "create_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "created_username": "string"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T19:48:07.630325+04:00",
+    "actor": "admin",
+    "action": "create_user",
+    "resource": "users",
+    "status": "error",
+    "details": {
+      "error": "1 validation error for UserResponse\nmust_change_password\n  Field required [type=missing, input_value={'username': 'string', 'e... 11, 15, 48, 7, 604283)}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.8/v/missing"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T19:54:50.747000+04:00",
+    "actor": "admin",
+    "action": "create_user",
+    "resource": "users",
+    "status": "error",
+    "details": {
+      "error": "(sqlite3.IntegrityError) UNIQUE constraint failed: users.email\n[SQL: INSERT INTO users (username, email, password, role, roles, category, is_active, created_at, modified_at, must_change_password) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]\n[parameters: ('string1', 'user@example.com', 'string', 'string', '[\"string\"]', 'string', 1, '2025-11-11 15:54:50.743211', '2025-11-11 15:54:50.743217', 1)]\n(Background on this error at: https://sqlalche.me/e/20/gkpj)"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T19:55:06.196548+04:00",
+    "actor": "admin",
+    "action": "create_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "created_username": "string1"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T19:55:06.206633+04:00",
+    "actor": "admin",
+    "action": "create_user",
+    "resource": "users",
+    "status": "error",
+    "details": {
+      "error": "1 validation error for UserResponse\nmust_change_password\n  Field required [type=missing, input_value={'username': 'string1', '... 11, 15, 55, 6, 171900)}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.8/v/missing"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:00:06.008361+04:00",
+    "actor": "admin",
+    "action": "create_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "created_username": "string13"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:00:35.339643+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-fa76de2e6cbe4db6aa4c2875c68fbecf"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:00:38.875276+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T20:00:38.922090+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T20:01:19.858653+04:00",
+    "actor": "admin",
+    "action": "create_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "created_username": "user34"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:01:19.892846+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T20:01:38.320628+04:00",
+    "actor": "user34",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user34-f7cd8272b239416eb6174afcce14b7f9"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:02:08.739210+04:00",
+    "actor": "user34",
+    "action": "update_password_and_must_change_flag",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "user34",
+      "must_change_password": false
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:02:26.798305+04:00",
+    "actor": "user34",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user34-1a625fe97dd8463d9979a046118b2b24"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:02:57.817750+04:00",
+    "actor": "user34",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user34-003b4c33ab044727a41ae9cf073b5890"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:03:04.603524+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-3a2de48ae8c14d08acd69f0bf4933401"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:03:09.392588+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T20:03:09.424225+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T20:06:00.310513+04:00",
+    "actor": "admin",
+    "action": "update_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "string"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:06:00.340634+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T20:06:20.939522+04:00",
+    "actor": "string",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "string-ab5eecb7210d4a6ea0b9e2650c29a7a6"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:07:01.448831+04:00",
+    "actor": "string",
+    "action": "update_password_and_must_change_flag",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "string",
+      "must_change_password": false
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:07:16.204554+04:00",
+    "actor": "string",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "string-dcb6c89ddbd24c3fbe90e4639e8ea36f"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:07:28.489903+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-d262dc61560940c79e50bb79f4ae3d69"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:07:33.330336+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T20:07:33.353635+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T20:15:12.818306+04:00",
+    "actor": "admin",
+    "action": "create_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "created_username": "user7"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:15:12.889181+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T20:15:44.787338+04:00",
+    "actor": "user7",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user7-b14c5b5dddac426686b2c0e534dc6472"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:16:10.724381+04:00",
+    "actor": "user7",
+    "action": "update_password_and_must_change_flag",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "user7",
+      "must_change_password": false
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:16:19.566358+04:00",
+    "actor": "user7",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user7-d270389bb13b49bc82b73f191d68a40c"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:16:28.201391+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-5614582ad78c4a008c999b780f203008"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:16:31.674385+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T20:16:31.689383+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T20:25:25.596523+04:00",
+    "actor": "admin",
+    "action": "update_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "string1"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:25:25.617821+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T20:27:15.265880+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-eb2205c4fafd497bb046ed56b940f8f5"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:27:28.927990+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T20:27:28.942329+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T20:27:42.238300+04:00",
+    "actor": "admin",
+    "action": "update_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "string13"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:27:42.252424+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T20:30:12.634362+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-351dcac356264b7c8acfec311ddac791"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:30:15.764741+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T20:30:15.785701+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T20:32:41.631864+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T20:32:41.645362+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T20:40:30.118044+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-fb78c459eb74419da1d21653bba51204"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:45:35.419274+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-5f7d45a431dd4ccb8b52821ee346256e"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:49:59.863618+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-d715142ec58241c6b01e1666a69af697"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T20:50:33.025896+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T20:50:33.035711+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T20:51:07.890392+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-81ef8c8a35df449397db4a67dd8d30a4"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T22:05:36.788438+04:00",
+    "actor": "adel",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "adel-0daf86edf8ce4d789ac6ed14eb8d88a8"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T22:06:19.053224+04:00",
+    "actor": "user7",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user7-85c33029cea149479c6d3b560d621e1e"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T22:23:39.955924+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-38db57cb2c884e84aa046528fe4cbc7c"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T22:25:46.674680+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-5bab966db37e4acdac6d052241331d4a"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T22:25:56.860996+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T22:25:56.879713+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T22:43:50.084790+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-6fa38790cc7544bda96660504b265bb9"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T22:43:52.949229+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T22:43:52.971732+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T22:44:22.919177+04:00",
+    "actor": "admin",
+    "action": "create_user",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "created_username": "Hassan"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T22:44:22.930816+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T22:44:54.645515+04:00",
+    "actor": "Hassan",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "Hassan-84b68b40d7a5413cb1f0f42e5905305b"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T22:45:24.766637+04:00",
+    "actor": "Hassan",
+    "action": "update_password_and_must_change_flag",
+    "resource": "users",
+    "status": "success",
+    "details": {
+      "updated_username": "Hassan",
+      "must_change_password": false
+    }
+  },
+  {
+    "timestamp": "2025-11-11T22:45:34.562106+04:00",
+    "actor": "Hassan",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "Hassan-d53047db28c84bb6b585af81134a87ab"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T23:05:05.728935+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-bedc7d56dee243d7bf9c425b1e40d176"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T23:05:09.698117+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T23:05:09.708834+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T23:05:39.394333+04:00",
+    "actor": "Hassan",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "Hassan-03145571413248c486e3473c3d7978c1"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T23:06:11.967824+04:00",
+    "actor": "user2",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user2-ed984675536742c0a085f9e501389b21"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T23:06:35.539572+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-0d85eee697cc4d32b3ce01ba55a1e631"
+    }
+  },
+  {
+    "timestamp": "2025-11-11T23:06:38.785078+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-11T23:06:38.804812+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-12T06:59:18.818389+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-bb22b406b3eb4f92aa3145804d5234d0"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T07:01:04.466337+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-023029d0719745169b8dcb7001d76259"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T07:01:49.892159+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-156829fcfaf2441aa89763c1ff1e37a0"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T07:04:55.341311+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-55a6cfacfa044ad7af2c50b6b74fd194"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T07:05:47.344678+04:00",
+    "actor": "Hassan",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "Hassan-f88a13f9c7ee448d878798458191cfd8"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T07:08:30.612507+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-a6cccb8fce544a84a17a6aa209cbc5f8"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T07:11:32.338684+04:00",
+    "actor": "Hassan",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "Hassan-ed5b98d1b7bd4e10b9973bf2fde0a68f"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T07:13:30.136861+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-d0f644209e69402383d996bbf36e7fd8"
+    }
+  },
+  {
+    "timestamp": "2025-11-12T07:13:40.116099+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-12T07:13:40.169146+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-14T08:03:04.319391+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-522e6442b30b4227a5b1bb0b7df6866c"
+    }
+  },
+  {
+    "timestamp": "2025-11-14T08:40:05.586119+04:00",
+    "actor": "manager",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "manager-629e89b5bfbc4b70a46ae9c4e76fefa7"
+    }
+  },
+  {
+    "timestamp": "2025-11-14T09:02:58.751818+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-92abfc1ec0914faf89dcbb2368126964"
+    }
+  },
+  {
+    "timestamp": "2025-11-14T09:06:07.211340+04:00",
+    "actor": "user2",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user2-fd0cfa0e0ddd4e7ea1e7bd00c995dc99"
+    }
+  },
+  {
+    "timestamp": "2025-11-14T09:09:14.609767+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-d321b6d31f8941aeb3ec64d36804aa2f"
+    }
+  },
+  {
+    "timestamp": "2025-11-14T09:12:16.730925+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-c0950ee3c40a42a1aa103fe8737a9608"
+    }
+  },
+  {
+    "timestamp": "2025-11-14T09:14:30.738748+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-c3a6e832996147a98f4d084f1b82a1e6"
+    }
+  },
+  {
+    "timestamp": "2025-11-14T09:15:21.665595+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-154bc61983034061b1d5d331fd18d483"
+    }
+  },
+  {
+    "timestamp": "2025-11-14T09:19:28.645443+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-eed21c79e659456f815e3e864193c1e1"
+    }
+  },
+  {
+    "timestamp": "2025-11-14T09:33:31.085268+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-207d7ba5de834ead8ef0f4fc43cd4398"
+    }
+  },
+  {
+    "timestamp": "2025-11-14T09:39:56.495116+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-83b2eb3954154e3aad33328e39afacfa"
+    }
+  },
+  {
+    "timestamp": "2025-11-14T09:53:21.085621+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-452aba94dfab4d7582b0cecab780e405"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T07:14:12.534815+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-c7e06be622334d00a317f93429edae65"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T07:14:32.379271+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-c7e06be622334d00a317f93429edae65"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T07:26:50.933144+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-17995831d9274098b64b23093bbc4a5c"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T07:27:08.035924+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-17995831d9274098b64b23093bbc4a5c"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T07:28:56.422195+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-34df247d2fd14f8b84f7767e19a58e1f"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T07:29:13.751516+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-34df247d2fd14f8b84f7767e19a58e1f"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T07:31:41.090976+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-17T07:31:41.217486+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-17T07:44:23.785194+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-aa28fd9c7e5945109dab1e45a3b9c94e"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T07:44:47.841137+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-aa28fd9c7e5945109dab1e45a3b9c94e"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T07:48:51.827105+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-41cb64568d28429791de4151f6b67cf8"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T09:21:57.133503+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-691a0eff76b843c987906f650175d4b3"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T09:22:02.096300+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-17T09:22:02.109603+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-17T10:08:10.056869+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-843cf7b620534afcaf8b41f9efa2b56b"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T10:10:37.764927+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-569e69de833843318b599607bb19fe02"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T10:25:15.984587+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-26c8b7a4fb7046839fb05459af8cd3fb"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T10:28:56.675955+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-7388834d5d864df2b08a3c6a0e431c08"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T10:32:34.656863+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-f60fafa34dc94c56ae42d39b619fd020"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T10:43:59.201372+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-acef69f61c3643b28f75273ebff6fe80"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T10:45:21.217193+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-0f3e5b855340487289e68ab82674ea07"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T10:46:32.264776+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "user1-57492e0c77674279ba545a2adec9dc56"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T10:46:33.639258+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "user1-75d10f1417ab402496fd9e82eabd7183"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T10:46:35.388315+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "user1-acef69f61c3643b28f75273ebff6fe80"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T10:46:40.566058+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-0f3e5b855340487289e68ab82674ea07"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T10:47:16.575425+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-b3d85b76a6354c158266ed5130b92127"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T10:47:23.267711+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-b3d85b76a6354c158266ed5130b92127"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T10:54:43.848069+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-13b9e7d1bd7c4f15a52f353b84fff605"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T11:19:03.564231+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-67981bd01dcd4e19a7287486d7297c40"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T11:26:48.460973+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-2ee7d4ac5fb940e5965146814f047c34"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T11:27:15.957861+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-2ee7d4ac5fb940e5965146814f047c34"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T11:37:14.777692+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-93b2b9e5ce854a03b1dfae40089d8b3f"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T12:28:34.994541+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-5edf188e87004ce2a2f1018febc075b6"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T12:32:16.914127+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-7f93feedef0841269e7940fb4ed2ba9d"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T12:34:42.974571+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-0a321b4fd45c42cb86c625fa09ceb70a"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T12:54:25.288014+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-eff176d94aee452ba7f2bfb70a92a77c"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T12:57:24.989256+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-55824224c1144c0985d7f239f28af1c7"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T13:10:46.669069+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-33ab4742b63741b091dcafe88bb1366b"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T13:28:15.452681+04:00",
+    "actor": "admin",
+    "action": "terminate_user_sessions",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "username": "admin",
+      "count": 0
+    }
+  },
+  {
+    "timestamp": "2025-11-17T13:28:34.860020+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-0966d16ecfcf446193b0b8ed804ad6f8"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T13:31:13.456468+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-5e055ada48d24902b4c656402b9a06e4"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T13:31:21.440780+04:00",
+    "actor": "admin",
+    "action": "terminate_user_sessions",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "username": "admin",
+      "count": 2
+    }
+  },
+  {
+    "timestamp": "2025-11-17T13:31:44.016350+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-a3ad677938874de9b254b3241409ba58"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T13:31:53.859500+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-baa5bbb244404952ad05acffb32c1cf9"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T13:33:03.137919+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-e9b6b6cbdf344964a8f1023bd8205ad3"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T13:33:21.314706+04:00",
+    "actor": "admin",
+    "action": "terminate_user_sessions",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "username": "user1",
+      "count": 2
+    }
+  },
+  {
+    "timestamp": "2025-11-17T13:41:47.535411+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-29b9af1d93ee48bea443f981c023180d"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T13:41:51.795824+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-17T13:41:51.818924+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-17T13:50:35.448239+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-f40ce89d98c44af48d0637390c0253f0"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T13:51:08.795042+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-06cbd725123e4453aba26b22d93ca63c"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T13:54:15.798325+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-17T13:54:15.826297+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-17T13:55:45.745997+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-71831de4a18b427db7c8ac1b29eaacb7"
+    }
+  },
+  {
+    "timestamp": "2025-11-17T14:39:38.578768+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-2ed5f9e7395b43bf8a31c89326811a90"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T06:31:09.543783+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-4f98f8a110104538a1512603db33fcf5"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T06:31:34.172737+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-6cf1a77963c04c698f9ca96a352f6735"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T06:31:52.066337+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "user1-6cf1a77963c04c698f9ca96a352f6735"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T06:34:10.401343+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-94ad994d2a924d948ecaaabe0d387f87"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T06:40:52.674277+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-199ffc4bfe144d8cbe96546ae3374e47"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T06:58:43.632005+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-45c2f7d1d33c42e4a6ef2735169f6c70"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T06:58:51.428264+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-45c2f7d1d33c42e4a6ef2735169f6c70"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T06:59:06.054344+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-da315dced9d04b789b60eb7c92fadd96"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T06:59:11.961316+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-da315dced9d04b789b60eb7c92fadd96"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T07:08:36.375773+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-18d7c1f6be164b9890376ed7136a4762"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T07:08:42.819839+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-18d7c1f6be164b9890376ed7136a4762"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T07:14:09.419890+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-7463958e43d14c16a14f1e72f6e3018b"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T07:16:22.895666+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-601ea32c6a7b47769258a88b382cc33f"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T07:38:45.781619+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-a148b4200cc6477db3ef929612d01e5d"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T07:50:36.044438+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-57f7166061fb453483a80f6e1dbb93c8"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T07:56:54.564076+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-a364119eb3264b7982d0e22acc8e05ce"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T07:59:19.413951+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-32842dd828ea438f811c4355bef8a2ca"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T16:11:56.761820+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-92159c6916db4fd5975f5a48efa6ae50"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T16:14:36.151326+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-b957dc044dcf4affa9daad6422c9ea3d"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T16:34:15.942552+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-7d27a8122f3d42e4a275d9aae3de0bf3"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T16:36:11.954777+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-d60639995ee049b69fb4a18445cededc"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T16:48:12.703297+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-e913de5601684c65bc1bcbfd96983bae"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T17:08:00.213011+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-50f57138ca2142dcaeb06208a2698dac"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T17:08:35.347417+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-d55563e5db4e48d0b363cf90d8681e11"
+    }
+  },
+  {
+    "timestamp": "2025-11-18T17:13:49.720718+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-fb78aae2bd444e07845e7df55451446f"
+    }
+  },
+  {
+    "timestamp": "2025-11-19T11:23:27.446936+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-24a0da40ebe544168225f798e4b436de"
+    }
+  },
+  {
+    "timestamp": "2025-11-19T11:24:01.177251+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-4f09086983794c229a445d9942a29855"
+    }
+  },
+  {
+    "timestamp": "2025-11-19T11:24:13.385770+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "user1-4f09086983794c229a445d9942a29855"
+    }
+  },
+  {
+    "timestamp": "2025-11-19T12:07:39.577110+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-dd5258ca142243799612006522fb33a3"
+    }
+  },
+  {
+    "timestamp": "2025-11-19T12:15:55.847880+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-f1a1b0368c184003a740507b4a1226f7"
+    }
+  },
+  {
+    "timestamp": "2025-11-19T12:31:17.347969+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-8e52cbb9c1a54f86ab50a721f78f31c4"
+    }
+  },
+  {
+    "timestamp": "2025-11-19T12:33:41.719614+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-b5780effd15f464b9e28a8cbf706119c"
+    }
+  },
+  {
+    "timestamp": "2025-11-19T12:41:59.903218+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-409bd16a8971484ca746342daae90a49"
+    }
+  },
+  {
+    "timestamp": "2025-11-19T12:44:17.271370+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-5c87d622b77e493bb18d9ba758ee1c4c"
+    }
+  },
+  {
+    "timestamp": "2025-11-19T13:47:58.412245+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-bae9302592584f0b95dfdf450df86c8e"
+    }
+  },
+  {
+    "timestamp": "2025-11-19T15:10:06.437578+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-1ac96cf69e8f4b5796639a4d983239ec"
+    }
+  },
+  {
+    "timestamp": "2025-11-20T21:12:44.389553+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-aab19fe14d0d42b7ad0b476cd6fc9bf2"
+    }
+  },
+  {
+    "timestamp": "2025-11-20T21:30:57.317030+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-a0f0711e34c54f5d948945feae172ba4"
+    }
+  },
+  {
+    "timestamp": "2025-11-20T21:57:24.395307+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-ed54b52f9bfb4d94af93049da6fa9d67"
+    }
+  },
+  {
+    "timestamp": "2025-11-20T22:11:57.546696+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-ac508278437e48f69348dc94e46d6849"
+    }
+  },
+  {
+    "timestamp": "2025-11-20T22:16:58.635775+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-e525fd00251f440985a7f09e9e2d1bfc"
+    }
+  },
+  {
+    "timestamp": "2025-11-20T22:21:18.299317+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-37bcee6293c84b8a805fc0820b5c457b"
+    }
+  },
+  {
+    "timestamp": "2025-11-20T22:23:04.350032+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-20T22:23:04.369740+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-20T22:23:52.677876+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-8a9665e5e80f46edb7748ca14407a0fd"
+    }
+  },
+  {
+    "timestamp": "2025-11-20T23:03:49.886102+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-c90712c250694ae481bbe8bbcb7fdd36"
+    }
+  },
+  {
+    "timestamp": "2025-11-20T23:07:57.947695+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-21fd06ea64724f77bcf045b97de3cf52"
+    }
+  },
+  {
+    "timestamp": "2025-11-20T23:13:20.751744+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-ea7f6cfe931d4c0db245645b1bd2eb5b"
+    }
+  },
+  {
+    "timestamp": "2025-11-20T23:24:08.621536+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-b7ac0442a8b045db85699eceaeae77f5"
+    }
+  },
+  {
+    "timestamp": "2025-11-20T23:27:13.821344+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-0e721fee6f4d4ec3a06f078bf0c889ab"
+    }
+  },
+  {
+    "timestamp": "2025-11-20T23:29:15.962796+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-47e550b5792d4dcbb9ee8720a2e3a643"
+    }
+  },
+  {
+    "timestamp": "2025-11-20T23:36:06.981563+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-cdb955082c8b432e934d73aced02795b"
+    }
+  },
+  {
+    "timestamp": "2025-11-20T23:49:22.887462+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-4c945bf808df441f97fb491cb4326f91"
+    }
+  },
+  {
+    "timestamp": "2025-11-20T23:57:00.204237+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-009a3724df774d629352d84675d8add6"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T00:15:34.302056+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-3b6b6bcbed844fbfa36159187b0e0036"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T00:23:10.652925+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-3bf3ae4c94b8427695b960145b0e5816"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T00:31:05.577547+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-4ad5c47a0dad45ce95089b4e23f78fa4"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T00:32:18.594087+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-21T00:32:18.615292+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-21T00:34:27.331626+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-62a0cc96315449e1ac03cc733845e8f7"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T00:39:48.183898+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-ad14580b4c17409e8747edf68c015ae8"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T00:42:57.437845+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-d2aa2541379f48078e823508e5f9a094"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T00:45:34.672337+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-2f53a11042fe40d7b54035e02849e8ef"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T00:47:59.773952+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-a6e91cd5ad554feb8bbc83f583e5350e"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T07:15:32.257955+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-4c4708ecd02d44518be4358e9f31c2c3"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T07:17:49.650111+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-c3922177a5eb4dc19d25afec61dd97b1"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T07:22:49.903185+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-ecd579e938454472970f3e464a41458e"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T07:27:01.398910+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-fb00c06a2da74511977d83a671926723"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T07:35:48.458576+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-3d22c1c6d4584776bd0e86d8c8970147"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T07:39:51.921376+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-88227330a2fb4050aee11881390ab16d"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T09:44:15.513080+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-6af0834ea9e34964afda4048e21e36ed"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T10:03:15.131469+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-1287973cc86d4b5aa6b95250f6628170"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T10:04:16.957341+04:00",
+    "actor": "admin",
+    "action": "extend_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-1287973cc86d4b5aa6b95250f6628170",
+      "extended_by_seconds": 60
+    }
+  },
+  {
+    "timestamp": "2025-11-21T10:27:34.559603+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-207eec958ee24ba397fe7c842ba9c082"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T10:28:36.251981+04:00",
+    "actor": "admin",
+    "action": "extend_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-207eec958ee24ba397fe7c842ba9c082",
+      "extended_by_seconds": 60
+    }
+  },
+  {
+    "timestamp": "2025-11-21T10:29:51.921594+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-59d6b9ad5ee84c09b5ea33acda4341c4"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T10:30:54.607156+04:00",
+    "actor": "admin",
+    "action": "extend_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-59d6b9ad5ee84c09b5ea33acda4341c4",
+      "extended_by_seconds": 60
+    }
+  },
+  {
+    "timestamp": "2025-11-21T10:40:08.989278+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-4e3e8d5aec41469e9c49a5e62474403f"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T10:41:11.084737+04:00",
+    "actor": "admin",
+    "action": "extend_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-4e3e8d5aec41469e9c49a5e62474403f",
+      "extended_by_seconds": 60
+    }
+  },
+  {
+    "timestamp": "2025-11-21T10:53:57.848016+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-c79774465e5b478f92dcf5a20b8609b3"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T10:55:00.542228+04:00",
+    "actor": "admin",
+    "action": "extend_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-c79774465e5b478f92dcf5a20b8609b3",
+      "extended_by_seconds": 60
+    }
+  },
+  {
+    "timestamp": "2025-11-21T11:09:00.995225+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-49fa2535eb714da38b96e15604894c20"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T11:10:03.255602+04:00",
+    "actor": "admin",
+    "action": "extend_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-49fa2535eb714da38b96e15604894c20",
+      "extended_by_seconds": 60
+    }
+  },
+  {
+    "timestamp": "2025-11-21T11:13:49.115147+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-e756d956e17941feb5f7756f1ff0574b"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T11:14:51.431460+04:00",
+    "actor": "admin",
+    "action": "extend_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-e756d956e17941feb5f7756f1ff0574b",
+      "extended_by_seconds": 60
+    }
+  },
+  {
+    "timestamp": "2025-11-21T11:44:21.226771+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-db4b81b99bf74262b9fa51b0302ba629"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T11:45:25.085393+04:00",
+    "actor": "admin",
+    "action": "extend_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-db4b81b99bf74262b9fa51b0302ba629",
+      "extended_by_seconds": 60
+    }
+  },
+  {
+    "timestamp": "2025-11-21T11:59:14.080519+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-4dd6e03648654dc9b92712e919b0df06"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:00:16.111297+04:00",
+    "actor": "admin",
+    "action": "extend_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-4dd6e03648654dc9b92712e919b0df06",
+      "extended_by_seconds": 60
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:06:41.868767+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-5921274307f6407ab7368a2812f777b4"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:07:45.454429+04:00",
+    "actor": "admin",
+    "action": "extend_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-5921274307f6407ab7368a2812f777b4",
+      "extended_by_seconds": 60
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:09:21.942277+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-738060d1915649ff979dc87436cbaea6"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:10:24.748706+04:00",
+    "actor": "admin",
+    "action": "extend_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-738060d1915649ff979dc87436cbaea6",
+      "extended_by_seconds": 60
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:17:07.287136+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-ac64a44b90934f9ead1a8388cab6a0a0"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:18:09.751011+04:00",
+    "actor": "admin",
+    "action": "extend_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-ac64a44b90934f9ead1a8388cab6a0a0",
+      "extended_by_seconds": 60
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:19:12.189555+04:00",
+    "actor": "admin",
+    "action": "extend_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-ac64a44b90934f9ead1a8388cab6a0a0",
+      "extended_by_seconds": 60
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:20:14.557447+04:00",
+    "actor": "admin",
+    "action": "extend_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-ac64a44b90934f9ead1a8388cab6a0a0",
+      "extended_by_seconds": 60
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:24:47.902798+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-77a7863383454720a9aefdc4f626f80c"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:25:03.372198+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-9fc8885c277a46c7b94561fbecbf9149"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:25:51.443638+04:00",
+    "actor": "user1",
+    "action": "extend_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "user1-77a7863383454720a9aefdc4f626f80c",
+      "extended_by_seconds": 60
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:26:54.384259+04:00",
+    "actor": "user1",
+    "action": "extend_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "user1-77a7863383454720a9aefdc4f626f80c",
+      "extended_by_seconds": 60
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:28:25.563097+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-42d0fc4bd96348fe81504b9212fd252a"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:28:44.366621+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-afafc4597ee44020b1abd74a8532a8f8"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:28:49.687906+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-21T12:28:49.708397+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-21T12:29:00.654031+04:00",
+    "actor": "admin",
+    "action": "terminate_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "user1-afafc4597ee44020b1abd74a8532a8f8"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:44:01.539210+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-155524b0033a4b3f9abb5ea0a8a1aa8a"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:44:13.336491+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-97710f28da1743f582d0caa1d967b274"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:44:22.042951+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-e816f26c2776454da9c4f21183cc801c"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:44:33.605906+04:00",
+    "actor": "admin",
+    "action": "terminate_user_sessions",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "username": "user1",
+      "count": 2
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:48:46.704158+04:00",
+    "actor": "user1",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "user1-695660c97b3b467e9606d294de2788a0"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:49:23.836150+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-32dcaf7e7202414e98625e016460ce6b"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T12:50:25.404669+04:00",
+    "actor": "admin",
+    "action": "extend_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-32dcaf7e7202414e98625e016460ce6b",
+      "extended_by_seconds": 60
+    }
+  },
+  {
+    "timestamp": "2025-11-21T13:06:18.427754+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-12d1bab065cb4dad931b65c14fbe50df"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T13:20:49.571269+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-a47b09464bc948078ef90557c1ce85e2"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T13:59:40.658436+04:00",
+    "actor": "admin",
+    "action": "login",
+    "resource": "auth",
+    "status": "success",
+    "details": {
+      "session_id": "admin-4dc85f4dd89b46ac83b3891984c59233"
+    }
+  },
+  {
+    "timestamp": "2025-11-21T13:59:49.093570+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-21T13:59:49.118966+04:00",
+    "actor": "admin",
+    "action": "list_users",
+    "resource": "users",
+    "status": "success",
+    "details": {}
+  },
+  {
+    "timestamp": "2025-11-21T14:05:25.828342+04:00",
+    "actor": "admin",
+    "action": "extend_session",
+    "resource": "sessions",
+    "status": "success",
+    "details": {
+      "session_id": "admin-4dc85f4dd89b46ac83b3891984c59233",
+      "extended_by_seconds": 60
+    }
+  }
+]

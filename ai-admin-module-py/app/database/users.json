@@ -1,0 +1,28 @@
+{
+  "admin": {
+    "username": "admin",
+    "email": "admin@example.com",
+    "password": "admin123",
+    "role": "admin",
+    "roles": [
+      "admin"
+    ],
+    "category": "system",
+    "is_active": true,
+    "created_at": "2025-10-30T18:51:54.386758Z",
+    "modified_at": "2025-10-30T18:51:54.386758Z"
+  },
+  "manager": {
+    "username": "manager",
+    "email": "manager@example.com",
+    "password": "manager123",
+    "role": "manager",
+    "roles": [
+      "manager"
+    ],
+    "category": "operations",
+    "is_active": true,
+    "created_at": "2025-10-30T18:51:54.386758Z",
+    "modified_at": "2025-10-30T18:51:54.386758Z"
+  }
+}

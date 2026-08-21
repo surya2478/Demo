@@ -1,0 +1,50 @@
+# ./docker-compose.yml
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./ai-admin-module-py
+      dockerfile: Dockerfile
+      # Add proxy args for the backend build if needed (e.g., for 'pip install')
+      args:
+        - HTTP_PROXY=${HTTP_PROXY}
+        - HTTPS_PROXY=${HTTPS_PROXY}
+    container_name: admin-module-py_backend
+    ports:
+      - "8002:8002" # Optional: useful for direct backend debugging
+    volumes:
+      - ./db-backup:/app/external-db
+    environment:
+      - DATABASE_URL=sqlite:////app/external-db/admin.db
+    networks:
+      - existing-network
+    # In development, you might want volumes for hot reloading:
+    # volumes:
+    #   - ./backend:/app
+
+  frontend:
+    build:
+      context: ./ai-test-assistant-frontend
+      dockerfile: Dockerfile
+      # Pass proxy variables from your host environment to the build stage
+      args:
+        - HTTP_PROXY=${HTTP_PROXY}
+        - HTTPS_PROXY=${HTTPS_PROXY}
+    container_name: ai-test-assistant_frontend
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-https://dx12348.etisalat.corp.ae/admin/}
+        # Pass proxy variables to the running container environment as well
+      - HTTP_PROXY=${HTTP_PROXY}
+      - HTTPS_PROXY=${HTTPS_PROXY}
+    ports:
+      - "5173:5173" # Map host port 3000 to container Nginx port 80
+    depends_on:
+      - backend
+    networks:
+      - existing-network
+
+networks:
+  existing-network:
+    external: true
+    name: test_case_assistant-master_default

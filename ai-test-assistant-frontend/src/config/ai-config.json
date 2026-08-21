@@ -1,0 +1,14 @@
+// {
+//   "BASE_URL": "http://localhost:8000",
+//   "ENDPOINTS": {
+//     "generateTestCases": "/generate/brd-testcases",
+//     "generateTestData": "/generate/test-data",
+//     "exportExcel": "/export/test-cases-excel"
+//   },
+//   "PARAMETERS": {
+//     "provider": "ollama",
+//     "model": "gemma3:1b",
+//     "temperature": 0.1,
+//     "maxTokens": 4096
+//   }
+// }
