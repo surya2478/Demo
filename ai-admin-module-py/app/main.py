@@ -56,7 +56,7 @@ app.add_middleware(
 )
 
 # Import routers
-from .routers import audit, auth, dashboard, users, settings as settings_router, session as session_router, config as config_router, request_tracker, oslc_rqm_rtc, solutions_proxy, test_case_reviews
+from .routers import audit, auth, dashboard, users, settings as settings_router, session as session_router, request_tracker, oslc_rqm_rtc, solutions_proxy, test_case_reviews
 
 # Include routers
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
@@ -65,7 +65,21 @@ app.include_router(audit.router, prefix="/audit", tags=["Audit"])
 app.include_router(session_router.router, prefix="/session", tags=["Sessions"])
 app.include_router(settings_router.router, prefix="/settings", tags=["Settings"])
 app.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
-app.include_router(config_router.router)  # or app.include_router(config_router.router, prefix="")
+# --- Automation Module: removed a shadowed router registration ---------------
+# routers/config.py declares GET and PUT on "/settings/ai-config" -- the exact
+# paths settings_router already serves via its "/settings" prefix on the line
+# above. FastAPI matches in registration order, so settings_router won every
+# request and the config.py handlers were unreachable.
+#
+# That mattered beyond tidiness: the two implementations disagree. settings.py
+# persists to app/config.json, config.py only mutates the in-memory object, and
+# config.py additionally requires admin on GET where settings.py allows any
+# authenticated user. Anyone reading config.py would reasonably conclude the AI
+# config is not persisted and admin-gated -- both false at runtime.
+#
+# The file is left in place; only the dead registration is removed. Verified
+# before removal: four handlers were registered on that path, both GET and PUT
+# resolving to app.routers.settings.
 app.include_router(request_tracker.router, prefix="/request-tracker", tags=["Request Tracker"])
 app.include_router(oslc_rqm_rtc.router, prefix="/oslc-rqm-rtc", tags=["OSLC RQM/RTC"])
 app.include_router(solutions_proxy.router, tags=["Solutions Proxy"])
