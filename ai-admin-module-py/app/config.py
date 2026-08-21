@@ -77,6 +77,33 @@ class Settings(BaseSettings):
 
     ROLES: List[str] = Field(default=["Admin", "Manager", "QA", "Tester"])
 
+    # --- Automation Module: runtime settings ----------------------------------
+    # All defaulted, so existing deployments start unchanged with the module
+    # simply inactive. Override in .env per environment.
+    #
+    # AUTOMATION_STORAGE_PATH   root for materialised run workspaces, generated
+    #                           specs and captured evidence (screenshots, video,
+    #                           trace). Gitignored; treat as regenerable output.
+    # AUTOMATION_NODE_PATH      how to invoke the Node toolchain. "npx" works
+    #                           when Node 20 is on PATH; set an absolute path
+    #                           when the backend runs under a service account
+    #                           with a different PATH than the shell.
+    # AUTOMATION_RUN_TIMEOUT_SECONDS
+    #                           wall clock per run before the subprocess is
+    #                           killed and the run recorded as timed out.
+    # AUTOMATION_MAX_CONCURRENT_RUNS
+    #                           browser runs are memory-hungry and this backend
+    #                           is a single process; 1 is the safe default and
+    #                           matches the single-concurrency guard.
+    # AUTOMATION_ENABLED        master switch. False keeps the routes mounted
+    #                           but refusing, so the UI can show a clear reason
+    #                           instead of failing opaquely.
+    AUTOMATION_ENABLED: bool = Field(default=True)
+    AUTOMATION_STORAGE_PATH: str = Field(default="./storage/automation")
+    AUTOMATION_NODE_PATH: str = Field(default="npx")
+    AUTOMATION_RUN_TIMEOUT_SECONDS: int = Field(default=600)
+    AUTOMATION_MAX_CONCURRENT_RUNS: int = Field(default=1)
+
     # AI Configuration stored under settings.ai_config (typed)
     ai_config: AiConfigModel = Field(default_factory=AiConfigModel)
 
