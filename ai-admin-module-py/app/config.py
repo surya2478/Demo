@@ -122,6 +122,27 @@ class Settings(BaseSettings):
     AUTOMATION_RUN_TIMEOUT_SECONDS: int = Field(default=600)
     AUTOMATION_MAX_CONCURRENT_RUNS: int = Field(default=1)
 
+    # Which environment variables a generated test may see. Generated specs are
+    # LLM output executed as a subprocess of this backend, so without a filter
+    # they inherit SECRET_KEY, DATABASE_URL, LDAP_SERVICE_ACCOUNT_PASSWORD and
+    # the Solutions API token -- a script that prints process.env would leak all
+    # of it into a log the UI renders.
+    #
+    # Entries may end in * to allow a prefix. Runtime essentials (PATH, HOME,
+    # LANG, TZ ...) are always allowed and are listed in
+    # services/automation/env_policy.py rather than here.
+    #
+    # HTTP_PROXY is deliberately absent: the image sets it for the corporate
+    # proxy, and Chromium inheriting it would route traffic for internal SIT and
+    # QA hosts through a proxy that has no route to them.
+    AUTOMATION_RUNNER_ENV_ALLOWLIST: str = Field(
+        default="BASE_URL,TARGET_BASE_URL,AUTOMATION_ENV,PLAYWRIGHT_*,PW_*,NODE_*"
+    )
+    # True: the subprocess receives only allowlisted variables.
+    # False: nothing is filtered, but everything that would be filtered is
+    # logged -- audit before enforcing on a deployment with unusual scripts.
+    AUTOMATION_RUNNER_ENV_ALLOWLIST_ENFORCED: bool = Field(default=True)
+
     # AI Configuration stored under settings.ai_config (typed)
     ai_config: AiConfigModel = Field(default_factory=AiConfigModel)
 
