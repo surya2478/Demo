@@ -67,6 +67,22 @@ def init_db() -> None:
     except Exception:
         pass
 
+    # --- Automation Module: register automation models --------------------
+    # Deliberately in its own try/except rather than added to the block
+    # above: that block falls back to a different import path on ANY
+    # failure, so a missing or broken automation model module would stop
+    # the existing models registering too. Isolated here, the worst case
+    # is that automation tables are absent -- existing tables are never
+    # affected.
+    #
+    # ImportError only until app/models/automation.py lands in Phase 0;
+    # create_all() then picks the new tables up automatically. No Alembic
+    # migration is needed and no existing table is touched.
+    try:
+        import app.models.automation  # noqa: F401
+    except ImportError:
+        pass
+
     try:
         print(f'[Database Init] Creating tables with engine: {engine}')
         print(f'[Database Init] Registered models: {Base.metadata.tables.keys()}')
