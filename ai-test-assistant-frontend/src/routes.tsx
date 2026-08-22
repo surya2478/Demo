@@ -30,6 +30,8 @@ import TestCases from './pages/test-assistant/TestCases'
 import Automation from './pages/Automation'
 import Candidates from './pages/automation/Candidates'
 import Runs from './pages/automation/Runs'
+import Workbench from './pages/automation/Workbench'
+import ScriptLab from './pages/automation/ScriptLab'
 import RunDetail from './pages/automation/RunDetail'
 import Visual from './pages/test-assistant/Visual'
 import DataTab from './pages/test-assistant/DataTab'
@@ -221,6 +223,8 @@ const AppRoutes: React.FC = () => {
         >
           <Route index element={<Navigate to="candidates" replace />} />
           <Route path="candidates" element={<Candidates />} />
+          <Route path="workbench" element={<Workbench />} />
+          <Route path="script-lab" element={<ScriptLab />} />
           <Route path="runs" element={<Runs />} />
           <Route path="runs/:runKey" element={<RunDetail />} />
         </Route>

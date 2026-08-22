@@ -12,25 +12,37 @@ spends real CPU, memory and browser time on this host.
 """
 from __future__ import annotations
 
+import csv
+import io
 import json
+import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse, PlainTextResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..database.connection import get_db
-from ..models.automation import AutomationRun, AutomationRunResult, AutomationTestCase
+from ..models.automation import (
+    AutomationRun,
+    AutomationRunResult,
+    AutomationScript,
+    AutomationTestCase,
+)
 from ..services.authz import require_permission
 from ..services.automation import workspace as ws
 from ..services.automation.eligibility import score_test_case
 from ..services.automation.job_manager import job_manager, new_run_key
+from ..services.automation.llm import LLMError, provider_status
 from ..services.automation.preflight import is_ready, runtime_status
+from ..services.automation.refine import refine_case_content, refined_to_columns
+from ..services.automation import compiler
+from ..services.automation import workbench as wb
 from ..services.audit_logger import audit_log
 
 router = APIRouter(tags=["Automation Studio"])
@@ -541,3 +553,1479 @@ def get_run_log(
         raise HTTPException(status_code=404, detail="Run not found")
     path = _guarded_path(run.log_path)
     return PlainTextResponse(path.read_text(encoding="utf-8", errors="replace"))
+
+
+# ── Intake: cases authored in the Studio ─────────────────────────────────────
+#
+# Hard rule for this module: manual and refined cases live in automation_*
+# tables only. test_cases_details belongs to the review workflow, is read-only
+# here, and nothing below holds a foreign key into it. A case that came from
+# there keeps its identifier in origin_test_case_id as a plain string.
+#
+# Writes require automation.execute rather than automation.view. Authoring is a
+# mutation, and refinement additionally spends a real LLM call, which is the
+# same reason execution is gated. If authoring and running ever need to be
+# granted separately, that is the point to add an automation.author permission.
+
+
+class ManualTestCaseRequest(BaseModel):
+    """A test case typed, pasted or imported into the Studio."""
+
+    display_id: str = Field(min_length=1, max_length=100)
+    category: Optional[str] = Field(default=None, max_length=255)
+    description: Optional[str] = Field(default=None, max_length=5000)
+    preconditions: Optional[str] = Field(default=None, max_length=10_000)
+    steps_raw: Optional[str] = Field(default=None, max_length=50_000)
+    test_data: Optional[str] = Field(default=None, max_length=10_000)
+    expected_result: Optional[str] = Field(default=None, max_length=10_000)
+    # Free text, kept as a string so an intake form need not know about the
+    # applications table before that screen exists.
+    origin_test_case_id: Optional[str] = Field(default=None, max_length=255)
+
+
+class RefineRequest(BaseModel):
+    """Optional grounding for a refinement call.
+
+    Passing the real application URL is what stops the model inventing
+    example.com and selectors that do not exist -- the prompt keys on it.
+    """
+
+    application_url: Optional[str] = Field(default=None, max_length=2000)
+    application_name: Optional[str] = Field(default=None, max_length=255)
+    requirement: Optional[str] = Field(default=None, max_length=10_000)
+
+
+def _score_columns(payload: dict) -> dict:
+    """Score a case with the same deterministic rules used everywhere else.
+
+    The scorer accepts both the title-case keys stored by generation and the
+    lower-case ones this table uses, so a Studio case and an approved case are
+    judged identically.
+    """
+    result = score_test_case(payload)
+    return {
+        "eligibility_score": result.score,
+        "eligibility_verdict": result.verdict,
+        "eligibility_reasons": result.reasons,
+    }
+
+
+def _case_detail(case: AutomationTestCase) -> dict:
+    return {
+        "id": case.id,
+        "source": case.source,
+        "parent_id": case.parent_id,
+        "origin_test_case_id": case.origin_test_case_id,
+        "display_id": case.display_id,
+        "category": case.category,
+        "description": case.description,
+        "preconditions": case.preconditions,
+        "steps_raw": case.steps_raw,
+        "test_data": case.test_data,
+        "expected_result": case.expected_result,
+        "steps_structured": case.steps_structured or [],
+        "test_data_requirements": case.test_data_requirements or [],
+        "automation_blockers": case.automation_blockers or [],
+        "eligibility": {
+            "score": case.eligibility_score,
+            "verdict": case.eligibility_verdict,
+            "reasons": case.eligibility_reasons or [],
+            "step_count": len(case.steps_structured or []),
+            "can_generate": case.eligibility_verdict in ("ready", "review"),
+        },
+        "created_by": case.created_by,
+        "created_at": case.created_at.isoformat() if case.created_at else None,
+        "updated_at": case.updated_at.isoformat() if case.updated_at else None,
+    }
+
+
+def _load_case(db: Session, case_id: int) -> AutomationTestCase:
+    case = db.query(AutomationTestCase).filter(AutomationTestCase.id == case_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Test case not found in the Studio")
+    return case
+
+
+@router.get("/llm")
+def get_llm_status(current_user: dict = Depends(require_permission(PERM_VIEW))):
+    """Whether refinement could run right now.
+
+    Same intent as /runtime: a missing key should be visible before someone
+    clicks Refine, not after a failed call.
+    """
+    return provider_status()
+
+
+@router.post("/candidates", status_code=201)
+def create_candidate(
+    body: ManualTestCaseRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Author a test case directly in the Studio."""
+    username = (current_user or {}).get("username")
+    payload = body.model_dump()
+
+    case = AutomationTestCase(
+        source="manual",
+        created_by=username,
+        **payload,
+        **_score_columns(payload),
+    )
+    db.add(case)
+    db.commit()
+    db.refresh(case)
+
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="create",
+        resource_type="automation_test_case",
+        resource_id=str(case.id),
+        resource_name=case.display_id,
+        status="success",
+        details={"description": f"{username} authored test case {case.display_id}"},
+    )
+    return _case_detail(case)
+
+
+@router.get("/candidates/manual/{case_id}")
+def get_candidate(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+):
+    return _case_detail(_load_case(db, case_id))
+
+
+@router.put("/candidates/manual/{case_id}")
+def update_candidate(
+    case_id: int,
+    body: ManualTestCaseRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Edit a Studio case and re-score it.
+
+    Re-scoring on every write is the point: an edit that adds the missing
+    expected result should move the verdict immediately, not at the next full
+    listing.
+    """
+    case = _load_case(db, case_id)
+    payload = body.model_dump()
+    for field, value in payload.items():
+        setattr(case, field, value)
+    for field, value in _score_columns(payload).items():
+        setattr(case, field, value)
+
+    db.commit()
+    db.refresh(case)
+    return _case_detail(case)
+
+
+@router.delete("/candidates/manual/{case_id}", status_code=204)
+def delete_candidate(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    case = _load_case(db, case_id)
+    if case.scripts:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"This case has {len(case.scripts)} generated script(s). Delete those "
+                "first, so a run's history never points at a case that no longer exists."
+            ),
+        )
+    username = (current_user or {}).get("username")
+    display_id = case.display_id
+    db.delete(case)
+    db.commit()
+
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="delete",
+        resource_type="automation_test_case",
+        resource_id=str(case_id),
+        resource_name=display_id,
+        status="success",
+        details={"description": f"{username} deleted Studio test case {display_id}"},
+    )
+    return None
+
+
+# Column aliases accepted on import. Spreadsheets exported from the review
+# workflow use the title-case names; a hand-rolled CSV usually does not.
+_CSV_ALIASES = {
+    "display_id": ("display_id", "test case id", "testcaseid", "id", "ref"),
+    "category": ("category", "module", "feature"),
+    "description": ("description", "test case description", "summary", "title"),
+    "preconditions": ("preconditions", "precondition", "pre-requisites"),
+    "steps_raw": ("steps_raw", "test steps", "steps", "step"),
+    "test_data": ("test_data", "test data", "data"),
+    "expected_result": ("expected_result", "expected result", "expected"),
+}
+
+MAX_CSV_ROWS = 500
+
+
+@router.post("/candidates/import", status_code=201)
+def import_candidates(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Bulk intake from CSV.
+
+    Header matching is alias-based and case-insensitive because the two CSVs
+    people actually have -- a spreadsheet exported from the review workflow and
+    something hand-rolled -- disagree on every column name. A row missing a
+    display_id is reported by line number rather than silently skipped.
+    """
+    raw = file.file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="The uploaded file is empty.")
+    try:
+        text_body = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text_body = raw.decode("latin-1")
+
+    reader = csv.DictReader(io.StringIO(text_body))
+    if not reader.fieldnames:
+        raise HTTPException(status_code=400, detail="The CSV has no header row.")
+
+    lookup = {}
+    for column, aliases in _CSV_ALIASES.items():
+        for name in reader.fieldnames:
+            if (name or "").strip().lower() in aliases:
+                lookup[column] = name
+                break
+
+    if "display_id" not in lookup:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "No column maps to display_id. Expected one of: "
+                + ", ".join(_CSV_ALIASES["display_id"])
+                + f". Found: {', '.join(n for n in reader.fieldnames if n)}"
+            ),
+        )
+
+    username = (current_user or {}).get("username")
+    created, skipped = [], []
+
+    for line_no, row in enumerate(reader, start=2):
+        if len(created) >= MAX_CSV_ROWS:
+            skipped.append({"line": line_no, "reason": f"Exceeded the {MAX_CSV_ROWS}-row limit"})
+            break
+
+        payload = {
+            column: (row.get(source_name) or "").strip() or None
+            for column, source_name in lookup.items()
+        }
+        if not payload.get("display_id"):
+            skipped.append({"line": line_no, "reason": "No test case ID"})
+            continue
+        payload.setdefault("origin_test_case_id", None)
+        payload["display_id"] = payload["display_id"][:100]
+
+        case = AutomationTestCase(
+            source="manual",
+            created_by=username,
+            **payload,
+            **_score_columns(payload),
+        )
+        db.add(case)
+        created.append(case)
+
+    db.commit()
+    for case in created:
+        db.refresh(case)
+
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="import",
+        resource_type="automation_test_case",
+        resource_id=file.filename or "upload.csv",
+        resource_name=file.filename or "upload.csv",
+        status="success",
+        details={
+            "description": f"{username} imported {len(created)} test case(s) from CSV",
+            "skipped": len(skipped),
+        },
+    )
+
+    return {
+        "imported": len(created),
+        "skipped": skipped,
+        "cases": [_case_detail(case) for case in created],
+    }
+
+
+@router.post("/candidates/manual/{case_id}/refine", status_code=201)
+def refine_candidate(
+    case_id: int,
+    body: RefineRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Rewrite a case into automation-ready form via the LLM.
+
+    The result is stored as a NEW row with source="refined" and parent_id
+    pointing at the original, rather than overwriting it. Refinement is a model
+    judgement: keeping the original is what lets a reviewer compare the two and
+    reject the rewrite, and what makes a second refinement reproducible.
+    """
+    case = _load_case(db, case_id)
+    username = (current_user or {}).get("username")
+
+    existing = {
+        "display_id": case.display_id,
+        "category": case.category,
+        "description": case.description,
+        "preconditions": case.preconditions,
+        "steps_raw": case.steps_raw,
+        "test_data": case.test_data,
+        "expected_result": case.expected_result,
+    }
+
+    try:
+        refined = refine_case_content(
+            ref=f"case-{case.id}",
+            title=case.display_id,
+            existing=existing,
+            requirement=body.requirement,
+            application_url=body.application_url,
+            application_name=body.application_name,
+        )
+    except LLMError as exc:
+        # The transport already explains itself; 502 says the failure was
+        # upstream rather than in the request.
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    columns = refined_to_columns(refined)
+    # The refined title is the model echoing the original back; keep the
+    # Studio's own identifier rather than letting a rewrite rename the case.
+    columns["display_id"] = case.display_id
+
+    child = AutomationTestCase(
+        source="refined",
+        parent_id=case.id,
+        origin_test_case_id=case.origin_test_case_id,
+        origin_request_id=case.origin_request_id,
+        category=case.category,
+        created_by=username,
+        **columns,
+    )
+    db.add(child)
+    db.commit()
+    db.refresh(child)
+
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="refine",
+        resource_type="automation_test_case",
+        resource_id=str(child.id),
+        resource_name=child.display_id,
+        status="success",
+        details={
+            "description": f"{username} refined test case {case.display_id}",
+            "parent_id": case.id,
+            "provider": provider_status().get("provider"),
+        },
+    )
+
+    return {
+        "original": _case_detail(case),
+        "refined": _case_detail(child),
+        "bdd_scenario": refined.bdd_scenario,
+        "test_data_required": refined.test_data_required,
+        "test_data_notes": refined.test_data_notes,
+    }
+
+
+# ── Automation TC Coverage Assessment ────────────────────────────────────────
+#
+# The workbench: approved test cases come in, get refined in place keeping ID
+# and name, are classified, and go through approval on their way to the Script
+# Lab.
+#
+# Ported in behaviour from stlc-platform's test-cases view, without its project
+# scope. Grounding is deliberately absent -- it belongs to Application
+# Discovery, which is a separate screen.
+
+
+class GenerateRequest(BaseModel):
+    """What to refine.
+
+    Two id spaces on purpose. `source_test_case_ids` are approved cases from
+    the review workflow, identified by their string ids there; `case_ids` are
+    rows the Studio already owns. The screen can select from both lists at once.
+    """
+
+    source_test_case_ids: list[str] = Field(default_factory=list)
+    case_ids: list[int] = Field(default_factory=list)
+    application_id: Optional[int] = None
+    application_url: Optional[str] = Field(default=None, max_length=2000)
+    application_name: Optional[str] = Field(default=None, max_length=255)
+    environment: Optional[str] = Field(default=None, max_length=50)
+    # Without this a second generate would build a duplicate alongside the
+    # first, which is the confusion the upstream screen warns about inline.
+    regenerate: bool = False
+
+
+class ClassifyRequest(BaseModel):
+    case_ids: list[int] = Field(min_length=1)
+    # Omitted means "apply the rules"; supplied means a human decided.
+    classification: Optional[str] = Field(default=None, pattern="^(automation|manual|undecided)$")
+
+
+class DecideRequest(BaseModel):
+    case_ids: list[int] = Field(min_length=1)
+    decision: str = Field(pattern="^(approve|reject)$")
+    reason: Optional[str] = Field(default=None, max_length=2000)
+
+
+class BulkIdsRequest(BaseModel):
+    case_ids: list[int] = Field(min_length=1)
+
+
+class EditCaseRequest(BaseModel):
+    """Fields the inline editor may change. Everything else is derived."""
+
+    title: Optional[str] = Field(default=None, max_length=500)
+    objective: Optional[str] = Field(default=None, max_length=5000)
+    preconditions: Optional[str] = Field(default=None, max_length=10_000)
+    steps_raw: Optional[str] = Field(default=None, max_length=50_000)
+    test_data: Optional[str] = Field(default=None, max_length=10_000)
+    expected_result: Optional[str] = Field(default=None, max_length=10_000)
+    priority: Optional[str] = Field(default=None, max_length=20)
+    test_type: Optional[str] = Field(default=None, max_length=50)
+    test_data_notes: Optional[str] = Field(default=None, max_length=2000)
+
+
+def _workbench_case(case: AutomationTestCase, source_missing: bool = False) -> dict:
+    """One row of the refined grid."""
+    detail = _case_detail(case)
+    detail.update(
+        {
+            "tc_display_id": case.display_id,
+            "title": case.display_id,
+            "objective": case.objective,
+            "bdd_scenario": case.bdd_scenario,
+            "priority": case.priority,
+            "test_type": case.test_type,
+            "origin": case.origin,
+            "classification": case.classification,
+            "classification_source": case.classification_source,
+            "classification_reason": case.classification_reason,
+            "manual_only_reasons": case.manual_only_reasons or [],
+            "test_data_required": bool(case.test_data_required),
+            "test_data_status": case.test_data_status,
+            "test_data_notes": case.test_data_notes,
+            "approval_status": case.approval_status,
+            "decision_reason": case.decision_reason,
+            "approved_by": case.approved_by,
+            "approved_at": case.approved_at.isoformat() if case.approved_at else None,
+            "version": case.version,
+            "application_url": case.application_url,
+            "steps": case.steps_structured or [],
+            # The source it was refined from has been deleted, so regenerating
+            # would build a second case rather than replacing this one.
+            "source_missing": source_missing,
+            "can_approve": wb.can_approve(case)[0],
+            "approve_blocked_reason": wb.can_approve(case)[1] or None,
+        }
+    )
+    return detail
+
+
+@router.get("/workbench/sources")
+def list_workbench_sources(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+    search: Optional[str] = Query(default=None, max_length=200),
+):
+    """Approved test cases available to refine, and whether each already was.
+
+    This is the "Uploaded test cases" panel. The cases stay in the review
+    workflow -- refining reads them and writes a Studio row, and the panel shows
+    a Refined badge by looking for that row rather than by writing anything back.
+    """
+    sources = _approved_candidates(db, search)
+    refined = {
+        row.origin_test_case_id: row.id
+        for row in db.query(AutomationTestCase)
+        .filter(
+            AutomationTestCase.source == "refined",
+            AutomationTestCase.origin_test_case_id.isnot(None),
+        )
+        .all()
+    }
+
+    out = []
+    for source in sources:
+        origin_id = source.get("origin_test_case_id")
+        out.append(
+            {
+                "id": origin_id,
+                "tc_display_id": source.get("display_id"),
+                "title": source.get("description") or source.get("display_id"),
+                "category": source.get("category"),
+                "eligibility": source.get("eligibility"),
+                "refined_test_case_id": refined.get(origin_id),
+            }
+        )
+    return {"sources": out, "total": len(out)}
+
+
+@router.get("/workbench/test-cases")
+def list_workbench_cases(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+    classification: str = Query(default="all", pattern="^(all|automation|manual|undecided)$"),
+):
+    """The refined grid, with the counts the stat tiles show."""
+    query = db.query(AutomationTestCase).filter(AutomationTestCase.source == "refined")
+    cases = query.order_by(AutomationTestCase.created_at.desc()).all()
+
+    known_sources = {
+        str(row[0])
+        for row in db.execute(
+            text("SELECT test_case_id FROM test_cases_details WHERE status = 'APPROVED'")
+        ).fetchall()
+    }
+
+    rows = [
+        _workbench_case(
+            case,
+            source_missing=bool(
+                case.origin_test_case_id and case.origin_test_case_id not in known_sources
+            ),
+        )
+        for case in cases
+    ]
+
+    counts = {
+        "total": len(rows),
+        "automation": sum(1 for r in rows if r["classification"] == "automation"),
+        "manual": sum(1 for r in rows if r["classification"] == "manual"),
+        "undecided": sum(1 for r in rows if r["classification"] == "undecided"),
+        "approved": sum(1 for r in rows if r["approval_status"] == "approved"),
+        "rejected": sum(1 for r in rows if r["approval_status"] == "rejected"),
+        "needs_data": sum(1 for r in rows if r["test_data_status"] == "pending"),
+    }
+
+    if classification != "all":
+        rows = [r for r in rows if r["classification"] == classification]
+
+    return {"counts": counts, "test_cases": rows}
+
+
+@router.post("/workbench/generate", status_code=202)
+def generate_refined_cases(
+    body: GenerateRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Refine a batch. Returns 202 with a job_id to poll.
+
+    Refusing up front rather than mid-batch: an unconfigured LLM provider would
+    otherwise fail on every case in turn and report thirty identical errors.
+    """
+    status = provider_status()
+    if not status.get("configured"):
+        raise HTTPException(status_code=503, detail=status.get("detail"))
+
+    username = (current_user or {}).get("username")
+    items: list[dict[str, Any]] = []
+
+    for source_id in body.source_test_case_ids:
+        row = db.execute(
+            text(
+                "SELECT test_case_id, test_case_details FROM test_cases_details "
+                "WHERE test_case_id = :tid AND status = 'APPROVED'"
+            ),
+            {"tid": source_id},
+        ).fetchone()
+        if not row:
+            continue
+        try:
+            details = json.loads(row.test_case_details) if isinstance(row.test_case_details, str) else (row.test_case_details or {})
+        except (TypeError, ValueError):
+            details = {}
+        items.append(
+            {
+                "display_id": str(details.get("Test Case ID") or row.test_case_id),
+                "origin_test_case_id": str(row.test_case_id),
+                "origin": "existing",
+                "category": details.get("Category"),
+                "existing": details,
+            }
+        )
+
+    for case_id in body.case_ids:
+        case = db.query(AutomationTestCase).filter(AutomationTestCase.id == case_id).first()
+        if not case:
+            continue
+        items.append(
+            {
+                "display_id": case.display_id,
+                "origin_test_case_id": case.origin_test_case_id or f"studio-{case.id}",
+                "origin": "imported",
+                "category": case.category,
+                "existing": {
+                    "description": case.description,
+                    "preconditions": case.preconditions,
+                    "steps_raw": case.steps_raw,
+                    "test_data": case.test_data,
+                    "expected_result": case.expected_result,
+                },
+            }
+        )
+
+    if not items:
+        raise HTTPException(
+            status_code=400,
+            detail="Nothing to refine. Select at least one approved or Studio test case.",
+        )
+
+    job = wb.start_generation_job(
+        items,
+        application_url=body.application_url,
+        application_name=body.application_name,
+        actor=username,
+        regenerate=body.regenerate,
+    )
+
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="refine",
+        resource_type="automation_test_case",
+        resource_id=job.id,
+        resource_name=f"{len(items)} test case(s)",
+        status="success",
+        details={
+            "description": f"{username} started refinement of {len(items)} test case(s)",
+            "regenerate": body.regenerate,
+        },
+    )
+    return job.to_dict()
+
+
+@router.get("/workbench/jobs/{job_id}")
+def get_generation_job(
+    job_id: str,
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+):
+    job = wb.job_registry.get(job_id)
+    if not job:
+        raise HTTPException(
+            status_code=404,
+            detail="No such job. Generation jobs are kept in memory and are lost on restart.",
+        )
+    return job.to_dict()
+
+
+@router.post("/workbench/classify")
+def classify_cases(
+    body: ClassifyRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Bulk classify -- by rule when no classification is supplied."""
+    username = (current_user or {}).get("username")
+    cases = (
+        db.query(AutomationTestCase)
+        .filter(AutomationTestCase.id.in_(body.case_ids))
+        .all()
+    )
+    for case in cases:
+        wb.apply_classification(case, forced=body.classification, actor=username)
+    db.commit()
+    return {
+        "updated": len(cases),
+        "test_cases": [_workbench_case(case) for case in cases],
+    }
+
+
+@router.post("/workbench/decide")
+def decide_cases(
+    body: DecideRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Bulk approve or reject.
+
+    Approval is refused per case rather than for the batch, so one case waiting
+    on test data does not block the other twenty-nine. The refusals come back
+    named.
+    """
+    username = (current_user or {}).get("username")
+    cases = (
+        db.query(AutomationTestCase)
+        .filter(AutomationTestCase.id.in_(body.case_ids))
+        .all()
+    )
+
+    updated, refused = [], []
+    for case in cases:
+        if body.decision == "approve":
+            allowed, why = wb.can_approve(case)
+            if not allowed:
+                refused.append({"id": case.id, "display_id": case.display_id, "reason": why})
+                continue
+            case.approval_status = wb.APPROVAL_APPROVED
+            case.approved_by = username
+            case.approved_at = datetime.utcnow()
+        else:
+            case.approval_status = wb.APPROVAL_REJECTED
+            case.approved_by = None
+            case.approved_at = None
+        case.decision_reason = body.reason
+        updated.append(case)
+
+    db.commit()
+
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action=body.decision,
+        resource_type="automation_test_case",
+        resource_id=",".join(str(c.id) for c in updated) or "none",
+        resource_name=f"{len(updated)} test case(s)",
+        status="success",
+        details={
+            "description": f"{username} {body.decision}d {len(updated)} test case(s)",
+            "refused": len(refused),
+        },
+    )
+
+    return {
+        "updated": len(updated),
+        "refused": refused,
+        "test_cases": [_workbench_case(case) for case in updated],
+    }
+
+
+@router.post("/workbench/test-cases/{case_id}/reopen")
+def reopen_case(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Return an approved case to draft so it can be edited again."""
+    case = _load_case(db, case_id)
+    case.approval_status = wb.APPROVAL_DRAFT
+    case.approved_by = None
+    case.approved_at = None
+    case.decision_reason = None
+    db.commit()
+    db.refresh(case)
+    return _workbench_case(case)
+
+
+@router.patch("/workbench/test-cases/{case_id}")
+def edit_workbench_case(
+    case_id: int,
+    body: EditCaseRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Inline edit, then re-derive everything that depends on the content."""
+    case = _load_case(db, case_id)
+    if case.approval_status == wb.APPROVAL_APPROVED:
+        raise HTTPException(
+            status_code=409,
+            detail="This case is approved. Reopen it before editing.",
+        )
+
+    payload = body.model_dump(exclude_unset=True)
+    if "title" in payload and payload["title"]:
+        case.display_id = payload.pop("title")[:100]
+    for field_name, value in payload.items():
+        setattr(case, field_name, value)
+
+    wb.rescore(case)
+    db.commit()
+    db.refresh(case)
+    return _workbench_case(case)
+
+
+@router.post("/workbench/delete")
+def delete_workbench_cases(
+    body: BulkIdsRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Delete refined cases and the scripts generated from them.
+
+    Cascading is stated rather than discovered: a script whose test case is
+    gone cannot be regenerated or explained, so leaving it would be leaving
+    rubbish behind.
+    """
+    username = (current_user or {}).get("username")
+    cases = (
+        db.query(AutomationTestCase)
+        .filter(AutomationTestCase.id.in_(body.case_ids))
+        .all()
+    )
+    scripts_removed = 0
+    for case in cases:
+        scripts_removed += len(case.scripts or [])
+        for script in list(case.scripts or []):
+            db.delete(script)
+        db.delete(case)
+    db.commit()
+
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="delete",
+        resource_type="automation_test_case",
+        resource_id=",".join(str(i) for i in body.case_ids),
+        resource_name=f"{len(cases)} test case(s)",
+        status="success",
+        details={
+            "description": f"{username} deleted {len(cases)} refined test case(s)",
+            "scripts_removed": scripts_removed,
+        },
+    )
+    return {"deleted": len(cases), "scripts_removed": scripts_removed}
+
+
+@router.get("/workbench/export")
+def export_workbench_cases(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+    classification: str = Query(default="all", pattern="^(all|automation|manual)$"),
+):
+    """Download refined cases as CSV.
+
+    CSV rather than a workbook because neither openpyxl nor xlsxwriter is a
+    dependency of this backend, and adding one to format a download would be
+    the wrong place to pay that cost -- the frontend already ships SheetJS and
+    builds the two-sheet workbook from this data client-side.
+    """
+    query = db.query(AutomationTestCase).filter(AutomationTestCase.source == "refined")
+    if classification != "all":
+        query = query.filter(AutomationTestCase.classification == classification)
+    cases = query.order_by(AutomationTestCase.display_id).all()
+
+    columns = [
+        "Test Case ID", "Title", "Objective", "Category", "Priority", "Test Type",
+        "Classification", "Classification Reason", "Preconditions", "Test Steps",
+        "Test Data", "Expected Result", "BDD Scenario", "Test Data Required",
+        "Test Data Status", "Status", "Version", "Application URL",
+    ]
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(columns)
+    for case in cases:
+        writer.writerow([
+            case.display_id, case.display_id, case.objective or "", case.category or "",
+            case.priority or "", case.test_type or "", case.classification or "",
+            case.classification_reason or "", case.preconditions or "", case.steps_raw or "",
+            case.test_data or "", case.expected_result or "", case.bdd_scenario or "",
+            "Yes" if case.test_data_required else "No", case.test_data_status or "",
+            case.approval_status or "", case.version or 1, case.application_url or "",
+        ])
+
+    filename = f"automation-test-cases-{classification}.csv"
+    return Response(
+        content=buffer.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ── Automation Script Lab ────────────────────────────────────────────────────
+#
+# Generate, review, dry-run and download scripts for approved automation test
+# cases.
+#
+# A dry run IS a run: it goes through the same job manager, workspace and
+# evidence pipeline as everything on the Runs tab, linked by dry_run_key. A
+# second execution path would mean a second set of timeouts, a second way to
+# capture a trace, and two places to look when something hangs.
+
+
+class GenerateScriptsRequest(BaseModel):
+    case_ids: list[int] = Field(min_length=1)
+    framework: str = Field(default="playwright")
+    base_url: Optional[str] = Field(default=None, max_length=2000)
+    # Regenerating replaces the current script for the pair rather than adding
+    # a version nobody asked for.
+    regenerate: bool = True
+
+
+class DryRunRequest(BaseModel):
+    script_ids: list[int] = Field(min_length=1)
+    environment: Optional[str] = Field(default=None, max_length=50)
+    base_url: Optional[str] = Field(default=None, max_length=2000)
+
+
+class EditScriptRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=200_000)
+
+
+class ScriptDecisionRequest(BaseModel):
+    decision: str = Field(pattern="^(approve|reject)$")
+    reason: Optional[str] = Field(default=None, max_length=2000)
+
+
+def _script_detail(script: AutomationScript) -> dict:
+    case = script.test_case
+    return {
+        "id": script.id,
+        "test_case_id": script.test_case_id,
+        "test_case_display_id": case.display_id if case else None,
+        "test_case_title": (case.objective or case.description) if case else None,
+        "framework": script.framework,
+        "language": script.language,
+        "file_name": script.file_name,
+        "script_key": script.script_key,
+        "code": script.code,
+        "entry_path": script.entry_path,
+        "execution_command": script.execution_command,
+        "setup_notes": script.setup_notes or [],
+        "generation_mode": script.generation_mode,
+        "static_gate_result": script.static_gate_result,
+        "dry_run_status": script.dry_run_status,
+        "dry_run_summary": script.dry_run_summary,
+        "dry_run_at": script.dry_run_at.isoformat() if script.dry_run_at else None,
+        "dry_run_key": script.dry_run_key,
+        "status": script.status,
+        "version": script.version,
+        "is_current": bool(script.is_current),
+        "edited_by_user": bool(script.edited_by_user),
+        "generation_error": script.generation_error,
+        "runnable": script.framework in compiler.RUNNABLE_FRAMEWORKS,
+        "created_by": script.created_by,
+        "created_at": script.created_at.isoformat() if script.created_at else None,
+        "updated_at": script.updated_at.isoformat() if script.updated_at else None,
+    }
+
+
+@router.get("/frameworks")
+def list_frameworks(current_user: dict = Depends(require_permission(PERM_VIEW))):
+    """Which frameworks can be generated, and which can actually be executed.
+
+    Stated rather than discovered on a disabled button: no runner exists for
+    Katalon or Appium here or upstream.
+    """
+    return {
+        "frameworks": [
+            {
+                "name": name,
+                "label": compiler.FRAMEWORK_LABELS[name],
+                "runnable": name in compiler.RUNNABLE_FRAMEWORKS,
+            }
+            for name in compiler.FRAMEWORKS
+        ],
+        "runnable": list(compiler.RUNNABLE_FRAMEWORKS),
+    }
+
+
+@router.get("/scripts/approved-cases")
+def list_approved_automation_cases(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+):
+    """The Lab's working set: approved cases classified as Automation.
+
+    Anything still in draft, rejected, or classified Manual is deliberately
+    absent -- generating from an unapproved case produces a script nobody has
+    agreed should exist.
+    """
+    cases = (
+        db.query(AutomationTestCase)
+        .filter(
+            AutomationTestCase.approval_status == wb.APPROVAL_APPROVED,
+            AutomationTestCase.classification == wb.CLASSIFICATION_AUTOMATION,
+        )
+        .order_by(AutomationTestCase.display_id)
+        .all()
+    )
+
+    scripts = db.query(AutomationScript).filter(AutomationScript.is_current.is_(True)).all()
+    by_case: dict[int, list[dict]] = {}
+    for script in scripts:
+        by_case.setdefault(script.test_case_id, []).append(_script_detail(script))
+
+    counts: dict[str, int] = {name: 0 for name in compiler.FRAMEWORKS}
+    for script in scripts:
+        if script.framework in counts:
+            counts[script.framework] += 1
+
+    return {
+        "counts": {"approved_cases": len(cases), "by_framework": counts},
+        "cases": [
+            {
+                "id": case.id,
+                "tc_display_id": case.display_id,
+                "title": case.objective or case.description or case.display_id,
+                "priority": case.priority,
+                "steps": len(case.steps_structured or []),
+                "test_data_status": case.test_data_status,
+                "application_url": case.application_url,
+                "scripts": by_case.get(case.id, []),
+            }
+            for case in cases
+        ],
+    }
+
+
+@router.post("/scripts/generate", status_code=201)
+def generate_scripts(
+    body: GenerateScriptsRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Compile scripts for the selected cases.
+
+    Synchronous, unlike refinement: compilation is deterministic template
+    rendering with no network call, so a batch finishes in milliseconds and a
+    job to poll would be ceremony around nothing.
+    """
+    if body.framework not in compiler.FRAMEWORKS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown framework. Expected one of: {', '.join(compiler.FRAMEWORKS)}",
+        )
+
+    username = (current_user or {}).get("username")
+    cases = (
+        db.query(AutomationTestCase)
+        .filter(AutomationTestCase.id.in_(body.case_ids))
+        .all()
+    )
+
+    produced, skipped = [], []
+    for case in cases:
+        if case.approval_status != wb.APPROVAL_APPROVED:
+            skipped.append({"display_id": case.display_id, "reason": "Not approved."})
+            continue
+
+        script_key = f"{case.id}:{body.framework}"
+        existing = (
+            db.query(AutomationScript)
+            .filter(
+                AutomationScript.script_key == script_key,
+                AutomationScript.is_current.is_(True),
+            )
+            .first()
+        )
+        if existing and not body.regenerate:
+            skipped.append(
+                {"display_id": case.display_id, "reason": "A current script already exists."}
+            )
+            continue
+        if existing and existing.edited_by_user and body.regenerate:
+            skipped.append(
+                {
+                    "display_id": case.display_id,
+                    "reason": (
+                        "The current script has hand-written edits. Delete it first if you "
+                        "really want to discard them."
+                    ),
+                }
+            )
+            continue
+
+        try:
+            compiled = compiler.compile_for(
+                case, body.framework, base_url=body.base_url or case.application_url
+            )
+        except ValueError as exc:
+            skipped.append({"display_id": case.display_id, "reason": str(exc)})
+            continue
+
+        if existing:
+            # Superseded, not deleted: a previous dry run's evidence still
+            # refers to the code that produced it.
+            existing.is_current = False
+
+        script = AutomationScript(
+            test_case_id=case.id,
+            script_key=script_key,
+            framework=compiled.framework,
+            language=compiled.language,
+            file_name=compiled.file_name,
+            code=compiled.code,
+            entry_path=compiled.entry_path,
+            execution_command=compiled.execution_command,
+            setup_notes=compiled.setup_notes,
+            generation_mode=compiled.generation_mode,
+            static_gate_result=compiled.gate_result(),
+            version=(existing.version + 1) if existing else 1,
+            parent_script_id=existing.id if existing else None,
+            is_current=True,
+            edited_by_user=False,
+            status="draft",
+            created_by=username,
+        )
+        db.add(script)
+        produced.append(script)
+
+    db.commit()
+    for script in produced:
+        db.refresh(script)
+
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="generate",
+        resource_type="automation_script",
+        resource_id=",".join(str(s.id) for s in produced) or "none",
+        resource_name=f"{len(produced)} {body.framework} script(s)",
+        status="success",
+        details={
+            "description": f"{username} generated {len(produced)} {body.framework} script(s)",
+            "skipped": len(skipped),
+        },
+    )
+
+    return {
+        "generated": len(produced),
+        "skipped": skipped,
+        "scripts": [_script_detail(s) for s in produced],
+    }
+
+
+@router.get("/scripts")
+def list_scripts(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+    framework: Optional[str] = Query(default=None),
+    current_only: bool = Query(default=True),
+):
+    query = db.query(AutomationScript)
+    if current_only:
+        query = query.filter(AutomationScript.is_current.is_(True))
+    if framework:
+        query = query.filter(AutomationScript.framework == framework)
+    scripts = query.order_by(AutomationScript.created_at.desc()).all()
+    return {"scripts": [_script_detail(s) for s in scripts]}
+
+
+def _load_script(db: Session, script_id: int) -> AutomationScript:
+    script = db.query(AutomationScript).filter(AutomationScript.id == script_id).first()
+    if not script:
+        raise HTTPException(status_code=404, detail="Script not found")
+    return script
+
+
+@router.get("/scripts/{script_id}")
+def get_script(
+    script_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+):
+    return _script_detail(_load_script(db, script_id))
+
+
+@router.patch("/scripts/{script_id}")
+def edit_script(
+    script_id: int,
+    body: EditScriptRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Hand-edit a script, then re-run the static gate over what was typed."""
+    script = _load_script(db, script_id)
+    script.code = body.code
+    # Flagged so regeneration warns before discarding the edit.
+    script.edited_by_user = True
+    script.static_gate_result = {
+        **compiler.CompiledScript(
+            framework=script.framework,
+            language=script.language,
+            file_name=script.file_name,
+            code=body.code,
+            entry_path=script.entry_path or script.file_name,
+            execution_command=script.execution_command or "",
+            issues=compiler.run_static_gate(body.code, 1, 0),
+        ).gate_result(),
+    }
+    db.commit()
+    db.refresh(script)
+    return _script_detail(script)
+
+
+@router.post("/scripts/{script_id}/decide")
+def decide_script(
+    script_id: int,
+    body: ScriptDecisionRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    script = _load_script(db, script_id)
+    gate = script.static_gate_result or {}
+    if body.decision == "approve" and gate.get("passed") is False:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "The static gate failed on this script: "
+                + "; ".join(gate.get("errors") or ["unknown reason"])
+                + ". Fix it before approving."
+            ),
+        )
+    script.status = "approved" if body.decision == "approve" else "rejected"
+    db.commit()
+    db.refresh(script)
+    return _script_detail(script)
+
+
+@router.post("/scripts/dry-run", status_code=202)
+def dry_run_scripts(
+    body: DryRunRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Execute the selected scripts once, through the ordinary run pipeline.
+
+    Each script becomes an AutomationRun, so its evidence, log and cancellation
+    behave exactly like anything on the Runs tab, and dry_run_key is the join
+    back. Refusals happen before anything is queued.
+    """
+    if not settings.AUTOMATION_ENABLED:
+        raise HTTPException(
+            status_code=503,
+            detail="The Automation Module is disabled on this deployment (AUTOMATION_ENABLED=false).",
+        )
+    if not is_ready():
+        detail = "; ".join(
+            f"{name}: {support.detail}"
+            for name, support in runtime_status().items()
+            if not support.available
+        )
+        raise HTTPException(status_code=503, detail=f"The browser runtime is not available. {detail}")
+
+    username = (current_user or {}).get("username")
+    queued, refused = [], []
+
+    for script_id in body.script_ids:
+        script = db.query(AutomationScript).filter(AutomationScript.id == script_id).first()
+        if not script:
+            refused.append({"script_id": script_id, "reason": "Script not found."})
+            continue
+        if script.framework not in compiler.RUNNABLE_FRAMEWORKS:
+            refused.append(
+                {
+                    "script_id": script_id,
+                    "reason": (
+                        f"{compiler.FRAMEWORK_LABELS.get(script.framework, script.framework)} is "
+                        "generate-only — no runner exists for it."
+                    ),
+                }
+            )
+            continue
+        gate = script.static_gate_result or {}
+        if gate.get("passed") is False:
+            refused.append(
+                {
+                    "script_id": script_id,
+                    "reason": "Static gate failed: " + "; ".join(gate.get("errors") or []),
+                }
+            )
+            continue
+
+        permitted, reason = job_manager.capacity()
+        if not permitted:
+            refused.append({"script_id": script_id, "reason": reason})
+            continue
+
+        run_key = new_run_key()
+        run = AutomationRun(
+            run_key=run_key,
+            test_case_id=script.test_case_id,
+            script_id=script.id,
+            framework=script.framework,
+            environment=body.environment,
+            status="queued",
+            run_config={"headless": True, "mode": "dry_run"},
+            run_metadata={
+                "code": script.code,
+                "base_url": body.base_url,
+                "file_name": script.file_name,
+            },
+            triggered_by=username,
+        )
+        db.add(run)
+
+        script.dry_run_status = "queued"
+        script.dry_run_key = run_key
+        script.dry_run_at = datetime.utcnow()
+        db.commit()
+        db.refresh(run)
+
+        job_manager.submit(run_key)
+        queued.append({"script_id": script.id, "run_key": run_key})
+
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="execute",
+        resource_type="automation_script",
+        resource_id=",".join(str(q["script_id"]) for q in queued) or "none",
+        resource_name=f"dry run of {len(queued)} script(s)",
+        status="success",
+        details={"description": f"{username} dry-ran {len(queued)} script(s)"},
+    )
+
+    if not queued and refused:
+        raise HTTPException(status_code=409, detail=refused[0]["reason"])
+    return {"queued": queued, "refused": refused}
+
+
+@router.get("/scripts/{script_id}/dry-run")
+def get_dry_run(
+    script_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+):
+    """The dry run's current state, folded back onto the script.
+
+    Read through the run rather than cached on the script, so the two can never
+    disagree about what happened.
+    """
+    script = _load_script(db, script_id)
+    if not script.dry_run_key:
+        return {"script_id": script.id, "dry_run_status": "not_run", "run": None}
+
+    run = db.query(AutomationRun).filter(AutomationRun.run_key == script.dry_run_key).first()
+    if not run:
+        return {"script_id": script.id, "dry_run_status": script.dry_run_status, "run": None}
+
+    mapped = {
+        "queued": "queued",
+        "running": "running",
+        "completed": "passed" if run.outcome == "passed" else "failed",
+        "failed": "blocked" if run.outcome == "blocked" else "failed",
+        "cancelled": "not_run",
+    }.get(run.status, "not_run")
+
+    if script.dry_run_status != mapped:
+        script.dry_run_status = mapped
+        script.dry_run_summary = {
+            "outcome": run.outcome,
+            "total": run.total_tests,
+            "passed": run.passed,
+            "failed": run.failed,
+            "duration_seconds": run.duration_seconds,
+            "error_message": run.error_message,
+        }
+        db.commit()
+
+    return {
+        "script_id": script.id,
+        "dry_run_status": mapped,
+        "run": _run_summary(run),
+        "summary": script.dry_run_summary,
+    }
+
+
+@router.post("/scripts/delete")
+def delete_scripts(
+    body: BulkIdsRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Delete scripts. Runs are left alone -- their evidence is still a record."""
+    username = (current_user or {}).get("username")
+    scripts = (
+        db.query(AutomationScript).filter(AutomationScript.id.in_(body.case_ids)).all()
+    )
+    for script in scripts:
+        db.delete(script)
+    db.commit()
+
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="delete",
+        resource_type="automation_script",
+        resource_id=",".join(str(i) for i in body.case_ids),
+        resource_name=f"{len(scripts)} script(s)",
+        status="success",
+        details={"description": f"{username} deleted {len(scripts)} script(s)"},
+    )
+    return {"deleted": len(scripts)}
+
+
+@router.get("/scripts/{script_id}/download")
+def download_script(
+    script_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+):
+    script = _load_script(db, script_id)
+    return Response(
+        content=script.code or "",
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{script.file_name}"'},
+    )
+
+
+@router.get("/scripts/download/bundle")
+def download_script_bundle(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+    framework: Optional[str] = Query(default=None),
+):
+    """Every current script as one zip, foldered by framework.
+
+    Built in memory: these are text files of a few kilobytes each, so writing
+    them to disk to serve them would add a temp file and a cleanup path for no
+    benefit.
+    """
+    query = db.query(AutomationScript).filter(AutomationScript.is_current.is_(True))
+    if framework:
+        query = query.filter(AutomationScript.framework == framework)
+    scripts = query.all()
+
+    if not scripts:
+        raise HTTPException(status_code=404, detail="There are no scripts to download yet.")
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for script in scripts:
+            case = script.test_case
+            folder = script.framework
+            name = script.file_name or f"script-{script.id}.txt"
+            archive.writestr(f"{folder}/{name}", script.code or "")
+            if script.setup_notes:
+                archive.writestr(
+                    f"{folder}/{name}.README.txt",
+                    "\n".join(
+                        [f"Test case: {case.display_id if case else script.test_case_id}", ""]
+                        + list(script.setup_notes)
+                    ),
+                )
+
+    buffer.seek(0)
+    filename = f"automation-scripts{'-' + framework if framework else ''}.zip"
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

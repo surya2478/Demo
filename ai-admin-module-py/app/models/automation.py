@@ -24,6 +24,7 @@ copy.
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Column,
     DateTime,
@@ -89,6 +90,56 @@ class AutomationTestCase(Base):
     eligibility_score = Column(Integer, nullable=True)
     eligibility_verdict = Column(String(30), nullable=True, index=True)
     eligibility_reasons = Column(JSON, nullable=True)
+
+    # --- Automation TC Coverage Assessment ----------------------------------
+    # The workbench columns, ported from stlc-platform's RefinedTestCase.
+    #
+    # Refinement produces these; the workbench is where a human classifies and
+    # approves them. They are separate from eligibility_* on purpose:
+    # eligibility is a deterministic "is this fit to automate as written",
+    # classification is a decision about whether it SHOULD be automated at all.
+    # A case can score 100 and still be manual-only.
+
+    # One sentence stating what the case proves. Distinct from description,
+    # which is whatever the source document happened to say.
+    objective = Column(Text, nullable=True)
+    bdd_scenario = Column(Text, nullable=True)
+    priority = Column(String(20), nullable=False, default="Medium")
+    test_type = Column(String(50), nullable=True)
+
+    # existing  -- refined in place from a case that already existed
+    # imported  -- came in through intake (form, paste, CSV)
+    # derived   -- generated to fill a coverage gap, no prior case
+    origin = Column(String(20), nullable=False, default="imported", index=True)
+
+    # automation | manual | undecided
+    classification = Column(String(20), nullable=False, default="undecided", index=True)
+    # policy | user | agent -- who decided, so a bulk re-run can leave a human
+    # decision alone rather than silently overwriting it.
+    classification_source = Column(String(30), nullable=True)
+    classification_reason = Column(Text, nullable=True)
+    manual_only_reasons = Column(JSON, nullable=True)
+
+    test_data_required = Column(Boolean, nullable=False, default=False)
+    # not_required | pending | ready -- pending blocks approval, which is the
+    # whole reason it is tracked separately from test_data_requirements.
+    test_data_status = Column(String(20), nullable=False, default="not_required", index=True)
+    test_data_notes = Column(Text, nullable=True)
+
+    # draft | approved | rejected. Named approval_status rather than `status`
+    # because AutomationRun.status already means something else in this module
+    # and one of the two would have to be read twice.
+    approval_status = Column(String(20), nullable=False, default="draft", index=True)
+    decision_reason = Column(Text, nullable=True)
+    approved_by = Column(String(255), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+
+    # Bumped when a refinement replaces content in place, so the grid can show
+    # v2 without keeping a second row.
+    version = Column(Integer, nullable=False, default=1)
+    # Resolved at refinement time and frozen, so a later change to the
+    # application does not silently invalidate steps already written.
+    application_url = Column(Text, nullable=True)
 
     application_id = Column(Integer, ForeignKey("automation_applications.id"), nullable=True, index=True)
 
@@ -169,6 +220,37 @@ class AutomationScript(Base):
     version = Column(Integer, nullable=False, default=1)
     parent_script_id = Column(Integer, ForeignKey("automation_scripts.id"), nullable=True)
     status = Column(String(30), nullable=False, default="draft", index=True)
+
+    # --- Automation Script Lab ----------------------------------------------
+    # Ported from stlc-platform's ScriptAsset.
+
+    # Stable handle for one test case + framework pair, so regenerating
+    # replaces the right asset instead of accumulating duplicates.
+    script_key = Column(String(255), nullable=True, index=True)
+    execution_command = Column(Text, nullable=True)
+    setup_notes = Column(JSON, nullable=True)
+    entry_path = Column(String(500), nullable=True)
+
+    # Lint/compile checks that run before anything is executed. Cheap, and they
+    # catch the failures not worth spending a browser on.
+    static_gate_result = Column(JSON, nullable=True)
+
+    # not_run | queued | running | passed | failed | blocked
+    dry_run_status = Column(String(20), nullable=False, default="not_run", index=True)
+    dry_run_summary = Column(JSON, nullable=True)
+    dry_run_at = Column(DateTime, nullable=True)
+    # The run_key of the AutomationRun that produced the result above. A dry run
+    # IS a run -- it reuses the Phase 0 runner, job manager and evidence
+    # pipeline rather than adding a second execution path.
+    dry_run_key = Column(String(64), nullable=True, index=True)
+
+    # False on superseded versions, so the grid shows one row per test case and
+    # framework without a subquery.
+    is_current = Column(Boolean, nullable=False, default=True, index=True)
+    # Set once a human edits the code, so regeneration can warn before
+    # discarding hand-written changes.
+    edited_by_user = Column(Boolean, nullable=False, default=False)
+    generation_error = Column(Text, nullable=True)
 
     created_by = Column(String(255), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)

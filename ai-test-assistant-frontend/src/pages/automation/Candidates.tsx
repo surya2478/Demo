@@ -19,7 +19,9 @@ import {
   HiOutlineCheckCircle,
   HiOutlineExclamation,
   HiOutlineExclamationCircle,
-  HiOutlineCode
+  HiOutlineCode,
+  HiOutlinePlus,
+  HiOutlineSparkles
 } from 'react-icons/hi'
 import automationService from '../../services/automationService'
 import { useAutomationContext } from '../../components/automation/AutomationContext'
@@ -30,6 +32,8 @@ import EmptyState from '../../components/ui/EmptyState'
 import LoadingSkeleton from '../../components/ui/LoadingSkeleton'
 import CandidateDrawer from '../../components/automation/CandidateDrawer'
 import RunSpecModal from '../../components/automation/RunSpecModal'
+import IntakeModal from '../../components/automation/IntakeModal'
+import RefineDialog from '../../components/automation/RefineDialog'
 import { verdictLabel, verdictTone } from '../../components/automation/EligibilityMeter'
 import type { Candidate, CandidateSummary, Verdict } from '../../types/automation'
 
@@ -80,6 +84,8 @@ const Candidates: React.FC = () => {
   const [drawerCandidate, setDrawerCandidate] = useState<Candidate | null>(null)
   const [runCandidate, setRunCandidate] = useState<Candidate | null>(null)
   const [runModalOpen, setRunModalOpen] = useState(false)
+  const [intakeOpen, setIntakeOpen] = useState(false)
+  const [refineCandidate, setRefineCandidate] = useState<Candidate | null>(null)
 
   // Debounce the search so typing does not re-scan every approved case per
   // keystroke — the backend re-reads and re-scores the whole table each call.
@@ -238,6 +244,16 @@ const Candidates: React.FC = () => {
             </button>
             <button
               type="button"
+              onClick={() => setIntakeOpen(true)}
+              disabled={!canExecute}
+              title={canExecute ? undefined : 'You do not have permission to add test cases.'}
+              className="app-btn app-btn-secondary inline-flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <HiOutlinePlus className="h-4 w-4" />
+              Add test case
+            </button>
+            <button
+              type="button"
               onClick={() => openRun(null)}
               disabled={!canExecute}
               title={canExecute ? undefined : 'You do not have permission to execute runs.'}
@@ -373,6 +389,26 @@ const Candidates: React.FC = () => {
                             <HiOutlineEye className="h-4 w-4" />
                             View
                           </button>
+                          {/* Refinement writes a new Studio row, so it is only
+                              offered for cases the Studio owns. An approved case
+                              belongs to the review workflow, which is read-only
+                              here. */}
+                          <button
+                            type="button"
+                            onClick={() => setRefineCandidate(candidate)}
+                            disabled={!canExecute || candidate.id === null}
+                            title={
+                              candidate.id === null
+                                ? 'Approved cases live in the review workflow. Add a Studio copy to refine it.'
+                                : canExecute
+                                  ? 'Rewrite this case into automation-ready steps'
+                                  : 'You do not have permission to refine test cases.'
+                            }
+                            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-semibold text-app-secondary transition hover:bg-app-surface-muted hover:text-app-primary disabled:opacity-40 disabled:hover:bg-transparent"
+                          >
+                            <HiOutlineSparkles className="h-4 w-4" />
+                            Refine
+                          </button>
                           <button
                             type="button"
                             onClick={() => openRun(candidate)}
@@ -397,6 +433,20 @@ const Candidates: React.FC = () => {
           </div>
         ) : null}
       </SectionCard>
+
+      <IntakeModal
+        open={intakeOpen}
+        onClose={() => setIntakeOpen(false)}
+        canWrite={canExecute}
+        onSaved={() => void load()}
+      />
+
+      <RefineDialog
+        candidate={refineCandidate}
+        onClose={() => setRefineCandidate(null)}
+        canExecute={canExecute}
+        onRefined={() => void load()}
+      />
 
       <CandidateDrawer
         candidate={drawerCandidate}

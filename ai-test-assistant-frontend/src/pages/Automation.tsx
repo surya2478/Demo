@@ -62,8 +62,34 @@ const HeroCheckGlyph: React.FC<TabGlyphProps> = ({ className = '' }) => (
   </svg>
 )
 
+const WorkbenchGlyph: React.FC<TabGlyphProps> = ({ className = '' }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className={className}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6.5h9M4 12h13M4 17.5h7" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.5l1.75 1.75L21.5 16.5" />
+  </svg>
+)
+
+const ScriptLabGlyph: React.FC<TabGlyphProps> = ({ className = '' }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className={className}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 7L4.5 12 9 17M15 7l4.5 5-4.5 5" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M13.25 4.5l-2.5 15" />
+  </svg>
+)
+
 const tabs = [
   { to: 'candidates', label: 'Candidates', detail: 'What is ready to automate', Icon: CandidatesGlyph },
+  {
+    to: 'workbench',
+    label: 'Automation TC Coverage Assessment',
+    detail: 'Refine, classify and approve',
+    Icon: WorkbenchGlyph
+  },
+  {
+    to: 'script-lab',
+    label: 'Automation Script Lab',
+    detail: 'Generate, dry run and download',
+    Icon: ScriptLabGlyph
+  },
   { to: 'runs', label: 'Runs', detail: 'Execution history and evidence', Icon: RunsGlyph }
 ]
 
@@ -159,7 +185,7 @@ const Automation: React.FC = () => {
 
       {/* Tabs */}
       <section className="rounded-[20px] border border-app bg-app-surface p-3 shadow-app-card">
-        <nav className="grid grid-cols-2 gap-1.5">
+        <nav className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
           {tabs.map(t => {
             const TabIcon = t.Icon
             return (
