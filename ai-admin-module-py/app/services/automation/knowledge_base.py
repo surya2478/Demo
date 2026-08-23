@@ -158,3 +158,97 @@ def build_flow_context_prompt(query_or_brd: str, app_id: str = "eand_ae") -> str
     lines.append("INSTRUCTION: Use this exact flow structure and exact URL routes in your generated Test Cases.")
     lines.append("")
     return "\n".join(lines)
+
+
+def resolve_product_config_url(text_or_data: str, flow: Optional[Dict[str, Any]] = None) -> Optional[str]:
+    """Extract or resolve product configuration URL from text, test data, or flow blueprint."""
+    # 1. Check if raw text already has a configuration URL
+    url_match = re.search(r"https?://[^\s'\"]+configuration[^\s'\"]*", text_or_data)
+    if url_match:
+        return url_match.group(0).rstrip(".,)")
+
+    # 2. Check for ProductId and SkuId explicitly in test_data or text
+    pid_match = re.search(r"ProductId:\s*([a-zA-Z0-9]+)", text_or_data, re.IGNORECASE)
+    sku_match = re.search(r"SkuId:\s*([a-zA-Z0-9]+)", text_or_data, re.IGNORECASE)
+    
+    prod_id = pid_match.group(1) if pid_match else None
+    sku_id = sku_match.group(1) if sku_match else None
+
+    # 3. Check known products in matched flow
+    if flow and not prod_id:
+        known = flow.get("known_products", {})
+        for name, meta in known.items():
+            if name.lower() in text_or_data.lower() or any(w.lower() in text_or_data.lower() for w in name.split() if len(w) > 3):
+                prod_id = meta.get("productId")
+                sku_id = meta.get("skuId")
+                break
+
+    if prod_id:
+        sku_part = f"&skuId={sku_id}" if sku_id else ""
+        cat_name = flow.get("category", "Smartphones") if flow else "Smartphones"
+        return f"https://www.eand.ae/eshop/devices/configuration?productId={prod_id}{sku_part}&catName={cat_name}&listVal=Smartphones&showDefault=true"
+
+    return None
+
+
+def ground_case_structured_steps(case: Any) -> List[Dict[str, Any]]:
+    """Ground structured steps of a test case using Knowledge Base Blueprints."""
+    full_text = f"{getattr(case, 'description', '')} {getattr(case, 'objective', '')} {getattr(case, 'steps_raw', '')} {getattr(case, 'test_data', '')}"
+    flow = match_flow_blueprint(full_text)
+
+    steps = list(getattr(case, "steps_structured", []) or [])
+    if not steps and getattr(case, "steps_raw", None):
+        from .eligibility import split_steps
+        raw_s = split_steps(case.steps_raw)
+        steps = [{"step_number": i + 1, "action": s, "target": None, "test_data_ref": None, "expected_result": None} for i, s in enumerate(raw_s)]
+
+    grounded_steps = []
+    catalog_entry = flow.get("catalog_entrypoint") if flow else "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN"
+    product_config_url = resolve_product_config_url(full_text, flow)
+
+    for i, st in enumerate(steps):
+        s_num = st.get("step_number") or (i + 1)
+        action = str(st.get("action") or "").strip()
+        target = st.get("target")
+        act_lower = action.lower()
+
+        # Step 1 / Portal Navigation
+        if not target and (i == 0 or "homepage" in act_lower or "index.html" in act_lower or act_lower.startswith("navigate to https://www.eand.ae")):
+            target = "https://www.eand.ae/en/index.html"
+
+        # Cookie dismissal
+        elif any(k in act_lower for k in ["cookie", "privacy", "overlay", "banner", "usercentrics"]):
+            target = "#usercentrics-root"
+
+        # Catalog navigation
+        elif any(k in act_lower for k in ["catalog", "listing", "earbuds", "smartphones", "smartwatches", "accessories ->"]):
+            target = catalog_entry
+
+        # Product configuration page
+        elif any(k in act_lower for k in ["product configuration", "configure", "open product", "select the huawei", "select huawei", "select samsung", "select product"]):
+            if product_config_url:
+                target = product_config_url
+            elif catalog_entry:
+                target = catalog_entry
+
+        # Variant / Payment Plan
+        elif any(k in act_lower for k in ["one time", "full price", "payment option", "variant", "storage", "color"]):
+            target = ".segment-tab:has-text('One time'), label:has-text('One Time')"
+
+        # Add to cart
+        elif "add to cart" in act_lower or "add to basket" in act_lower:
+            target = "button:has-text('ADD TO CART'), button:has-text('Checkout Now')"
+
+        # Checkout
+        elif any(k in act_lower for k in ["checkout", "proceed to checkout", "secure checkout", "shopping cart"]):
+            target = "button:has-text('Checkout Now'), button:has-text('Proceed to Checkout')"
+
+        grounded_steps.append({
+            "step_number": s_num,
+            "action": action,
+            "target": target,
+            "test_data_ref": st.get("test_data_ref"),
+            "expected_result": st.get("expected_result")
+        })
+
+    return grounded_steps

@@ -273,7 +273,11 @@ def compile_playwright(
     Supports both Web UI automation and REST API testing.
     """
     catalog = catalog or []
-    steps = list(case.steps_structured or [])
+    try:
+        from .knowledge_base import ground_case_structured_steps
+        steps = ground_case_structured_steps(case)
+    except Exception:
+        steps = list(case.steps_structured or [])
     display_id = case.display_id or "test-case"
     slug = re.sub(r"[^A-Za-z0-9]+", "-", display_id).strip("-").lower() or "spec"
     title = f"{display_id} - {case.objective or case.description or 'automated test'}"
