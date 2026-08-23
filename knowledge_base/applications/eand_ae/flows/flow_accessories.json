@@ -14,6 +14,11 @@
     "soundtec"
   ],
   "catalog_entrypoint": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
+  "cart_endpoint": "https://www.eand.ae/eshop/checkout/cart",
+  "automation_boundary": {
+    "automated_scope": "Accessories Catalog -> Product Configuration -> Plan Selection -> ADD TO CART -> Shopping Cart Verification",
+    "external_boundary": "Live Payment Gateway (Credit Card / OTP) is an external boundary."
+  },
   "canonical_steps": [
     {
       "step_number": 1,
@@ -47,14 +52,14 @@
     },
     {
       "step_number": 6,
-      "action": "Click 'ADD TO CART' / 'Checkout Now' button",
+      "action": "Detect stock state and Click 'ADD TO CART' / 'Checkout Now' button",
       "target": "button:has-text('Checkout Now'), button:has-text('ADD TO CART')",
-      "expected_result": "Item is added to cart successfully"
+      "expected_result": "If in stock, item is added to cart successfully; if out-of-stock, button is disabled"
     },
     {
       "step_number": 7,
       "action": "Verify Shopping Cart & Secure Checkout review screen",
-      "target": "URL_ASSERTION",
+      "target": "https://www.eand.ae/eshop/checkout/cart",
       "expected_result": "Order summary is displayed with proceed to checkout options"
     }
   ],
@@ -62,21 +67,46 @@
     "Huawei FreeClip 2s": {
       "productId": "prod1T1786686221657",
       "skuId": "bgskuTrans3999231220",
-      "default_price": "AED 749.00"
+      "default_price": "AED 749.00",
+      "available_colors": [
+        "Black",
+        "Purple",
+        "White"
+      ],
+      "payment_plans": [
+        "One time AED 749.00",
+        "24 months AED 33/mo",
+        "18 months",
+        "12 months"
+      ]
     },
     "Apple AirPods Max 2": {
       "productId": "prod1T1775032063511",
-      "skuId": "bgskuTrans3999229481"
+      "skuId": "bgskuTrans3999229481",
+      "default_price": "AED 2,099.00",
+      "available_colors": [
+        "Midnight",
+        "Starlight",
+        "Blue",
+        "Purple",
+        "Orange"
+      ],
+      "payment_plans": [
+        "One time AED 2,099.00",
+        "24 months AED 96/mo"
+      ]
     },
     "Honor Earbuds 4": {
       "productId": "prod1T1777616962903",
       "skuId": "bgskuTrans3999229892",
-      "default_price": "AED 169.00"
-    },
-    "Honor Choice Earbuds Perfume": {
-      "productId": "prod1T1778573721866",
-      "skuId": "bgskuTrans3999228785",
-      "default_price": "AED 299.00"
+      "default_price": "AED 169.00",
+      "available_colors": [
+        "White",
+        "Cyan"
+      ],
+      "payment_plans": [
+        "One time AED 169.00"
+      ]
     }
   }
 }

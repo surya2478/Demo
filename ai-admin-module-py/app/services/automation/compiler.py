@@ -293,6 +293,10 @@ def compile_playwright(
         f" * {comment_text(case.objective)}",
         " *",
         f" * Mode: {'REST API Test' if is_api else 'Web UI Automation'}",
+        " *",
+        " * Execution Boundary:",
+        " *   - Automated Scope: Up to and including Variant Configuration + ADD TO CART + Shopping Cart Verification.",
+        " *   - External Boundary: Real OTP / Credit Card / UAE PASS authentication require external credentials.",
         " * Values come from environment variables so no credential or record id is baked into the file.",
         " */",
     ]
@@ -447,14 +451,19 @@ def compile_playwright(
                 lines.append("    }")
                 lines.append("  } catch (e) {}")
             elif "add to cart" in action_lower or "add to basket" in action_lower or "add to cart" in target_lower:
-                lines.append("  // Add item to cart")
-                lines.append("  try {")
-                lines.append("    const addBtn = page.locator('button:has-text(\"ADD TO CART\"), button:has-text(\"Add to cart\"), button:has-text(\"Add To Cart\")').first();")
-                lines.append("    if (await addBtn.isVisible({ timeout: 10000 }).catch(() => false)) {")
-                lines.append("      await addBtn.click();")
-                lines.append("      await page.waitForTimeout(2000);")
-                lines.append("    }")
-                lines.append("  } catch (e) {}")
+                lines.append("  // Detect stock state dynamically (In-Stock vs Out-of-Stock branch)")
+                lines.append("  const outOfStockEl = page.locator('.out-of-stock, :text(\"OUT OF STOCK\"), :text(\"Out of stock\"), :text(\"Sold Out\")').first();")
+                lines.append("  const isOutOfStock = await outOfStockEl.isVisible({ timeout: 2000 }).catch(() => false);")
+                lines.append("  const addBtn = page.locator('button:has-text(\"ADD TO CART\"), button:has-text(\"Add to cart\"), button:has-text(\"Add To Cart\"), button:has-text(\"Checkout Now\")').first();")
+                lines.append("  if (isOutOfStock) {")
+                lines.append("    console.log(\"Product is OUT OF STOCK on live site — asserting ADD TO CART is disabled\");")
+                lines.append("    await expect(addBtn).toBeDisabled();")
+                lines.append("  } else {")
+                lines.append("    await expect(addBtn).toBeVisible({ timeout: 15000 });")
+                lines.append("    await expect(addBtn).toBeEnabled();")
+                lines.append("    await addBtn.click();")
+                lines.append("    await page.waitForTimeout(2500);")
+                lines.append("  }")
             elif any(k in action_lower for k in ["checkout", "proceed to", "buy now"]) or any(k in target_lower for k in ["checkout", "buy now"]):
                 lines.append("  // Proceed to Checkout")
                 lines.append("  try {")
