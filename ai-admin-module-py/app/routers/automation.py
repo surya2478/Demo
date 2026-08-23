@@ -15,12 +15,16 @@ from __future__ import annotations
 import csv
 import io
 import json
+import logging
+import shutil
 import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+logger = logging.getLogger(__name__)
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -28,7 +32,12 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..database.connection import get_db
+from ..models.database import TestCaseDetail
 from ..models.automation import (
+    AutomationDiscoveredElement,
+    AutomationDiscoveryRun,
+    AutomationIntakeBatch,
+    AutomationIntakeDocument,
     AutomationRun,
     AutomationRunResult,
     AutomationScript,
@@ -36,13 +45,19 @@ from ..models.automation import (
 )
 from ..services.authz import require_permission
 from ..services.automation import workspace as ws
-from ..services.automation.eligibility import score_test_case
+from ..services.automation.eligibility import COLUMN_ALIASES, score_test_case, split_steps
 from ..services.automation.job_manager import job_manager, new_run_key
 from ..services.automation.llm import LLMError, provider_status
 from ..services.automation.preflight import is_ready, runtime_status
 from ..services.automation.refine import refine_case_content, refined_to_columns
 from ..services.automation import compiler
+from ..services.automation import discovery
+from ..services.automation import grounding
+from ..services.automation import extraction
+from ..services.automation import intake
 from ..services.automation import workbench as wb
+from ..services.automation import healer
+from ..services.automation.guided_discovery import guided_discovery_manager
 from ..services.audit_logger import audit_log
 
 router = APIRouter(tags=["Automation Studio"])
@@ -277,11 +292,40 @@ class CreateRunRequest(BaseModel):
     base_url: Optional[str] = Field(default=None, max_length=2000)
     file_name: Optional[str] = Field(default=None, max_length=255)
     test_case_id: Optional[int] = None
+    slow_mo_ms: Optional[int] = Field(default=None, ge=0, le=10000)
+    headless: Optional[bool] = Field(default=True)
 
 
 def _run_summary(run: AutomationRun) -> dict:
+    tc_display_id = None
+    tc_title = None
+    test_case = getattr(run, "test_case", None)
+    script = getattr(run, "script", None)
+    metadata = run.run_metadata if isinstance(run.run_metadata, dict) else {}
+
+    if test_case:
+        tc_display_id = getattr(test_case, "display_id", None)
+        tc_title = getattr(test_case, "description", None) or tc_display_id
+    elif script and getattr(script, "test_case", None):
+        stc = script.test_case
+        tc_display_id = getattr(stc, "display_id", None)
+        tc_title = getattr(stc, "description", None) or tc_display_id
+    elif metadata:
+        tc_display_id = metadata.get("display_id") or metadata.get("file_name")
+        tc_title = metadata.get("title") or metadata.get("description")
+
+    file_name = None
+    if metadata and metadata.get("file_name"):
+        file_name = metadata.get("file_name")
+    elif script:
+        file_name = getattr(script, "file_name", None)
+
     return {
         "run_key": run.run_key,
+        "test_case_id": getattr(run, "test_case_id", None),
+        "tc_display_id": tc_display_id,
+        "tc_title": tc_title,
+        "file_name": file_name,
         "status": run.status,
         "outcome": run.outcome,
         "framework": run.framework,
@@ -298,6 +342,12 @@ def _run_summary(run: AutomationRun) -> dict:
         "created_at": run.created_at.isoformat() if run.created_at else None,
         "triggered_by": run.triggered_by,
         "is_active": job_manager.is_active(run.run_key),
+        "is_healed": bool(metadata.get("is_healed", False)),
+        "healing_diagnosis": metadata.get("healing_diagnosis"),
+        "healing_changes": metadata.get("healing_changes"),
+        "original_code": metadata.get("original_code"),
+        "healed_code": metadata.get("healed_code"),
+        "run_metadata": metadata,
     }
 
 
@@ -336,16 +386,24 @@ def create_run(
     username = (current_user or {}).get("username")
     run_key = new_run_key()
 
+    slow_mo = (
+        body.slow_mo_ms
+        if body.slow_mo_ms is not None
+        else getattr(settings, "AUTOMATION_DEFAULT_SLOW_MO_MS", 1000)
+    )
+    is_headless = body.headless if body.headless is not None else True
+
     run = AutomationRun(
         run_key=run_key,
         test_case_id=body.test_case_id,
         framework="playwright",
         environment=body.environment,
         status="queued",
-        # Headless is the decision for this deployment. Persisted as a config
-        # object rather than assumed, so a future profile is a new value here
-        # instead of a schema change.
-        run_config={"headless": True, "mode": "standard"},
+        run_config={
+            "headless": is_headless,
+            "slow_mo_ms": slow_mo,
+            "mode": "standard",
+        },
         run_metadata={
             "code": body.code,
             "base_url": body.base_url,
@@ -422,6 +480,17 @@ def get_run(
     )
 
     metadata = run.run_metadata or {}
+    code_val = metadata.get("code")
+    if not code_val and run.script:
+        code_val = run.script.code
+    if not code_val and run.workspace_path:
+        wp = Path(run.workspace_path)
+        for spec_file in wp.glob("*.spec.ts"):
+            try:
+                code_val = spec_file.read_text(encoding="utf-8")
+                break
+            except Exception:
+                pass
 
     return {
         **_run_summary(run),
@@ -430,9 +499,9 @@ def get_run(
         # Only on this endpoint: a code blob per row would inflate the runs
         # list many times over for a column nobody reads there.
         "spec": {
-            "code": metadata.get("code"),
-            "file_name": metadata.get("file_name"),
-            "base_url": metadata.get("base_url"),
+            "code": code_val,
+            "file_name": metadata.get("file_name") or (run.script.file_name if run.script else "spec.ts"),
+            "base_url": metadata.get("base_url") or (run.test_case.application_url if run.test_case else None),
         },
         "results": [
             {
@@ -475,6 +544,225 @@ def cancel_run(
             detail="This run is not being executed by this process, so it cannot be cancelled here.",
         )
     return {"run_key": run_key, "cancelling": True}
+
+
+class HealRunResponse(BaseModel):
+    healed_code: str
+    diagnosis: str
+    changes_made: list[str] = Field(default_factory=list)
+    original_code: str
+    confidence: int = 85
+
+
+@router.post("/runs/{run_key}/heal", response_model=HealRunResponse)
+def heal_run_spec(
+    run_key: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Diagnose a run and generate a repaired Playwright spec using the Healer Agent."""
+    run = db.query(AutomationRun).filter(AutomationRun.run_key == run_key).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    metadata = run.run_metadata or {}
+    code = metadata.get("code") or ""
+    if not code and run.script:
+        code = run.script.code or ""
+    if not code:
+        raise HTTPException(status_code=400, detail="This run has no script code stored.")
+
+    first_fail = (
+        db.query(AutomationRunResult)
+        .filter(AutomationRunResult.run_id == run.id, AutomationRunResult.status.in_(["fail", "error"]))
+        .first()
+    )
+    err_msg = (first_fail.error_message if first_fail else "") or (run.error_message or "")
+    stack = first_fail.stack_trace if first_fail else ""
+
+    discovered_rows = (
+        db.query(AutomationDiscoveredElement)
+        .join(
+            AutomationDiscoveryRun,
+            AutomationDiscoveredElement.discovery_run_id == AutomationDiscoveryRun.id,
+        )
+        .filter(AutomationDiscoveryRun.is_current == True)
+        .all()
+    )
+    discovered_list = [
+        {
+            "role": d.role,
+            "accessible_name": d.accessible_name,
+            "recommended_locator": d.recommended_locator,
+            "page_url": d.page_url,
+        }
+        for d in discovered_rows
+    ]
+
+    healed_code, diagnosis, changes = healer.diagnose_and_heal(
+        code=code,
+        error_message=err_msg,
+        stack_trace=stack,
+        discovered_elements=discovered_list,
+        base_url=metadata.get("base_url"),
+    )
+
+    return HealRunResponse(
+        healed_code=healed_code,
+        diagnosis=diagnosis,
+        changes_made=changes,
+        original_code=code,
+        confidence=90 if healed_code.strip() != code.strip() else 50,
+    )
+
+
+@router.post("/scripts/{script_id}/heal", response_model=HealRunResponse)
+def heal_script_spec(
+    script_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Diagnose a script and generate a repaired Playwright spec using the Healer Agent."""
+    script = db.query(AutomationScript).filter(AutomationScript.id == script_id).first()
+    if not script:
+        raise HTTPException(status_code=404, detail="Script not found")
+
+    code = script.code or ""
+    if not code:
+        raise HTTPException(status_code=400, detail="This script has no code.")
+
+    latest_run = (
+        db.query(AutomationRun)
+        .filter(AutomationRun.script_id == script.id)
+        .order_by(AutomationRun.id.desc())
+        .first()
+    )
+    err_msg = ""
+    stack = ""
+    if latest_run:
+        fail_res = (
+            db.query(AutomationRunResult)
+            .filter(AutomationRunResult.run_id == latest_run.id, AutomationRunResult.status.in_(["fail", "error"]))
+            .first()
+        )
+        if fail_res:
+            err_msg = fail_res.error_message or ""
+            stack = fail_res.stack_trace or ""
+
+    discovered_rows = (
+        db.query(AutomationDiscoveredElement)
+        .join(
+            AutomationDiscoveryRun,
+            AutomationDiscoveredElement.discovery_run_id == AutomationDiscoveryRun.id,
+        )
+        .filter(AutomationDiscoveryRun.is_current == True)
+        .all()
+    )
+    discovered_list = [
+        {
+            "role": d.role,
+            "accessible_name": d.accessible_name,
+            "recommended_locator": d.recommended_locator,
+            "page_url": d.page_url,
+        }
+        for d in discovered_rows
+    ]
+
+    healed_code, diagnosis, changes = healer.diagnose_and_heal(
+        code=code,
+        error_message=err_msg,
+        stack_trace=stack,
+        discovered_elements=discovered_list,
+        base_url=None,
+    )
+
+    return HealRunResponse(
+        healed_code=healed_code,
+        diagnosis=diagnosis,
+        changes_made=changes,
+        original_code=code,
+        confidence=90 if healed_code.strip() != code.strip() else 50,
+    )
+
+
+
+class DeleteRunsRequest(BaseModel):
+    run_keys: list[str] = Field(min_length=1)
+
+
+@router.post("/runs/delete")
+def delete_runs(
+    body: DeleteRunsRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Delete one or more automation runs, results, and on-disk workspaces."""
+    username = (current_user or {}).get("username")
+    runs = db.query(AutomationRun).filter(AutomationRun.run_key.in_(body.run_keys)).all()
+    if not runs:
+        return {"deleted": 0}
+
+    deleted_count = 0
+    for run in runs:
+        # Cancel if active
+        if job_manager.is_active(run.run_key):
+            try:
+                job_manager.cancel(run.run_key)
+            except Exception:
+                pass
+
+        # If it was dry_run on a script, unlink it
+        if run.script and run.script.dry_run_key == run.run_key:
+            run.script.dry_run_key = None
+            run.script.dry_run_status = "not_run"
+
+        # Remove workspace directory if it exists
+        if run.workspace_path:
+            try:
+                wp = Path(run.workspace_path)
+                if wp.exists() and wp.is_dir():
+                    shutil.rmtree(wp, ignore_errors=True)
+            except Exception:
+                pass
+
+        # Also check default workspace location
+        try:
+            ws_dir = ws.workspace_dir_for_run(run.run_key)
+            if ws_dir.exists() and ws_dir.is_dir():
+                shutil.rmtree(ws_dir, ignore_errors=True)
+        except Exception:
+            pass
+
+        db.delete(run)
+        deleted_count += 1
+
+    db.commit()
+
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="delete",
+        resource_type="automation_run",
+        resource_id=",".join(body.run_keys),
+        resource_name=f"{deleted_count} run(s)",
+        status="success",
+        details={
+            "description": f"{username} deleted {deleted_count} automation run(s)",
+            "run_keys": body.run_keys,
+        },
+    )
+    return {"deleted": deleted_count}
+
+
+@router.delete("/runs/{run_key}")
+def delete_single_run(
+    run_key: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Delete a single automation run."""
+    return delete_runs(DeleteRunsRequest(run_keys=[run_key]), db=db, current_user=current_user)
 
 
 # ── Evidence ─────────────────────────────────────────────────────────────────
@@ -760,15 +1048,10 @@ def delete_candidate(
 
 # Column aliases accepted on import. Spreadsheets exported from the review
 # workflow use the title-case names; a hand-rolled CSV usually does not.
-_CSV_ALIASES = {
-    "display_id": ("display_id", "test case id", "testcaseid", "id", "ref"),
-    "category": ("category", "module", "feature"),
-    "description": ("description", "test case description", "summary", "title"),
-    "preconditions": ("preconditions", "precondition", "pre-requisites"),
-    "steps_raw": ("steps_raw", "test steps", "steps", "step"),
-    "test_data": ("test_data", "test data", "data"),
-    "expected_result": ("expected_result", "expected result", "expected"),
-}
+# Moved to services/automation/eligibility.py, beside the field constants these
+# alias, when document intake became a second consumer. Same table, same
+# behaviour; the local name is kept so the usages below read unchanged.
+_CSV_ALIASES = COLUMN_ALIASES
 
 MAX_CSV_ROWS = 500
 
@@ -1013,15 +1296,66 @@ class EditCaseRequest(BaseModel):
     test_type: Optional[str] = Field(default=None, max_length=50)
     test_data_notes: Optional[str] = Field(default=None, max_length=2000)
 
+    # The approval gate, set by a human rather than derived. Ticking "required"
+    # re-blocks the case; clearing it records that the data now exists. The
+    # status is constrained here rather than left free-form because can_approve
+    # keys on the exact string, and a typo would silently unblock a case.
+    test_data_required: Optional[bool] = None
+    test_data_status: Optional[str] = Field(
+        default=None, pattern="^(not_required|pending|ready|user_provided)$"
+    )
+    steps_structured: Optional[list[dict]] = None
+
+
+def _parse_raw_steps_to_structured(steps_raw: Optional[str], expected_result: Optional[str] = None) -> list[dict]:
+    if not steps_raw:
+        return []
+    raw_lines = [line.strip() for line in str(steps_raw).split("\n") if line.strip()]
+    exp_lines = [e.strip() for e in str(expected_result or "").split("\n") if e.strip()]
+    structured = []
+    for i, r_line in enumerate(raw_lines):
+        clean_act = r_line
+        if clean_act.lower().startswith("step ") and ":" in clean_act:
+            clean_act = clean_act.split(":", 1)[1].strip()
+        elif "." in clean_act and clean_act.split(".", 1)[0].isdigit():
+            clean_act = clean_act.split(".", 1)[1].strip()
+        elif ")" in clean_act and clean_act.split(")", 1)[0].isdigit():
+            clean_act = clean_act.split(")", 1)[1].strip()
+
+        clean_exp = ""
+        if i < len(exp_lines):
+            clean_exp = exp_lines[i]
+            if clean_exp.lower().startswith("step ") and ":" in clean_exp:
+                clean_exp = clean_exp.split(":", 1)[1].strip()
+            elif "." in clean_exp and clean_exp.split(".", 1)[0].isdigit():
+                clean_exp = clean_exp.split(".", 1)[1].strip()
+            elif ")" in clean_exp and clean_exp.split(")", 1)[0].isdigit():
+                clean_exp = clean_exp.split(")", 1)[1].strip()
+
+        structured.append(
+            {
+                "step_number": i + 1,
+                "action": clean_act,
+                "target": None,
+                "test_data_ref": None,
+                "expected_result": clean_exp or None,
+            }
+        )
+    return structured
+
 
 def _workbench_case(case: AutomationTestCase, source_missing: bool = False) -> dict:
     """One row of the refined grid."""
     detail = _case_detail(case)
+    steps = case.steps_structured or []
+    if not steps and case.steps_raw:
+        steps = _parse_raw_steps_to_structured(case.steps_raw, case.expected_result)
+
     detail.update(
         {
             "tc_display_id": case.display_id,
-            "title": case.display_id,
-            "objective": case.objective,
+            "title": case.description or case.objective or case.display_id,
+            "objective": case.objective or case.description or case.display_id,
             "bdd_scenario": case.bdd_scenario,
             "priority": case.priority,
             "test_type": case.test_type,
@@ -1039,12 +1373,26 @@ def _workbench_case(case: AutomationTestCase, source_missing: bool = False) -> d
             "approved_at": case.approved_at.isoformat() if case.approved_at else None,
             "version": case.version,
             "application_url": case.application_url,
-            "steps": case.steps_structured or [],
+            "steps": steps,
             # The source it was refined from has been deleted, so regenerating
             # would build a second case rather than replacing this one.
             "source_missing": source_missing,
             "can_approve": wb.can_approve(case)[0],
             "approve_blocked_reason": wb.can_approve(case)[1] or None,
+            # Grounding: whether the steps resolve to controls that exist.
+            "grounding_status": case.grounding_status,
+            "grounding_summary": case.grounding_summary,
+            "grounded_at": case.grounded_at.isoformat() if case.grounded_at else None,
+            "discovery_run_id": case.discovery_run_id,
+            "flow_discovery_status": case.flow_discovery_status or "none",
+            "recorded_flow_objects": case.recorded_flow_objects or [],
+            "recorded_flow_objects_count": len(case.recorded_flow_objects or []),
+            # Quality Review (eSMART Review Agent)
+            "review_score": case.review_score,
+            "review_verdict": case.review_verdict,
+            "review_scores": case.review_scores or {},
+            "review_findings": case.review_findings or {},
+            "reviewed_at": case.reviewed_at.isoformat() if case.reviewed_at else None,
         }
     )
     return detail
@@ -1079,6 +1427,7 @@ def list_workbench_sources(
         out.append(
             {
                 "id": origin_id,
+                "origin": "approved",
                 "tc_display_id": source.get("display_id"),
                 "title": source.get("description") or source.get("display_id"),
                 "category": source.get("category"),
@@ -1086,7 +1435,172 @@ def list_workbench_sources(
                 "refined_test_case_id": refined.get(origin_id),
             }
         )
+
+    # --- Automation Module: the second way in --------------------------------
+    #
+    # Studio-owned cases that never went through the review workflow: CSV
+    # imports, manually authored cases, and now document intake. They were
+    # always refinable -- /workbench/generate has taken `case_ids` alongside
+    # `source_test_case_ids` since it was written -- but nothing listed them
+    # here, so the only route to that parameter was the Candidates screen.
+    #
+    # `origin` is what tells the two apart on the wire. An approved case's id
+    # is a review-workflow test_case_id (a string); a studio case's is this
+    # table's integer primary key, and they go into different request fields.
+    studio_query = db.query(AutomationTestCase).filter(AutomationTestCase.source == "manual")
+    if search:
+        pattern = f"%{search.strip()}%"
+        studio_query = studio_query.filter(
+            AutomationTestCase.display_id.ilike(pattern)
+            | AutomationTestCase.description.ilike(pattern)
+        )
+
+    # How a refined row points back at the studio case it came from. NOT
+    # parent_id, which stays null on this path: /workbench/generate stamps
+    # origin_test_case_id with "studio-<id>" for an imported item, and that
+    # string is the only link there is. Keying on parent_id here meant the
+    # Refined badge never lit for a studio case and the regenerate guard never
+    # fired, so pressing Generate twice silently built a second refined row.
+    refined_from_studio = {
+        row.origin_test_case_id
+        for row in db.query(AutomationTestCase)
+        .filter(
+            AutomationTestCase.source == "refined",
+            AutomationTestCase.origin_test_case_id.like("studio-%"),
+        )
+        .all()
+    }
+
+    for case in studio_query.order_by(AutomationTestCase.display_id).all():
+        out.append(
+            {
+                "id": str(case.id),
+                "origin": "studio",
+                "tc_display_id": case.display_id,
+                "title": case.description or case.display_id,
+                "category": case.category,
+                "eligibility": {
+                    "score": case.eligibility_score,
+                    "verdict": case.eligibility_verdict,
+                    "reasons": case.eligibility_reasons or [],
+                    "step_count": len(case.steps_structured or []),
+                    "can_generate": case.eligibility_verdict in ("ready", "review"),
+                },
+                "refined_test_case_id": (
+                    case.id if f"studio-{case.id}" in refined_from_studio else None
+                ),
+            }
+        )
+
     return {"sources": out, "total": len(out)}
+
+
+class DeleteWorkbenchSourcesRequest(BaseModel):
+    source_test_case_ids: list[str] = Field(default_factory=list)
+    case_ids: list[int] = Field(default_factory=list)
+
+
+@router.post("/workbench/sources/delete")
+def delete_workbench_sources(
+    body: DeleteWorkbenchSourcesRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Delete approved source test cases and/or manual studio test cases."""
+    username = (current_user or {}).get("username")
+    deleted_approved = 0
+    deleted_studio = 0
+    scripts_removed = 0
+
+    # 1. Delete approved test cases from test_cases_details
+    if body.source_test_case_ids:
+        # Also clean up any refined cases in automation_test_cases linked to these approved cases
+        linked_refined = (
+            db.query(AutomationTestCase)
+            .filter(
+                AutomationTestCase.source == "refined",
+                AutomationTestCase.origin_test_case_id.in_(body.source_test_case_ids),
+            )
+            .all()
+        )
+        for refined_case in linked_refined:
+            scripts_removed += len(refined_case.scripts or [])
+            for script in list(refined_case.scripts or []):
+                db.delete(script)
+            db.delete(refined_case)
+
+        approved_rows = (
+            db.query(TestCaseDetail)
+            .filter(TestCaseDetail.test_case_id.in_(body.source_test_case_ids))
+            .all()
+        )
+        deleted_approved = len(approved_rows)
+        for row in approved_rows:
+            db.delete(row)
+
+    # 2. Delete studio manual cases from automation_test_cases
+    if body.case_ids:
+        studio_prefixes = [f"studio-{cid}" for cid in body.case_ids]
+        linked_refined_studio = (
+            db.query(AutomationTestCase)
+            .filter(
+                AutomationTestCase.source == "refined",
+                AutomationTestCase.origin_test_case_id.in_(studio_prefixes),
+            )
+            .all()
+        )
+        for refined_case in linked_refined_studio:
+            scripts_removed += len(refined_case.scripts or [])
+            for script in list(refined_case.scripts or []):
+                db.delete(script)
+            db.delete(refined_case)
+
+        studio_cases = (
+            db.query(AutomationTestCase)
+            .filter(
+                AutomationTestCase.id.in_(body.case_ids),
+                AutomationTestCase.source == "manual",
+            )
+            .all()
+        )
+        deleted_studio = len(studio_cases)
+        for case in studio_cases:
+            scripts_removed += len(case.scripts or [])
+            for script in list(case.scripts or []):
+                db.delete(script)
+            db.delete(case)
+
+    db.commit()
+
+    total_deleted = deleted_approved + deleted_studio
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="delete",
+        resource_type="automation_source_cases",
+        resource_id=",".join(body.source_test_case_ids + [str(i) for i in body.case_ids]),
+        resource_name=f"{total_deleted} source test case(s)",
+        status="success",
+        details={
+            "description": f"{username} deleted {total_deleted} source test case(s)",
+            "deleted_approved": deleted_approved,
+            "deleted_studio": deleted_studio,
+            "scripts_removed": scripts_removed,
+        },
+    )
+    return {
+        "deleted": total_deleted,
+        "deleted_approved": deleted_approved,
+        "deleted_studio": deleted_studio,
+        "scripts_removed": scripts_removed,
+    }
+
+
+
+class RefineCasesInPlaceRequest(BaseModel):
+    case_ids: list[int] = Field(min_length=1)
+    application_url: Optional[str] = None
 
 
 @router.get("/workbench/test-cases")
@@ -1096,8 +1610,25 @@ def list_workbench_cases(
     classification: str = Query(default="all", pattern="^(all|automation|manual|undecided)$"),
 ):
     """The refined grid, with the counts the stat tiles show."""
-    query = db.query(AutomationTestCase).filter(AutomationTestCase.source == "refined")
-    cases = query.order_by(AutomationTestCase.created_at.desc()).all()
+    from ..services.automation import workbench as wb
+
+    # Auto-sync any approved test cases from Manager Review into AutomationTestCase
+    try:
+        wb.sync_approved_test_cases(db)
+    except Exception as e:
+        logger.warning("Failed to auto-sync approved test cases: %s", e)
+
+    # Fetch all studio test cases
+    all_cases = db.query(AutomationTestCase).order_by(AutomationTestCase.created_at.desc()).all()
+
+    # Deduplicate by display_id, prioritizing refined over manual/intake/imported
+    case_map = {}
+    for c in all_cases:
+        if c.display_id not in case_map:
+            case_map[c.display_id] = c
+        elif c.source == "refined" and case_map[c.display_id].source != "refined":
+            case_map[c.display_id] = c
+    cases = list(case_map.values())
 
     known_sources = {
         str(row[0])
@@ -1130,6 +1661,67 @@ def list_workbench_cases(
         rows = [r for r in rows if r["classification"] == classification]
 
     return {"counts": counts, "test_cases": rows}
+
+
+@router.post("/workbench/test-cases/refine-bulk")
+def refine_cases_in_place(
+    body: RefineCasesInPlaceRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Run AI refinement directly on selected test cases in place."""
+    from ..services.automation import workbench as wb
+
+    actor = (current_user or {}).get("username", "user")
+    cases = db.query(AutomationTestCase).filter(AutomationTestCase.id.in_(body.case_ids)).all()
+    if not cases:
+        raise HTTPException(status_code=404, detail="No matching test cases found to refine.")
+
+    refined_results = []
+    for c in cases:
+        try:
+            existing_dict = {
+                "Test Case ID": c.display_id,
+                "Test Case Description": c.description or c.objective or c.display_id,
+                "Preconditions": c.preconditions or "",
+                "Test Steps": c.steps_raw or "\n".join(
+                    f"{s.get('step_number', i)}. {s.get('action', '')}"
+                    for i, s in enumerate(c.steps_structured or [], 1)
+                ),
+                "Test Data": c.test_data or "",
+                "Expected Result": c.expected_result or "",
+            }
+            ref_out = wb._refine_one(
+                db=db,
+                case_dict=existing_dict,
+                display_id=c.display_id,
+                origin=c.origin or "imported",
+                origin_test_case_id=c.origin_test_case_id or f"studio-{c.id}",
+                category=c.category,
+                application_url=body.application_url or c.application_url,
+                replace=c,
+                actor=actor,
+            )
+            refined_results.append(_workbench_case(ref_out))
+        except Exception as e:
+            logger.error("In-place refinement failed for case %s: %s", c.display_id, e)
+
+    return {"refined_count": len(refined_results), "test_cases": refined_results}
+
+
+@router.post("/workbench/test-cases/{case_id}/refine")
+def refine_single_case_in_place(
+    case_id: int,
+    body: Optional[RefineCasesInPlaceRequest] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Run AI refinement on a single test case in place."""
+    req = RefineCasesInPlaceRequest(case_ids=[case_id], application_url=body.application_url if body else None)
+    res = refine_cases_in_place(req, db, current_user)
+    if res["test_cases"]:
+        return res["test_cases"][0]
+    raise HTTPException(status_code=500, detail="Refinement failed for this test case.")
 
 
 @router.post("/workbench/generate", status_code=202)
@@ -1359,7 +1951,41 @@ def edit_workbench_case(
     for field_name, value in payload.items():
         setattr(case, field_name, value)
 
+    if "steps_structured" in payload and payload["steps_structured"] is not None:
+        case.steps_structured = payload["steps_structured"]
+        # Re-construct steps_raw from structured steps for consistency
+        case.steps_raw = "\n".join(
+            f"{s.get('step_number', i)}. {s.get('action', '')}"
+            for i, s in enumerate(case.steps_structured, start=1)
+        )
+    elif "steps_raw" in payload and payload["steps_raw"]:
+        raw_list = split_steps(payload["steps_raw"])
+        if raw_list:
+            case.steps_structured = [
+                {
+                    "step_number": i,
+                    "action": s.strip(),
+                    "target": s.strip(),
+                    "test_data_ref": None,
+                    "expected_result": None,
+                }
+                for i, s in enumerate(raw_list, start=1)
+            ]
+
+    # Supersede any existing scripts for this case so generating/running always reflects edits
+    db.query(AutomationScript).filter(AutomationScript.test_case_id == case.id).update(
+        {"is_current": False}
+    )
+
     wb.rescore(case)
+
+    # Re-evaluate review quality score after manual edit
+    try:
+        from ..services.automation.review_agent import review_test_case
+        review_test_case(case, db=db)
+    except Exception as e:
+        logger.warning("Quality review re-score skipped for %s: %s", case.display_id, e)
+
     db.commit()
     db.refresh(case)
     return _workbench_case(case)
@@ -1478,6 +2104,8 @@ class DryRunRequest(BaseModel):
     script_ids: list[int] = Field(min_length=1)
     environment: Optional[str] = Field(default=None, max_length=50)
     base_url: Optional[str] = Field(default=None, max_length=2000)
+    slow_mo_ms: Optional[int] = Field(default=None, ge=0, le=10000)
+    headless: Optional[bool] = Field(default=True)
 
 
 class EditScriptRequest(BaseModel):
@@ -1506,7 +2134,7 @@ def _script_detail(script: AutomationScript) -> dict:
         "setup_notes": script.setup_notes or [],
         "generation_mode": script.generation_mode,
         "static_gate_result": script.static_gate_result,
-        "dry_run_status": script.dry_run_status,
+        "dry_run_status": script.dry_run_status or "not_run",
         "dry_run_summary": script.dry_run_summary,
         "dry_run_at": script.dry_run_at.isoformat() if script.dry_run_at else None,
         "dry_run_key": script.dry_run_key,
@@ -1557,7 +2185,7 @@ def list_approved_automation_cases(
         db.query(AutomationTestCase)
         .filter(
             AutomationTestCase.approval_status == wb.APPROVAL_APPROVED,
-            AutomationTestCase.classification == wb.CLASSIFICATION_AUTOMATION,
+            AutomationTestCase.classification != wb.CLASSIFICATION_MANUAL,
         )
         .order_by(AutomationTestCase.display_id)
         .all()
@@ -1616,11 +2244,34 @@ def generate_scripts(
         .all()
     )
 
+    # Fetched once per batch, not per case: it is the same catalogue for every
+    # case here, and a crawl's worth of rows is not something to re-query N
+    # times over one request. [] when nothing has been discovered -- compile_for
+    # then falls back to the phrase heuristic exactly as it did before grounding
+    # existed, so a deployment that has never run Discovery is unaffected.
+    catalog = _current_catalog(db)
+
     produced, skipped = [], []
     for case in cases:
         if case.approval_status != wb.APPROVAL_APPROVED:
             skipped.append({"display_id": case.display_id, "reason": "Not approved."})
             continue
+
+        # Ensure steps_structured is in sync with steps_raw
+        if case.steps_raw:
+            raw_list = split_steps(case.steps_raw)
+            if raw_list and (not case.steps_structured or len(case.steps_structured) != len(raw_list)):
+                case.steps_structured = [
+                    {
+                        "step_number": i,
+                        "action": s.strip(),
+                        "target": s.strip(),
+                        "test_data_ref": None,
+                        "expected_result": None,
+                    }
+                    for i, s in enumerate(raw_list, start=1)
+                ]
+                db.commit()
 
         script_key = f"{case.id}:{body.framework}"
         existing = (
@@ -1650,7 +2301,10 @@ def generate_scripts(
 
         try:
             compiled = compiler.compile_for(
-                case, body.framework, base_url=body.base_url or case.application_url
+                case,
+                body.framework,
+                base_url=body.base_url or case.application_url,
+                catalog=catalog,
             )
         except ValueError as exc:
             skipped.append({"display_id": case.display_id, "reason": str(exc)})
@@ -1853,6 +2507,13 @@ def dry_run_scripts(
             continue
 
         run_key = new_run_key()
+        slow_mo = (
+            body.slow_mo_ms
+            if body.slow_mo_ms is not None
+            else getattr(settings, "AUTOMATION_DEFAULT_SLOW_MO_MS", 1000)
+        )
+        is_headless = body.headless if body.headless is not None else True
+
         run = AutomationRun(
             run_key=run_key,
             test_case_id=script.test_case_id,
@@ -1860,7 +2521,11 @@ def dry_run_scripts(
             framework=script.framework,
             environment=body.environment,
             status="queued",
-            run_config={"headless": True, "mode": "dry_run"},
+            run_config={
+                "headless": is_headless,
+                "slow_mo_ms": slow_mo,
+                "mode": "dry_run",
+            },
             run_metadata={
                 "code": script.code,
                 "base_url": body.base_url,
@@ -2029,3 +2694,898 @@ def download_script_bundle(
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ── Application Discovery and Grounding ──────────────────────────────────────
+#
+# Discovery crawls the running application and catalogues what it renders.
+# Grounding matches refined test case steps against that catalogue and names
+# the ones that do not resolve.
+#
+# The crawl executes through the ordinary runner, so it has a run_key, a log
+# and cancellation for free. Its catalogue is folded in lazily when the run
+# finishes, the same way a dry run's result is -- one place decides what
+# happened, and the stored state can never disagree with the run.
+
+
+class DiscoveryRequest(BaseModel):
+    application_url: str = Field(min_length=1, max_length=2000)
+    application_environment: Optional[str] = Field(default=None, max_length=50)
+    application_id: Optional[int] = None
+    max_pages: int = Field(default=discovery.DEFAULT_MAX_PAGES, ge=1, le=40)
+
+
+class GroundRequest(BaseModel):
+    """Which cases to ground. Empty means every refined case."""
+
+    case_ids: list[int] = Field(default_factory=list)
+
+
+def _discovery_detail(run: AutomationDiscoveryRun, element_count: Optional[int] = None) -> dict:
+    return {
+        "id": run.id,
+        "version": run.version,
+        "is_current": bool(run.is_current),
+        "status": run.status,
+        "application_url": run.application_url,
+        "application_environment": run.application_environment,
+        "auth_mode": run.auth_mode,
+        "auth_status": run.auth_status,
+        "auth_detail": run.auth_detail,
+        "pages_discovered": run.pages_discovered,
+        "elements_discovered": element_count
+        if element_count is not None
+        else run.elements_discovered,
+        "explored_pages": run.explored_pages or [],
+        "blockers": run.blockers or [],
+        "error": run.error,
+        "run_key": run.run_key,
+        "created_by": run.created_by,
+        "created_at": run.created_at.isoformat() if run.created_at else None,
+        "updated_at": run.updated_at.isoformat() if run.updated_at else None,
+    }
+
+
+def _element_detail(element: AutomationDiscoveredElement) -> dict:
+    return {
+        "id": element.id,
+        "page_url": element.page_url,
+        "page_title": element.page_title,
+        "element_name": element.element_name,
+        "role": element.role,
+        "accessible_name": element.accessible_name,
+        "business_meaning": element.business_meaning,
+        "recommended_locator": element.recommended_locator,
+        "recommended_strategy": element.recommended_strategy,
+        "confidence_score": element.confidence_score,
+        "href": element.href,
+    }
+
+
+def _current_discovery(db: Session) -> Optional[AutomationDiscoveryRun]:
+    return (
+        db.query(AutomationDiscoveryRun)
+        .filter(AutomationDiscoveryRun.is_current.is_(True))
+        .order_by(AutomationDiscoveryRun.id.desc())
+        .first()
+    )
+
+
+def _current_catalog(db: Session) -> list[dict]:
+    """The current discovery run's elements, in grounding's shape, or [].
+
+    Shared by /workbench/ground and /scripts/generate so a script and its
+    case's grounding badge are judged against the identical catalogue -- two
+    separate lookups here previously risked disagreeing if a crawl finished
+    between them.
+    """
+    run = _current_discovery(db)
+    if not run:
+        return []
+    run = _absorb_discovery_result(db, run)
+    if run.status != "completed":
+        return []
+    elements = (
+        db.query(AutomationDiscoveredElement)
+        .filter(AutomationDiscoveredElement.discovery_run_id == run.id)
+        .all()
+    )
+    return discovery.catalog_from_elements(elements)
+
+
+def _absorb_discovery_result(db: Session, run: AutomationDiscoveryRun) -> AutomationDiscoveryRun:
+    """Fold a finished crawl's catalogue into the database, once.
+
+    Read from the workspace rather than kept in memory: the crawl is a
+    subprocess, and its output file is the only thing that survives it.
+    """
+    if run.status in ("completed", "failed") or not run.run_key:
+        return run
+
+    execution = db.query(AutomationRun).filter(AutomationRun.run_key == run.run_key).first()
+    if not execution:
+        return run
+
+    if execution.status in ("queued", "running"):
+        run.status = "running"
+        db.commit()
+        return run
+
+    if execution.status == "cancelled":
+        run.status = "failed"
+        run.error = "The crawl was cancelled."
+        db.commit()
+        return run
+
+    output_path = None
+    candidates = []
+    if execution.workspace_path:
+        candidates.append(Path(execution.workspace_path) / discovery.DISCOVERY_OUTPUT_FILE)
+    if execution.run_key:
+        candidates.append(ws.workspace_dir_for_run(execution.run_key) / discovery.DISCOVERY_OUTPUT_FILE)
+
+    for candidate in candidates:
+        if candidate.exists():
+            output_path = candidate
+            break
+
+    if output_path is None:
+        run.status = "failed"
+        run.error = (
+            execution.error_message
+            or "The crawl produced no catalogue. Its log explains what stopped it."
+        )
+        db.commit()
+        return run
+
+    try:
+        parsed = discovery.parse_discovery_output(
+            output_path.read_text(encoding="utf-8", errors="replace")
+        )
+    except ValueError as exc:
+        run.status = "failed"
+        run.error = str(exc)
+        db.commit()
+        return run
+
+    for element in parsed["elements"]:
+        db.add(AutomationDiscoveredElement(discovery_run_id=run.id, **element))
+
+    run.status = "completed"
+    run.pages_discovered = len(parsed["pages"])
+    run.elements_discovered = len(parsed["elements"])
+    run.explored_pages = parsed["pages"]
+    run.blockers = parsed["blockers"]
+    run.error = None
+    db.commit()
+    db.refresh(run)
+    return run
+
+
+@router.post("/discovery/run", status_code=202)
+def start_discovery(
+    body: DiscoveryRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Crawl the application. Returns 202; poll GET /discovery.
+
+    Refuses before queueing for the same reason a run does: an unavailable
+    browser runtime should be explained now, not discovered as a failed crawl
+    a minute later.
+    """
+    if not settings.AUTOMATION_ENABLED:
+        raise HTTPException(
+            status_code=503,
+            detail="The Automation Module is disabled on this deployment (AUTOMATION_ENABLED=false).",
+        )
+    if not is_ready():
+        detail = "; ".join(
+            f"{name}: {support.detail}"
+            for name, support in runtime_status().items()
+            if not support.available
+        )
+        raise HTTPException(status_code=503, detail=f"The browser runtime is not available. {detail}")
+
+    permitted, reason = job_manager.capacity()
+    if not permitted:
+        raise HTTPException(status_code=429, detail=reason)
+
+    username = (current_user or {}).get("username")
+
+    # Versioned, not overwritten: a case grounded against the previous
+    # catalogue keeps pointing at the run it was actually matched against.
+    previous = _current_discovery(db)
+    next_version = (previous.version + 1) if previous else 1
+    if previous:
+        previous.is_current = False
+
+    run = AutomationDiscoveryRun(
+        application_id=body.application_id,
+        version=next_version,
+        is_current=True,
+        status="queued",
+        application_url=body.application_url,
+        application_environment=body.application_environment,
+        auth_mode="none",
+        auth_status="not_required",
+        auth_detail=(
+            "Crawled as an anonymous visitor. Authenticated discovery needs credential "
+            "storage, which this deployment does not carry yet."
+        ),
+        created_by=username,
+    )
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+
+    run_key = new_run_key()
+    execution = AutomationRun(
+        run_key=run_key,
+        framework="playwright",
+        environment=body.application_environment,
+        status="queued",
+        run_config={"headless": True, "slow_mo_ms": 1000, "mode": "discovery"},
+        run_metadata={
+            "code": discovery.build_discovery_spec(
+                body.application_url, max_pages=body.max_pages
+            ),
+            "base_url": body.application_url,
+            "file_name": "discovery.spec.ts",
+        },
+        triggered_by=username,
+    )
+    db.add(execution)
+    run.run_key = run_key
+    run.status = "running"
+    db.commit()
+
+    job_manager.submit(run_key)
+
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="discover",
+        resource_type="automation_discovery_run",
+        resource_id=str(run.id),
+        resource_name=body.application_url,
+        status="success",
+        details={
+            "description": f"{username} started discovery of {body.application_url}",
+            "version": next_version,
+        },
+    )
+
+    db.refresh(run)
+    return _discovery_detail(run, element_count=0)
+
+
+@router.get("/discovery")
+def get_discovery(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+):
+    """The current catalogue's state. Absorbs a finished crawl on the way."""
+    run = _current_discovery(db)
+    if not run:
+        return {"discovery": None, "elements": 0}
+
+    run = _absorb_discovery_result(db, run)
+    count = (
+        db.query(AutomationDiscoveredElement)
+        .filter(AutomationDiscoveredElement.discovery_run_id == run.id)
+        .count()
+    )
+    return {"discovery": _discovery_detail(run, element_count=count), "elements": count}
+
+
+@router.get("/discovery/elements")
+def list_discovered_elements(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+    search: Optional[str] = Query(default=None, max_length=200),
+    role: Optional[str] = Query(default=None, max_length=50),
+):
+    run = _current_discovery(db)
+    if not run:
+        return {"elements": [], "total": 0}
+
+    query = db.query(AutomationDiscoveredElement).filter(
+        AutomationDiscoveredElement.discovery_run_id == run.id
+    )
+    if role:
+        query = query.filter(AutomationDiscoveredElement.role == role)
+    elements = query.order_by(AutomationDiscoveredElement.element_name).all()
+
+    if search:
+        needle = search.lower()
+        elements = [
+            e
+            for e in elements
+            if needle in (e.accessible_name or "").lower()
+            or needle in (e.element_name or "").lower()
+        ]
+
+    return {
+        "elements": [_element_detail(e) for e in elements],
+        "total": len(elements),
+        "roles": sorted({e.role for e in elements if e.role}),
+    }
+
+
+@router.delete("/discovery")
+def delete_discovery(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Discard the catalogue and reset every case that was grounded against it.
+
+    Leaving a grounding verdict behind after deleting what produced it would
+    leave the grid asserting something nothing backs.
+    """
+    runs = db.query(AutomationDiscoveryRun).all()
+    elements = db.query(AutomationDiscoveredElement).count()
+
+    reset = (
+        db.query(AutomationTestCase)
+        .filter(AutomationTestCase.grounding_status != grounding.STATUS_NOT_CHECKED)
+        .all()
+    )
+    for case in reset:
+        case.grounding_status = grounding.STATUS_NOT_CHECKED
+        case.grounding_summary = None
+        case.grounded_at = None
+        case.discovery_run_id = None
+
+    for run in runs:
+        db.delete(run)
+    db.commit()
+
+    return {
+        "discovery_runs_removed": len(runs),
+        "elements_removed": elements,
+        "test_cases_reset": len(reset),
+    }
+
+
+@router.post("/workbench/ground")
+def ground_cases(
+    body: GroundRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Match test case steps against the current catalogue.
+
+    Deterministic and instant -- no browser, no model call -- so it runs inline
+    rather than as a job.
+    """
+    run = _current_discovery(db)
+    if not run:
+        raise HTTPException(
+            status_code=409,
+            detail="Nothing has been discovered yet. Run discovery against the application first.",
+        )
+    run = _absorb_discovery_result(db, run)
+    if run.status != "completed":
+        raise HTTPException(
+            status_code=409,
+            detail=f"The current discovery run is {run.status}. Wait for it to finish.",
+        )
+
+    catalog = _current_catalog(db)
+
+    query = db.query(AutomationTestCase).filter(AutomationTestCase.source == "refined")
+    if body.case_ids:
+        query = query.filter(AutomationTestCase.id.in_(body.case_ids))
+    cases = query.all()
+
+    tallies = {
+        grounding.STATUS_GROUNDED: 0,
+        grounding.STATUS_PARTIAL: 0,
+        grounding.STATUS_UNGROUNDED: 0,
+    }
+    for case in cases:
+        summary = grounding.ground_test_case(case.steps_structured or [], catalog)
+        case.grounding_status = summary["status"]
+        case.grounding_summary = summary
+        case.grounded_at = datetime.utcnow()
+        case.discovery_run_id = run.id
+        tallies[summary["status"]] = tallies.get(summary["status"], 0) + 1
+
+    db.commit()
+
+    return {
+        "grounded_against": _discovery_detail(run, element_count=len(elements)),
+        "checked": len(cases),
+        "counts": tallies,
+        "test_cases": [_workbench_case(case) for case in cases],
+    }
+
+
+# ── Document intake ──────────────────────────────────────────────────────────
+#
+# The second way test cases reach the Workbench. See services/automation/
+# intake.py for what this does and, more importantly, what it deliberately does
+# not do yet -- BRD prose does not become test cases here.
+#
+# Reads need automation.view; anything that writes a file or creates candidates
+# needs automation.execute, matching /candidates/import.
+
+
+class IntakeBatchCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+
+
+class IntakeDocumentRole(BaseModel):
+    role: str = Field(pattern="^(brd|srd|test_cases)$")
+
+
+def _batch_or_404(db: Session, batch_id: int) -> AutomationIntakeBatch:
+    batch = db.query(AutomationIntakeBatch).filter(AutomationIntakeBatch.id == batch_id).first()
+    if not batch:
+        raise HTTPException(status_code=404, detail="That intake batch no longer exists.")
+    return batch
+
+
+def _document_or_404(db: Session, document_id: int) -> AutomationIntakeDocument:
+    document = (
+        db.query(AutomationIntakeDocument)
+        .filter(AutomationIntakeDocument.id == document_id)
+        .first()
+    )
+    if not document:
+        raise HTTPException(status_code=404, detail="That document no longer exists.")
+    return document
+
+
+@router.get("/intake/batches")
+def list_intake_batches(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+):
+    """Every intake batch, newest first, each with its documents."""
+    batches = (
+        db.query(AutomationIntakeBatch)
+        .order_by(AutomationIntakeBatch.created_at.desc(), AutomationIntakeBatch.id.desc())
+        .all()
+    )
+    return {"batches": [intake.batch_detail(b) for b in batches]}
+
+
+@router.post("/intake/batches", status_code=201)
+def create_intake_batch(
+    payload: IntakeBatchCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Create an empty batch to upload documents into."""
+    username = (current_user or {}).get("username")
+    batch = AutomationIntakeBatch(name=payload.name.strip(), created_by=username)
+    db.add(batch)
+    db.commit()
+    db.refresh(batch)
+
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="create",
+        resource_type="automation_intake_batch",
+        resource_id=str(batch.id),
+        resource_name=batch.name,
+        status="success",
+        details={"description": f"{username} created intake batch {batch.name!r}"},
+    )
+    return intake.batch_detail(batch)
+
+
+@router.delete("/intake/batches/{batch_id}", status_code=200)
+def delete_intake_batch(
+    batch_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Delete a batch, its documents and their stored originals.
+
+    Test cases harvested from those documents are left in place -- they may
+    already be refined or have scripts built on them. See intake.delete_document.
+    """
+    batch = _batch_or_404(db, batch_id)
+    name = batch.name
+
+    for document in list(batch.documents):
+        intake.delete_document(db, document)
+    db.delete(batch)
+    db.commit()
+
+    username = (current_user or {}).get("username")
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="delete",
+        resource_type="automation_intake_batch",
+        resource_id=str(batch_id),
+        resource_name=name,
+        status="success",
+        details={"description": f"{username} deleted intake batch {name!r}"},
+    )
+    return {"deleted": True, "id": batch_id}
+
+
+@router.post("/intake/batches/{batch_id}/documents", status_code=201)
+def upload_intake_documents(
+    batch_id: int,
+    files: list[UploadFile] = File(...),
+    role: str = Form(default="brd"),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Upload one or more documents into a batch and extract them.
+
+    Extraction runs inline rather than on a worker: this backend has no queue,
+    and the alternative -- returning immediately and making the UI poll a job
+    that does not exist -- would be a worse lie than a slow request. The size
+    ceiling in extraction.py is what keeps that bounded.
+
+    A document that fails to parse is still recorded, with the reason. The
+    response carries the whole batch so the table re-renders from one call.
+    """
+    batch = _batch_or_404(db, batch_id)
+    username = (current_user or {}).get("username")
+
+    if not files:
+        raise HTTPException(status_code=400, detail="No files were uploaded.")
+
+    accepted, rejected = [], []
+    for upload in files:
+        contents = upload.file.read()
+        if not contents:
+            rejected.append({"filename": upload.filename, "reason": "The file is empty."})
+            continue
+        try:
+            document = intake.ingest(
+                db,
+                batch=batch,
+                filename=upload.filename or "document",
+                contents=contents,
+                role=role,
+                username=username,
+            )
+            accepted.append(document)
+        except ValueError as exc:
+            rejected.append({"filename": upload.filename, "reason": str(exc)})
+
+    db.commit()
+    db.refresh(batch)
+
+    harvested = sum(d.cases_found for d in accepted)
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="upload",
+        resource_type="automation_intake_batch",
+        resource_id=str(batch.id),
+        resource_name=batch.name,
+        status="success" if accepted else "failure",
+        details={
+            "description": (
+                f"{username} uploaded {len(accepted)} document(s) to intake "
+                f"{batch.name!r}, yielding {harvested} test case(s)"
+            ),
+            "rejected": len(rejected),
+        },
+    )
+
+    return {"batch": intake.batch_detail(batch), "rejected": rejected}
+
+
+@router.patch("/intake/documents/{document_id}")
+def set_intake_document_role(
+    document_id: int,
+    payload: IntakeDocumentRole,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Change what a document is.
+
+    Only the label changes. Nothing is read here -- extraction is the Extract
+    Test Cases button, and doing it as a side effect of a dropdown would mean a
+    stray click could spend a model call. Correcting a role and then extracting
+    is two deliberate actions, which is what the source studio does too.
+    """
+    document = _document_or_404(db, document_id)
+    document.role = payload.role
+    db.commit()
+
+    batch = _batch_or_404(db, document.batch_id)
+    note = None
+    if payload.role == "test_cases" and document.cases_found == 0:
+        note = "Marked as test cases. Press Extract Test Cases to read them in."
+    return {"batch": intake.batch_detail(batch), "note": note}
+
+
+@router.delete("/intake/documents/{document_id}", status_code=200)
+def delete_intake_document(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Detach one document from its batch and delete its stored original."""
+    document = _document_or_404(db, document_id)
+    batch_id = document.batch_id
+    filename = document.filename
+
+    intake.delete_document(db, document)
+    db.commit()
+
+    batch = _batch_or_404(db, batch_id)
+    username = (current_user or {}).get("username")
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="delete",
+        resource_type="automation_intake_document",
+        resource_id=str(document_id),
+        resource_name=filename,
+        status="success",
+        details={"description": f"{username} removed {filename!r} from intake {batch.name!r}"},
+    )
+    return {"batch": intake.batch_detail(batch)}
+
+
+@router.post("/intake/batches/{batch_id}/extract", status_code=202)
+def extract_intake_test_cases(
+    batch_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Read the uploaded test case documents into candidates.
+
+    202 and poll, on the same contract as /workbench/generate and through the
+    same job registry, so the frontend reuses /workbench/jobs/{job_id} and its
+    progress component rather than growing a second polling mechanism.
+
+    Deliberately separate from coverage assessment. Coverage needs a BRD or SRD
+    to measure against; reading a test case sheet does not. Keeping the two on
+    one button would leave a batch holding only existing test cases with no way
+    into the Workbench, which is the case this module exists to serve.
+
+    Refusals are up front: an unconfigured model provider would otherwise fail
+    on every document in turn and report the same error N times. A batch that
+    is entirely clean spreadsheets never reaches the model, so that check is
+    skipped when every document can be read from its own table.
+    """
+    batch = _batch_or_404(db, batch_id)
+    documents = [d for d in batch.documents if d.role == "test_cases"]
+
+    if not documents:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "This intake has no test case documents. Upload one with its type "
+                "set to Test Cases, or change an existing document's type."
+            ),
+        )
+
+    unreadable = [d.filename for d in documents if d.extract_status != "ready"]
+    if len(unreadable) == len(documents):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "None of the test case documents could be read: "
+                + ", ".join(unreadable)
+            ),
+        )
+
+    # Only documents whose own table cannot be mapped need the model. Checking
+    # first means a tidy spreadsheet works with no provider configured at all.
+    needs_model = [
+        d
+        for d in documents
+        if d.extract_status == "ready" and not intake.can_read_table(d)
+    ]
+    if needs_model:
+        status_info = provider_status()
+        if not status_info.get("configured"):
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    f"{len(needs_model)} document(s) have no readable table, so they "
+                    f"need the model, which is not configured. {status_info.get('detail')}"
+                ),
+            )
+
+    username = (current_user or {}).get("username")
+    job = intake.start_extraction_job(
+        batch.id, document_count=len(documents), username=username
+    )
+
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="extract",
+        resource_type="automation_intake_batch",
+        resource_id=str(batch.id),
+        resource_name=batch.name,
+        status="success",
+        details={
+            "description": (
+                f"{username} started test case extraction over {len(documents)} "
+                f"document(s) in intake {batch.name!r}"
+            ),
+            "needs_model": len(needs_model),
+        },
+    )
+    return job.to_dict()
+
+
+# ── Guided Flow Discovery ───────────────────────────────────────────────────
+
+@router.post("/workbench/test-cases/{case_id}/guided-discovery/start")
+def start_guided_discovery(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Launch a live interactive headed browser for recording flow objects."""
+    case = _load_case(db, case_id)
+    session = guided_discovery_manager.start_session(case)
+    return {
+        "case_id": case.id,
+        "display_id": case.display_id,
+        "target_url": session.target_url,
+        "status": session.status,
+        "started_at": session.started_at.isoformat(),
+    }
+
+
+@router.post("/workbench/test-cases/{case_id}/guided-discovery/stop")
+def stop_guided_discovery(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Stop the guided discovery browser session and persist objects."""
+    session = guided_discovery_manager.stop_session(case_id)
+    db.expire_all()
+    case = _load_case(db, case_id)
+    return {
+        "case_id": case.id,
+        "status": session.status if session else "stopped",
+        "objects_count": len(case.recorded_flow_objects or []),
+        "flow_discovery_status": case.flow_discovery_status or "none",
+        "captured_objects": case.recorded_flow_objects or [],
+    }
+
+
+@router.get("/workbench/test-cases/{case_id}/guided-discovery/status")
+def get_guided_discovery_status(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+):
+    """Get active live session status and captured items."""
+    case = _load_case(db, case_id)
+    session = guided_discovery_manager.get_session(case_id)
+    active_status = session.status if session else (case.flow_discovery_status or "none")
+    live_objects = session.captured_objects if session and session.captured_objects else (case.recorded_flow_objects or [])
+    return {
+        "case_id": case.id,
+        "display_id": case.display_id,
+        "status": active_status,
+        "objects_count": len(live_objects),
+        "captured_objects": live_objects,
+    }
+
+
+@router.get("/workbench/test-cases/{case_id}/guided-discovery/objects")
+def get_guided_discovery_objects(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+):
+    """Get all saved flow objects for a test case."""
+    case = _load_case(db, case_id)
+    return {
+        "case_id": case.id,
+        "display_id": case.display_id,
+        "flow_discovery_status": case.flow_discovery_status or "none",
+        "objects": case.recorded_flow_objects or [],
+    }
+
+
+class UpdateFlowObjectsRequest(BaseModel):
+    objects: list[dict[str, Any]]
+
+
+@router.put("/workbench/test-cases/{case_id}/guided-discovery/objects")
+def update_guided_discovery_objects(
+    case_id: int,
+    body: UpdateFlowObjectsRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Update or reorder saved flow objects."""
+    case = _load_case(db, case_id)
+    case.recorded_flow_objects = body.objects
+    case.flow_discovery_status = "captured" if body.objects else "none"
+    db.commit()
+    db.refresh(case)
+    return {
+        "case_id": case.id,
+        "objects_count": len(case.recorded_flow_objects or []),
+        "objects": case.recorded_flow_objects,
+    }
+
+
+@router.delete("/workbench/test-cases/{case_id}/guided-discovery/objects")
+def clear_guided_discovery_objects(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Clear recorded flow objects for a test case."""
+    case = _load_case(db, case_id)
+    case.recorded_flow_objects = None
+    case.flow_discovery_status = "none"
+    db.commit()
+    db.refresh(case)
+    return {"case_id": case.id, "cleared": True}
+
+
+# ── Test Case Quality Review (eSMART Review Agent) ──────────────────────────
+
+@router.post("/workbench/test-cases/{case_id}/review")
+def run_case_review(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Run eSMART-grade multi-dimensional QA review on a test case."""
+    from ..services.automation.review_agent import review_test_case
+    case = _load_case(db, case_id)
+    result = review_test_case(case, db=db)
+    return result
+
+
+@router.post("/workbench/test-cases/review-all")
+def run_review_all(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Run Review Agent over all test cases in batch."""
+    from ..services.automation.review_agent import review_test_case
+    all_cases = db.query(AutomationTestCase).all()
+    case_map = {}
+    for c in all_cases:
+        if c.display_id not in case_map:
+            case_map[c.display_id] = c
+        elif c.source == "refined" and case_map[c.display_id].source != "refined":
+            case_map[c.display_id] = c
+    cases = list(case_map.values())
+    results = []
+    for case in cases:
+        try:
+            r = review_test_case(case, db=db)
+            results.append(r)
+        except Exception as e:
+            logger.warning("Review failed for %s: %s", case.display_id, e)
+    return {"reviewed_count": len(results), "reviews": results}
+
+
+@router.post("/workbench/test-cases/{case_id}/auto-improve")
+def run_case_auto_improve(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Automatically improve test case quality using Review Agent suggestions."""
+    from ..services.automation.review_agent import auto_improve_test_case
+    case = _load_case(db, case_id)
+    result = auto_improve_test_case(case, db=db)
+    return result

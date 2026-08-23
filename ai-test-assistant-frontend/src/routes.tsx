@@ -28,10 +28,10 @@ import TestAssistant from './pages/TestAssistant'
 import TestCases from './pages/test-assistant/TestCases'
 // Automation Studio and tabs
 import Automation from './pages/Automation'
-import Candidates from './pages/automation/Candidates'
 import Runs from './pages/automation/Runs'
 import Workbench from './pages/automation/Workbench'
 import ScriptLab from './pages/automation/ScriptLab'
+import Discovery from './pages/automation/Discovery'
 import RunDetail from './pages/automation/RunDetail'
 import Visual from './pages/test-assistant/Visual'
 import DataTab from './pages/test-assistant/DataTab'
@@ -211,6 +211,11 @@ const AppRoutes: React.FC = () => {
           <Route path="kb" element={<KB />} />
         </Route>
 
+        <Route
+          path="discovery"
+          element={<Navigate to="/automation/discovery" replace />}
+        />
+
         {/* Automation Studio with nested tab routes. Run Detail sits under
             the runs tab so the workspace chrome stays put when opening one. */}
         <Route
@@ -221,10 +226,15 @@ const AppRoutes: React.FC = () => {
             </ProtectedRoute>
           }
         >
-          <Route index element={<Navigate to="candidates" replace />} />
-          <Route path="candidates" element={<Candidates />} />
+          {/* Workbench is the landing tab. Candidates was removed: its candidate
+              list, single-case refine and CSV/manual intake are superseded by
+              Workbench's "What to refine" (approved + studio cases together,
+              via /workbench/sources) and Document Intake. */}
+          <Route index element={<Navigate to="workbench" replace />} />
+          <Route path="candidates" element={<Navigate to="../workbench" replace />} />
           <Route path="workbench" element={<Workbench />} />
           <Route path="script-lab" element={<ScriptLab />} />
+          <Route path="discovery" element={<Discovery />} />
           <Route path="runs" element={<Runs />} />
           <Route path="runs/:runKey" element={<RunDetail />} />
         </Route>

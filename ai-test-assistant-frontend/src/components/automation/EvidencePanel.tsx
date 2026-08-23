@@ -233,26 +233,36 @@ export const EvidencePanel: React.FC<EvidencePanelProps> = ({
 
         {!loading && !error && url && active === 'trace' ? (
           // A trace is a zip that only the Playwright trace viewer can open.
-          // Rendering it inline is impossible, so say what to do with it.
           <div className="rounded-app border border-dashed border-app bg-app-surface-muted/50 px-4 py-6 text-center">
             <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-app bg-app-surface text-app-brand-700 shadow-app-card">
               <HiOutlineDocumentSearch className="h-5 w-5" />
             </div>
-            <h4 className="text-sm font-semibold text-app-primary">Trace archive ready</h4>
+            <h4 className="text-sm font-semibold text-app-primary">Playwright Trace Archive Ready</h4>
             <p className="mx-auto mt-1.5 max-w-lg text-[13px] text-app-secondary">
-              Download the archive, then open it at{' '}
-              <span className="font-mono text-app-primary">trace.playwright.dev</span> or with{' '}
-              <span className="font-mono text-app-primary">npx playwright show-trace</span> to
-              step through every action with its DOM snapshot.
+              Inspect DOM snapshots, network waterfalls, action timelines, and console logs at any millisecond of test execution.
             </p>
-            <button
-              type="button"
-              onClick={handleDownload}
-              className="app-btn app-btn-secondary mt-4 inline-flex items-center gap-1.5"
-            >
-              <HiOutlineDownload className="h-4 w-4" />
-              Download trace
-            </button>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={handleDownload}
+                className="app-btn app-btn-primary inline-flex items-center gap-1.5 text-xs"
+              >
+                <HiOutlineDownload className="h-4 w-4" />
+                Download Trace (.zip)
+              </button>
+              <a
+                href="https://trace.playwright.dev"
+                target="_blank"
+                rel="noreferrer"
+                className="app-btn app-btn-secondary inline-flex items-center gap-1.5 text-xs"
+              >
+                <HiOutlineDocumentSearch className="h-4 w-4" />
+                Open Trace Viewer (trace.playwright.dev)
+              </a>
+            </div>
+            <p className="mt-3 text-[11px] text-app-secondary">
+              Or inspect locally in terminal with <code className="rounded bg-app-surface px-1.5 py-0.5 font-mono text-app-primary">npx playwright show-trace &lt;path-to-trace.zip&gt;</code>
+            </p>
           </div>
         ) : null}
       </div>

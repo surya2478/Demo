@@ -14,7 +14,6 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { usePageHeader } from '../components/layout/PageHeaderContext'
-import RuntimeStrip from '../components/automation/RuntimeStrip'
 import automationService from '../services/automationService'
 import type { AutomationContext } from '../components/automation/AutomationContext'
 import type { RuntimeStatusResponse } from '../types/automation'
@@ -28,17 +27,6 @@ const hasPermission = (user: any, permission: string): boolean => {
 }
 
 type TabGlyphProps = { className?: string }
-
-const CandidatesGlyph: React.FC<TabGlyphProps> = ({ className = '' }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className={className}>
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M9 4.75h6M9.75 3h4.5a1.5 1.5 0 011.5 1.5V6h1.75A2.25 2.25 0 0120 8.25v10.5A2.25 2.25 0 0117.75 21H6.25A2.25 2.25 0 014 18.75V8.25A2.25 2.25 0 016.25 6H8V4.5A1.5 1.5 0 019.5 3z"
-    />
-    <path strokeLinecap="round" strokeLinejoin="round" d="M8.75 13.25l2 2 4-4.5" />
-  </svg>
-)
 
 const RunsGlyph: React.FC<TabGlyphProps> = ({ className = '' }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className={className}>
@@ -76,11 +64,18 @@ const ScriptLabGlyph: React.FC<TabGlyphProps> = ({ className = '' }) => (
   </svg>
 )
 
+const DiscoveryGlyph: React.FC<TabGlyphProps> = ({ className = '' }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className={className}>
+    <circle cx="11" cy="11" r="6.5" />
+    <path strokeLinecap="round" d="M15.8 15.8L20 20" />
+    <circle cx="11" cy="11" r="2.25" />
+  </svg>
+)
+
 const tabs = [
-  { to: 'candidates', label: 'Candidates', detail: 'What is ready to automate', Icon: CandidatesGlyph },
   {
     to: 'workbench',
-    label: 'Automation TC Coverage Assessment',
+    label: 'Automation Workspace',
     detail: 'Refine, classify and approve',
     Icon: WorkbenchGlyph
   },
@@ -175,17 +170,9 @@ const Automation: React.FC = () => {
         </div>
       </section>
 
-      {/* Runtime readiness, before anything can be clicked */}
-      <RuntimeStrip
-        runtime={runtime}
-        loading={runtimeLoading}
-        error={runtimeError}
-        onRetry={loadRuntime}
-      />
-
       {/* Tabs */}
       <section className="rounded-[20px] border border-app bg-app-surface p-3 shadow-app-card">
-        <nav className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
+        <nav className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
           {tabs.map(t => {
             const TabIcon = t.Icon
             return (

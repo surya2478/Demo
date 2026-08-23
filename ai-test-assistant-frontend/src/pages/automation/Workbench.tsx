@@ -25,7 +25,11 @@ import {
   HiOutlineDownload,
   HiOutlineCheck,
   HiOutlineX,
-  HiOutlineExclamationCircle
+  HiOutlineExclamationCircle,
+  HiOutlineCursorClick,
+  HiOutlineEye,
+  HiOutlineStar,
+  HiOutlineShieldCheck
 } from 'react-icons/hi'
 import automationService from '../../services/automationService'
 import { useAutomationContext } from '../../components/automation/AutomationContext'
@@ -34,6 +38,8 @@ import EmptyState from '../../components/ui/EmptyState'
 import LoadingSkeleton from '../../components/ui/LoadingSkeleton'
 import StatusBadge from '../../components/ui/StatusBadge'
 import TestCaseEditor from '../../components/automation/TestCaseEditor'
+import DocumentIntake from '../../components/automation/DocumentIntake'
+import { GroundingBadge } from '../../components/automation/groundingPresentation'
 import {
   ApprovalBadge,
   ClassificationBadge,
@@ -46,6 +52,7 @@ import { isJobSettled } from '../../types/automation'
 import type {
   Classification,
   GenerationJob,
+  RecordedFlowObject,
   WorkbenchCase,
   WorkbenchCounts,
   WorkbenchSource
@@ -100,7 +107,20 @@ const Workbench: React.FC = () => {
   const [editError, setEditError] = useState<string | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
 
+  const [activeDiscoveryCase, setActiveDiscoveryCase] = useState<WorkbenchCase | null>(null)
+  const [activeDiscoveryStatus, setActiveDiscoveryStatus] = useState<string | null>(null)
+  const [flowObjectsCase, setFlowObjectsCase] = useState<WorkbenchCase | null>(null)
+  const [flowObjects, setFlowObjects] = useState<RecordedFlowObject[]>([])
+  const [loadingObjects, setLoadingObjects] = useState<boolean>(false)
+  const [objectsNotice, setObjectsNotice] = useState<string | null>(null)
+
+  const [reviewModalCase, setReviewModalCase] = useState<WorkbenchCase | null>(null)
+  const [reviewingCaseId, setReviewingCaseId] = useState<number | null>(null)
+  const [improvingCaseId, setImprovingCaseId] = useState<number | null>(null)
+  const [reviewingAll, setReviewingAll] = useState<boolean>(false)
+
   const pollRef = useRef<number | null>(null)
+  const discoveryPollRef = useRef<number | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
@@ -123,8 +143,194 @@ const Workbench: React.FC = () => {
     void load()
     return () => {
       if (pollRef.current !== null) window.clearTimeout(pollRef.current)
+      if (discoveryPollRef.current !== null) window.clearTimeout(discoveryPollRef.current)
     }
   }, [load])
+
+  const pollDiscoveryStatus = useCallback(
+    async (caseId: number) => {
+      try {
+        const res = await automationService.getGuidedDiscoveryStatus(caseId)
+        setActiveDiscoveryStatus(res.status)
+        if (res.status !== 'starting' && res.status !== 'recording') {
+          setActiveDiscoveryCase(null)
+          await load()
+          if (res.status === 'completed' || res.status === 'captured') {
+            setNotice(`Guided Discovery completed: ${res.objects_count} flow objects captured for ${res.display_id}`)
+          }
+          return
+        }
+        discoveryPollRef.current = window.setTimeout(() => void pollDiscoveryStatus(caseId), 2000)
+      } catch {
+        setActiveDiscoveryCase(null)
+        await load()
+      }
+    },
+    [load]
+  )
+
+  const handleStartGuidedDiscovery = async (testCase: WorkbenchCase) => {
+    setError(null)
+    setNotice(null)
+    try {
+      await automationService.startGuidedDiscovery(testCase.id)
+      setActiveDiscoveryCase(testCase)
+      setActiveDiscoveryStatus('recording')
+      setNotice(
+        `Launched Guided Live Browser for ${testCase.tc_display_id}. Interact with the web page to record flow objects, then click 'Finish & Save' in the browser HUD when done.`
+      )
+      discoveryPollRef.current = window.setTimeout(() => void pollDiscoveryStatus(testCase.id), 2000)
+    } catch (err: any) {
+      setError(err?.message ?? 'Failed to launch Guided Discovery session.')
+    }
+  }
+
+  const handleStopGuidedDiscovery = async (caseId: number) => {
+    if (discoveryPollRef.current !== null) window.clearTimeout(discoveryPollRef.current)
+    try {
+      const res = await automationService.stopGuidedDiscovery(caseId)
+      setActiveDiscoveryCase(null)
+      await load()
+      setNotice(`Saved ${res.objects_count} flow objects for test case.`)
+    } catch (err: any) {
+      setError(err?.message ?? 'Failed to stop Guided Discovery.')
+    }
+  }
+
+  const handleOpenFlowObjects = async (testCase: WorkbenchCase) => {
+    setFlowObjectsCase(testCase)
+    setLoadingObjects(true)
+    setObjectsNotice(null)
+    try {
+      const res = await automationService.getGuidedDiscoveryObjects(testCase.id)
+      setFlowObjects(res.objects || [])
+    } catch (err: any) {
+      setError(err?.message ?? 'Failed to load recorded flow objects.')
+    } finally {
+      setLoadingObjects(false)
+    }
+  }
+
+  const handleClearFlowObjects = async (caseId: number) => {
+    try {
+      await automationService.clearGuidedDiscoveryObjects(caseId)
+      setFlowObjects([])
+      if (flowObjectsCase) {
+        setFlowObjectsCase({
+          ...flowObjectsCase,
+          recorded_flow_objects: [],
+          flow_discovery_status: 'none'
+        })
+      }
+      await load()
+      setNotice('Cleared recorded flow objects.')
+    } catch (err: any) {
+      setError(err?.message ?? 'Failed to clear flow objects.')
+    }
+  }
+
+  // ── Quality Review Handlers ──────────────────────────────────────────
+
+  const handleOpenReviewModal = (testCase: WorkbenchCase) => {
+    setReviewModalCase(testCase)
+    if (!testCase.review_score) {
+      void handleRunReview(testCase)
+    }
+  }
+
+  const handleRunReview = async (testCase: WorkbenchCase) => {
+    setReviewingCaseId(testCase.id)
+    try {
+      const res = await automationService.reviewTestCase(testCase.id)
+      const updatedCase: WorkbenchCase = {
+        ...testCase,
+        review_score: res.overall_score,
+        review_verdict: res.verdict,
+        review_scores: res.scores,
+        review_findings: res.findings,
+        reviewed_at: res.reviewed_at,
+      }
+      setReviewModalCase(updatedCase)
+      setCases(prev => prev.map(c => (c.id === testCase.id ? updatedCase : c)))
+      setNotice(`Quality Review completed for ${testCase.tc_display_id}: ★ ${res.overall_score.toFixed(1)} / 5.0 (${res.verdict})`)
+    } catch (err: any) {
+      setError(err?.message ?? 'Review evaluation failed.')
+    } finally {
+      setReviewingCaseId(null)
+    }
+  }
+
+  const handleRunReviewAll = async () => {
+    setReviewingAll(true)
+    setError(null)
+    try {
+      const res = await automationService.reviewAllTestCases()
+      await load()
+      setNotice(`Quality Review completed across ${res.reviewed_count} test case(s).`)
+    } catch (err: any) {
+      setError(err?.message ?? 'Bulk quality review failed.')
+    } finally {
+      setReviewingAll(false)
+    }
+  }
+
+  const handleAutoImprove = async (caseId: number) => {
+    setImprovingCaseId(caseId)
+    setError(null)
+    try {
+      const res = await automationService.autoImproveTestCase(caseId)
+      await load()
+      const reloaded = await automationService.listWorkbenchCases('all')
+      const target = (reloaded.test_cases || []).find((c: WorkbenchCase) => c.id === caseId)
+      if (target) setReviewModalCase(target)
+      setNotice(`Auto-improved ${res.display_id} to 5-star quality! New Score: ★ ${res.review.overall_score.toFixed(1)} / 5.0`)
+    } catch (err: any) {
+      setError(err?.message ?? 'Auto-improvement failed.')
+    } finally {
+      setImprovingCaseId(null)
+    }
+  }
+
+  // ── On-Demand In-Place AI Refinement Handlers ─────────────────────────
+
+  const [refining, setRefining] = useState<boolean>(false)
+  const [refiningCaseId, setRefiningCaseId] = useState<number | null>(null)
+
+  const handleRefineBulk = async () => {
+    if (selectedCases.size === 0) return
+    setRefining(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const res = await automationService.refineBulkTestCases(
+        Array.from(selectedCases),
+        applicationUrl.trim() || undefined
+      )
+      await load()
+      setNotice(`AI Refinement complete: ${res.refined_count} test case(s) updated with high fidelity.`)
+    } catch (err: any) {
+      setError(err?.message ?? 'AI Refinement failed.')
+    } finally {
+      setRefining(false)
+    }
+  }
+
+  const handleRefineSingle = async (testCase: WorkbenchCase) => {
+    setRefiningCaseId(testCase.id)
+    setError(null)
+    setNotice(null)
+    try {
+      await automationService.refineTestCase(testCase.id, {
+        application_url: applicationUrl.trim() || undefined
+      })
+      await load()
+      setNotice(`AI Refinement complete for ${testCase.tc_display_id}.`)
+    } catch (err: any) {
+      setError(err?.message ?? 'Refinement failed.')
+    } finally {
+      setRefiningCaseId(null)
+    }
+  }
 
   // Poll a running batch. Stops the moment it settles — a finished job cannot
   // change, and the screen reloads once from the terminal state.
@@ -166,8 +372,19 @@ const Workbench: React.FC = () => {
     setError(null)
     setNotice(null)
     try {
+      // The two origins go into different request fields. An approved case's
+      // id is a review-workflow test case id; a studio case's is an
+      // automation_test_cases primary key. The backend looks each up in its own
+      // table, so a misfiled id matches nothing and the case is skipped in
+      // silence — hence splitting here rather than sending one flat list.
+      const selected = sources.filter(source => selectedSources.has(source.id))
       const started = await automationService.generateRefinedCases({
-        source_test_case_ids: Array.from(selectedSources),
+        source_test_case_ids: selected
+          .filter(source => source.origin !== 'studio')
+          .map(source => source.id),
+        case_ids: selected
+          .filter(source => source.origin === 'studio')
+          .map(source => Number(source.id)),
         application_url: applicationUrl.trim() || null,
         environment: environment.trim() || null,
         regenerate
@@ -180,6 +397,46 @@ const Workbench: React.FC = () => {
     } finally {
       setBusy(null)
     }
+  }
+
+  const handleDeleteSources = (sourceToDelete?: WorkbenchSource) => {
+    const toDelete = sourceToDelete
+      ? [sourceToDelete]
+      : sources.filter(source => selectedSources.has(source.id))
+    if (toDelete.length === 0) return
+
+    const count = toDelete.length
+    if (
+      !window.confirm(
+        `Are you sure you want to delete ${
+          count === 1
+            ? `test case "${toDelete[0].tc_display_id}"`
+            : `${count} selected test cases`
+        }?`
+      )
+    ) {
+      return
+    }
+
+    runAction('delete-sources', async () => {
+      await automationService.deleteWorkbenchSources({
+        source_test_case_ids: toDelete
+          .filter(source => source.origin !== 'studio')
+          .map(source => source.id),
+        case_ids: toDelete
+          .filter(source => source.origin === 'studio')
+          .map(source => Number(source.id))
+      })
+      if (sourceToDelete) {
+        setSelectedSources(prev => {
+          const next = new Set(prev)
+          next.delete(sourceToDelete.id)
+          return next
+        })
+      } else {
+        setSelectedSources(new Set())
+      }
+    })
   }
 
   const handleDecide = (decision: 'approve' | 'reject') =>
@@ -233,190 +490,48 @@ const Workbench: React.FC = () => {
         />
       </div>
 
-      {/* ── What to refine ─────────────────────────────────────────────── */}
+      {/* ── Document intake ────────────────────────────────────────────── */}
+      {/*
+        The second way in. Test cases read out of an uploaded document land in
+        the same table the panel below reads, so `load` is all that is needed
+        to make them appear -- there is no separate intake list to reconcile.
+      */}
+      <DocumentIntake onCasesHarvested={() => void load()} />
+
+      {/* ── Test Cases Workbench ────────────────────────────────────────── */}
       <SectionCard
-        title="What to refine"
-        description="Approved test cases are refined in place and keep their ID and name — the originals in the review workflow are never modified."
+        title="Test Cases Workbench"
+        description="Classify against automation rules, review quality, edit steps, approve, or AI refine on demand."
+        noPadding
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <input
               value={applicationUrl}
               onChange={e => setApplicationUrl(e.target.value)}
-              placeholder="Application URL"
-              className="app-input w-[210px]"
-              aria-label="Application URL"
+              placeholder="Target URL: https://..."
+              className="app-input h-8 text-xs w-48"
+              title="Grounding application URL for test cases & refinement"
             />
-            <input
-              value={environment}
-              onChange={e => setEnvironment(e.target.value)}
-              list="tas-workbench-environments"
-              placeholder="qa"
-              className="app-input w-24"
-              aria-label="Environment"
-            />
-            <datalist id="tas-workbench-environments">
-              {ENVIRONMENTS.map(name => (
-                <option key={name} value={name} />
-              ))}
-            </datalist>
-            <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-app-secondary">
-              <input
-                type="checkbox"
-                checked={regenerate}
-                onChange={e => setRegenerate(e.target.checked)}
-                className="h-3.5 w-3.5"
-              />
-              Regenerate existing
-            </label>
             <button
               type="button"
-              onClick={handleGenerate}
-              disabled={!canExecute || selectedSources.size === 0 || busy === 'generate'}
-              className="app-btn app-btn-primary inline-flex items-center gap-1.5 disabled:opacity-50"
+              onClick={handleRefineBulk}
+              disabled={!anySelected || !canExecute || refining}
+              title="Refine selected test cases with AI on-demand"
+              className="app-btn bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 inline-flex items-center gap-1.5 disabled:opacity-50 text-xs font-semibold"
             >
-              <HiOutlineSparkles className="h-4 w-4" />
-              {busy === 'generate'
-                ? 'Starting…'
-                : selectedSources.size
-                  ? `Generate ${selectedSources.size} test case(s)`
-                  : 'Generate refined test cases'}
+              <HiOutlineSparkles className={`h-4 w-4 text-purple-600 ${refining ? 'animate-spin' : ''}`} />
+              {refining ? 'Refining...' : 'AI Refine'}
             </button>
-          </div>
-        }
-      >
-        {job && !isJobSettled(job.status) ? (
-          <div className="mb-3">
-            <JobProgress percent={job.percent} message={job.message} />
-          </div>
-        ) : null}
-
-        {job && isJobSettled(job.status) ? (
-          <div
-            className={`mb-3 rounded-app border px-3 py-2.5 text-[12px] ${
-              job.errors.length
-                ? 'border-orange-200 bg-app-warning-bg text-app-warning'
-                : 'border-green-200 bg-app-success-bg text-app-success'
-            }`}
-          >
-            {job.message}
-            {job.errors.length ? (
-              <ul className="mt-1 space-y-0.5">
-                {job.errors.map((e, i) => (
-                  <li key={i}>
-                    <span className="font-semibold">{e.display_id}</span>: {e.error}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        ) : null}
-
-        {selectedSources.size > 0 ? (
-          applicationUrl.trim() ? (
-            <p className="mb-3 text-[11px] text-app-secondary">
-              Grounding in <span className="font-medium text-app-primary">{applicationUrl}</span>
-              {environment ? ` (${environment})` : null}
-            </p>
-          ) : (
-            <p className="mb-3 rounded-app border border-orange-200 bg-app-warning-bg px-3 py-2 text-[11px] text-app-warning">
-              No application URL set, so every refined test case will carry “Application URL not
-              configured” as its first precondition. Set one above to ground them.
-            </p>
-          )
-        ) : null}
-
-        {alreadyRefinedSelected.length > 0 && !regenerate ? (
-          <p className="mb-3 rounded-app border border-orange-200 bg-app-warning-bg px-3 py-2 text-[11px] text-app-warning">
-            {alreadyRefinedSelected.length} of the selected case(s) have already been refined and
-            will be skipped. Tick <span className="font-semibold">Regenerate existing</span> to
-            replace them instead.
-          </p>
-        ) : null}
-
-        {loading ? (
-          <LoadingSkeleton className="h-40 w-full" rounded="lg" />
-        ) : sources.length === 0 ? (
-          <EmptyState
-            title="No approved test cases"
-            description="Approve a test case in Review & Approve and it appears here, ready to refine."
-          />
-        ) : (
-          <div>
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <label className="flex min-w-0 cursor-pointer items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={allSourcesSelected}
-                  ref={node => {
-                    // Some-but-not-all reads as "clicking this clears the
-                    // selection", which an unticked box does not convey.
-                    if (node) node.indeterminate = someSourcesSelected
-                  }}
-                  onChange={e =>
-                    setSelectedSources(e.target.checked ? new Set(sources.map(s => s.id)) : new Set())
-                  }
-                  className="h-3.5 w-3.5"
-                  aria-label="Select all approved test cases"
-                />
-                <h4 className="truncate text-[12px] font-semibold text-app-primary">
-                  Approved test cases
-                  <span className="ml-1.5 font-normal text-app-secondary">({sources.length})</span>
-                </h4>
-              </label>
-              <span className="flex-shrink-0 text-[11px] text-app-secondary">
-                {selectedSources.size > 0
-                  ? `${selectedSources.size} selected`
-                  : 'ID and name preserved'}
-              </span>
-            </div>
-            <div className="app-scroll max-h-64 space-y-1 overflow-y-auto">
-              {sources.map(source => (
-                <label
-                  key={source.id}
-                  className="flex cursor-pointer items-start gap-2 rounded-app border border-transparent px-2 py-1.5 text-[12px] transition hover:border-app hover:bg-app-surface-muted"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedSources.has(source.id)}
-                    onChange={() => setSelectedSources(prev => toggle(prev, source.id))}
-                    className="mt-0.5 h-3.5 w-3.5"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="font-mono text-[11px] text-app-secondary">
-                      {source.tc_display_id}
-                    </span>
-                    <span className="ml-2 font-medium text-app-primary">{source.title}</span>
-                  </span>
-                  {source.refined_test_case_id ? (
-                    <StatusBadge tone="info" size="sm">
-                      Refined
-                    </StatusBadge>
-                  ) : null}
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
-      </SectionCard>
-
-      {/* ── Refined test cases ─────────────────────────────────────────── */}
-      <SectionCard
-        title="Refined test cases"
-        description="Classify against the automation rules, edit, approve, and download Manual and Automation separately."
-        noPadding
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={filter}
-              onChange={e => setFilter(e.target.value as 'all' | Classification)}
-              className="app-input"
-              aria-label="Filter by classification"
+            <button
+              type="button"
+              onClick={handleRunReviewAll}
+              disabled={!canExecute || reviewingAll || cases.length === 0}
+              title="Evaluate quality across all test cases using the eSMART Review Agent"
+              className="app-btn bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 inline-flex items-center gap-1.5 disabled:opacity-50 text-xs font-semibold"
             >
-              <option value="all">All</option>
-              <option value="automation">Automation</option>
-              <option value="manual">Manual</option>
-              <option value="undecided">Unclassified</option>
-            </select>
+              <HiOutlineShieldCheck className={`h-4 w-4 text-indigo-600 ${reviewingAll ? 'animate-spin' : ''}`} />
+              {reviewingAll ? 'Reviewing...' : 'Review Quality'}
+            </button>
             <button
               type="button"
               onClick={() =>
@@ -426,10 +541,9 @@ const Workbench: React.FC = () => {
               }
               disabled={!anySelected || !canExecute || busy !== null}
               title="Classify by the automation rules: blockers and steps needing a human go to Manual"
-              className="app-btn app-btn-secondary inline-flex items-center gap-1.5 disabled:opacity-50"
+              className="app-btn app-btn-secondary inline-flex items-center gap-1.5 disabled:opacity-50 text-xs font-medium"
             >
-              <HiOutlineSparkles className="h-4 w-4" />
-              Bulk classify by policy
+              Bulk classify
             </button>
             <button
               type="button"
@@ -439,7 +553,7 @@ const Workbench: React.FC = () => {
                 )
               }
               disabled={!anySelected || !canExecute || busy !== null}
-              className="app-btn app-btn-secondary disabled:opacity-50"
+              className="app-btn app-btn-secondary disabled:opacity-50 text-xs font-medium"
             >
               Set Automation
             </button>
@@ -451,15 +565,24 @@ const Workbench: React.FC = () => {
                 )
               }
               disabled={!anySelected || !canExecute || busy !== null}
-              className="app-btn app-btn-secondary disabled:opacity-50"
+              className="app-btn app-btn-secondary disabled:opacity-50 text-xs font-medium"
             >
               Set Manual
             </button>
             <button
               type="button"
+              onClick={() => handleDecide('approve')}
+              disabled={!anySelected || !canExecute || busy !== null}
+              className="app-btn bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 inline-flex items-center gap-1 text-xs font-semibold disabled:opacity-50"
+            >
+              <HiOutlineCheck className="h-4 w-4" />
+              Approve
+            </button>
+            <button
+              type="button"
               onClick={() => handleDecide('reject')}
               disabled={!anySelected || !canExecute || busy !== null}
-              className="app-btn app-btn-secondary inline-flex items-center gap-1.5 text-app-danger disabled:opacity-50"
+              className="app-btn app-btn-secondary inline-flex items-center gap-1 text-app-danger disabled:opacity-50 text-xs font-medium"
             >
               <HiOutlineX className="h-4 w-4" />
               Reject
@@ -474,24 +597,15 @@ const Workbench: React.FC = () => {
               }
               disabled={!anySelected || !canExecute || busy !== null}
               title="Delete the selected test cases and any scripts generated from them"
-              className="app-btn app-btn-secondary inline-flex items-center gap-1.5 text-app-danger disabled:opacity-50"
+              className="app-btn app-btn-secondary inline-flex items-center gap-1 text-app-danger disabled:opacity-50 text-xs font-medium"
             >
               <HiOutlineTrash className="h-4 w-4" />
               Delete
             </button>
             <button
               type="button"
-              onClick={() => handleDecide('approve')}
-              disabled={!anySelected || !canExecute || busy !== null}
-              className="app-btn app-btn-primary inline-flex items-center gap-1.5 disabled:opacity-50"
-            >
-              <HiOutlineCheck className="h-4 w-4" />
-              Approve
-            </button>
-            <button
-              type="button"
               onClick={() => void load()}
-              className="app-btn app-btn-secondary inline-flex items-center gap-1.5"
+              className="app-btn app-btn-secondary inline-flex items-center gap-1.5 text-xs font-medium"
               title="Reload"
             >
               <HiOutlineRefresh className="h-4 w-4" />
@@ -499,75 +613,124 @@ const Workbench: React.FC = () => {
           </div>
         }
       >
-        <div className="flex flex-wrap items-center gap-2 border-b border-app px-5 py-3">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-app-secondary">
-            Download
-          </span>
-          <button
-            type="button"
-            onClick={() =>
-              runAction('export', async () => {
-                // The workbook is built client-side from the two CSVs: SheetJS
-                // already ships with this app, so the backend does not need an
-                // xlsx dependency just to format a download.
-                const XLSX = await import('xlsx')
-                const [automation, manual] = await Promise.all([
-                  automationService.exportWorkbenchCsv('automation'),
-                  automationService.exportWorkbenchCsv('manual')
-                ])
-                const book = XLSX.utils.book_new()
-                XLSX.utils.book_append_sheet(
-                  book,
-                  XLSX.read(await automation.text(), { type: 'string' }).Sheets.Sheet1,
-                  'Automation'
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-app px-5 py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-app-secondary">
+              Download
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                runAction('export', async () => {
+                  // The workbook is built client-side from the two CSVs: SheetJS
+                  // already ships with this app, so the backend does not need an
+                  // xlsx dependency just to format a download.
+                  const XLSX = await import('xlsx')
+                  const [automation, manual] = await Promise.all([
+                    automationService.exportWorkbenchCsv('automation'),
+                    automationService.exportWorkbenchCsv('manual')
+                  ])
+                  const book = XLSX.utils.book_new()
+                  XLSX.utils.book_append_sheet(
+                    book,
+                    XLSX.read(await automation.text(), { type: 'string' }).Sheets.Sheet1,
+                    'Automation'
+                  )
+                  XLSX.utils.book_append_sheet(
+                    book,
+                    XLSX.read(await manual.text(), { type: 'string' }).Sheets.Sheet1,
+                    'Manual'
+                  )
+                  XLSX.writeFile(book, 'automation-test-cases.xlsx')
+                })
+              }
+              disabled={busy !== null}
+              className="app-btn app-btn-secondary inline-flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <HiOutlineDownload className="h-4 w-4" />
+              Workbook (both sheets)
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                runAction('export', async () =>
+                  saveBlob(
+                    await automationService.exportWorkbenchCsv('automation'),
+                    'automation-test-cases-automation.csv'
+                  )
                 )
-                XLSX.utils.book_append_sheet(
-                  book,
-                  XLSX.read(await manual.text(), { type: 'string' }).Sheets.Sheet1,
-                  'Manual'
+              }
+              disabled={busy !== null}
+              className="app-btn app-btn-secondary inline-flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <HiOutlineDownload className="h-4 w-4" />
+              Automation CSV
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                runAction('export', async () =>
+                  saveBlob(
+                    await automationService.exportWorkbenchCsv('manual'),
+                    'automation-test-cases-manual.csv'
+                  )
                 )
-                XLSX.writeFile(book, 'automation-test-cases.xlsx')
-              })
-            }
-            disabled={busy !== null}
-            className="app-btn app-btn-secondary inline-flex items-center gap-1.5 disabled:opacity-50"
-          >
-            <HiOutlineDownload className="h-4 w-4" />
-            Workbook (both sheets)
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              runAction('export', async () =>
-                saveBlob(
-                  await automationService.exportWorkbenchCsv('automation'),
-                  'automation-test-cases-automation.csv'
-                )
-              )
-            }
-            disabled={busy !== null}
-            className="app-btn app-btn-secondary inline-flex items-center gap-1.5 disabled:opacity-50"
-          >
-            <HiOutlineDownload className="h-4 w-4" />
-            Automation CSV
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              runAction('export', async () =>
-                saveBlob(
-                  await automationService.exportWorkbenchCsv('manual'),
-                  'automation-test-cases-manual.csv'
-                )
-              )
-            }
-            disabled={busy !== null}
-            className="app-btn app-btn-secondary inline-flex items-center gap-1.5 disabled:opacity-50"
-          >
-            <HiOutlineDownload className="h-4 w-4" />
-            Manual CSV
-          </button>
+              }
+              disabled={busy !== null}
+              className="app-btn app-btn-secondary inline-flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <HiOutlineDownload className="h-4 w-4" />
+              Manual CSV
+            </button>
+
+            <div className="ml-2 flex items-center gap-2 border-l border-app pl-3">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-app-secondary">
+                Filter:
+              </span>
+              <select
+                value={filter}
+                onChange={e => setFilter(e.target.value as 'all' | Classification)}
+                className="app-input h-8 text-xs min-w-[130px]"
+                aria-label="Filter by classification"
+              >
+                <option value="all">All</option>
+                <option value="automation">Automation</option>
+                <option value="manual">Manual</option>
+                <option value="undecided">Unclassified</option>
+              </select>
+            </div>
+          </div>
         </div>
+
+        {activeDiscoveryCase ? (
+          <div className="mx-5 mt-4 flex items-center justify-between rounded-xl border border-amber-300 bg-amber-50/95 p-4 text-amber-950 shadow-md">
+            <div className="flex items-center gap-3">
+              <span className="relative flex h-3.5 w-3.5 flex-shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-red-600"></span>
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-sm">Guided Flow Discovery Live:</span>
+                  <span className="font-mono font-bold text-xs bg-amber-200 px-2 py-0.5 rounded text-amber-900 border border-amber-300">
+                    {activeDiscoveryCase.tc_display_id}
+                  </span>
+                </div>
+                <p className="text-xs text-amber-800 mt-0.5">
+                  Live headed browser is recording user interactions on <strong>{activeDiscoveryCase.application_url}</strong>. Click <strong>"Finish & Save"</strong> in the browser overlay when your flow is completed.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleStopGuidedDiscovery(activeDiscoveryCase.id)}
+              className="app-btn bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-4 rounded-xl shadow inline-flex items-center gap-1.5 flex-shrink-0"
+            >
+              <HiOutlineCheck className="h-4 w-4" />
+              Finish & Save Objects
+            </button>
+          </div>
+        ) : null}
 
         {notice ? (
           <div className="mx-5 mt-4 flex items-start gap-2 rounded-app border border-orange-200 bg-app-warning-bg px-3 py-3 text-[12px] text-app-warning">
@@ -648,7 +811,7 @@ const Workbench: React.FC = () => {
                     <td>
                       <div className="max-w-sm">
                         <p className="font-medium text-app-primary">{testCase.title}</p>
-                        {testCase.objective ? (
+                        {testCase.objective && testCase.objective !== testCase.title ? (
                           <p className="mt-0.5 truncate text-[11px] text-app-secondary">
                             {testCase.objective}
                           </p>
@@ -658,6 +821,49 @@ const Workbench: React.FC = () => {
                             {testCase.application_url}
                           </p>
                         ) : null}
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          {testCase.review_score ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenReviewModal(testCase)}
+                              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold transition border shadow-sm ${
+                                testCase.review_verdict === 'pass'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                                  : testCase.review_verdict === 'fail'
+                                  ? 'bg-red-50 text-red-700 border-red-300 hover:bg-red-100'
+                                  : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+                              }`}
+                              title="Click to view eSMART Quality Review insights & Auto-Improve"
+                            >
+                              <HiOutlineStar className="h-3 w-3 text-amber-500 fill-amber-400" />
+                              Quality: ★ {testCase.review_score.toFixed(1)} / 5.0
+                              <span className="opacity-75 uppercase text-[9px] font-bold ml-0.5">
+                                ({testCase.review_verdict || 'Reviewed'})
+                              </span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenReviewModal(testCase)}
+                              className="inline-flex items-center gap-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 text-[11px] font-medium hover:bg-slate-200 transition"
+                              title="Evaluate test case quality with Review Agent"
+                            >
+                              <HiOutlineShieldCheck className="h-3 w-3 text-slate-500" />
+                              Review Quality
+                            </button>
+                          )}
+                          {(testCase.recorded_flow_objects_count ?? testCase.recorded_flow_objects?.length ?? 0) > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenFlowObjects(testCase)}
+                              className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-500/20 transition shadow-sm"
+                              title="View user-recorded ground-truth flow objects for this test case"
+                            >
+                              <HiOutlineCursorClick className="h-3 w-3 text-emerald-600 animate-pulse" />
+                              {testCase.recorded_flow_objects_count ?? testCase.recorded_flow_objects?.length} flow objects recorded
+                            </button>
+                          ) : null}
+                        </div>
                       </div>
                     </td>
                     <td>
@@ -696,6 +902,37 @@ const Workbench: React.FC = () => {
                     </td>
                     <td className="text-right">
                       <div className="inline-flex items-center gap-0.5">
+                        <button
+                          type="button"
+                          onClick={() => handleRefineSingle(testCase)}
+                          disabled={!canExecute || refiningCaseId === testCase.id}
+                          className="rounded-md p-1.5 text-app-secondary transition hover:bg-purple-500/10 hover:text-purple-600 disabled:opacity-40"
+                          title={`Refine ${testCase.tc_display_id} with AI`}
+                        >
+                          <HiOutlineSparkles className={`h-4 w-4 ${refiningCaseId === testCase.id ? 'animate-spin text-purple-600' : ''}`} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenReviewModal(testCase)}
+                          disabled={!canExecute || reviewingCaseId === testCase.id}
+                          className="rounded-md p-1.5 text-app-secondary transition hover:bg-indigo-500/10 hover:text-indigo-600 disabled:opacity-40"
+                          title={`Quality Review for ${testCase.tc_display_id}`}
+                        >
+                          <HiOutlineShieldCheck className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleStartGuidedDiscovery(testCase)}
+                          disabled={!canExecute || busy !== null || activeDiscoveryCase?.id === testCase.id}
+                          className={`rounded-md p-1.5 transition disabled:opacity-40 ${
+                            activeDiscoveryCase?.id === testCase.id
+                              ? 'bg-amber-500/20 text-amber-600 animate-pulse'
+                              : 'text-app-secondary hover:bg-emerald-500/10 hover:text-emerald-600'
+                          }`}
+                          title={`Guided Discovery: Launch live browser to record page objects for ${testCase.tc_display_id}`}
+                        >
+                          <HiOutlineCursorClick className="h-4 w-4" />
+                        </button>
                         {testCase.approval_status === 'approved' ? (
                           <button
                             type="button"
@@ -767,6 +1004,371 @@ const Workbench: React.FC = () => {
           }
         }}
       />
+
+      {flowObjectsCase ? (
+        <div
+          className="fixed inset-0 z-[75] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+          onClick={e => {
+            if (e.target === e.currentTarget) setFlowObjectsCase(null)
+          }}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="flex h-[88vh] w-full max-w-[950px] flex-col overflow-hidden rounded-[24px] border border-app bg-app-surface shadow-[0_28px_70px_rgba(15,23,42,0.22)]">
+            <div className="flex items-start justify-between gap-3 border-b border-app bg-app-surface-muted px-5 py-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
+                    <HiOutlineCursorClick className="h-4 w-4" />
+                  </span>
+                  <h2 className="truncate text-[15px] font-bold text-app-primary">
+                    Captured Flow Objects · {flowObjectsCase.tc_display_id}
+                  </h2>
+                </div>
+                <p className="text-xs text-app-secondary mt-1">
+                  {flowObjects.length} ground-truth page objects captured during guided live browser discovery.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFlowObjectsCase(null)}
+                className="rounded-md p-1.5 text-app-secondary transition hover:bg-app-surface hover:text-app-primary"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="app-scroll flex-1 space-y-3 overflow-y-auto px-5 py-4">
+              {loadingObjects ? (
+                <div className="space-y-2 p-4">
+                  {Array.from({ length: 3 }, (_, i) => (
+                    <LoadingSkeleton key={i} className="h-16 w-full" rounded="lg" />
+                  ))}
+                </div>
+              ) : flowObjects.length === 0 ? (
+                <EmptyState
+                  title="No flow objects captured yet"
+                  description="Click 'Start Guided Discovery' to launch a headed browser session and record elements."
+                />
+              ) : (
+                <div className="space-y-3">
+                  {flowObjects.map((obj, idx) => (
+                    <div
+                      key={idx}
+                      className="rounded-xl border border-app bg-app-surface-muted/30 p-4 transition hover:border-emerald-500/40 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 font-bold text-xs text-white">
+                            {obj.step_number || idx + 1}
+                          </span>
+                          <span className="font-semibold text-sm text-app-primary">
+                            {(obj.action || 'action').toUpperCase()}: {obj.target_name || obj.accessible_name || 'Element'}
+                          </span>
+                          {obj.role ? (
+                            <StatusBadge tone="info" size="sm">
+                              {obj.role}
+                            </StatusBadge>
+                          ) : null}
+                          {obj.tag_name ? (
+                            <span className="font-mono text-[11px] text-app-secondary bg-app-surface px-1.5 py-0.5 rounded border border-app">
+                              &lt;{obj.tag_name}&gt;
+                            </span>
+                          ) : null}
+                        </div>
+                        {obj.timestamp ? (
+                          <span className="text-[11px] text-app-secondary">
+                            {new Date(obj.timestamp).toLocaleTimeString()}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-2.5 space-y-1.5">
+                        <div>
+                          <div className="text-[11px] font-semibold text-app-secondary uppercase tracking-wider">
+                            Recommended Playwright Locator:
+                          </div>
+                          <div className="mt-0.5 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-xs text-emerald-400 overflow-x-auto selection:bg-emerald-500/30 selection:text-white">
+                            {obj.recommended_locator}
+                          </div>
+                        </div>
+
+                        {obj.alternative_locators && obj.alternative_locators.length > 1 ? (
+                          <div className="mt-2">
+                            <div className="text-[10px] font-semibold text-app-secondary uppercase tracking-wider">
+                              Alternative Locators:
+                            </div>
+                            <ul className="mt-1 space-y-1">
+                              {obj.alternative_locators.slice(1).map((alt, aIdx) => (
+                                <li
+                                  key={aIdx}
+                                  className="font-mono text-[11px] text-slate-300 bg-slate-900 px-2 py-1 rounded border border-slate-800 overflow-x-auto"
+                                >
+                                  {alt}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between border-t border-app bg-app-surface-muted px-5 py-3.5">
+              <button
+                type="button"
+                onClick={() => handleClearFlowObjects(flowObjectsCase.id)}
+                disabled={flowObjects.length === 0}
+                className="text-xs text-app-danger hover:underline disabled:opacity-40"
+              >
+                Clear All Recorded Objects
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = flowObjectsCase
+                    setFlowObjectsCase(null)
+                    void handleStartGuidedDiscovery(target)
+                  }}
+                  className="app-btn app-btn-secondary inline-flex items-center gap-1.5"
+                >
+                  <HiOutlineCursorClick className="h-4 w-4 text-emerald-600" />
+                  Re-record Flow
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFlowObjectsCase(null)}
+                  className="app-btn app-btn-primary"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {reviewModalCase ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+          onClick={e => {
+            if (e.target === e.currentTarget) setReviewModalCase(null)
+          }}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="flex h-[90vh] w-full max-w-[900px] flex-col overflow-hidden rounded-[24px] border border-app bg-app-surface shadow-[0_28px_70px_rgba(15,23,42,0.22)]">
+            <div className="flex items-start justify-between gap-3 border-b border-app bg-app-surface-muted px-6 py-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-600">
+                    <HiOutlineShieldCheck className="h-5 w-5" />
+                  </span>
+                  <h2 className="truncate text-[16px] font-bold text-app-primary">
+                    eSMART Quality Review · {reviewModalCase.tc_display_id}
+                  </h2>
+                </div>
+                <p className="text-xs text-app-secondary mt-1">
+                  Multi-dimensional QA evaluation analyzing step quality, data readiness, verifiable post-conditions, and coverage.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReviewModalCase(null)}
+                className="rounded-md p-1.5 text-app-secondary transition hover:bg-app-surface hover:text-app-primary"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="app-scroll flex-1 space-y-5 overflow-y-auto px-6 py-5">
+              {reviewingCaseId === reviewModalCase.id ? (
+                <div className="space-y-3 p-4">
+                  <div className="flex items-center gap-3 text-indigo-600 font-semibold text-sm">
+                    <span className="h-4 w-4 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
+                    Review Agent is analyzing test case against eSMART QA dimensions...
+                  </div>
+                  <LoadingSkeleton className="h-20 w-full" rounded="lg" />
+                  <LoadingSkeleton className="h-32 w-full" rounded="lg" />
+                </div>
+              ) : (
+                <>
+                  {/* Overall Score Header */}
+                  <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50/60 to-purple-50/60 p-5">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600 text-white font-extrabold text-2xl shadow-md">
+                        {reviewModalCase.review_score ? reviewModalCase.review_score.toFixed(1) : '—'}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold uppercase tracking-wider text-indigo-900">
+                            Overall QA Score
+                          </span>
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase ${
+                              reviewModalCase.review_verdict === 'pass'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : reviewModalCase.review_verdict === 'fail'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {reviewModalCase.review_verdict || 'Evaluated'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-indigo-800/80 mt-1">
+                          {reviewModalCase.review_score && reviewModalCase.review_score >= 4.0
+                            ? 'High-fidelity test case meeting automated QA criteria.'
+                            : 'Actionable improvements identified to reach 5-star quality standard.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleAutoImprove(reviewModalCase.id)}
+                      disabled={improvingCaseId === reviewModalCase.id}
+                      className="app-btn bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold text-xs py-2.5 px-4 rounded-xl shadow-md inline-flex items-center gap-2"
+                    >
+                      <HiOutlineSparkles className={`h-4 w-4 ${improvingCaseId === reviewModalCase.id ? 'animate-spin' : ''}`} />
+                      {improvingCaseId === reviewModalCase.id ? 'Upgrading Test Case...' : '✨ Auto-Improve to 5-Star Quality'}
+                    </button>
+                  </div>
+
+                  {/* 4 Dimension Score Bars */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="rounded-xl border border-app bg-app-surface p-4 shadow-sm">
+                      <div className="flex items-center justify-between text-xs font-semibold text-app-primary mb-2">
+                        <span>Step Quality & Atomicity</span>
+                        <span className="text-indigo-600 font-bold">{reviewModalCase.review_scores?.step_quality?.toFixed(1) || '4.0'} / 5.0</span>
+                      </div>
+                      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-indigo-500 rounded-full transition-all duration-500"
+                          style={{ width: `${((reviewModalCase.review_scores?.step_quality || 4.0) / 5) * 100}%` }}
+                        />
+                      </div>
+                      <p className="text-[11px] text-app-secondary mt-1.5">
+                        Evaluates concrete parameters, variants, UI element targets, and absence of over-generalization.
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-app bg-app-surface p-4 shadow-sm">
+                      <div className="flex items-center justify-between text-xs font-semibold text-app-primary mb-2">
+                        <span>Data Readiness</span>
+                        <span className="text-emerald-600 font-bold">{reviewModalCase.review_scores?.data_readiness?.toFixed(1) || '4.0'} / 5.0</span>
+                      </div>
+                      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                          style={{ width: `${((reviewModalCase.review_scores?.data_readiness || 4.0) / 5) * 100}%` }}
+                        />
+                      </div>
+                      <p className="text-[11px] text-app-secondary mt-1.5">
+                        Evaluates parameter completeness, synthetic default values, and sensitive data handling.
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-app bg-app-surface p-4 shadow-sm">
+                      <div className="flex items-center justify-between text-xs font-semibold text-app-primary mb-2">
+                        <span>Expected Result Clarity</span>
+                        <span className="text-blue-600 font-bold">{reviewModalCase.review_scores?.expected_result_clarity?.toFixed(1) || '4.0'} / 5.0</span>
+                      </div>
+                      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                          style={{ width: `${((reviewModalCase.review_scores?.expected_result_clarity || 4.0) / 5) * 100}%` }}
+                        />
+                      </div>
+                      <p className="text-[11px] text-app-secondary mt-1.5">
+                        Evaluates whether each step has an unambiguous, verifiable post-condition for assertions.
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-app bg-app-surface p-4 shadow-sm">
+                      <div className="flex items-center justify-between text-xs font-semibold text-app-primary mb-2">
+                        <span>Scenario Coverage</span>
+                        <span className="text-purple-600 font-bold">{reviewModalCase.review_scores?.coverage?.toFixed(1) || '4.0'} / 5.0</span>
+                      </div>
+                      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-purple-500 rounded-full transition-all duration-500"
+                          style={{ width: `${((reviewModalCase.review_scores?.coverage || 4.0) / 5) * 100}%` }}
+                        />
+                      </div>
+                      <p className="text-[11px] text-app-secondary mt-1.5">
+                        Evaluates 100% preservation of all positive, negative, and verification aspects from the source.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Findings & Suggestions */}
+                  <div className="space-y-4">
+                    {reviewModalCase.review_findings?.suggestions && reviewModalCase.review_findings.suggestions.length > 0 ? (
+                      <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-900 mb-2 flex items-center gap-1.5">
+                          <span>💡 Actionable Improvement Suggestions</span>
+                        </h4>
+                        <ul className="space-y-1.5">
+                          {reviewModalCase.review_findings.suggestions.map((sug, sIdx) => (
+                            <li key={sIdx} className="text-xs text-indigo-950 flex items-start gap-2">
+                              <span className="text-indigo-600 font-bold">•</span>
+                              <span>{sug}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    {reviewModalCase.review_findings?.issues && reviewModalCase.review_findings.issues.length > 0 ? (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-amber-900 mb-2 flex items-center gap-1.5">
+                          <span>⚠️ Identified Quality Gaps</span>
+                        </h4>
+                        <ul className="space-y-1.5">
+                          {reviewModalCase.review_findings.issues.map((iss, iIdx) => (
+                            <li key={iIdx} className="text-xs text-amber-950 flex items-start gap-2">
+                              <span className="text-amber-600 font-bold">•</span>
+                              <span>{iss}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between border-t border-app bg-app-surface-muted px-6 py-3.5">
+              <button
+                type="button"
+                onClick={() => handleRunReview(reviewModalCase)}
+                disabled={reviewingCaseId === reviewModalCase.id}
+                className="app-btn app-btn-secondary inline-flex items-center gap-1.5 text-xs font-semibold"
+              >
+                <HiOutlineRefresh className={`h-4 w-4 ${reviewingCaseId === reviewModalCase.id ? 'animate-spin' : ''}`} />
+                Re-Evaluate Quality
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setReviewModalCase(null)}
+                className="app-btn app-btn-primary"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

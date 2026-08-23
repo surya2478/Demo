@@ -23,6 +23,7 @@ Two things here are deliberate:
 """
 from __future__ import annotations
 
+import json
 import logging
 import re
 import threading
@@ -30,6 +31,9 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Optional
+
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from ...database.connection import SessionLocal
 from ..automation.eligibility import MANUAL_MARKERS, score_test_case, split_steps
@@ -137,13 +141,28 @@ def apply_classification(
     return case
 
 
+# A human has confirmed the data exists. Distinct from "ready", which is a
+# derived fact about the requirements list; this one is a decision.
+TEST_DATA_USER_PROVIDED = "user_provided"
+
+
 def derive_test_data_status(case: AutomationTestCase) -> str:
-    """pending blocks approval; not_required and ready do not.
+    """pending blocks approval; not_required, ready and user_provided do not.
 
     Tracked separately from test_data_requirements because "this case names
     three data items" and "a human still has to go and get them" are different
     questions, and only the second one stops a run.
+
+    A user_provided status is returned unchanged rather than recomputed. The
+    requirements list is the model's reading of what the case needs; a person
+    ticking "I have provided this" is later and better information, and
+    re-deriving over it would silently re-block a case every time anyone
+    edited an unrelated field -- which is what an edit does, since this runs
+    from rescore() on every save.
     """
+    if case.test_data_status == TEST_DATA_USER_PROVIDED:
+        return TEST_DATA_USER_PROVIDED
+
     requirements = case.test_data_requirements or []
     if not requirements:
         return "not_required"
@@ -292,6 +311,14 @@ def _refine_one(
         db.add(target)
     db.commit()
     db.refresh(target)
+
+    # Automatically run Review Agent to evaluate quality
+    try:
+        from .review_agent import review_test_case
+        review_test_case(target, db=db)
+    except Exception as e:
+        logger.warning("Quality review evaluation skipped for %s: %s", display_id, e)
+
     return target
 
 
@@ -436,3 +463,93 @@ def rescore(case: AutomationTestCase) -> AutomationTestCase:
     case.eligibility_reasons = result.reasons
     case.test_data_status = derive_test_data_status(case)
     return case
+
+
+def sync_approved_test_cases(db: Session) -> int:
+    """Mirrors approved test cases from test_cases_details into AutomationTestCase so they appear in Automation Studio Workbench."""
+    sql = """
+        SELECT d.test_case_id, d.request_id, d.test_case_details, d.reviewed_by, d.reviewed_datetime
+          FROM test_cases_details d
+         WHERE d.status = 'APPROVED'
+    """
+    rows = db.execute(text(sql)).fetchall()
+    synced = 0
+    for row in rows:
+        origin_id = str(row.test_case_id)
+        # Check if already mirrored by origin_test_case_id
+        existing = db.query(AutomationTestCase).filter(
+            (AutomationTestCase.origin_test_case_id == origin_id)
+        ).first()
+
+        try:
+            details = json.loads(row.test_case_details) if isinstance(row.test_case_details, str) else (row.test_case_details or {})
+        except Exception:
+            details = {}
+
+        display_id = str(details.get("Test Case ID") or origin_id)
+        if not existing:
+            existing = db.query(AutomationTestCase).filter(AutomationTestCase.display_id == display_id).first()
+
+        steps_raw = str(details.get("Test Steps") or "")
+        split_s = split_steps(steps_raw)
+        structured = [
+            {
+                "step_number": i + 1,
+                "action": s,
+                "target": None,
+                "test_data_ref": None,
+                "expected_result": None,
+            }
+            for i, s in enumerate(split_s)
+        ] if split_s else []
+
+        app_url_match = re.search(r"https?://[^\s'\"]+", f"{steps_raw} {details.get('Test Case Description', '')}")
+        app_url = app_url_match.group(0).rstrip(".,)") if app_url_match else "https://www.eand.ae/en/index.html"
+
+        created_at_dt = datetime.utcnow()
+        if row.reviewed_datetime:
+            if isinstance(row.reviewed_datetime, datetime):
+                created_at_dt = row.reviewed_datetime
+            elif isinstance(row.reviewed_datetime, str):
+                try:
+                    created_at_dt = datetime.fromisoformat(row.reviewed_datetime)
+                except Exception:
+                    try:
+                        created_at_dt = datetime.strptime(row.reviewed_datetime.split('.')[0], "%Y-%m-%d %H:%M:%S")
+                    except Exception:
+                        created_at_dt = datetime.utcnow()
+
+        if not existing:
+            new_tc = AutomationTestCase(
+                source="approved",
+                origin_test_case_id=origin_id,
+                origin_request_id=row.request_id,
+                display_id=display_id,
+                category=details.get("Category") or "General",
+                description=details.get("Test Case Description") or details.get("description") or display_id,
+                objective=details.get("Test Case Description") or details.get("objective"),
+                preconditions=details.get("Preconditions"),
+                steps_raw=steps_raw,
+                test_data=details.get("Test Data"),
+                expected_result=details.get("Expected Result"),
+                steps_structured=structured,
+                application_url=app_url,
+                priority=details.get("Priority") or "High",
+                origin="imported",
+                classification="undecided",
+                approval_status="approved",
+                created_by=row.reviewed_by or "manager",
+                created_at=created_at_dt,
+            )
+            db.add(new_tc)
+            synced += 1
+        else:
+            if not existing.origin_test_case_id:
+                existing.origin_test_case_id = origin_id
+            if not existing.origin_request_id:
+                existing.origin_request_id = row.request_id
+
+    if synced > 0:
+        db.commit()
+    return synced
+

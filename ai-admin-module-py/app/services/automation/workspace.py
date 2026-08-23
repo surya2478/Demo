@@ -64,25 +64,47 @@ PLAYWRIGHT_CONFIG_TS_TEMPLATE = """import {{ defineConfig }} from '@playwright/t
 
 export default defineConfig({{
   testDir: '{test_dir}',
+  testMatch: /.*\\.(spec|test)?.*\\.[jt]sx?$/,
+  testIgnore: ['node_modules/**', 'test-results/**'],
   fullyParallel: false,
   retries: 0,
   workers: 1,
-  timeout: 90_000,
+  timeout: 120_000,
   reporter: [
     ['list'],
     ['json', {{ outputFile: 'results.json' }}],
   ],
   use: {{
-{base_url_line}    headless: true,
-    actionTimeout: 15_000,
-    navigationTimeout: 30_000,
+{base_url_line}    headless: {headless_str},
+    actionTimeout: 20_000,
+    navigationTimeout: 45_000,
     trace: 'on',
     screenshot: 'on',
     video: 'on',
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    viewport: {{ width: 1366, height: 768 }},
+    extraHTTPHeaders: {{
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'none',
+      'Sec-Fetch-User': '?1',
+      'Upgrade-Insecure-Requests': '1',
+    }},
+    launchOptions: {{
+      slowMo: {slow_mo_ms},
+      args: [
+        '--disable-blink-features=AutomationControlled',
+        '--disable-features=IsolateOrigins,site-per-process',
+        '--no-sandbox',
+      ],
+    }},
   }},
-  expect: {{ timeout: 10_000 }},
+  expect: {{ timeout: 15_000 }},
 }});
 """
+
 
 
 # ── Layout ───────────────────────────────────────────────────────────────────
@@ -112,15 +134,23 @@ def reset_workspace(run_key: int | str) -> Path:
 # ── Script materialisation ───────────────────────────────────────────────────
 
 def _script_filename_for(suggested_path: str | None) -> str:
-    """Pick a filename inside the workspace.
-
-    Any directory component in the suggestion is stripped: the name may come
-    from generated content, and a path is a traversal waiting to happen.
-    """
+    """Pick a filename inside the workspace. Always ensure a standard .spec.ts / .spec.js extension."""
     candidate = Path(suggested_path or "").name if suggested_path else ""
-    if candidate and not candidate.endswith((".ts", ".js")):
-        candidate = ""
-    return candidate or "test.spec.ts"
+    if not candidate:
+        return "test.spec.ts"
+    if candidate.endswith(".ts") and not candidate.endswith(".spec.ts"):
+        if candidate.endswith("_spec.ts"):
+            candidate = candidate[:-8] + ".spec.ts"
+        else:
+            candidate = candidate[:-3] + ".spec.ts"
+    elif candidate.endswith(".js") and not candidate.endswith(".spec.js"):
+        if candidate.endswith("_spec.js"):
+            candidate = candidate[:-8] + ".spec.js"
+        else:
+            candidate = candidate[:-3] + ".spec.js"
+    elif not (candidate.endswith(".spec.ts") or candidate.endswith(".spec.js")):
+        candidate = f"{candidate}.spec.ts"
+    return candidate
 
 
 def materialize_script(*, workspace: Path, code: str, suggested_file_path: str | None = None) -> str:
@@ -150,19 +180,31 @@ def materialize_bundle(*, workspace: Path, files: dict[str, str]) -> None:
 
 # ── Framework config ─────────────────────────────────────────────────────────
 
-def _render_playwright_config(base_url: str | None, test_dir: str) -> str:
+def _render_playwright_config(
+    base_url: str | None,
+    test_dir: str,
+    slow_mo_ms: int = 1000,
+    headless: bool = True,
+) -> str:
     if base_url:
         # json.dumps gives a safely quoted string to embed in TypeScript.
         base_url_line = f"    baseURL: {json.dumps(base_url)},\n"
     else:
         base_url_line = ""
-    return PLAYWRIGHT_CONFIG_TS_TEMPLATE.format(base_url_line=base_url_line, test_dir=test_dir)
+    return PLAYWRIGHT_CONFIG_TS_TEMPLATE.format(
+        base_url_line=base_url_line,
+        test_dir=test_dir,
+        slow_mo_ms=max(0, int(slow_mo_ms)),
+        headless_str="true" if headless else "false",
+    )
 
 
 def write_playwright_config(
     workspace: Path,
     base_url: str | None = None,
     test_dir: str = ".",
+    slow_mo_ms: int = 1000,
+    headless: bool = True,
 ) -> None:
     """Drop package.json and playwright.config.ts, and make @playwright/test
     resolvable from the workspace.
@@ -175,7 +217,8 @@ def write_playwright_config(
         json.dumps(PLAYWRIGHT_PACKAGE_JSON, indent=2), encoding="utf-8"
     )
     (workspace / "playwright.config.ts").write_text(
-        _render_playwright_config(base_url, test_dir), encoding="utf-8"
+        _render_playwright_config(base_url, test_dir, slow_mo_ms=slow_mo_ms, headless=headless),
+        encoding="utf-8",
     )
     _link_npm_global_modules(workspace)
 

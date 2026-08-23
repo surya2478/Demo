@@ -26,6 +26,12 @@ interface RunSpecModalProps {
   onClose: () => void
   /** Seeds the scaffold. Omitted for a run started from the Runs tab. */
   candidate?: Candidate | null
+  initialCode?: string | null
+  initialFileName?: string | null
+  initialBaseUrl?: string | null
+  initialEnvironment?: string | null
+  initialSlowMoMs?: number | null
+  initialTestCaseId?: number | null
   runtime: RuntimeStatusResponse | null
   canExecute: boolean
   onQueued: (runKey: string) => void
@@ -103,6 +109,12 @@ export const RunSpecModal: React.FC<RunSpecModalProps> = ({
   open,
   onClose,
   candidate,
+  initialCode,
+  initialFileName,
+  initialBaseUrl,
+  initialEnvironment,
+  initialSlowMoMs,
+  initialTestCaseId,
   runtime,
   canExecute,
   onQueued
@@ -111,6 +123,7 @@ export const RunSpecModal: React.FC<RunSpecModalProps> = ({
   const [environment, setEnvironment] = useState('SIT')
   const [baseUrl, setBaseUrl] = useState('')
   const [fileName, setFileName] = useState('spec.ts')
+  const [slowMoMs, setSlowMoMs] = useState<number>(1000)
   const [steps, setSteps] = useState<string[]>([])
   const [loadingSteps, setLoadingSteps] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -140,15 +153,21 @@ export const RunSpecModal: React.FC<RunSpecModalProps> = ({
     setSubmitting(false)
     setTouched(false)
     setSteps([])
-    setEnvironment('SIT')
-    setBaseUrl('')
+    setEnvironment(initialEnvironment || 'SIT')
+    setBaseUrl(initialBaseUrl || '')
+    setSlowMoMs(initialSlowMoMs !== undefined && initialSlowMoMs !== null ? initialSlowMoMs : 1000)
     setFileName(
-      candidate
+      initialFileName ||
+      (candidate
         ? `${candidate.display_id.replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase()}.spec.ts`
-        : 'smoke.spec.ts'
+        : 'smoke.spec.ts')
     )
-    setCode(buildScaffold(candidate, [], ''))
-  }, [open, candidate])
+    if (initialCode) {
+      setCode(initialCode)
+    } else {
+      setCode(buildScaffold(candidate, [], initialBaseUrl || ''))
+    }
+  }, [open, candidate, initialCode, initialFileName, initialBaseUrl, initialEnvironment, initialSlowMoMs])
 
   // Approved cases carry their steps on the detail endpoint, not the list.
   useEffect(() => {
@@ -180,11 +199,11 @@ export const RunSpecModal: React.FC<RunSpecModalProps> = ({
     }
   }, [open, candidate])
 
-  // Re-seed once the steps land, unless the user has already started typing.
+  // Re-seed once the steps land, unless the user has already started typing or initialCode was passed.
   useEffect(() => {
-    if (!open || touched) return
+    if (!open || touched || initialCode) return
     setCode(buildScaffold(candidate, steps, baseUrl))
-  }, [open, touched, candidate, steps, baseUrl])
+  }, [open, touched, initialCode, candidate, steps, baseUrl])
 
   const handleCodeChange = useCallback((next: string) => {
     setTouched(true)
@@ -204,6 +223,7 @@ export const RunSpecModal: React.FC<RunSpecModalProps> = ({
         environment: environment.trim() || null,
         base_url: baseUrl.trim() || null,
         file_name: fileName.trim() || null,
+        slow_mo_ms: slowMoMs,
         // Only the Studio's own cases have an id. An approved case is not
         // mirrored into automation_test_cases yet, so sending its origin id
         // here would violate the foreign key.
@@ -258,7 +278,7 @@ export const RunSpecModal: React.FC<RunSpecModalProps> = ({
             </div>
           ) : null}
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <label className="mb-1 block text-[12px] font-semibold text-app-primary">
                 Environment
@@ -276,6 +296,22 @@ export const RunSpecModal: React.FC<RunSpecModalProps> = ({
                   <option key={env} value={env} />
                 ))}
               </datalist>
+            </div>
+            <div>
+              <label className="mb-1 block text-[12px] font-semibold text-app-primary">
+                Execution speed
+              </label>
+              <select
+                value={slowMoMs}
+                onChange={e => setSlowMoMs(Number(e.target.value))}
+                className="app-input w-full"
+                title="Delay between actions. Safe/Anti-Bot is recommended for public sites with WAFs (like eand.ae)"
+              >
+                <option value={1000}>Safe / Anti-Bot (1000ms)</option>
+                <option value={0}>Fast / CI (0ms)</option>
+                <option value={500}>Balanced (500ms)</option>
+                <option value={2000}>Debug / Slow (2000ms)</option>
+              </select>
             </div>
             <div>
               <label className="mb-1 block text-[12px] font-semibold text-app-primary">

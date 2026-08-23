@@ -9,7 +9,7 @@
  * make the selected row jump while a run is still producing results.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   HiOutlineArrowLeft,
   HiOutlineRefresh,
@@ -18,7 +18,11 @@ import {
   HiOutlineTerminal,
   HiOutlineChevronDown,
   HiOutlineChevronRight,
-  HiOutlineBeaker
+  HiOutlineBeaker,
+  HiOutlineSparkles,
+  HiOutlinePlay,
+  HiOutlineX,
+  HiOutlineCheckCircle
 } from 'react-icons/hi'
 import automationService from '../../services/automationService'
 import useRunPolling from '../../hooks/useRunPolling'
@@ -28,6 +32,8 @@ import EmptyState from '../../components/ui/EmptyState'
 import LoadingSkeleton from '../../components/ui/LoadingSkeleton'
 import EvidencePanel from '../../components/automation/EvidencePanel'
 import { CodeViewer } from '../../components/automation/CodeViewer'
+import { RunSpecModal } from '../../components/automation/RunSpecModal'
+import type { HealRunResponse } from '../../types/automation'
 import {
   OutcomeBadge,
   ResultStatusBadge,
@@ -89,6 +95,8 @@ const RunDetail: React.FC = () => {
   const { canExecute } = useAutomationContext()
 
   const { run, loading, error, refreshing, polling, refresh } = useRunPolling(runKey)
+  const { runtime } = useAutomationContext()
+  const navigate = useNavigate()
 
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [cancelling, setCancelling] = useState(false)
@@ -99,7 +107,57 @@ const RunDetail: React.FC = () => {
   const [logError, setLogError] = useState<string | null>(null)
   const [logOpen, setLogOpen] = useState(false)
 
+  // Rerun and Healer states
+  const [rerunModalOpen, setRerunModalOpen] = useState(false)
+  const [rerunOverride, setRerunOverride] = useState<{
+    code?: string | null
+    fileName?: string | null
+    baseUrl?: string | null
+  } | null>(null)
+  const [healModalOpen, setHealModalOpen] = useState(false)
+  const [healing, setHealing] = useState(false)
+  const [healResult, setHealResult] = useState<HealRunResponse | null>(null)
+  const [healError, setHealError] = useState<string | null>(null)
+  const [healSubmitting, setHealSubmitting] = useState(false)
+
   const results = run?.results ?? []
+
+  const handleTriggerHeal = async () => {
+    if (!runKey) return
+    setHealing(true)
+    setHealError(null)
+    setHealResult(null)
+    setHealModalOpen(true)
+    try {
+      const data = await automationService.healRun(runKey)
+      setHealResult(data)
+    } catch (err: any) {
+      setHealError(err?.message ?? 'Failed to diagnose and heal script.')
+    } finally {
+      setHealing(false)
+    }
+  }
+
+  const handleQueueHealedRun = async () => {
+    if (!healResult?.healed_code) return
+    setHealSubmitting(true)
+    try {
+      const res = await automationService.createRun({
+        code: healResult.healed_code,
+        environment: run?.environment || 'SIT',
+        base_url: run?.spec?.base_url || null,
+        file_name: run?.spec?.file_name || 'healed_spec.ts',
+        slow_mo_ms: 1000,
+        headless: true,
+      })
+      setHealModalOpen(false)
+      navigate(`/automation/runs/${res.run_key}`)
+    } catch (err: any) {
+      setHealError(err?.message ?? 'Failed to queue healed run.')
+    } finally {
+      setHealSubmitting(false)
+    }
+  }
 
   // Default to the first failure — on a red run that is the row anyone opened
   // this page to read. Falls back to the first result on a clean run.
@@ -199,7 +257,17 @@ const RunDetail: React.FC = () => {
                 {run.run_key}
               </h2>
               <RunStatusBadge status={run.status} live={run.is_active} />
-              <OutcomeBadge outcome={run.outcome} status={run.status} />
+              <div className="flex items-center gap-1.5">
+                <OutcomeBadge outcome={run.outcome} status={run.status} />
+                {run.is_healed ? (
+                  <span
+                    className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 border border-emerald-200"
+                    title={run.healing_diagnosis || "Auto-repaired at runtime by Healer Agent"}
+                  >
+                    ✨ Healed
+                  </span>
+                ) : null}
+              </div>
               {polling ? (
                 <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-app-info">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-app-info" />
@@ -210,6 +278,29 @@ const RunDetail: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {canExecute ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleTriggerHeal}
+                  className="app-btn inline-flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-medium shadow-sm hover:from-emerald-700 hover:to-teal-700"
+                >
+                  <HiOutlineSparkles className="h-4 w-4" />
+                  Regenerate with Healer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRerunOverride(null)
+                    setRerunModalOpen(true)
+                  }}
+                  className="app-btn app-btn-secondary inline-flex items-center gap-1.5"
+                >
+                  <HiOutlinePlay className="h-4 w-4" />
+                  Rerun Spec
+                </button>
+              </>
+            ) : null}
             <button
               type="button"
               onClick={refresh}
@@ -261,6 +352,36 @@ const RunDetail: React.FC = () => {
           ))}
         </dl>
 
+        {run.is_healed || run.healing_diagnosis ? (
+          <div className="mt-4 rounded-app border border-emerald-300 bg-emerald-50/80 p-4 text-emerald-950">
+            <div className="flex items-center gap-2">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px] font-bold">
+                ✨
+              </span>
+              <h3 className="text-[13px] font-bold text-emerald-900">
+                Self-Healing Agent: {run.is_healed ? 'Test Auto-Repaired & Passed' : 'Repair Attempted'}
+              </h3>
+            </div>
+            {run.healing_diagnosis ? (
+              <p className="mt-1.5 text-[12px] text-emerald-800 leading-relaxed">
+                <strong>Diagnosis:</strong> {run.healing_diagnosis}
+              </p>
+            ) : null}
+            {run.healing_changes && run.healing_changes.length > 0 ? (
+              <div className="mt-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-800">
+                  Changes Applied:
+                </span>
+                <ul className="mt-1 list-inside list-disc text-[12px] text-emerald-700 space-y-0.5">
+                  {run.healing_changes.map((c, i) => (
+                    <li key={i}>{c}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         {run.error_message ? (
           <div className="mt-3 flex items-start gap-2 rounded-app border border-red-200 bg-app-danger-bg px-3 py-3 text-[13px] text-app-danger">
             <HiOutlineExclamationCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
@@ -295,16 +416,136 @@ const RunDetail: React.FC = () => {
           noPadding
         >
           {results.length === 0 ? (
-            <div className="p-5">
-              <EmptyState
-                title={live ? 'Waiting for results' : 'No tests reported'}
-                description={
-                  live
-                    ? 'The runner has not reported a test yet. This page updates on its own.'
-                    : 'The run produced no per-test results. If the outcome is blocked, the runner log below explains why it never reached the tests.'
-                }
-                icon={<HiOutlineBeaker className="h-5 w-5" />}
-              />
+            <div className="p-5 space-y-5">
+              {/* Execution Pipeline Stepper Card (Ahmed-App Style) */}
+              <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-4 mb-4">
+                  <div>
+                    <h3 className="text-[14px] font-bold text-gray-900 flex items-center gap-2">
+                      <span>Execution Pipeline</span>
+                      {live ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-0.5 text-[11px] font-semibold text-red-600 border border-red-200">
+                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-600" />
+                          Live Stage {Math.min(5, Math.max(1, (run.run_metadata as any)?.phase_step || (run.status === 'queued' ? 1 : 4)))} of 5
+                        </span>
+                      ) : run.status === 'completed' ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 border border-emerald-200">
+                          ✓ All Stages Complete
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-0.5 text-[11px] font-semibold text-red-700 border border-red-200">
+                          ✕ Execution Terminated
+                        </span>
+                      )}
+                    </h3>
+                    <p className="text-[12px] text-gray-500 mt-0.5">
+                      {live ? 'Real-time automation engine state machine' : 'Final execution pipeline trace'}
+                    </p>
+                  </div>
+                  {live ? (
+                    <div className="flex items-center space-x-1">
+                      <div className="w-2 h-2 bg-red-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="w-2 h-2 bg-red-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="w-2 h-2 bg-red-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Stepper list */}
+                <div className="space-y-4">
+                  {[
+                    { num: 1, label: 'Assessing Readiness & Workspace', icon: '🔍', desc: 'Validating Playwright toolchain, permissions & target environment' },
+                    { num: 2, label: 'Autonomous Element Discovery & Grounding', icon: '🤖', desc: 'Resolving UI controls against active element catalogue' },
+                    { num: 3, label: 'Materializing Playwright Spec', icon: '📝', desc: 'Compiling test scenarios, assertions & cookie consent guards' },
+                    { num: 4, label: 'Executing Playwright Test Engine', icon: '🚀', desc: 'Running browser automation with traces & video recording' },
+                    { num: 5, label: 'Self-Healing Agent & Finalizing Evidence', icon: '✨', desc: 'Auto-repairing failures and persisting execution reports' },
+                  ].map((step) => {
+                    const rawStep = (run.run_metadata as any)?.phase_step;
+                    let activeStep = 1;
+                    if (run.status === 'queued') {
+                      activeStep = 1;
+                    } else if (run.status === 'running') {
+                      activeStep = rawStep || 4;
+                    } else if (run.status === 'completed') {
+                      activeStep = 6;
+                    } else {
+                      activeStep = rawStep || 4;
+                    }
+
+                    const isCompleted = step.num < activeStep;
+                    const isActive = step.num === activeStep && live;
+                    const isFailed = step.num === activeStep && (run.status === 'failed' || run.status === 'cancelled');
+
+                    return (
+                      <div
+                        key={step.num}
+                        className={`flex items-start space-x-3.5 transition-all duration-300 ${
+                          isActive ? 'opacity-100 scale-[1.01]' : isCompleted ? 'opacity-95' : 'opacity-40'
+                        }`}
+                      >
+                        <div
+                          className={`flex items-center justify-center w-9 h-9 rounded-full text-sm shadow-sm border-2 flex-shrink-0 transition-all ${
+                            isCompleted
+                              ? 'bg-emerald-50 border-emerald-500 text-emerald-600 font-bold'
+                              : isActive
+                              ? 'bg-red-50 border-red-500 text-red-600 ring-2 ring-red-200'
+                              : isFailed
+                              ? 'bg-red-100 border-red-600 text-red-700 font-bold'
+                              : 'bg-gray-50 border-gray-200 text-gray-400'
+                          }`}
+                        >
+                          {isCompleted ? '✓' : isFailed ? '✕' : step.icon}
+                        </div>
+                        <div className="flex-1 min-w-0 pt-0.5">
+                          <div className="flex items-center justify-between">
+                            <p
+                              className={`text-[13px] font-semibold ${
+                                isActive ? 'text-red-600' : isCompleted ? 'text-emerald-700' : isFailed ? 'text-red-700' : 'text-gray-600'
+                              }`}
+                            >
+                              {step.label}
+                            </p>
+                            {isActive && (
+                              <span className="text-[11px] font-medium text-red-500 animate-pulse">Running…</span>
+                            )}
+                            {isCompleted && (
+                              <span className="text-[11px] font-medium text-emerald-600">Passed</span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-1">{step.desc}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Accordion Log View */}
+                <div className="mt-5 border-t border-gray-100 pt-4">
+                  <button
+                    type="button"
+                    onClick={toggleLog}
+                    className="flex w-full items-center justify-between rounded-lg bg-gray-50 px-3.5 py-2.5 text-left text-[12px] font-semibold text-gray-700 hover:bg-gray-100 transition"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span>Live Runner Logs & Stream</span>
+                      {live ? <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" /> : null}
+                    </span>
+                    <span>{logOpen ? '▲ Hide' : '▼ Show'}</span>
+                  </button>
+
+                  {logOpen && (
+                    <div className="mt-2 rounded-lg bg-gray-900 p-3 font-mono text-[11px] leading-relaxed text-emerald-400 max-h-[220px] overflow-y-auto whitespace-pre-wrap">
+                      {logLoading ? (
+                        <div className="py-2 text-center text-gray-400">Streaming logs…</div>
+                      ) : log ? (
+                        log
+                      ) : (
+                        <div className="py-2 text-center text-gray-500">No output recorded yet.</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           ) : (
             <div className="app-scroll max-h-[560px] overflow-y-auto">
@@ -461,6 +702,153 @@ const RunDetail: React.FC = () => {
           </SectionCard>
         </div>
       </div>
+
+      {/* Rerun Spec Modal prefilled with this run's spec */}
+      <RunSpecModal
+        open={rerunModalOpen}
+        onClose={() => {
+          setRerunModalOpen(false)
+          setRerunOverride(null)
+        }}
+        initialCode={rerunOverride ? rerunOverride.code : run.spec?.code}
+        initialFileName={rerunOverride ? rerunOverride.fileName : run.spec?.file_name}
+        initialBaseUrl={rerunOverride ? rerunOverride.baseUrl : run.spec?.base_url}
+        initialEnvironment={run.environment}
+        runtime={runtime}
+        canExecute={canExecute}
+        onQueued={key => {
+          setRerunModalOpen(false)
+          setRerunOverride(null)
+          navigate(`/automation/runs/${key}`)
+        }}
+      />
+
+      {/* Healer Diagnosis & Regeneration Modal */}
+      {healModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl border border-app bg-app-surface shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-app bg-app-surface px-6 py-4">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white shadow-sm font-bold text-sm">
+                  ✨
+                </span>
+                <div>
+                  <h3 className="text-base font-bold text-app-primary">
+                    Self-Healing Agent: Script Diagnosis & Regeneration
+                  </h3>
+                  <p className="text-xs text-app-secondary">
+                    AI diagnostic engine analyzed failure logs, DOM state, and active Discovery locators
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHealModalOpen(false)}
+                className="rounded-lg p-1.5 text-app-secondary transition hover:bg-app-surface-muted hover:text-app-primary"
+              >
+                <HiOutlineX className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 app-scroll">
+              {healing ? (
+                <div className="py-12 text-center space-y-3">
+                  <div className="mx-auto h-9 w-9 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent" />
+                  <p className="text-sm font-semibold text-app-primary">
+                    Healer Agent is analyzing runtime failures & repairing script...
+                  </p>
+                  <p className="text-xs text-app-secondary">
+                    Matching against active element locators and resolving actionability checks
+                  </p>
+                </div>
+              ) : null}
+
+              {healError ? (
+                <div className="flex items-start gap-2 rounded-app border border-red-200 bg-app-danger-bg p-4 text-xs text-app-danger">
+                  <HiOutlineExclamationCircle className="h-5 w-5 flex-shrink-0" />
+                  <span>{healError}</span>
+                </div>
+              ) : null}
+
+              {!healing && healResult ? (
+                <>
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-900">
+                      Root Cause Diagnosis
+                    </h4>
+                    <p className="mt-1 text-sm text-emerald-800 leading-relaxed">
+                      {healResult.diagnosis}
+                    </p>
+                    {healResult.changes_made && healResult.changes_made.length > 0 ? (
+                      <div className="mt-3">
+                        <h5 className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">
+                          Repairs Applied
+                        </h5>
+                        <ul className="mt-1 list-inside list-disc text-xs text-emerald-700 space-y-0.5">
+                          {healResult.changes_made.map((c, i) => (
+                            <li key={i}>{c}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-app-secondary mb-2">
+                      Healed Playwright Test Script
+                    </h4>
+                    <CodeViewer
+                      code={healResult.healed_code}
+                      language="typescript"
+                      fileName={run.spec?.file_name ?? 'healed_spec.ts'}
+                      maxHeight="320px"
+                      downloadable
+                    />
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 border-t border-app bg-app-surface-muted px-6 py-3.5">
+              <button
+                type="button"
+                onClick={() => setHealModalOpen(false)}
+                className="app-btn app-btn-secondary"
+              >
+                Close
+              </button>
+              {!healing && healResult ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRerunOverride({
+                        code: healResult.healed_code,
+                        fileName: run.spec?.file_name || 'healed_spec.ts',
+                        baseUrl: run.spec?.base_url || '',
+                      })
+                      setHealModalOpen(false)
+                      setRerunModalOpen(true)
+                    }}
+                    className="app-btn app-btn-secondary inline-flex items-center gap-1.5"
+                  >
+                    Edit in Spec Runner
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleQueueHealedRun()}
+                    disabled={healSubmitting}
+                    className="app-btn inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold disabled:opacity-50"
+                  >
+                    <HiOutlinePlay className="h-4 w-4" />
+                    {healSubmitting ? 'Queueing...' : 'Queue Healed Run Now'}
+                  </button>
+                </>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

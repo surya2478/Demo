@@ -270,6 +270,14 @@ async def update_review_detail_decision(
 
     db.commit()
     db.refresh(detail)
+
+    if decision == 'APPROVE':
+        try:
+            from ..services.automation import workbench as wb
+            wb.sync_approved_test_cases(db)
+        except Exception:
+            pass
+
     return {'success': True, 'data': _serialize_review_detail(detail)}
 
 

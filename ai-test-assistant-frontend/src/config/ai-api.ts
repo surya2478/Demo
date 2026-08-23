@@ -1,5 +1,9 @@
 export interface AiEndpoints {
   generateTestCases: string;
+  /** Absolute URL overriding BASE_URL+generateTestCases for the Generate
+   *  button only. Empty means "use the shared BASE_URL", which is what
+   *  every other endpoint and every other caller still does. */
+  generateTestCasesUrl: string;
   generateVisual: string;
   generateTestData: string;
   codeChanges: string;
@@ -73,6 +77,7 @@ let cachedConfig: AiConfig = (() => {
     BASE_URL: ENV_BASE_URL,
     ENDPOINTS: {
       generateTestCases: '',
+      generateTestCasesUrl: '',
       generateVisual: '',
       generateTestData: '',
       codeChanges: '',
@@ -127,7 +132,7 @@ export const resetConfig = (): AiConfig => {
   }
   cachedConfig = {
     BASE_URL: ENV_BASE_URL,
-    ENDPOINTS: { generateTestCases: '', generateVisual: '', generateTestData: '', codeChanges: '', codeGenerateTestCase: '', codeGenerateUnitTest: '', kbGenerate: '', exportExcel: '', exportText: '', kbUploadZip: '', chatInitiate: '', chatStream: '', chatSessions: '', chatDelete: '' },
+    ENDPOINTS: { generateTestCases: '', generateTestCasesUrl: '', generateVisual: '', generateTestData: '', codeChanges: '', codeGenerateTestCase: '', codeGenerateUnitTest: '', kbGenerate: '', exportExcel: '', exportText: '', kbUploadZip: '', chatInitiate: '', chatStream: '', chatSessions: '', chatDelete: '' },
     PARAMETERS: { provider: '',  embed_provider: '', model: '', temperature: 0, maxTokens: 0 },
     SSD_AUTH: { loginUrl: ENV_SSD_AUTH_LOGIN_URL, email: ENV_SSD_AUTH_LOGIN_EMAIL, password: ENV_SSD_AUTH_LOGIN_PASSWORD },
   };

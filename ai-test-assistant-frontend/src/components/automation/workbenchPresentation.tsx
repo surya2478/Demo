@@ -92,6 +92,18 @@ export const TestDataBadge: React.FC<{
       </span>
     )
   }
+  if (status === 'user_provided') {
+    // Distinguished from "Ready" on purpose: Ready is derived from the
+    // requirements list, this one is a person's word that the data exists.
+    // Anyone auditing an approval wants to see which of the two it was.
+    return (
+      <span title="A user confirmed the test data has been provided">
+        <StatusBadge tone="success" size="sm" dot>
+          Provided
+        </StatusBadge>
+      </span>
+    )
+  }
   return (
     <StatusBadge tone="success" size="sm">
       Ready

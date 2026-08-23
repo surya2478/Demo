@@ -7,7 +7,7 @@
  * finished run cannot change, so polling a settled table is a request every
  * few seconds per open tab, on a host that is also running browsers.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   HiOutlineRefresh,
@@ -17,7 +17,9 @@ import {
   HiOutlineChartBar,
   HiOutlineClock,
   HiOutlineLightningBolt,
-  HiOutlineCollection
+  HiOutlineCollection,
+  HiOutlineTrash,
+  HiOutlineSparkles
 } from 'react-icons/hi'
 import automationService from '../../services/automationService'
 import { useAutomationContext } from '../../components/automation/AutomationContext'
@@ -54,7 +56,16 @@ const Runs: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [cancelling, setCancelling] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [selectedRuns, setSelectedRuns] = useState<Set<string>>(new Set())
   const [runModalOpen, setRunModalOpen] = useState(false)
+  const [rerunSpec, setRerunSpec] = useState<{
+    code?: string | null
+    fileName?: string | null
+    baseUrl?: string | null
+    environment?: string | null
+  } | null>(null)
+  const [healLoadingKey, setHealLoadingKey] = useState<string | null>(null)
 
   const timerRef = useRef<number | null>(null)
   const mountedRef = useRef(true)
@@ -128,10 +139,92 @@ const Runs: React.FC = () => {
     }
   }
 
+  const handleDeleteRuns = async (runKeyToDelete?: string) => {
+    const keysToDelete = runKeyToDelete ? [runKeyToDelete] : Array.from(selectedRuns)
+    if (keysToDelete.length === 0) return
+
+    const count = keysToDelete.length
+    if (
+      !window.confirm(
+        `Are you sure you want to delete ${
+          count === 1 ? `run "${keysToDelete[0]}"` : `${count} selected runs`
+        }?`
+      )
+    ) {
+      return
+    }
+
+    setDeleting(true)
+    setError(null)
+    try {
+      await automationService.deleteRuns(keysToDelete)
+      if (runKeyToDelete) {
+        setSelectedRuns(prev => {
+          const next = new Set(prev)
+          next.delete(runKeyToDelete)
+          return next
+        })
+      } else {
+        setSelectedRuns(new Set())
+      }
+      await load(false)
+    } catch (err: any) {
+      setError(err?.message ?? 'Failed to delete runs.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const handleQueued = (runKey: string) => {
     setRunModalOpen(false)
+    setRerunSpec(null)
     navigate(`/automation/runs/${runKey}`)
   }
+
+  const handleRerunClick = async (e: React.MouseEvent, runKey: string) => {
+    e.stopPropagation()
+    try {
+      const detail = await automationService.getRun(runKey)
+      setRerunSpec({
+        code: detail.spec?.code || detail.original_code || '',
+        fileName: detail.spec?.file_name || detail.file_name || 'spec.ts',
+        baseUrl: detail.spec?.base_url || '',
+        environment: detail.environment || 'SIT',
+      })
+      setRunModalOpen(true)
+    } catch {
+      setRerunSpec(null)
+      setRunModalOpen(true)
+    }
+  }
+
+  const handleHealClick = async (e: React.MouseEvent, runKey: string) => {
+    e.stopPropagation()
+    setHealLoadingKey(runKey)
+    try {
+      const healRes = await automationService.healRun(runKey)
+      setRerunSpec({
+        code: healRes.healed_code,
+        fileName: 'healed_spec.ts',
+        baseUrl: '',
+        environment: 'SIT',
+      })
+      setRunModalOpen(true)
+    } catch (err: any) {
+      setError(err?.message ?? 'Healer failed to repair this run.')
+    } finally {
+      setHealLoadingKey(null)
+    }
+  }
+
+  const allSelected = useMemo(
+    () => runs.length > 0 && runs.every(r => selectedRuns.has(r.run_key)),
+    [runs, selectedRuns]
+  )
+  const someSelected = useMemo(
+    () => runs.some(r => selectedRuns.has(r.run_key)) && !allSelected,
+    [runs, selectedRuns, allSelected]
+  )
 
   return (
     <div className="space-y-3">
@@ -170,6 +263,18 @@ const Runs: React.FC = () => {
         noPadding
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            {selectedRuns.size > 0 && canExecute ? (
+              <button
+                type="button"
+                onClick={() => handleDeleteRuns()}
+                disabled={deleting}
+                className="app-btn app-btn-secondary inline-flex items-center gap-1.5 text-app-danger disabled:opacity-50"
+                title="Delete selected runs and their workspace logs"
+              >
+                <HiOutlineTrash className="h-4 w-4" />
+                {deleting ? 'Deleting…' : `Delete (${selectedRuns.size})`}
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => void load(false)}
@@ -232,7 +337,23 @@ const Runs: React.FC = () => {
             <table className="app-table">
               <thead>
                 <tr>
-                  <th className="text-left">Run</th>
+                  <th className="w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      ref={node => {
+                        if (node) node.indeterminate = someSelected
+                      }}
+                      onChange={e =>
+                        setSelectedRuns(
+                          e.target.checked ? new Set(runs.map(r => r.run_key)) : new Set()
+                        )
+                      }
+                      className="h-3.5 w-3.5 rounded"
+                      aria-label="Select all runs"
+                    />
+                  </th>
+                  <th className="text-left">Test Case / Script</th>
                   <th className="text-left">Status</th>
                   <th className="text-left">Outcome</th>
                   <th className="text-left">Tests</th>
@@ -245,20 +366,59 @@ const Runs: React.FC = () => {
               <tbody>
                 {runs.map(run => {
                   const live = !isTerminal(run.status)
+                  const displayName =
+                    run.tc_title || run.tc_display_id || run.file_name || run.run_key
+                  const displaySubtitle = [
+                    run.tc_display_id && run.tc_display_id !== displayName
+                      ? run.tc_display_id
+                      : null,
+                    run.run_key,
+                    run.framework,
+                    run.environment ? run.environment : null
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')
+
                   return (
                     <tr
                       key={run.run_key}
                       onClick={() => navigate(`/automation/runs/${run.run_key}`)}
                       className="cursor-pointer"
                     >
+                      <td
+                        onClick={e => e.stopPropagation()}
+                        className="text-center"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedRuns.has(run.run_key)}
+                          onChange={() =>
+                            setSelectedRuns(prev => {
+                              const next = new Set(prev)
+                              if (next.has(run.run_key)) {
+                                next.delete(run.run_key)
+                              } else {
+                                next.add(run.run_key)
+                              }
+                              return next
+                            })
+                          }
+                          className="h-3.5 w-3.5 rounded"
+                        />
+                      </td>
                       <td>
-                        <div className="min-w-0">
-                          <div className="truncate font-mono text-[12px] font-semibold text-app-primary">
-                            {run.run_key}
+                        <div className="min-w-0 max-w-[340px]">
+                          <div
+                            className="truncate text-[13px] font-semibold text-app-primary"
+                            title={displayName}
+                          >
+                            {displayName}
                           </div>
-                          <div className="truncate text-[11px] text-app-secondary">
-                            {run.framework}
-                            {run.environment ? ` · ${run.environment}` : ''}
+                          <div
+                            className="truncate font-mono text-[11px] text-app-secondary"
+                            title={displaySubtitle}
+                          >
+                            {displaySubtitle}
                           </div>
                         </div>
                       </td>
@@ -266,7 +426,17 @@ const Runs: React.FC = () => {
                         <RunStatusBadge status={run.status} live={run.is_active} />
                       </td>
                       <td>
-                        <OutcomeBadge outcome={run.outcome} status={run.status} />
+                        <div className="flex items-center gap-1.5">
+                          <OutcomeBadge outcome={run.outcome} status={run.status} />
+                          {run.is_healed ? (
+                            <span
+                              className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 border border-emerald-200"
+                              title={run.healing_diagnosis || "Auto-repaired at runtime by Healer Agent"}
+                            >
+                              ✨ Healed
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="text-[12px] text-app-secondary">
                         {run.total_tests > 0 ? (
@@ -300,20 +470,58 @@ const Runs: React.FC = () => {
                         {formatAge(run.started_at ?? run.created_at)}
                       </td>
                       <td className="text-right">
-                        {live && run.is_active && canExecute ? (
-                          <button
-                            type="button"
-                            onClick={e => {
-                              e.stopPropagation()
-                              void handleCancel(run.run_key)
-                            }}
-                            disabled={cancelling === run.run_key}
-                            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-semibold text-app-danger transition hover:bg-app-danger-bg disabled:opacity-50"
-                          >
-                            <HiOutlineStop className="h-4 w-4" />
-                            {cancelling === run.run_key ? 'Cancelling…' : 'Cancel'}
-                          </button>
-                        ) : null}
+                        <div className="flex items-center justify-end gap-1.5">
+                          {canExecute && run.outcome === 'failed' ? (
+                            <button
+                              type="button"
+                              onClick={e => void handleHealClick(e, run.run_key)}
+                              disabled={healLoadingKey === run.run_key}
+                              title="Regenerate & Heal this failed spec with AI"
+                              className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition disabled:opacity-50"
+                            >
+                              <HiOutlineSparkles className={`h-3.5 w-3.5 ${healLoadingKey === run.run_key ? 'animate-spin' : ''}`} />
+                              {healLoadingKey === run.run_key ? 'Healing…' : 'Heal'}
+                            </button>
+                          ) : null}
+                          {canExecute ? (
+                            <button
+                              type="button"
+                              onClick={e => void handleRerunClick(e, run.run_key)}
+                              title="Rerun this spec"
+                              className="rounded p-1 text-app-secondary transition hover:bg-app-surface hover:text-app-primary"
+                            >
+                              <HiOutlinePlay className="h-4 w-4" />
+                            </button>
+                          ) : null}
+                          {live && run.is_active && canExecute ? (
+                            <button
+                              type="button"
+                              onClick={e => {
+                                e.stopPropagation()
+                                void handleCancel(run.run_key)
+                              }}
+                              disabled={cancelling === run.run_key}
+                              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-semibold text-app-danger transition hover:bg-app-danger-bg disabled:opacity-50"
+                            >
+                              <HiOutlineStop className="h-4 w-4" />
+                              {cancelling === run.run_key ? 'Cancelling…' : 'Cancel'}
+                            </button>
+                          ) : null}
+                          {canExecute ? (
+                            <button
+                              type="button"
+                              onClick={e => {
+                                e.stopPropagation()
+                                void handleDeleteRuns(run.run_key)
+                              }}
+                              disabled={deleting}
+                              title={`Delete run ${run.run_key}`}
+                              className="rounded p-1 text-app-secondary transition hover:bg-app-surface hover:text-app-danger disabled:opacity-40"
+                            >
+                              <HiOutlineTrash className="h-4 w-4" />
+                            </button>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   )
@@ -326,8 +534,15 @@ const Runs: React.FC = () => {
 
       <RunSpecModal
         open={runModalOpen}
-        onClose={() => setRunModalOpen(false)}
+        onClose={() => {
+          setRunModalOpen(false)
+          setRerunSpec(null)
+        }}
         candidate={null}
+        initialCode={rerunSpec?.code}
+        initialFileName={rerunSpec?.fileName}
+        initialBaseUrl={rerunSpec?.baseUrl}
+        initialEnvironment={rerunSpec?.environment}
         runtime={runtime}
         canExecute={canExecute}
         onQueued={handleQueued}

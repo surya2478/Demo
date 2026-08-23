@@ -48,19 +48,6 @@ export interface Candidate {
   script_count: number
 }
 
-export interface CandidateSummary {
-  total: number
-  ready: number
-  review: number
-  needs_enhancement: number
-  scripted: number
-}
-
-export interface CandidatesResponse {
-  summary: CandidateSummary
-  candidates: Candidate[]
-}
-
 export interface ApprovedCandidateDetail {
   source: 'approved'
   origin_test_case_id: string
@@ -91,6 +78,10 @@ export interface RuntimeStatusResponse {
 
 export interface RunSummary {
   run_key: string
+  test_case_id?: number | null
+  tc_display_id?: string | null
+  tc_title?: string | null
+  file_name?: string | null
   status: RunStatus
   outcome: RunOutcome
   framework: string
@@ -108,6 +99,12 @@ export interface RunSummary {
   triggered_by: string | null
   /** Whether this process is executing the run right now. */
   is_active: boolean
+  is_healed?: boolean
+  healing_diagnosis?: string | null
+  healing_changes?: string[] | null
+  original_code?: string | null
+  healed_code?: string | null
+  run_metadata?: Record<string, any> | null
 }
 
 export interface RunResultRow {
@@ -127,6 +124,14 @@ export interface RunSpec {
   code: string | null
   file_name: string | null
   base_url: string | null
+}
+
+export interface HealRunResponse {
+  healed_code: string
+  diagnosis: string
+  changes_made: string[]
+  original_code: string
+  confidence: number
 }
 
 export interface RunDetail extends RunSummary {
@@ -155,6 +160,8 @@ export interface CreateRunRequest {
   base_url?: string | null
   file_name?: string | null
   test_case_id?: number | null
+  slow_mo_ms?: number | null
+  headless?: boolean | null
 }
 
 export interface CreateRunResponse {
@@ -212,56 +219,33 @@ export interface StudioCase {
   updated_at: string | null
 }
 
-/** What the intake form, the paste parser and one CSV row all produce. */
-export interface ManualCaseInput {
-  display_id: string
-  category?: string | null
-  description?: string | null
-  preconditions?: string | null
-  steps_raw?: string | null
-  test_data?: string | null
-  expected_result?: string | null
-  origin_test_case_id?: string | null
-}
-
-export interface ImportSkip {
-  line: number
-  reason: string
-}
-
-export interface ImportResult {
-  imported: number
-  /** Rows the import refused, by line number — never silently dropped. */
-  skipped: ImportSkip[]
-  cases: StudioCase[]
-}
-
-/** Both sides of a refinement, so the rewrite can be reviewed before it is used. */
-export interface RefineResult {
-  original: StudioCase
-  refined: StudioCase
-  bdd_scenario: string | null
-  test_data_required: boolean
-  test_data_notes: string | null
-}
-
-export interface LlmStatus {
-  provider: string
-  configured: boolean
-  detail: string
-}
-
 // ── Automation TC Coverage Assessment ────────────────────────────────────────
 
 export type Classification = 'automation' | 'manual' | 'undecided'
 export type ApprovalStatus = 'draft' | 'approved' | 'rejected'
-export type TestDataStatus = 'not_required' | 'pending' | 'ready'
+/**
+ * 'pending' is the only value that blocks approval.
+ *
+ * 'user_provided' is a human decision rather than a derived fact: someone
+ * confirmed the data now exists. The backend preserves it through rescore
+ * instead of recomputing it from the requirements list, which is what lets a
+ * case stay unblocked after an unrelated edit.
+ */
+export type TestDataStatus = 'not_required' | 'pending' | 'ready' | 'user_provided'
 /** Where the case came from: refined in place, typed in, or built to fill a gap. */
 export type CaseOrigin = 'existing' | 'imported' | 'derived'
 
 /** A row in the "what to refine" panels. */
 export interface WorkbenchSource {
   id: string
+  /**
+   * Which of the two ways this case arrived, and which request field its id
+   * belongs in when refining. 'approved' ids are review-workflow test case ids
+   * and go in source_test_case_ids; 'studio' ids are automation_test_cases
+   * primary keys (CSV import, manual authoring, document intake) and go in
+   * case_ids. Sending one as the other silently matches nothing.
+   */
+  origin: 'approved' | 'studio'
   tc_display_id: string
   title: string
   category: string | null
@@ -297,6 +281,64 @@ export interface WorkbenchCase extends StudioCase {
   source_missing: boolean
   can_approve: boolean
   approve_blocked_reason: string | null
+  /** Whether the steps resolve to controls the discovered application really has. */
+  grounding_status: GroundingStatus
+  grounding_summary: GroundingSummary | null
+  grounded_at: string | null
+  /** Which catalogue version the verdict belongs to. */
+  discovery_run_id: number | null
+  /** Guided Live Browser Discovery */
+  flow_discovery_status?: 'none' | 'starting' | 'recording' | 'captured' | 'completed' | 'error' | string
+  recorded_flow_objects?: RecordedFlowObject[] | null
+  recorded_flow_objects_count?: number
+  /** Quality Review (eSMART Review Agent) */
+  review_score?: number | null
+  review_verdict?: 'pass' | 'needs_revision' | 'fail' | string | null
+  review_scores?: {
+    step_quality?: number
+    data_readiness?: number
+    expected_result_clarity?: number
+    coverage?: number
+  } | null
+  review_findings?: {
+    issues?: string[]
+    suggestions?: string[]
+    coverage_gaps?: string[]
+  } | null
+  reviewed_at?: string | null
+}
+
+export interface CaseReviewResult {
+  case_id: number
+  display_id: string
+  overall_score: number
+  verdict: 'pass' | 'needs_revision' | 'fail' | string
+  scores: {
+    step_quality: number
+    data_readiness: number
+    expected_result_clarity: number
+    coverage: number
+  }
+  findings: {
+    issues: string[]
+    suggestions: string[]
+    coverage_gaps: string[]
+  }
+  reviewed_at?: string | null
+}
+
+export interface RecordedFlowObject {
+  step_number?: number
+  action?: string
+  target_name?: string
+  recommended_locator?: string
+  alternative_locators?: string[]
+  page_url?: string
+  tag_name?: string
+  role?: string
+  accessible_name?: string
+  timestamp?: string
+  value?: string
 }
 
 export interface WorkbenchCounts {
@@ -428,3 +470,161 @@ export interface DryRunState {
 
 export const isDryRunSettled = (status: DryRunStatus): boolean =>
   status === 'passed' || status === 'failed' || status === 'blocked' || status === 'not_run'
+
+// ── Application Discovery and Grounding ──────────────────────────────────────
+
+export type GroundingStatus = 'not_checked' | 'grounded' | 'partially_grounded' | 'ungrounded'
+export type LocatorStrategy = 'role' | 'label' | 'text' | 'placeholder' | 'testid'
+
+export interface DiscoveryRun {
+  id: number
+  /** Catalogues are versioned, so a grounding verdict stays tied to its crawl. */
+  version: number
+  is_current: boolean
+  status: 'queued' | 'running' | 'completed' | 'failed'
+  application_url: string | null
+  application_environment: string | null
+  auth_mode: string
+  auth_status: string
+  auth_detail: string | null
+  pages_discovered: number
+  elements_discovered: number
+  explored_pages: Array<{ url: string; title: string; status: number | null }>
+  /** Why a page could not be crawled — a thin catalogue explains itself. */
+  blockers: Array<{ url: string; reason: string }>
+  error: string | null
+  /** The crawl is an ordinary run, so it has a run_key with a log and evidence. */
+  run_key: string | null
+  created_by: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface DiscoveredElement {
+  id: number
+  page_url: string
+  page_title: string | null
+  element_name: string
+  role: string | null
+  accessible_name: string | null
+  business_meaning: string | null
+  /** Verified to resolve uniquely at crawl time — not a guess. */
+  recommended_locator: string
+  recommended_strategy: LocatorStrategy
+  confidence_score: number
+  href: string | null
+}
+
+export interface DiscoveryState {
+  discovery: DiscoveryRun | null
+  elements: number
+}
+
+export interface ElementCatalog {
+  elements: DiscoveredElement[]
+  total: number
+  roles: string[]
+}
+
+export interface GroundingMatch {
+  step_number: number
+  target: string | null
+  element_name: string
+  locator: string
+  strategy: LocatorStrategy
+  page: string
+  confidence: number
+}
+
+export interface GroundingGap {
+  step_number: number
+  action: string | null
+  target: string | null
+  /** Actionable: says whether the page was missed or the label differs. */
+  reason: string
+}
+
+export interface GroundingSummary {
+  status: GroundingStatus
+  note: string | null
+  matched: GroundingMatch[]
+  unresolved: GroundingGap[]
+  /** Steps needing no control at all — skipped rather than counted as failures. */
+  skipped: number
+  catalog_size: number
+}
+
+export interface GroundResult {
+  grounded_against: DiscoveryRun
+  checked: number
+  counts: Record<GroundingStatus, number>
+  test_cases: WorkbenchCase[]
+}
+
+export const isDiscoverySettled = (status: DiscoveryRun['status']): boolean =>
+  status === 'completed' || status === 'failed'
+
+/* --- Automation Module: Document Intake ---------------------------------- */
+
+/** What a document is, which decides what intake does with its text. */
+export type IntakeRole = 'brd' | 'srd' | 'test_cases'
+
+/** Extraction outcome for one document — the "TEXT" column in the table. */
+export type IntakeExtractStatus = 'pending' | 'ready' | 'failed'
+
+export interface IntakeDocument {
+  id: number
+  filename: string
+  file_type: string
+  size_bytes: number | null
+  role: IntakeRole
+  extract_status: IntakeExtractStatus
+  /**
+   * Why extraction failed — or, on a 'ready' test case document that yielded
+   * nothing, why it found no table. Present on a successful extraction too,
+   * which is the point: "Ready" beside "0 test case(s)" needs an explanation.
+   */
+  extract_error: string | null
+  page_count: number | null
+  cases_found: number
+  text_chars: number
+  uploaded_by: string | null
+  created_at: string | null
+}
+
+export interface IntakeBatch {
+  id: number
+  name: string
+  status: string
+  document_count: number
+  cases_found: number
+  created_by: string | null
+  created_at: string | null
+  documents: IntakeDocument[]
+}
+
+/** A file refused before it was ever stored — bad extension, empty upload. */
+export interface IntakeRejection {
+  filename: string | null
+  reason: string
+}
+
+export interface IntakeUploadResult {
+  batch: IntakeBatch
+  rejected: IntakeRejection[]
+}
+
+/** Role changes answer with the batch, plus a note when re-harvesting failed. */
+export interface IntakeRoleResult {
+  batch: IntakeBatch
+  note: string | null
+}
+
+export const INTAKE_ROLE_LABELS: Record<IntakeRole, string> = {
+  brd: 'BRD',
+  srd: 'SRD',
+  test_cases: 'Test Cases'
+}
+
+/** Extensions the backend's extractor accepts. Mirrors extraction.py. */
+export const INTAKE_ACCEPTED_EXTENSIONS = '.pdf,.docx,.xlsx,.csv,.txt,.md'

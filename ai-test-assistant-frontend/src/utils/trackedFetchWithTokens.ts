@@ -34,6 +34,61 @@ const nativeFetch = (() => {
 })();
 
 /**
+ * Origin AND base path of our own admin backend, with any trailing slash gone.
+ * Null when VITE_API_URL is unset or unparseable, which means "trust nothing".
+ */
+function ownBackendPrefix(): string | null {
+  const raw = String((import.meta as any).env?.VITE_API_URL || '').trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw, window.location.href);
+    return (url.origin + url.pathname).replace(/\/+$/, '');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Bearer header for calls that land on our own admin backend, and nothing else.
+ *
+ * ai_config.BASE_URL can point anywhere, and attaching the session token
+ * unconditionally would hand our JWT to whatever host that happens to be.
+ *
+ * Comparing origins is NOT enough, and the deployed setup is exactly the case
+ * that proves it: the admin backend is served at
+ * https://<host>/admin/ while the external AI service sits at https://<host>/
+ * on the SAME host. An origin check matches both, which would leak the token to
+ * the AI service. So the full base prefix is compared, and the boundary is
+ * checked so that a backend at "/admin" does not match a path like
+ * "/administration".
+ */
+export function authHeaderForOwnBackend(targetUrl: string): Record<string, string> {
+  const base = ownBackendPrefix();
+  if (!base) return {};
+
+  let target: string;
+  try {
+    const url = new URL(targetUrl, window.location.href);
+    target = url.origin + url.pathname;
+  } catch {
+    return {};
+  }
+
+  if (target !== base && !target.startsWith(base + '/')) return {};
+
+  // AuthContext writes 'authToken'; authService writes 'api_token'. Both are
+  // the same access token, and which one is present depends on the login path
+  // taken, so try each rather than picking a winner.
+  const token =
+    localStorage.getItem('authToken') ||
+    localStorage.getItem('api_token') ||
+    sessionStorage.getItem('authToken') ||
+    '';
+
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/**
  * Extract token counts from response text
  * Expected format: "[TOKEN_COUNTS:Prompt=435,Response=1401,Total=1836]"
  */
@@ -153,13 +208,17 @@ export async function trackedFetchWithTokens(
     let fetchOptions: RequestInit;
     
     if (options.body instanceof FormData) {
-      // For FormData: Use ONLY method and body, no headers whatsoever
-      // Browser will automatically set Content-Type: multipart/form-data with boundary
+      // For FormData: never set Content-Type -- the browser has to generate it
+      // so it can attach the multipart boundary. Authorization is a different
+      // matter: it does not touch the body encoding, and generation endpoints
+      // served by our own backend require it (they spend our OpenRouter key,
+      // unlike the external AI service that used to serve those paths).
       fetchOptions = {
         method: options.method || 'POST',
-        body: options.body
+        body: options.body,
+        headers: authHeaderForOwnBackend(fullUrl)
       };
-      console.log("[TrackedFetch] FormData detected - using minimal fetch options (no headers)");
+      console.log("[TrackedFetch] FormData detected - no Content-Type set (browser supplies the boundary)");
     } else {
       // For non-FormData: Can safely add headers
       fetchOptions = {

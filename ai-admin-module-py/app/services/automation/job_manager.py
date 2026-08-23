@@ -37,7 +37,14 @@ from typing import Any, Optional
 
 from ...config import settings
 from ...database.connection import SessionLocal
-from ...models.automation import AutomationRun, AutomationRunResult
+from ...models.automation import (
+    AutomationDiscoveredElement,
+    AutomationDiscoveryRun,
+    AutomationRun,
+    AutomationRunResult,
+    AutomationScript,
+)
+from . import healer
 from . import workspace as ws
 from .local_playwright import LocalPlaywrightRunner
 
@@ -180,6 +187,11 @@ class JobManager:
 
             run.status = "running"
             run.started_at = datetime.utcnow()
+            run.run_metadata = {
+                **(run.run_metadata or {}),
+                "execution_phase": "Assessing Readiness & Workspace",
+                "phase_step": 1,
+            }
             db.commit()
 
             try:
@@ -187,8 +199,25 @@ class JobManager:
                 script_name = ws.materialize_script(
                     workspace=workspace, code=code, suggested_file_path=file_name_hint
                 )
-                ws.write_playwright_config(workspace, base_url=base_url)
+                run_cfg = run.run_config or {}
+                slow_mo_ms = int(
+                    run_cfg.get("slow_mo_ms")
+                    if run_cfg.get("slow_mo_ms") is not None
+                    else getattr(settings, "AUTOMATION_DEFAULT_SLOW_MO_MS", 1000)
+                )
+                headless = bool(run_cfg.get("headless", True))
+                ws.write_playwright_config(
+                    workspace,
+                    base_url=base_url,
+                    slow_mo_ms=slow_mo_ms,
+                    headless=headless,
+                )
                 run.workspace_path = str(workspace)
+                run.run_metadata = {
+                    **(run.run_metadata or {}),
+                    "execution_phase": "Executing Playwright Engine",
+                    "phase_step": 4,
+                }
                 db.commit()
             except Exception as exc:  # noqa: BLE001 - surfaced on the run itself
                 logger.exception("Workspace preparation failed for %s", run_key)
@@ -209,6 +238,105 @@ class JobManager:
                 cancellation=cancel,
             )
 
+            counts = {"pass": 0, "fail": 0, "skip": 0, "error": 0, "blocked": 0}
+            for row in result.results:
+                counts[row.status] = counts.get(row.status, 0) + 1
+
+            # --- Runtime Self-Healing Loop ---------------------------------
+            auto_heal = bool(run_cfg.get("auto_heal", True))
+            initial_failed = result.run_status != "completed" or (counts["fail"] + counts["error"] > 0)
+
+            if initial_failed and auto_heal and not cancel.is_set():
+                logger.info("Run %s failed on initial attempt. Invoking Healer Agent...", run_key)
+                run.run_metadata = {
+                    **(run.run_metadata or {}),
+                    "execution_phase": "Self-Healing Agent Auto-Repair",
+                    "phase_step": 5,
+                }
+                db.commit()
+                try:
+                    first_fail = next((r for r in result.results if r.status in ("fail", "error")), None)
+                    err_msg = (first_fail.error_message if first_fail else "") or (result.error_message or "")
+                    stack = first_fail.stack_trace if first_fail else ""
+
+                    # Query active discovered element catalogue
+                    discovered_rows = (
+                        db.query(AutomationDiscoveredElement)
+                        .join(
+                            AutomationDiscoveryRun,
+                            AutomationDiscoveredElement.discovery_run_id == AutomationDiscoveryRun.id,
+                        )
+                        .filter(AutomationDiscoveryRun.is_current == True)
+                        .all()
+                    )
+                    discovered_list = [
+                        {
+                            "role": d.role,
+                            "accessible_name": d.accessible_name,
+                            "recommended_locator": d.recommended_locator,
+                            "page_url": d.page_url,
+                        }
+                        for d in discovered_rows
+                    ]
+
+                    healed_code, diagnosis, changes = healer.diagnose_and_heal(
+                        code=code,
+                        error_message=err_msg,
+                        stack_trace=stack,
+                        discovered_elements=discovered_list,
+                        base_url=base_url,
+                    )
+
+                    if healed_code and healed_code.strip() != code.strip():
+                        logger.info("Healed script generated for %s. Re-running...", run_key)
+                        healed_file = ws.materialize_script(
+                            workspace=workspace, code=healed_code, suggested_file_path=file_name_hint
+                        )
+                        healed_result = await LocalPlaywrightRunner().run(
+                            workspace_dir=Path(run.workspace_path),
+                            script_file_name=healed_file,
+                            environment=run.environment,
+                            timeout_seconds=min(180, int(settings.AUTOMATION_RUN_TIMEOUT_SECONDS or 600)),
+                            cancellation=cancel,
+                        )
+
+                        healed_counts = {"pass": 0, "fail": 0, "skip": 0, "error": 0, "blocked": 0}
+                        for row in healed_result.results:
+                            healed_counts[row.status] = healed_counts.get(row.status, 0) + 1
+
+                        if healed_result.run_status == "completed" and (healed_counts["fail"] + healed_counts["error"] == 0):
+                            logger.info("Self-healing SUCCESSFUL for %s! Test passed on healed retry.", run_key)
+                            result = healed_result
+                            counts = healed_counts
+                            run.run_metadata = {
+                                **(run.run_metadata or {}),
+                                "is_healed": True,
+                                "healing_attempts": 1,
+                                "healing_diagnosis": diagnosis,
+                                "healing_changes": changes,
+                                "original_code": code,
+                                "healed_code": healed_code,
+                            }
+                            if run.script_id:
+                                script_record = db.query(AutomationScript).filter(AutomationScript.id == run.script_id).first()
+                                if script_record:
+                                    script_record.code = healed_code
+                                    db.commit()
+                        else:
+                            logger.info("Healed retry for %s also failed. Recording original and healed diagnostic trail.", run_key)
+                            run.run_metadata = {
+                                **(run.run_metadata or {}),
+                                "is_healed": False,
+                                "healing_attempts": 1,
+                                "healing_diagnosis": diagnosis,
+                                "healing_changes": changes,
+                                "original_code": code,
+                                "healed_code": healed_code,
+                            }
+                except Exception as heal_exc:
+                    logger.warning("Healer Agent threw an exception for %s: %s", run_key, heal_exc)
+
+            # Persist test results
             for row in result.results:
                 db.add(
                     AutomationRunResult(
@@ -225,10 +353,6 @@ class JobManager:
                         network_logs=row.network_logs,
                     )
                 )
-
-            counts = {"pass": 0, "fail": 0, "skip": 0, "error": 0, "blocked": 0}
-            for row in result.results:
-                counts[row.status] = counts.get(row.status, 0) + 1
 
             run.total_tests = len(result.results)
             run.passed = counts["pass"]

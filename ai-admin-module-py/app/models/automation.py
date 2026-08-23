@@ -28,6 +28,7 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -142,6 +143,41 @@ class AutomationTestCase(Base):
     application_url = Column(Text, nullable=True)
 
     application_id = Column(Integer, ForeignKey("automation_applications.id"), nullable=True, index=True)
+
+    # --- Grounding ----------------------------------------------------------
+    # Whether this case's steps resolve to controls that actually exist in the
+    # discovered application.
+    #
+    #   not_checked        no discovery has been matched against it yet
+    #   grounded           every step needing a control found one
+    #   partially_grounded some did, some did not -- the useful middle state
+    #   ungrounded         none did, or no step names a control at all
+    #
+    # Kept beside the case rather than computed on read because a catalogue is
+    # versioned: the answer belongs to the discovery run it was matched against,
+    # and recomputing later against a newer crawl would quietly change history.
+    grounding_status = Column(String(30), nullable=False, default="not_checked", index=True)
+    # {matched: [...], unresolved: [{step_number, target, reason}], skipped: n}
+    # The unresolved list is the point: naming the steps that did NOT match is
+    # what stops the generator inventing a locator for them.
+    grounding_summary = Column(JSON, nullable=True)
+    grounded_at = Column(DateTime, nullable=True)
+    discovery_run_id = Column(
+        Integer, ForeignKey("automation_discovery_runs.id"), nullable=True, index=True
+    )
+
+    # --- Guided Flow Discovery ----------------------------------------------
+    # User-recorded ground-truth page objects captured during interactive browser sessions.
+    flow_discovery_status = Column(String(30), nullable=False, default="none", index=True)
+    # [{step_number, action, target_name, recommended_locator, alternative_locators, page_url, tag_name, accessible_name, role}, ...]
+    recorded_flow_objects = Column(JSON, nullable=True)
+
+    # --- Quality Review (eSMART Review Agent) -------------------------------
+    review_score = Column(Float, nullable=True)
+    review_verdict = Column(String(30), nullable=True, index=True)  # pass | needs_revision | fail
+    review_scores = Column(JSON, nullable=True)  # {step_quality, data_readiness, expected_result_clarity, coverage}
+    review_findings = Column(JSON, nullable=True)  # {issues: [...], suggestions: [...], coverage_gaps: [...]}
+    reviewed_at = Column(DateTime, nullable=True)
 
     created_by = Column(String(255), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
@@ -318,6 +354,7 @@ class AutomationRun(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
     script = relationship("AutomationScript", back_populates="runs")
+    test_case = relationship("AutomationTestCase")
     results = relationship(
         "AutomationRunResult", back_populates="run", cascade="all, delete-orphan"
     )
@@ -371,4 +408,207 @@ class AutomationRunResult(Base):
             "status IN ('pass', 'fail', 'skip', 'error', 'blocked')",
             name="ck_automation_run_result_status",
         ),
+    )
+
+
+class AutomationDiscoveryRun(Base):
+    """One crawl of a running application.
+
+    --- Automation Module: Application Discovery ----------------------------
+
+    Discovery answers the question the compiler cannot: what is actually on
+    the page. A refined test case says "the Username field"; the application
+    might render "Email", or a label with no `for` attribute that no
+    accessible-name query can reach. Without a catalogue of real elements the
+    generator can only guess, and a wrong guess is not discovered until a run
+    goes red fifteen seconds in.
+
+    Versioned rather than overwritten: a test case grounded against version 2
+    should not silently start reporting against version 3's catalogue, and an
+    old run's evidence still refers to the elements it saw.
+    """
+
+    __tablename__ = "automation_discovery_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    application_id = Column(
+        Integer, ForeignKey("automation_applications.id"), nullable=True, index=True
+    )
+
+    version = Column(Integer, nullable=False, default=1)
+    is_current = Column(Boolean, nullable=False, default=True, index=True)
+
+    # queued | running | completed | failed
+    status = Column(String(30), nullable=False, default="queued", index=True)
+    application_url = Column(Text, nullable=True)
+    application_environment = Column(String(50), nullable=True)
+
+    # Kept for the seam: authenticated discovery needs credential storage,
+    # which needs a crypto dependency this deployment does not carry yet.
+    # Until then every crawl runs as an anonymous visitor.
+    auth_mode = Column(String(20), nullable=False, default="none")
+    auth_status = Column(String(30), nullable=False, default="not_required")
+    auth_detail = Column(Text, nullable=True)
+
+    pages_discovered = Column(Integer, nullable=False, default=0)
+    elements_discovered = Column(Integer, nullable=False, default=0)
+    explored_pages = Column(JSON, nullable=True)
+    # Why a page could not be crawled -- stated, so a thin catalogue explains
+    # itself rather than looking like the application has nothing on it.
+    blockers = Column(JSON, nullable=True)
+    error = Column(Text, nullable=True)
+
+    # The crawl executes through the ordinary runner, so it has a run_key like
+    # anything else and its log and evidence are already served.
+    run_key = Column(String(64), nullable=True, index=True)
+
+    created_by = Column(String(255), nullable=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    elements = relationship(
+        "AutomationDiscoveredElement", back_populates="run", cascade="all, delete-orphan"
+    )
+
+
+class AutomationDiscoveredElement(Base):
+    """One interactive control found on a page.
+
+    `recommended_locator` is the point of the whole table: a Playwright query
+    that was verified to resolve at crawl time, so the generator can emit
+    something known to exist instead of a phrase it hoped would match.
+    """
+
+    __tablename__ = "automation_discovered_elements"
+
+    id = Column(Integer, primary_key=True, index=True)
+    discovery_run_id = Column(
+        Integer,
+        ForeignKey("automation_discovery_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    page_url = Column(String(1000), nullable=False)
+    page_title = Column(String(500), nullable=True)
+
+    # A slug derived from role and accessible name, stable enough to reference.
+    element_name = Column(String(200), nullable=False, index=True)
+    role = Column(String(100), nullable=True, index=True)
+    accessible_name = Column(Text, nullable=True)
+    # What the control is for, in the application's own terms. Null until
+    # something is able to infer it; the matcher weights it below the
+    # accessible name precisely because it is the softer signal.
+    business_meaning = Column(Text, nullable=True)
+
+    recommended_locator = Column(Text, nullable=False)
+    # role | label | text | placeholder | testid
+    recommended_strategy = Column(String(20), nullable=False, default="role")
+    # 0-100. Drives tie-breaks in the matcher, so a uniquely-named control
+    # beats an ambiguous one when both score the same on words.
+    confidence_score = Column(Integer, nullable=False, default=0)
+    href = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    run = relationship("AutomationDiscoveryRun", back_populates="elements")
+
+
+class AutomationIntakeBatch(Base):
+    """One scope of work: the documents that describe it, gathered together.
+
+    --- Automation Module: Document Intake ----------------------------------
+
+    The second way test cases reach the Workbench. The first is the review
+    workflow -- a human approves a case and it appears in "What to refine".
+    This is for the scope that arrives as documents instead: a BRD, an SRD, and
+    the spreadsheet of test cases someone already wrote.
+
+    A batch is a grouping, not a job. Documents are attached over time and
+    extraction happens per document as each one lands, so a failed parse on the
+    third file does not cost the two that already succeeded.
+
+    Deliberately not project-scoped. Upstream keys every batch to a project id;
+    this deployment has no project concept, so batches are global and ordered
+    by recency, which is what the picker in the UI shows.
+    """
+
+    __tablename__ = "automation_intake_batches"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), nullable=False)
+
+    # draft: documents still arriving. ready: at least one document extracted
+    # and something was found in it. Purely descriptive -- nothing gates on it.
+    status = Column(String(30), nullable=False, default="draft", index=True)
+
+    created_by = Column(String(255), nullable=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    documents = relationship(
+        "AutomationIntakeDocument",
+        back_populates="batch",
+        cascade="all, delete-orphan",
+        order_by="AutomationIntakeDocument.id",
+    )
+
+
+class AutomationIntakeDocument(Base):
+    """One uploaded file, its extracted text, and what was found in it.
+
+    The original file is kept on disk under the module's storage root and
+    referenced by path, following the same rule as run evidence: this database
+    is SQLite with a background writer, and documents do not belong in it as
+    blobs. `stored_path` is relative to that root so the store can be moved
+    without rewriting rows.
+
+    `role` is the user's declaration of what the document is -- BRD, SRD or
+    test cases -- and it decides what happens to the text. Only a test case
+    document produces candidates; the others are held for the requirements work
+    that is not built yet. It is editable after upload because people pick the
+    wrong one in the dropdown and re-uploading a 40MB PDF to fix that is a
+    poor answer.
+    """
+
+    __tablename__ = "automation_intake_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    batch_id = Column(
+        Integer,
+        ForeignKey("automation_intake_batches.id"),
+        nullable=False,
+        index=True,
+    )
+
+    filename = Column(String(255), nullable=False)
+    file_type = Column(String(10), nullable=False)
+    size_bytes = Column(Integer, nullable=True)
+    stored_path = Column(Text, nullable=True)
+
+    # brd | srd | test_cases
+    role = Column(String(20), nullable=False, default="brd", index=True)
+
+    # pending | ready | failed -- the "TEXT" column in the intake table.
+    extract_status = Column(String(20), nullable=False, default="pending", index=True)
+    extract_error = Column(Text, nullable=True)
+    extracted_text = Column(Text, nullable=True)
+    page_count = Column(Integer, nullable=True)
+
+    # How many test cases this document yielded. Zero for a BRD, and zero for a
+    # test case document whose table could not be mapped -- the UI shows the
+    # count so the difference is visible before anyone clicks refine.
+    cases_found = Column(Integer, nullable=False, default=0)
+
+    uploaded_by = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    batch = relationship("AutomationIntakeBatch", back_populates="documents")
+
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('brd', 'srd', 'test_cases')",
+            name="ck_intake_document_role",
+        ),
+        Index("ix_intake_document_batch_role", "batch_id", "role"),
     )

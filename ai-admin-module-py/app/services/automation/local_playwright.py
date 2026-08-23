@@ -221,6 +221,11 @@ class LocalPlaywrightRunner(AutomationRunner):
 
         if rows:
             return rows, None
+        top_errors = report.get("errors", [])
+        if top_errors and isinstance(top_errors, list):
+            first_top_err = top_errors[0]
+            if isinstance(first_top_err, dict) and first_top_err.get("message"):
+                return [], _strip_ansi(first_top_err.get("message"))
         return [], (
             "The Playwright JSON reporter reported no tests. Nothing executed, so "
             "there is no result to score."

@@ -30,6 +30,142 @@ FIELD_STEPS = "Test Steps"
 FIELD_TEST_DATA = "Test Data"
 FIELD_EXPECTED = "Expected Result"
 
+# Header spellings that map onto a test case column, lower-cased.
+#
+# Lives here rather than in the router because two callers now need it: the CSV
+# import endpoint, and document intake reading a table out of an uploaded .xlsx
+# or .docx. Two copies of this table would drift the first time someone's
+# spreadsheet says "Steps" instead of "Test Steps", and the symptom -- a column
+# silently arriving empty -- gives no hint that a second alias list exists.
+COLUMN_ALIASES = {
+    # Order matters within each tuple: the first alias that matches any header
+    # wins, so the most specific spelling is listed first. "test case id" must
+    # outrank bare "id" -- a real sheet carries both, where "ID" is a row number
+    # and "Test Case ID" is the identifier people actually cite.
+    "display_id": (
+        "test case id",
+        "testcase id",
+        "testcaseid",
+        "tc id",
+        "test case ref",
+        "display_id",
+        "ref",
+        "id",
+    ),
+    "category": (
+        "category",
+        "area of test",
+        "test area",
+        "module",
+        "feature",
+        "functionality",
+        "sub request type",
+    ),
+    "description": (
+        "test case description",
+        "test case objective",
+        "objective",
+        "description",
+        "scenario",
+        "summary",
+        "title",
+    ),
+    "preconditions": (
+        "preconditions",
+        "precondition",
+        "pre-requisites",
+        "pre requisites",
+        "prerequisites",
+        "prerequisite",
+        "setup",
+    ),
+    "steps_raw": (
+        "test steps",
+        "steps to execute",
+        "steps",
+        "step",
+        "test procedure",
+        "procedure",
+        "actions",
+        "steps_raw",
+    ),
+    "test_data": ("test data", "test_data", "data", "input data", "test inputs"),
+    "expected_result": (
+        "expected results",
+        "expected result",
+        "expected_result",
+        "expected outcome",
+        "expected behaviour",
+        "expected behavior",
+        "expected",
+    ),
+}
+
+# The columns a deterministic table read must find before it is trusted.
+#
+# A sheet that yields only an id and some steps is not a clean template read --
+# it is a partial match on a spreadsheet whose columns are named differently,
+# and the fields that went missing are the ones downstream needs most. Treating
+# that as success is how a case reaches the Workbench with no expected result
+# and no description, looking extracted when it is really half-parsed. When
+# these are not all present the caller falls back to the model, which is the
+# same division of labour the source studio uses.
+TABLE_READ_REQUIRED = ("display_id", "steps_raw", "expected_result")
+
+
+def normalize_header(name) -> str:
+    """A header reduced to its comparable form.
+
+    Real sheets carry trailing spaces, stray colons, newlines from wrapped
+    cells and inconsistent case. None of that changes what the column means.
+    """
+    text = str(name or "").strip().lower()
+    text = re.sub(r"[\s ]+", " ", text)
+    return text.strip(" :*#")
+
+
+def map_headers(headers) -> dict[str, str]:
+    """Match a document's headers onto test case columns, case-insensitively.
+
+    Iterates the ALIASES in order rather than the headers, so a tuple's
+    precedence is honoured. Doing it the other way round lets sheet column
+    order decide, which is how a column literally named "ID" beat "Test Case
+    ID" and put a row number where the identifier belongs.
+
+    A header already claimed by an earlier column is not reused, so "Test Case
+    ID" cannot also satisfy "description" via a loose alias.
+
+    Returns {column: original_header} for whatever matched. A caller checks for
+    "display_id" to decide whether the table is test cases at all, and against
+    TABLE_READ_REQUIRED to decide whether the read is complete enough to trust.
+    """
+    normalized = [(name, normalize_header(name)) for name in headers]
+    lookup: dict[str, str] = {}
+    claimed: set[str] = set()
+
+    for column, aliases in COLUMN_ALIASES.items():
+        for alias in aliases:
+            match = next(
+                (
+                    original
+                    for original, norm in normalized
+                    if norm == alias and original not in claimed
+                ),
+                None,
+            )
+            if match is not None:
+                lookup[column] = match
+                claimed.add(match)
+                break
+
+    return lookup
+
+
+def table_read_is_complete(lookup: dict[str, str]) -> bool:
+    """Whether a header mapping is good enough to skip the model."""
+    return all(column in lookup for column in TABLE_READ_REQUIRED)
+
+
 # A step that needs a human cannot be automated unattended. Matched on word
 # boundaries so "captcha" is caught but "capture" is not.
 MANUAL_MARKERS = (

@@ -8,7 +8,8 @@ import {
   HiOutlineSparkles,
   HiChartBar,
   HiClipboardCheck,
-  HiOutlineLightningBolt
+  HiOutlineLightningBolt,
+  HiOutlineGlobeAlt
 } from 'react-icons/hi'
 
 export const menuIcons = {
@@ -21,5 +22,8 @@ export const menuIcons = {
   settings: HiCog,
   'test-assistant': HiOutlineSparkles,
   'manager-review': HiClipboardCheck,
-  automation: HiOutlineLightningBolt
+  automation: HiOutlineLightningBolt,
+  'automation/discovery': HiOutlineGlobeAlt,
+  discovery: HiOutlineGlobeAlt
 }
+

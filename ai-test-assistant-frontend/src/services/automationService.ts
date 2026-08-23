@@ -16,20 +16,16 @@ import api from './api'
 import type {
   ApprovedCandidateDetail,
   ArtifactKind,
-  CandidatesResponse,
   CreateRunRequest,
   CreateRunResponse,
-  ImportResult,
-  LlmStatus,
-  ManualCaseInput,
   Classification,
   DecideResult,
   GenerationJob,
-  RefineResult,
   RunDetail,
   RuntimeStatusResponse,
   RunsResponse,
   StudioCase,
+  TestDataStatus,
   Verdict,
   WorkbenchCase,
   WorkbenchGrid,
@@ -39,7 +35,19 @@ import type {
   FrameworkInfo,
   GenerateScriptsResult,
   ScriptAsset,
-  ScriptLabListing
+  ScriptLabListing,
+  DiscoveredElement,
+  DiscoveryRun,
+  IntakeBatch,
+  IntakeRole,
+  IntakeRoleResult,
+  IntakeUploadResult,
+  DiscoveryState,
+  HealRunResponse,
+  ElementCatalog,
+  GroundResult,
+  RecordedFlowObject,
+  CaseReviewResult
 } from '../types/automation'
 
 const BASE = '/automation'
@@ -70,12 +78,6 @@ async function call<T>(fn: () => Promise<{ data: T }>): Promise<T> {
   }
 }
 
-export interface CandidateFilters {
-  source?: 'all' | 'approved' | 'manual'
-  verdict?: Verdict | null
-  search?: string | null
-}
-
 const automationService = {
   /**
    * Whether this deployment can execute a browser test right now.
@@ -83,14 +85,6 @@ const automationService = {
    */
   getRuntime: (): Promise<RuntimeStatusResponse> =>
     call<RuntimeStatusResponse>(() => api.get(`${BASE}/runtime`)),
-
-  listCandidates: (filters: CandidateFilters = {}): Promise<CandidatesResponse> => {
-    const params: Record<string, string> = {}
-    if (filters.source && filters.source !== 'all') params.source = filters.source
-    if (filters.verdict) params.verdict = filters.verdict
-    if (filters.search && filters.search.trim()) params.search = filters.search.trim()
-    return call<CandidatesResponse>(() => api.get(`${BASE}/candidates`, { params }))
-  },
 
   getApprovedCandidate: (testCaseId: string): Promise<ApprovedCandidateDetail> =>
     call<ApprovedCandidateDetail>(() =>
@@ -109,6 +103,18 @@ const automationService = {
 
   cancelRun: (runKey: string): Promise<{ run_key: string; cancelling: boolean }> =>
     call(() => api.post(`${BASE}/runs/${encodeURIComponent(runKey)}/cancel`)),
+
+  deleteRuns: (runKeys: string[]): Promise<{ deleted: number }> =>
+    call(() => api.post(`${BASE}/runs/delete`, { run_keys: runKeys })),
+
+  deleteRun: (runKey: string): Promise<{ deleted: number }> =>
+    call(() => api.delete(`${BASE}/runs/${encodeURIComponent(runKey)}`)),
+
+  healRun: (runKey: string): Promise<HealRunResponse> =>
+    call(() => api.post(`${BASE}/runs/${encodeURIComponent(runKey)}/heal`)),
+
+  healScript: (scriptId: number): Promise<HealRunResponse> =>
+    call(() => api.post(`${BASE}/scripts/${scriptId}/heal`)),
 
   /** Runner stdout and stderr, as plain text. */
   getRunLog: async (runKey: string): Promise<string> => {
@@ -156,115 +162,6 @@ const automationService = {
         }
       }
       throw new Error(automationError(err))
-    }
-  },
-
-  // ── Intake and refinement ──────────────────────────────────────────────
-
-  /** Whether refinement could run right now, and through which provider. */
-  getLlmStatus: (): Promise<LlmStatus> => call<LlmStatus>(() => api.get(`${BASE}/llm`)),
-
-  createCase: (body: ManualCaseInput): Promise<StudioCase> =>
-    call<StudioCase>(() => api.post(`${BASE}/candidates`, body)),
-
-  getCase: (caseId: number): Promise<StudioCase> =>
-    call<StudioCase>(() => api.get(`${BASE}/candidates/manual/${caseId}`)),
-
-  updateCase: (caseId: number, body: ManualCaseInput): Promise<StudioCase> =>
-    call<StudioCase>(() => api.put(`${BASE}/candidates/manual/${caseId}`, body)),
-
-  deleteCase: (caseId: number): Promise<void> =>
-    call<void>(() => api.delete(`${BASE}/candidates/manual/${caseId}`)),
-
-  /**
-   * Bulk intake from a CSV file.
-   *
-   * Content-Type is deleted rather than set: the browser has to generate the
-   * multipart boundary itself, and the axios instance's default JSON header
-   * would override it and make the upload unparseable server-side.
-   */
-  importCases: (file: File): Promise<ImportResult> => {
-    const form = new FormData()
-    form.append('file', file)
-    return call<ImportResult>(() =>
-      api.post(`${BASE}/candidates/import`, form, {
-        headers: { 'Content-Type': undefined as unknown as string }
-      })
-    )
-  },
-
-  /**
-   * Rewrite a case into automation-ready form.
-   *
-   * Returns both sides: the rewrite is a model judgement and lands as a new
-   * row rather than overwriting, so it can be compared before it is trusted.
-   */
-  refineCase: (
-    caseId: number,
-    body: {
-      application_url?: string | null
-      application_name?: string | null
-      requirement?: string | null
-    } = {}
-  ): Promise<RefineResult> =>
-    call<RefineResult>(() => api.post(`${BASE}/candidates/manual/${caseId}/refine`, body)),
-
-  /**
-   * Split a pasted test case into fields.
-   *
-   * Deliberately deterministic and local: pasting is the fastest way in, and
-   * spending an LLM call to parse text a label already delimits would be slow,
-   * costly and less predictable than matching the labels. Anything it cannot
-   * attribute to a section becomes the steps, which is the field a reviewer is
-   * most likely to correct anyway.
-   */
-  parsePastedCase: (text: string): ManualCaseInput => {
-    const SECTIONS: Array<[keyof ManualCaseInput, RegExp]> = [
-      ['display_id', /^\s*(?:test\s*case\s*(?:id|no|number)|tc\s*id|id|ref)\s*[:\-]\s*(.*)$/i],
-      ['category', /^\s*(?:category|module|feature|area)\s*[:\-]\s*(.*)$/i],
-      ['description', /^\s*(?:description|test\s*case\s*description|summary|title|objective)\s*[:\-]\s*(.*)$/i],
-      ['preconditions', /^\s*(?:pre-?conditions?|pre-?requisites?|setup)\s*[:\-]\s*(.*)$/i],
-      ['steps_raw', /^\s*(?:test\s*steps|steps|procedure|actions?)\s*[:\-]\s*(.*)$/i],
-      ['test_data', /^\s*(?:test\s*data|data|inputs?)\s*[:\-]\s*(.*)$/i],
-      ['expected_result', /^\s*(?:expected\s*(?:result|outcome|behaviou?r)?|expected)\s*[:\-]\s*(.*)$/i]
-    ]
-
-    const out: Record<string, string[]> = {}
-    let current: keyof ManualCaseInput | null = null
-
-    for (const line of (text || '').split(/\r?\n/)) {
-      let matched = false
-      for (const [field, pattern] of SECTIONS) {
-        const m = line.match(pattern)
-        if (m) {
-          current = field
-          out[field] = out[field] ?? []
-          if (m[1]?.trim()) out[field].push(m[1].trim())
-          matched = true
-          break
-        }
-      }
-      if (matched) continue
-      if (!line.trim()) continue
-      // Unlabelled content before any heading is most useful as steps.
-      const target = current ?? 'steps_raw'
-      out[target] = out[target] ?? []
-      out[target].push(line.trim())
-    }
-
-    const join = (field: string) => {
-      const value = (out[field] ?? []).join('\n').trim()
-      return value || null
-    }
-
-    return {
-      display_id: (join('display_id') ?? '').slice(0, 100),
-      category: join('category'),
-      description: join('description'),
-      preconditions: join('preconditions'),
-      steps_raw: join('steps_raw'),
-      test_data: join('test_data'),
-      expected_result: join('expected_result')
     }
   },
 
@@ -339,6 +236,9 @@ const automationService = {
       priority: string
       test_type: string
       test_data_notes: string
+      /** The approval gate — see TestDataStatus. Set by a person, not derived. */
+      test_data_required: boolean
+      test_data_status: TestDataStatus
     }>
   ): Promise<WorkbenchCase> =>
     call<WorkbenchCase>(() => api.patch(`${BASE}/workbench/test-cases/${caseId}`, body)),
@@ -347,6 +247,92 @@ const automationService = {
     caseIds: number[]
   ): Promise<{ deleted: number; scripts_removed: number }> =>
     call(() => api.post(`${BASE}/workbench/delete`, { case_ids: caseIds })),
+
+  // ── Guided Flow Discovery ─────────────────────────────────────────────
+
+  startGuidedDiscovery: (caseId: number): Promise<{
+    case_id: number
+    display_id: string
+    target_url: string
+    status: string
+    started_at: string
+  }> => call(() => api.post(`${BASE}/workbench/test-cases/${caseId}/guided-discovery/start`)),
+
+  stopGuidedDiscovery: (caseId: number): Promise<{
+    case_id: number
+    status: string
+    objects_count: number
+    flow_discovery_status: string
+  }> => call(() => api.post(`${BASE}/workbench/test-cases/${caseId}/guided-discovery/stop`)),
+
+  getGuidedDiscoveryStatus: (caseId: number): Promise<{
+    case_id: number
+    display_id: string
+    status: string
+    objects_count: number
+    captured_objects: RecordedFlowObject[]
+  }> => call(() => api.get(`${BASE}/workbench/test-cases/${caseId}/guided-discovery/status`)),
+
+  getGuidedDiscoveryObjects: (caseId: number): Promise<{
+    case_id: number
+    display_id: string
+    flow_discovery_status: string
+    objects: RecordedFlowObject[]
+  }> => call(() => api.get(`${BASE}/workbench/test-cases/${caseId}/guided-discovery/objects`)),
+
+  updateGuidedDiscoveryObjects: (
+    caseId: number,
+    objects: RecordedFlowObject[]
+  ): Promise<{
+    case_id: number
+    objects_count: number
+    objects: RecordedFlowObject[]
+  }> => call(() => api.put(`${BASE}/workbench/test-cases/${caseId}/guided-discovery/objects`, { objects })),
+
+  clearGuidedDiscoveryObjects: (caseId: number): Promise<{ case_id: number; cleared: boolean }> =>
+    call(() => api.delete(`${BASE}/workbench/test-cases/${caseId}/guided-discovery/objects`)),
+
+  // ── Quality Review (eSMART Review Agent) ──────────────────────────────
+
+  reviewTestCase: (caseId: number): Promise<CaseReviewResult> =>
+    call<CaseReviewResult>(() => api.post(`${BASE}/workbench/test-cases/${caseId}/review`)),
+
+  reviewAllTestCases: (): Promise<{ reviewed_count: number; reviews: CaseReviewResult[] }> =>
+    call(() => api.post(`${BASE}/workbench/test-cases/review-all`)),
+
+  autoImproveTestCase: (
+    caseId: number
+  ): Promise<{ case_id: number; display_id: string; improved: boolean; review: CaseReviewResult }> =>
+    call(() => api.post(`${BASE}/workbench/test-cases/${caseId}/auto-improve`)),
+
+  // ── On-Demand In-Place Refinement ────────────────────────────────────
+
+  refineTestCase: (
+    caseId: number,
+    options?: { application_url?: string }
+  ): Promise<WorkbenchCase> =>
+    call<WorkbenchCase>(() => api.post(`${BASE}/workbench/test-cases/${caseId}/refine`, options || {})),
+
+  refineBulkTestCases: (
+    caseIds: number[],
+    applicationUrl?: string
+  ): Promise<{ refined_count: number; test_cases: WorkbenchCase[] }> =>
+    call(() =>
+      api.post(`${BASE}/workbench/test-cases/refine-bulk`, {
+        case_ids: caseIds,
+        application_url: applicationUrl
+      })
+    ),
+
+  deleteWorkbenchSources: (payload: {
+    source_test_case_ids?: string[]
+    case_ids?: number[]
+  }): Promise<{
+    deleted: number
+    deleted_approved: number
+    deleted_studio: number
+    scripts_removed: number
+  }> => call(() => api.post(`${BASE}/workbench/sources/delete`, payload)),
 
   /**
    * Download refined cases as CSV.
@@ -405,6 +391,8 @@ const automationService = {
     script_ids: number[]
     environment?: string | null
     base_url?: string | null
+    slow_mo_ms?: number | null
+    headless?: boolean | null
   }): Promise<DryRunResult> =>
     call<DryRunResult>(() => api.post(`${BASE}/scripts/dry-run`, body)),
 
@@ -434,7 +422,93 @@ const automationService = {
     } catch (err: any) {
       throw new Error(automationError(err))
     }
-  }
+  },
+
+  // ── Application Discovery and Grounding ────────────────────────────────
+
+  /** Crawl the application. Resolves with the run to poll, not the catalogue. */
+  startDiscovery: (body: {
+    application_url: string
+    application_environment?: string | null
+    application_id?: number | null
+    max_pages?: number
+  }): Promise<DiscoveryRun> =>
+    call<DiscoveryRun>(() => api.post(`${BASE}/discovery/run`, body)),
+
+  /** Current catalogue state. Folds in a finished crawl on the way. */
+  getDiscovery: (): Promise<DiscoveryState> =>
+    call<DiscoveryState>(() => api.get(`${BASE}/discovery`)),
+
+  listDiscoveredElements: (params: { search?: string | null; role?: string | null } = {}) => {
+    const query: Record<string, string> = {}
+    if (params.search && params.search.trim()) query.search = params.search.trim()
+    if (params.role) query.role = params.role
+    return call<ElementCatalog>(() => api.get(`${BASE}/discovery/elements`, { params: query }))
+  },
+
+  /** Discards the catalogue and resets every case grounded against it. */
+  deleteDiscovery: (): Promise<{
+    discovery_runs_removed: number
+    elements_removed: number
+    test_cases_reset: number
+  }> => call(() => api.delete(`${BASE}/discovery`)),
+
+  /** Match test case steps against the catalogue. Empty list means all of them. */
+  groundCases: (caseIds: number[] = []): Promise<GroundResult> =>
+    call<GroundResult>(() => api.post(`${BASE}/workbench/ground`, { case_ids: caseIds })),
+
+  /* --- Document intake --------------------------------------------------- */
+
+  listIntakeBatches: (): Promise<{ batches: IntakeBatch[] }> =>
+    call<{ batches: IntakeBatch[] }>(() => api.get(`${BASE}/intake/batches`)),
+
+  createIntakeBatch: (name: string): Promise<IntakeBatch> =>
+    call<IntakeBatch>(() => api.post(`${BASE}/intake/batches`, { name })),
+
+  deleteIntakeBatch: (batchId: number): Promise<{ deleted: boolean; id: number }> =>
+    call(() => api.delete(`${BASE}/intake/batches/${batchId}`)),
+
+  /**
+   * Upload documents into a batch.
+   *
+   * Content-Type is cleared, not set: the browser must generate the multipart
+   * boundary itself, and the axios instance's default JSON header would
+   * override it and make the upload unparseable server-side.
+   *
+   * The response carries the whole batch rather than just the new documents,
+   * so the table re-renders from one call instead of merging state by hand.
+   */
+  uploadIntakeDocuments: (
+    batchId: number,
+    files: File[],
+    role: IntakeRole
+  ): Promise<IntakeUploadResult> => {
+    const form = new FormData()
+    files.forEach(file => form.append('files', file))
+    form.append('role', role)
+    return call<IntakeUploadResult>(() =>
+      api.post(`${BASE}/intake/batches/${batchId}/documents`, form, {
+        headers: { 'Content-Type': undefined as unknown as string }
+      })
+    )
+  },
+
+  /** Correct what a document is. Becoming 'test_cases' re-reads the original. */
+  setIntakeDocumentRole: (documentId: number, role: IntakeRole): Promise<IntakeRoleResult> =>
+    call<IntakeRoleResult>(() => api.patch(`${BASE}/intake/documents/${documentId}`, { role })),
+
+  deleteIntakeDocument: (documentId: number): Promise<{ batch: IntakeBatch }> =>
+    call<{ batch: IntakeBatch }>(() => api.delete(`${BASE}/intake/documents/${documentId}`)),
+
+  /**
+   * Read the batch's test case documents into candidates.
+   *
+   * Returns the same GenerationJob shape the refine button uses, tracked in the
+   * same registry — so progress is polled with getGenerationJob rather than a
+   * second polling mechanism that would drift from it.
+   */
+  extractIntakeTestCases: (batchId: number): Promise<GenerationJob> =>
+    call<GenerationJob>(() => api.post(`${BASE}/intake/batches/${batchId}/extract`))
 }
 
 export default automationService

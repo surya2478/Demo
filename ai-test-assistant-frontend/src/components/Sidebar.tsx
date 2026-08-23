@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { HiOutlineChevronDown, HiOutlineLogout, HiOutlineX, HiOutlineMenu } from 'react-icons/hi'
 import { menuIcons } from '../config/menuIcons'
@@ -44,7 +44,8 @@ const menuGroups: MenuGroup[] = [
   {
     heading: 'Test Automation',
     items: [
-      { path: '/automation', label: 'Automation Studio', permission: 'automation.view' }
+      { path: '/automation', label: 'Automation Studio', permission: 'automation.view' },
+      { path: '/automation/discovery', label: 'Application Discovery', permission: 'automation.view' }
     ]
   }
 ]
@@ -64,6 +65,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileClose }) => {
   const { user, logout } = useAuth()
+  const location = useLocation()
   const perms = (user as any)?.permissions ?? []
   const [userMenuOpen, setUserMenuOpen] = useState(false)
 
@@ -77,13 +79,31 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileClose }) 
 
   const canSee = (item: MenuItem) => !item.permission || perms.includes(item.permission)
 
-  const linkClass = ({ isActive }: { isActive: boolean }) =>
-    [
+  const isItemActive = (path: string) => {
+    if (path === '/dashboard') {
+      return location.pathname === '/dashboard'
+    }
+    if (path === '/automation/discovery') {
+      return location.pathname.startsWith('/automation/discovery')
+    }
+    if (path === '/automation') {
+      return (
+        location.pathname.startsWith('/automation') &&
+        !location.pathname.startsWith('/automation/discovery')
+      )
+    }
+    return location.pathname.startsWith(path)
+  }
+
+  const getItemLinkClass = (path: string) => {
+    const active = isItemActive(path)
+    return [
       'group relative flex items-center gap-3 rounded-app px-3 py-2.5 text-sm font-semibold transition',
-      isActive
+      active
         ? 'bg-app-sidebar-active text-white shadow-sm'
         : 'text-white hover:bg-app-sidebar-hover hover:text-white'
     ].join(' ')
+  }
 
   const userRole =
     (user as any)?.roles?.[0] ??
@@ -148,9 +168,8 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileClose }) 
                     <NavLink
                       key={item.path}
                       to={item.path}
-                      className={linkClass}
+                      className={() => getItemLinkClass(item.path)}
                       onClick={onMobileClose}
-                      end={item.path === '/dashboard'}
                     >
                       {IconComponent && <IconComponent className="h-[18px] w-[18px] flex-shrink-0" />}
                       <span className="truncate">{item.label}</span>

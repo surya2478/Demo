@@ -1,10 +1,20 @@
 import os
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, BaseModel
 from typing import Dict, Any, List, Optional
 
 class AiEndpointsModel(BaseModel):
     generateTestCases: str = Field(default="/generate/brd-testcases")
+    # Absolute URL that overrides BASE_URL + generateTestCases, for the Generate
+    # button and nothing else.
+    #
+    # It exists because BASE_URL is shared by every endpoint in this model, so
+    # repointing it to move ONE capability onto this backend drags the other
+    # twelve along with it -- including "Process Documents", which posts files
+    # to generateTestCases and expects the external service's extracted text
+    # back. Empty is the normal state: every caller then resolves through
+    # BASE_URL exactly as before, which is what production does.
+    generateTestCasesUrl: str = Field(default="")
     generateVisual: str = Field(default="/generate/visual")
     generateTestData: str = Field(default="/generate/test-data")
     codeChanges: str = Field(default="/code/changes")
@@ -26,7 +36,8 @@ class AiParametersModel(BaseModel):
     maxTokens: int = Field(default=4096)
 # https://dx12348.etisalat.corp.ae/api/
 class AiConfigModel(BaseModel):
-    BASE_URL: str = Field(default="https://dx12348.etisalat.corp.ae")
+    #BASE_URL: str = Field(default="https://dx12348.etisalat.corp.ae")
+    BASE_URL: str = Field(default="http://localhost:8002")
     ENDPOINTS: AiEndpointsModel = Field(default_factory=AiEndpointsModel)
     PARAMETERS: AiParametersModel = Field(default_factory=AiParametersModel)
 
@@ -121,6 +132,7 @@ class Settings(BaseSettings):
     AUTOMATION_NODE_PATH: str = Field(default="npx")
     AUTOMATION_RUN_TIMEOUT_SECONDS: int = Field(default=600)
     AUTOMATION_MAX_CONCURRENT_RUNS: int = Field(default=1)
+    AUTOMATION_DEFAULT_SLOW_MO_MS: int = Field(default=1000)
 
     # Which environment variables a generated test may see. Generated specs are
     # LLM output executed as a subprocess of this backend, so without a filter
@@ -170,6 +182,17 @@ class Settings(BaseSettings):
     # the catalogue moves; guessing one here would silently bill a model nobody
     # chose. Unset is a configuration error that names itself, which is how the
     # LDAP keys above behave too. Pick one from https://openrouter.ai/models.
+    #
+    # THIS IS ALSO THE PRODUCTION KILL SWITCH, and leaving it unset there is a
+    # decision rather than an oversight. routers/generate.py serves
+    # /generate/brd-testcases to any authenticated user, and every call spends
+    # this backend's OpenRouter credit. Production does not route the Test
+    # Assistant there -- ai_config.BASE_URL still points at the external AI
+    # service -- so the endpoint is reachable but unused, and an unset model
+    # makes it refuse with a 502 naming this setting instead of quietly billing.
+    #
+    # Setting it in production is therefore the switch that arms generation.
+    # Do that in the same change that repoints ai_config.BASE_URL, not before.
     OPENROUTER_MODEL: str = Field(default="")
 
     OPENROUTER_TIMEOUT_SECONDS: int = Field(default=120)
@@ -189,6 +212,7 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
     @property
     def cors_allow_origins(self) -> List[str]:

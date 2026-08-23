@@ -1072,9 +1072,15 @@ const TestCases: React.FC = () => {
       // Start timer for duration calculation
       const startedAt = Date.now();
 
+      // Generation is the one capability served by our own backend, so it may
+      // carry an absolute override. Everything else on this page -- Process
+      // Documents included -- still resolves through the shared BASE_URL.
+      const generateUrl = config.ENDPOINTS.generateTestCasesUrl
+        || `${config.BASE_URL}${config.ENDPOINTS.generateTestCases}`
+
       // Call tracked fetch but handle streaming locally
       const { response: res, status, logId } = await trackedFetchWithTokens(
-        `${config.BASE_URL}${config.ENDPOINTS.generateTestCases}`,
+        generateUrl,
         {
           tab: 'testcases',
           method: 'POST',
