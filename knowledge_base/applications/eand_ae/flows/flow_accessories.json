@@ -1,0 +1,82 @@
+{
+  "flow_id": "flow_accessories_purchase",
+  "flow_name": "Accessories & Audio Earbuds Purchase Flow",
+  "category": "Accessories",
+  "target_match_keywords": [
+    "earbuds",
+    "headphones",
+    "freeclip",
+    "airpods",
+    "speaker",
+    "audio",
+    "accessories",
+    "buds",
+    "soundtec"
+  ],
+  "catalog_entrypoint": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
+  "canonical_steps": [
+    {
+      "step_number": 1,
+      "action": "Navigate to e& UAE portal homepage",
+      "target": "https://www.eand.ae/en/index.html",
+      "expected_result": "e& UAE portal homepage loads with active navigation header"
+    },
+    {
+      "step_number": 2,
+      "action": "Dismiss cookie and privacy overlay banner",
+      "target": "#usercentrics-root",
+      "expected_result": "Privacy overlay is dismissed cleanly"
+    },
+    {
+      "step_number": 3,
+      "action": "Navigate to Accessories -> Earbuds catalog",
+      "target": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
+      "expected_result": "Earbuds catalog displays available products and pricing"
+    },
+    {
+      "step_number": 4,
+      "action": "Open product configuration for {{product_name}}",
+      "target": "https://www.eand.ae/eshop/devices/configuration?productId={{product_id}}&skuId={{sku_id}}&catName=Earbuds&listVal=Smartphones&showDefault=true",
+      "expected_result": "Product configuration page loads with technical specs and pricing"
+    },
+    {
+      "step_number": 5,
+      "action": "Select One Time payment option",
+      "target": ".segment-tab:has-text('One time'), label:has-text('One Time'), button:has-text('One time')",
+      "expected_result": "One time payment option is activated"
+    },
+    {
+      "step_number": 6,
+      "action": "Click 'ADD TO CART' / 'Checkout Now' button",
+      "target": "button:has-text('Checkout Now'), button:has-text('ADD TO CART')",
+      "expected_result": "Item is added to cart successfully"
+    },
+    {
+      "step_number": 7,
+      "action": "Verify Shopping Cart & Secure Checkout review screen",
+      "target": "URL_ASSERTION",
+      "expected_result": "Order summary is displayed with proceed to checkout options"
+    }
+  ],
+  "known_products": {
+    "Huawei FreeClip 2s": {
+      "productId": "prod1T1786686221657",
+      "skuId": "bgskuTrans3999231220",
+      "default_price": "AED 749.00"
+    },
+    "Apple AirPods Max 2": {
+      "productId": "prod1T1775032063511",
+      "skuId": "bgskuTrans3999229481"
+    },
+    "Honor Earbuds 4": {
+      "productId": "prod1T1777616962903",
+      "skuId": "bgskuTrans3999229892",
+      "default_price": "AED 169.00"
+    },
+    "Honor Choice Earbuds Perfume": {
+      "productId": "prod1T1778573721866",
+      "skuId": "bgskuTrans3999228785",
+      "default_price": "AED 299.00"
+    }
+  }
+}

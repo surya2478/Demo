@@ -1,0 +1,73 @@
+{
+  "flow_id": "flow_smartwatches_purchase",
+  "flow_name": "Smartwatches & Wearables Purchase Flow",
+  "category": "Smartwatches",
+  "target_match_keywords": [
+    "smartwatch",
+    "watch",
+    "wearable",
+    "galaxy watch",
+    "apple watch",
+    "fit",
+    "band"
+  ],
+  "catalog_entrypoint": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100069&catName=Smartwatches&listVal=Smartphones&locale=EN",
+  "canonical_steps": [
+    {
+      "step_number": 1,
+      "action": "Navigate to e& UAE portal homepage",
+      "target": "https://www.eand.ae/en/index.html",
+      "expected_result": "e& UAE portal homepage loads"
+    },
+    {
+      "step_number": 2,
+      "action": "Dismiss cookie and privacy overlay banner",
+      "target": "#usercentrics-root",
+      "expected_result": "Overlay is dismissed"
+    },
+    {
+      "step_number": 3,
+      "action": "Navigate to Devices -> Smartwatches catalog",
+      "target": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100069&catName=Smartwatches&listVal=Smartphones&locale=EN",
+      "expected_result": "Smartwatches catalog displays available models"
+    },
+    {
+      "step_number": 4,
+      "action": "Open product configuration for {{product_name}}",
+      "target": "https://www.eand.ae/eshop/devices/configuration?productId={{product_id}}&skuId={{sku_id}}&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+      "expected_result": "Configuration page loads"
+    },
+    {
+      "step_number": 5,
+      "action": "Select payment option (One Time or Installments)",
+      "target": ".segment-tab, [role='radio'], button:has-text('One time')",
+      "expected_result": "Payment option selected"
+    },
+    {
+      "step_number": 6,
+      "action": "Click 'ADD TO CART' / 'Checkout Now' button",
+      "target": "button:has-text('Checkout Now'), button:has-text('ADD TO CART')",
+      "expected_result": "Item added to cart"
+    },
+    {
+      "step_number": 7,
+      "action": "Verify Shopping Cart & Secure Checkout review screen",
+      "target": "URL_ASSERTION",
+      "expected_result": "Checkout summary displayed"
+    }
+  ],
+  "known_products": {
+    "Marshall Emberton III": {
+      "productId": "prod1T1750584017556",
+      "skuId": "bgskuTrans3999222485"
+    },
+    "Marshall Willen II": {
+      "productId": "prod2T1750584017572",
+      "skuId": "bgskuTrans3999222481"
+    },
+    "PORODO Soundtec Euphoric 60W": {
+      "productId": "prod16T1770195088162",
+      "skuId": "bgskuTrans3999228671"
+    }
+  }
+}

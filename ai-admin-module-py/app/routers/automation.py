@@ -1619,16 +1619,7 @@ def list_workbench_cases(
         logger.warning("Failed to auto-sync approved test cases: %s", e)
 
     # Fetch all studio test cases
-    all_cases = db.query(AutomationTestCase).order_by(AutomationTestCase.created_at.desc()).all()
-
-    # Deduplicate by display_id, prioritizing refined over manual/intake/imported
-    case_map = {}
-    for c in all_cases:
-        if c.display_id not in case_map:
-            case_map[c.display_id] = c
-        elif c.source == "refined" and case_map[c.display_id].source != "refined":
-            case_map[c.display_id] = c
-    cases = list(case_map.values())
+    cases = db.query(AutomationTestCase).order_by(AutomationTestCase.id.desc()).all()
 
     known_sources = {
         str(row[0])
@@ -3589,3 +3580,42 @@ def run_case_auto_improve(
     case = _load_case(db, case_id)
     result = auto_improve_test_case(case, db=db)
     return result
+
+
+# ── Knowledge Base Endpoints ─────────────────────────────────────────────────
+
+@router.get("/knowledge-base/applications")
+def get_kb_applications(
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+):
+    """List all registered applications and their flow count in the Knowledge Base."""
+    from ..services.automation import knowledge_base as kb
+    apps = kb.list_applications()
+    return {"applications": apps, "total": len(apps)}
+
+
+@router.get("/knowledge-base/applications/{app_id}/flows")
+def get_kb_application_flows(
+    app_id: str,
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+):
+    """List all Flow Blueprints for a specific application."""
+    from ..services.automation import knowledge_base as kb
+    flows = kb.list_flows(app_id)
+    profile = kb.load_app_profile(app_id)
+    return {"app_id": app_id, "profile": profile, "flows": flows, "total": len(flows)}
+
+
+@router.get("/knowledge-base/applications/{app_id}/flows/{flow_id}")
+def get_kb_flow_detail(
+    app_id: str,
+    flow_id: str,
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+):
+    """Get details of a specific Flow Blueprint."""
+    from ..services.automation import knowledge_base as kb
+    flows = kb.list_flows(app_id)
+    matched = next((f for f in flows if f.get("flow_id") == flow_id), None)
+    if not matched:
+        raise HTTPException(status_code=404, detail=f"Flow blueprint {flow_id} not found for {app_id}")
+    return matched

@@ -1,0 +1,87 @@
+{
+  "flow_id": "flow_smartphones_purchase",
+  "flow_name": "Smartphones & Mobile Devices Purchase Flow",
+  "category": "Smartphones",
+  "target_match_keywords": [
+    "smartphone",
+    "phone",
+    "samsung",
+    "galaxy",
+    "iphone",
+    "apple",
+    "huawei phone",
+    "s26",
+    "s25",
+    "ultra"
+  ],
+  "catalog_entrypoint": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100063&catName=Smartphones&listVal=Smartphones&locale=EN",
+  "brand_hubs": {
+    "samsung": "https://www.eand.ae/en/c/devices/top-brands/samsung.html",
+    "apple": "https://www.eand.ae/en/c/devices/new-device-launch/apple/iphone-17.html",
+    "huawei": "https://www.eand.ae/en/c/devices/top-brands/huawei.html"
+  },
+  "canonical_steps": [
+    {
+      "step_number": 1,
+      "action": "Navigate to e& UAE portal homepage",
+      "target": "https://www.eand.ae/en/index.html",
+      "expected_result": "e& UAE portal homepage loads successfully"
+    },
+    {
+      "step_number": 2,
+      "action": "Dismiss cookie and privacy overlay banner",
+      "target": "#usercentrics-root",
+      "expected_result": "Cookie overlay is dismissed cleanly"
+    },
+    {
+      "step_number": 3,
+      "action": "Navigate to Devices -> Smartphones catalog",
+      "target": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100063&catName=Smartphones&listVal=Smartphones&locale=EN",
+      "expected_result": "Smartphones catalog displays available models and pricing plans"
+    },
+    {
+      "step_number": 4,
+      "action": "Open product configuration for {{product_name}}",
+      "target": "https://www.eand.ae/eshop/devices/configuration?productId={{product_id}}&skuId={{sku_id}}&catName=Smartphones&listVal=Smartphones&showDefault=true",
+      "expected_result": "Product configuration page loads with live storage, color swatches, and payment options"
+    },
+    {
+      "step_number": 5,
+      "action": "Select storage capacity and color variant",
+      "target": ".device-variant-options, [role='radio'], button.variant-btn, .storage-btn, label:has-text('GB')",
+      "expected_result": "Selected storage and color are highlighted and price updates"
+    },
+    {
+      "step_number": 6,
+      "action": "Select payment option (One Time or Smart Pay installment)",
+      "target": ".segment-tab, [role='radio'], button:has-text('One time')",
+      "expected_result": "Payment plan is selected"
+    },
+    {
+      "step_number": 7,
+      "action": "Click 'ADD TO CART' / 'Checkout Now' button",
+      "target": "button:has-text('Checkout Now'), button:has-text('ADD TO CART')",
+      "expected_result": "Item is added to cart successfully"
+    },
+    {
+      "step_number": 8,
+      "action": "Verify Shopping Cart & Secure Checkout review screen",
+      "target": "URL_ASSERTION",
+      "expected_result": "Order summary is displayed with proceed to checkout options"
+    }
+  ],
+  "known_products": {
+    "Samsung Galaxy S26 Ultra": {
+      "productId": "prod1T1772791900380",
+      "skuId": "bgskuTrans3999229871",
+      "default_storage": "256GB",
+      "default_color": "Titanium Black"
+    },
+    "Samsung Galaxy S26": {
+      "productId": "prod1T1772791900481",
+      "skuId": "bgskuTrans3999229880",
+      "default_storage": "128GB",
+      "default_color": "Cobalt Violet"
+    }
+  }
+}

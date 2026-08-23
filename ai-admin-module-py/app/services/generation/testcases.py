@@ -136,8 +136,17 @@ def stream_test_cases(
     configured or cannot be reached, so the caller can still answer with a
     proper status code.
     """
+    system_prompt = SYSTEM_PROMPT
+    try:
+        from ..automation import knowledge_base as kb
+        flow_context = kb.build_flow_context_prompt(requirements)
+        if flow_context:
+            system_prompt = f"{SYSTEM_PROMPT}\n\n{flow_context}"
+    except Exception:
+        pass
+
     return stream.stream_chat(
-        system_prompt=SYSTEM_PROMPT,
+        system_prompt=system_prompt,
         user_input=wrap_user_content(requirements),
         temperature=temperature,
         max_tokens=max_tokens,

@@ -1,0 +1,28 @@
+{
+  "app_id": "eand_ae",
+  "app_name": "e& UAE Web Portal",
+  "base_url": "https://www.eand.ae/en/index.html",
+  "domain": "eand.ae",
+  "framework": "Angular SPA",
+  "security_profile": {
+    "waf_provider": "Akamai",
+    "rate_limit_policy": {
+      "min_inter_step_delay_ms": 1500,
+      "navigation_timeout_ms": 45000
+    },
+    "cookie_overlay": {
+      "type": "shadow_dom",
+      "host_selector": "#usercentrics-root",
+      "dismissal_code": "document.querySelector('#usercentrics-root')?.remove(); document.body.style.overflow = 'auto';"
+    }
+  },
+  "default_viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "search_mechanism": {
+    "trigger_selector": ".search-wrap-dekstop, button[aria-label*='search' i], .search-btn",
+    "popup_container": "#searchPopup",
+    "input_selector": "input[type='search'], input[placeholder*='Search' i], #search-input"
+  }
+}

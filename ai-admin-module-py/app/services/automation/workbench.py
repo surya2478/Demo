@@ -486,9 +486,19 @@ def sync_approved_test_cases(db: Session) -> int:
         except Exception:
             details = {}
 
-        display_id = str(details.get("Test Case ID") or origin_id)
-        if not existing:
-            existing = db.query(AutomationTestCase).filter(AutomationTestCase.display_id == display_id).first()
+        raw_display = str(details.get("Test Case ID") or "").strip()
+        if raw_display:
+            collision = db.query(AutomationTestCase).filter(
+                AutomationTestCase.display_id == raw_display,
+                AutomationTestCase.origin_test_case_id != origin_id
+            ).first()
+            if collision:
+                req_suffix = f"#{row.request_id[-6:]}" if row.request_id else f"#{origin_id[-4:]}"
+                display_id = f"{raw_display} ({req_suffix})"
+            else:
+                display_id = raw_display
+        else:
+            display_id = origin_id
 
         steps_raw = str(details.get("Test Steps") or "")
         split_s = split_steps(steps_raw)
