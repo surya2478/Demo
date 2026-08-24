@@ -67,3 +67,42 @@ uvicorn==0.30.0
 watchfiles==1.1.1
 websockets==15.0.1
 ldap3==2.9.1
+# --- Automation Module: transitive dependencies, pinned ----------------------
+# Nothing below is imported by this application. Each one is pulled in by a
+# package pinned above, and each was previously unpinned -- which meant pip
+# resolved it to whatever was newest on the day the image happened to be built.
+# The same commit, built three weeks apart, produced different software, and
+# nothing in the repository recorded which versions shipped.
+#
+# Three reasons that is worth closing for a deployed image:
+#
+#   Reproducibility  "same commit" now also means "same dependency set", so a
+#                    defect that appears only in the enterprise environment can
+#                    be reproduced from the manifest alone.
+#   Audit            these seven run in production. Unpinned, they are absent
+#                    from every approved-package list and security review that
+#                    reads this file. certifi in particular IS the CA trust
+#                    bundle TLS verification uses.
+#   Offline builds   a wheelhouse curated from the names in this file used to
+#                    miss all seven, and the air-gapped install failed on them.
+#
+# The cost is that a security patch no longer arrives on the next rebuild --
+# these need bumping by hand. That is the intended trade for an image that
+# ships sealed into an environment that cannot rebuild on demand.
+#
+# Versions below are what the image resolved on 2026-08-24. To refresh the set
+# after changing a dependency above, build the image and read back what pip
+# actually installed:
+#
+#     docker run --rm --entrypoint pip admin_module:latest freeze
+#
+# lxml is the one to watch on a version bump: it is a compiled extension, and a
+# release without a cp311 manylinux wheel would force a source build and put a
+# C toolchain back in the image.
+certifi==2026.7.22        # requests
+charset-normalizer==3.5.1 # requests
+urllib3==2.7.0            # requests
+greenlet==3.5.5           # SQLAlchemy
+lxml==6.1.2               # python-docx
+et_xmlfile==2.0.0         # openpyxl
+packaging==26.3           # wheel
