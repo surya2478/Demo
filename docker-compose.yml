@@ -3,6 +3,17 @@ version: '3.8'
 
 services:
   backend:
+    # --- Automation Module: name the image so a loaded one can be used -------
+    # Without an `image:` key Compose derives a name from the project folder
+    # and, seeing only `build:`, rebuilds from source. On an air-gapped server
+    # that build cannot fetch pip/apt/npm and fails -- while the image that was
+    # transferred and `docker load`ed sits unused, because nothing connected it
+    # to this service.
+    #
+    # With the name declared, `docker compose up -d --no-build` runs exactly
+    # the transferred image. `docker compose build` still works where a build
+    # is possible, and now tags its output as this same name.
+    image: admin_module:latest
     build:
       context: ./ai-admin-module-py
       dockerfile: Dockerfile
@@ -64,6 +75,10 @@ services:
     #   - ./backend:/app
 
   frontend:
+    # Same reasoning as the backend above: named so the transferred image is
+    # what actually runs. Rebuilding this one air-gapped is doubly impossible,
+    # since its first stage runs `npm install`.
+    image: ai_test_frontend:latest
     build:
       context: ./ai-test-assistant-frontend
       dockerfile: Dockerfile
@@ -71,8 +86,20 @@ services:
       args:
         - HTTP_PROXY=${HTTP_PROXY}
         - HTTPS_PROXY=${HTTPS_PROXY}
+        # --- Automation Module: the API base must be a BUILD arg ------------
+        # Vite inlines VITE_API_URL into the JavaScript at build time, so this
+        # is the line that decides where every user's browser sends its API
+        # calls. The `environment:` entry below cannot do it -- by run time
+        # nginx is serving a bundle with the URL already compiled in.
+        #
+        # The frontend Dockerfile fails the build when this is empty rather
+        # than quietly falling back to the developer .env, which carries
+        # http://127.0.0.1:8002.
+        - VITE_API_URL=${VITE_API_URL:-https://dx12348.etisalat.corp.ae/admin/}
     container_name: ai-test-assistant_frontend
     environment:
+      # Kept for parity with existing deployments. Has no effect on the served
+      # bundle -- see the build arg above.
       - VITE_API_URL=${VITE_API_URL:-https://dx12348.etisalat.corp.ae/admin/}
         # Pass proxy variables to the running container environment as well
       - HTTP_PROXY=${HTTP_PROXY}
