@@ -16,10 +16,10 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-# Base path for knowledge base
-_candidate_1 = Path(__file__).resolve().parents[4] / "knowledge_base" / "applications"
-_candidate_2 = Path(__file__).resolve().parents[3] / "knowledge_base" / "applications"
-KB_ROOT_DIR = _candidate_1 if _candidate_1.exists() else _candidate_2
+# Base path for knowledge base inside automation module
+_candidate_internal = Path(__file__).resolve().parent / "knowledge_base" / "applications"
+_candidate_root = Path(__file__).resolve().parents[4] / "knowledge_base" / "applications"
+KB_ROOT_DIR = _candidate_internal if _candidate_internal.exists() else _candidate_root
 
 
 def get_kb_root() -> Path:
@@ -93,9 +93,8 @@ def match_flow_blueprint(query_or_url: str, app_id: str = "eand_ae") -> Optional
     if not flows:
         return None
 
-    text = query_or_url.lower()
+    text_lower = (query_or_url or "").lower().strip()
 
-    # 1. Match by keyword score
     best_match = None
     best_score = 0
 
@@ -103,26 +102,39 @@ def match_flow_blueprint(query_or_url: str, app_id: str = "eand_ae") -> Optional
         score = 0
         keywords = flow.get("target_match_keywords", [])
         for kw in keywords:
-            if kw.lower() in text:
-                score += 2
+            kw_clean = kw.lower().strip()
+            if not kw_clean:
+                continue
+            if re.search(r"\b" + re.escape(kw_clean) + r"\b", text_lower):
+                num_words = len(kw_clean.split())
+                score += (4 * num_words)
 
-        # Check category match
-        if flow.get("category", "").lower() in text:
-            score += 1
+        cat = flow.get("category", "").lower().strip()
+        if cat and re.search(r"\b" + re.escape(cat) + r"\b", text_lower):
+            score += 6
 
-        # Check known products
         for prod_name in flow.get("known_products", {}).keys():
-            if prod_name.lower() in text:
-                score += 5
+            prod_clean = prod_name.lower().strip()
+            if prod_clean in text_lower:
+                score += 20
+            else:
+                words = [w.lower() for w in prod_clean.split() if len(w) > 3 and w.lower() not in ["apple", "samsung", "huawei", "marshall", "honor"]]
+                for w in words:
+                    if re.search(r"\b" + re.escape(w) + r"\b", text_lower):
+                        score += 6
 
         if score > best_score:
             best_score = score
             best_match = flow
 
-    if best_score > 0:
+    if best_score > 0 and best_match:
         return best_match
 
-    # Default to first flow if none matched specifically
+    # Default to Smartphones flow as primary device flow if present
+    for flow in flows:
+        if flow.get("flow_id") == "flow_smartphones_purchase" or flow.get("category", "").lower() == "smartphones":
+            return flow
+
     return flows[0] if flows else None
 
 
@@ -133,29 +145,87 @@ def build_flow_context_prompt(query_or_brd: str, app_id: str = "eand_ae") -> str
         return ""
 
     app_prof = load_app_profile(app_id) or {}
+    app_name = app_prof.get("app_name", "e& UAE Web Portal")
+    base_url = app_prof.get("base_url", "https://www.eand.ae/en/index.html")
     flow_name = flow.get("flow_name", "Standard Flow")
-    category = flow.get("category", "General")
-    entrypoint = flow.get("catalog_entrypoint", app_prof.get("base_url", "https://www.eand.ae/en/index.html"))
+    category = flow.get("category", "Smartphones")
+    entrypoint = flow.get("catalog_entrypoint", base_url)
+    cart_endpoint = flow.get("cart_endpoint", "https://www.eand.ae/eshop/checkout/cart")
 
     lines = [
         "",
-        "APPLICATION FLOW KNOWLEDGE BASE (GROUND TRUTH):",
-        f"Target Application: {app_prof.get('app_name', 'e& UAE')} ({app_prof.get('base_url', '')})",
-        f"Matched Flow Blueprint: {flow_name} (Category: {category})",
-        f"Catalog Route: {entrypoint}",
-        "Canonical Test Traversal Sequence:"
+        "================================================================================",
+        "APPLICATION FLOW KNOWLEDGE BASE (GROUND TRUTH & URL SPECIFICATION)",
+        "================================================================================",
+        f"Target Application: {app_name} (Home URL: {base_url})",
+        f"Domain/Category: {category} -> Flow: {flow_name}",
+        f"Catalog Listing URL: {entrypoint}",
+        f"Shopping Cart & Checkout Review URL: {cart_endpoint}",
+        "",
+        "CANONICAL STEP TRAVERSAL & REAL URL ROUTES:"
     ]
 
     for s in flow.get("canonical_steps", []):
-        lines.append(f"  {s.get('step_number')}. {s.get('action')}")
+        s_num = s.get("step_number")
+        action = s.get("action", "")
+        target = s.get("target")
+        if target and target.startswith("http"):
+            lines.append(f"  {s_num}. {action} (URL: {target})")
+        elif target and target.startswith("#"):
+            lines.append(f"  {s_num}. {action} (Target Selector: {target})")
+        else:
+            lines.append(f"  {s_num}. {action}")
 
     known_prods = flow.get("known_products", {})
     if known_prods:
-        lines.append("Supported Products & Config Parameters in this Flow:")
+        lines.append("")
+        lines.append("REGISTERED PRODUCTS & DIRECT CONFIGURATION URLS:")
         for p_name, p_meta in list(known_prods.items())[:4]:
-            lines.append(f"  - {p_name}: ProductId={p_meta.get('productId')}, SkuId={p_meta.get('skuId')}, Price={p_meta.get('default_price', 'Live')}")
+            pid = p_meta.get("productId", "")
+            skuid = p_meta.get("skuId", "")
+            price = p_meta.get("default_price", "Live")
+            storage_list = p_meta.get("available_storage", [])
+            color_list = p_meta.get("available_colors", [])
+            plans_list = p_meta.get("payment_plans", [])
+            
+            sku_part = f"&skuId={skuid}" if skuid else ""
+            direct_url = f"https://www.eand.ae/eshop/devices/configuration?productId={pid}{sku_part}&catName={category}&listVal=Smartphones&showDefault=true"
+            
+            lines.append(f"• Product: {p_name}")
+            lines.append(f"  - Direct Configuration URL: {direct_url}")
+            lines.append(f"  - Identifiers: ProductId={pid}, SkuId={skuid}, Default Price={price}")
+            if storage_list:
+                lines.append(f"  - Storage Options: {', '.join(storage_list)}")
+            if color_list:
+                lines.append(f"  - Color Options: {', '.join(color_list)}")
+            if plans_list:
+                lines.append(f"  - Payment Options: {', '.join(plans_list[:2])}")
+            
+            first_storage = storage_list[0] if storage_list else ""
+            first_color = color_list[0] if color_list else ""
+            td_parts = [f"Product: {p_name}", f"ProductId: {pid}", f"SkuId: {skuid}"]
+            if first_storage:
+                td_parts.append(f"Storage: {first_storage}")
+            if first_color:
+                td_parts.append(f"Color: {first_color}")
+            td_parts.append("Payment: One time")
+            lines.append(f"  - Formatted Test Data: \"{', '.join(td_parts)}\"")
 
-    lines.append("INSTRUCTION: Use this exact flow structure and exact URL routes in your generated Test Cases.")
+    lines.append("")
+    lines.append("CRITICAL INSTRUCTIONS FOR TEST CASE GENERATION:")
+    lines.append(f"1. PRECONDITIONS: Must state that the user is on '{app_name}' ({base_url}) with cookie banner dismissed.")
+    lines.append("2. TEST STEPS: Every generated test case MUST include the real e& URLs directly in the step actions:")
+    lines.append(f"   - Include navigation to portal ({base_url}) and catalog route ({entrypoint}).")
+    lines.append("   - When opening the product configuration, ALWAYS include the exact Direct Configuration URL (https://www.eand.ae/eshop/devices/configuration?productId=...&skuId=...).")
+    lines.append(f"   - Include variant selection, stock detection, Add to Cart, and cart verification ({cart_endpoint}).")
+    lines.append("3. TEST DATA: Must explicitly include the 'ProductId: <id>' and 'SkuId: <id>' parameters along with chosen Storage, Color, and Payment option from the Knowledge Base so downstream automated execution can parse them.")
+    lines.append("4. GENERATE A BALANCED MATRIX OF TEST CASES:")
+    lines.append("   - Positive path: Happy-path purchase with One Time payment.")
+    lines.append("   - Installment path: Purchase with Smart Pay installment plan.")
+    lines.append("   - Variant validations: Storage and color selection combinations.")
+    lines.append("   - Out-of-stock scenario: Disabled 'ADD TO CART' button behavior.")
+    lines.append("   - Mandatory selection validation: Attempting Add to Cart without choosing mandatory variants.")
+    lines.append("================================================================================")
     lines.append("")
     return "\n".join(lines)
 
@@ -205,6 +275,7 @@ def ground_case_structured_steps(case: Any) -> List[Dict[str, Any]]:
     grounded_steps = []
     catalog_entry = flow.get("catalog_entrypoint") if flow else "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN"
     product_config_url = resolve_product_config_url(full_text, flow)
+    cart_endpoint = flow.get("cart_endpoint") if flow else "https://www.eand.ae/eshop/checkout/cart"
 
     for i, st in enumerate(steps):
         s_num = st.get("step_number") or (i + 1)
@@ -220,27 +291,31 @@ def ground_case_structured_steps(case: Any) -> List[Dict[str, Any]]:
         elif any(k in act_lower for k in ["cookie", "privacy", "overlay", "banner", "usercentrics"]):
             target = "#usercentrics-root"
 
-        # Catalog navigation
-        elif any(k in act_lower for k in ["catalog", "listing", "earbuds", "smartphones", "smartwatches", "accessories ->"]):
-            target = catalog_entry
-
-        # Product configuration page
-        elif any(k in act_lower for k in ["product configuration", "configure", "open product", "select the huawei", "select huawei", "select samsung", "select product"]):
+        # Product configuration page (checked BEFORE generic catalog keywords)
+        elif any(k in act_lower for k in ["product configuration", "configure", "open product", "select product", "select the", "choose the", "item configuration", "view details"]) or any(prod.lower() in act_lower for prod in (flow.get("known_products", {}) or {}).keys()):
             if product_config_url:
                 target = product_config_url
             elif catalog_entry:
                 target = catalog_entry
 
+        # Catalog navigation
+        elif any(k in act_lower for k in ["catalog", "listing", "devices ->", "accessories ->", "browse devices", "browse catalog", "category page"]):
+            target = catalog_entry
+
         # Variant / Payment Plan
-        elif any(k in act_lower for k in ["one time", "full price", "payment option", "variant", "storage", "color"]):
+        elif any(k in act_lower for k in ["one time", "full price", "payment option", "variant", "storage", "color", "smart pay", "installment"]):
             target = ".segment-tab:has-text('One time'), label:has-text('One Time')"
 
         # Add to cart
         elif "add to cart" in act_lower or "add to basket" in act_lower:
             target = "button:has-text('ADD TO CART'), button:has-text('Checkout Now')"
 
-        # Checkout
-        elif any(k in act_lower for k in ["checkout", "proceed to checkout", "secure checkout", "shopping cart"]):
+        # Cart / Checkout Review
+        elif any(k in act_lower for k in ["shopping cart", "cart review", "cart screen", "checkout review", "cart page", "verify cart", "verify shopping cart", "secure checkout"]):
+            target = cart_endpoint
+
+        # Proceed to Checkout
+        elif any(k in act_lower for k in ["checkout", "proceed to checkout", "proceed to"]):
             target = "button:has-text('Checkout Now'), button:has-text('Proceed to Checkout')"
 
         grounded_steps.append({

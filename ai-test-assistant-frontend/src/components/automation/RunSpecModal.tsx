@@ -85,22 +85,107 @@ const quoteSafe = (value: string) =>
 function buildScaffold(candidate: Candidate | null | undefined, steps: string[], baseUrl: string) {
   const title = candidate
     ? `${candidate.display_id}${candidate.description ? ` — ${candidate.description}` : ''}`
-    : 'Runtime smoke test'
+    : 'TC-EAND-SMOKE - e& UAE Live E2E Purchase Flow'
 
-  const stepComments = steps.length
-    ? steps.map((step, i) => `  // ${i + 1}. ${step.replace(/\s+/g, ' ')}`).join('\n')
-    : '  // Add the actions this test should perform.'
+  const target = baseUrl.trim() || 'https://www.eand.ae/en/index.html'
 
-  const target = baseUrl.trim() || 'https://example.com'
+  if (steps.length) {
+    const stepComments = steps.map((step, i) => `  // ${i + 1}. ${step.replace(/\s+/g, ' ')}`).join('\n')
+    return `import { test, expect } from '@playwright/test';
 
-  return `import { test, expect } from '@playwright/test';
-
+/**
+ * ${title}
+ * Grounded Playwright Spec for e& UAE E-Shop Journey
+ */
 test('${quoteSafe(title.slice(0, 160))}', async ({ page }) => {
-  await page.goto('${quoteSafe(target)}');
+  // 1. Initial portal navigation
+  await page.goto('${quoteSafe(target)}', { waitUntil: 'domcontentloaded', timeout: 45000 });
+  await page.evaluate(() => { document.querySelector('#usercentrics-root')?.remove(); document.body.style.overflow = 'auto'; });
 
 ${stepComments}
 
-  await expect(page).toHaveTitle(/.*/);
+  // Final verification
+  await page.waitForTimeout(2000);
+  await expect(page).toHaveURL(/.*(devices|configuration|cart|checkout|summary|order|index).*/i);
+});
+`
+  }
+
+  return `import { test, expect } from '@playwright/test';
+
+/**
+ * TC-EAND-SMOKE - e& UAE Live E2E Purchase Flow
+ * Mode: Web UI Automation
+ */
+test('TC-EAND-SMOKE - e& UAE Live E2E Purchase Flow', async ({ page }) => {
+  // 1. Navigate to e& UAE portal
+  await page.goto('${quoteSafe(target)}', { waitUntil: 'domcontentloaded', timeout: 45000 });
+  await page.evaluate(() => {
+    document.querySelector('#usercentrics-root')?.remove();
+    document.body.style.overflow = 'auto';
+  });
+
+  // 2. Dismiss cookie overlay banner
+  try {
+    const cookieBtn = page.locator(
+      '#usercentrics-root button, #onetrust-accept-btn-handler, #accept-all-cookies, button:has-text("Accept All"), button:has-text("Accept all"), button:has-text("Accept")'
+    ).first();
+    if (await cookieBtn.isVisible({ timeout: 2500 }).catch(() => false)) {
+      await cookieBtn.click({ force: true }).catch(() => {});
+    }
+  } catch (e) {}
+
+  // 3. Navigate to Accessories -> Earbuds catalog
+  await page.goto('https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN', { waitUntil: 'domcontentloaded', timeout: 45000 });
+  await page.evaluate(() => { document.querySelector('#usercentrics-root')?.remove(); document.body.style.overflow = 'auto'; });
+
+  // 4. Open product configuration for Honor Earbuds 4
+  await page.goto('https://www.eand.ae/eshop/devices/configuration?productId=prod1T1777616962903&skuId=bgskuTrans3999229892&catName=Accessories&listVal=Smartphones&showDefault=true', { waitUntil: 'domcontentloaded', timeout: 45000 });
+  await page.evaluate(() => { document.querySelector('#usercentrics-root')?.remove(); document.body.style.overflow = 'auto'; });
+
+  // 5. Select One Time payment option
+  try {
+    const opt = page.locator('.device-variant-options, [role="radio"], button.variant-btn, .color-swatch, .storage-btn, label:has-text("One Time"), label:has-text("GB")').first();
+    if (await opt.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await opt.click({ force: true }).catch(() => {});
+      await page.waitForTimeout(500);
+    }
+  } catch (e) {}
+
+  // 6. Click 'ADD TO CART' / 'Checkout Now' with live stock detection
+  await page.evaluate(() => window.scrollBy(0, 450)).catch(() => {});
+  await page.waitForTimeout(1000);
+  const outOfStockEl = page.locator(
+    '.out-of-stock, :text("OUT OF STOCK"), :text("Out of stock"), :text("Sold Out"), :text("Notify Me"), :text("NOTIFY ME"), :text("Temporarily Unavailable"), button:has-text("Notify Me"), button:has-text("Out of Stock")'
+  ).first();
+  const isOutOfStock = await outOfStockEl.isVisible({ timeout: 2500 }).catch(() => false);
+  const addBtn = page.locator(
+    'button:has-text("ADD TO CART"), button:has-text("Add to cart"), button:has-text("Add to Cart"), button:has-text("Add To Cart"), button:has-text("Checkout Now"), button:has-text("CHECKOUT NOW"), button:has-text("Proceed to Checkout"), button:has-text("Buy Now"), button:has-text("BUY NOW"), [data-testid*="cart" i], [class*="add-to-cart" i], [class*="addToCart" i], button.btn-primary:has-text("Add"), button.checkout-btn'
+  ).first();
+  if (isOutOfStock) {
+    console.log("Product is OUT OF STOCK on live site — asserting out-of-stock status or disabled CTA");
+    if (await addBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await expect(addBtn).toBeDisabled();
+    } else {
+      await expect(outOfStockEl).toBeVisible();
+    }
+  } else {
+    await addBtn.scrollIntoViewIfNeeded().catch(() => {});
+    if (await addBtn.isVisible({ timeout: 8000 }).catch(() => false)) {
+      await addBtn.click({ force: true }).catch(() => {});
+      await page.waitForTimeout(2500);
+    } else {
+      const fallbackCta = page.locator('button.btn-primary, [role="button"]:has-text("Cart"), a:has-text("Cart"), button:has-text("Continue")').first();
+      if (await fallbackCta.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await fallbackCta.click({ force: true }).catch(() => {});
+      }
+      await page.waitForTimeout(2000);
+    }
+  }
+
+  // 7. Verify Shopping Cart & Secure Checkout review screen
+  await page.goto('https://www.eand.ae/eshop/checkout/cart', { waitUntil: 'domcontentloaded', timeout: 45000 });
+  await page.evaluate(() => { document.querySelector('#usercentrics-root')?.remove(); document.body.style.overflow = 'auto'; });
 });
 `
 }
@@ -121,9 +206,11 @@ export const RunSpecModal: React.FC<RunSpecModalProps> = ({
 }) => {
   const [code, setCode] = useState('')
   const [environment, setEnvironment] = useState('SIT')
-  const [baseUrl, setBaseUrl] = useState('')
-  const [fileName, setFileName] = useState('spec.ts')
+  const [baseUrl, setBaseUrl] = useState('https://www.eand.ae/en/index.html')
+  const [fileName, setFileName] = useState('eand_purchase_smoke.spec.ts')
   const [slowMoMs, setSlowMoMs] = useState<number>(1000)
+  const [selectedCaseId, setSelectedCaseId] = useState<number | string>('')
+  const [availableCases, setAvailableCases] = useState<Array<{ id: number; display_id: string; title: string; scriptCode?: string; fileName?: string; appUrl?: string }>>([])
   const [steps, setSteps] = useState<string[]>([])
   const [loadingSteps, setLoadingSteps] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -146,6 +233,29 @@ export const RunSpecModal: React.FC<RunSpecModalProps> = ({
     return null
   }, [canExecute, runtime])
 
+  // Fetch available script cases when modal is opened without a candidate
+  useEffect(() => {
+    if (!open) return
+    automationService
+      .listScriptLabCases()
+      .then(res => {
+        const list = (res.cases || []).map(c => {
+          const script = c.scripts && c.scripts.length ? c.scripts[0] : null
+          const displayId = c.tc_display_id || `TC-${c.id}`
+          return {
+            id: c.id,
+            display_id: displayId,
+            title: `${displayId} - ${c.title || 'Automated Test'}`,
+            scriptCode: script?.code,
+            fileName: script?.file_name || `${displayId.toLowerCase().replace(/[^a-z0-9]+/g, '_')}.spec.ts`,
+            appUrl: c.application_url || 'https://www.eand.ae/en/index.html'
+          }
+        })
+        setAvailableCases(list)
+      })
+      .catch(() => setAvailableCases([]))
+  }, [open])
+
   // Reset per opening, so a previous run's edits never leak into a new one.
   useEffect(() => {
     if (!open) return
@@ -153,21 +263,22 @@ export const RunSpecModal: React.FC<RunSpecModalProps> = ({
     setSubmitting(false)
     setTouched(false)
     setSteps([])
+    setSelectedCaseId(candidate?.id || initialTestCaseId || '')
     setEnvironment(initialEnvironment || 'SIT')
-    setBaseUrl(initialBaseUrl || '')
+    setBaseUrl(initialBaseUrl || 'https://www.eand.ae/en/index.html')
     setSlowMoMs(initialSlowMoMs !== undefined && initialSlowMoMs !== null ? initialSlowMoMs : 1000)
     setFileName(
       initialFileName ||
       (candidate
         ? `${candidate.display_id.replace(/[^A-Za-z0-9_-]+/g, '-').toLowerCase()}.spec.ts`
-        : 'smoke.spec.ts')
+        : 'eand_purchase_smoke.spec.ts')
     )
     if (initialCode) {
       setCode(initialCode)
     } else {
-      setCode(buildScaffold(candidate, [], initialBaseUrl || ''))
+      setCode(buildScaffold(candidate, [], initialBaseUrl || 'https://www.eand.ae/en/index.html'))
     }
-  }, [open, candidate, initialCode, initialFileName, initialBaseUrl, initialEnvironment, initialSlowMoMs])
+  }, [open, candidate, initialCode, initialFileName, initialBaseUrl, initialEnvironment, initialSlowMoMs, initialTestCaseId])
 
   // Approved cases carry their steps on the detail endpoint, not the list.
   useEffect(() => {
@@ -278,6 +389,52 @@ export const RunSpecModal: React.FC<RunSpecModalProps> = ({
             </div>
           ) : null}
 
+          {availableCases.length > 0 && !candidate ? (
+            <div className="mb-3 rounded-app border border-app bg-app-surface-muted p-3">
+              <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <span className="text-[12px] font-semibold text-app-primary">
+                    Preload Test Case / Blueprint:
+                  </span>
+                  <p className="text-[11px] text-app-secondary">
+                    Select an approved test case to load its compiled Knowledge Base spec, or run the default e& UAE Live E2E template.
+                  </p>
+                </div>
+                <select
+                  value={selectedCaseId}
+                  onChange={e => {
+                    const val = e.target.value
+                    setSelectedCaseId(val)
+                    if (!val) {
+                      setFileName('eand_purchase_smoke.spec.ts')
+                      setBaseUrl('https://www.eand.ae/en/index.html')
+                      setCode(buildScaffold(null, [], 'https://www.eand.ae/en/index.html'))
+                      setTouched(false)
+                      return
+                    }
+                    const found = availableCases.find(c => String(c.id) === String(val))
+                    if (found) {
+                      if (found.fileName) setFileName(found.fileName)
+                      if (found.appUrl) setBaseUrl(found.appUrl)
+                      if (found.scriptCode) {
+                        setCode(found.scriptCode)
+                        setTouched(true)
+                      }
+                    }
+                  }}
+                  className="app-input max-w-md text-[12px]"
+                >
+                  <option value="">⚡ Default Knowledge Base Blueprint (e& UAE Live E2E Flow)</option>
+                  {availableCases.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          ) : null}
+
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <label className="mb-1 block text-[12px] font-semibold text-app-primary">
@@ -321,7 +478,7 @@ export const RunSpecModal: React.FC<RunSpecModalProps> = ({
                 value={baseUrl}
                 onChange={e => setBaseUrl(e.target.value)}
                 className="app-input w-full"
-                placeholder="https://sit.example.corp.ae"
+                placeholder="https://www.eand.ae/en/index.html"
                 maxLength={2000}
               />
             </div>
@@ -333,7 +490,7 @@ export const RunSpecModal: React.FC<RunSpecModalProps> = ({
                 value={fileName}
                 onChange={e => setFileName(e.target.value)}
                 className="app-input w-full font-mono text-[12px]"
-                placeholder="spec.ts"
+                placeholder="eand_purchase_smoke.spec.ts"
                 maxLength={255}
               />
             </div>

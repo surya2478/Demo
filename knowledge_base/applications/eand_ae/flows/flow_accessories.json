@@ -4,14 +4,19 @@
   "category": "Accessories",
   "target_match_keywords": [
     "earbuds",
+    "earbud",
     "headphones",
+    "headphone",
     "freeclip",
     "airpods",
     "speaker",
+    "speakers",
     "audio",
     "accessories",
+    "accessory",
     "buds",
-    "soundtec"
+    "soundtec",
+    "headset"
   ],
   "catalog_entrypoint": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
   "cart_endpoint": "https://www.eand.ae/eshop/checkout/cart",

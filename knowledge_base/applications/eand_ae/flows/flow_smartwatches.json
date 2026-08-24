@@ -4,14 +4,20 @@
   "category": "Smartwatches",
   "target_match_keywords": [
     "smartwatch",
+    "smartwatches",
     "watch",
+    "watches",
     "wearable",
+    "wearables",
     "galaxy watch",
     "apple watch",
     "fit",
-    "band"
+    "band",
+    "emberton",
+    "marshall"
   ],
   "catalog_entrypoint": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100069&catName=Smartwatches&listVal=Smartphones&locale=EN",
+  "cart_endpoint": "https://www.eand.ae/eshop/checkout/cart",
   "canonical_steps": [
     {
       "step_number": 1,
@@ -52,22 +58,51 @@
     {
       "step_number": 7,
       "action": "Verify Shopping Cart & Secure Checkout review screen",
-      "target": "URL_ASSERTION",
+      "target": "https://www.eand.ae/eshop/checkout/cart",
       "expected_result": "Checkout summary displayed"
     }
   ],
   "known_products": {
-    "Marshall Emberton III": {
-      "productId": "prod1T1750584017556",
-      "skuId": "bgskuTrans3999222485"
+    "Samsung Galaxy Watch 7 Ultra": {
+      "productId": "prod1T1775032063518",
+      "skuId": "bgskuTrans3999229899",
+      "default_price": "AED 2,499.00",
+      "available_colors": [
+        "Titanium Silver",
+        "Titanium Gray",
+        "Titanium White"
+      ],
+      "payment_plans": [
+        "One time AED 2,499.00",
+        "24 months AED 114/mo"
+      ]
     },
-    "Marshall Willen II": {
-      "productId": "prod2T1750584017572",
-      "skuId": "bgskuTrans3999222481"
+    "Apple Watch Series 10": {
+      "productId": "prod1T1757998040899",
+      "skuId": "bgskuTrans3820239399",
+      "default_price": "AED 1,799.00",
+      "available_colors": [
+        "Jet Black",
+        "Rose Gold",
+        "Silver"
+      ],
+      "payment_plans": [
+        "One time AED 1,799.00",
+        "24 months AED 82/mo"
+      ]
     },
-    "PORODO Soundtec Euphoric 60W": {
-      "productId": "prod16T1770195088162",
-      "skuId": "bgskuTrans3999228671"
+    "Huawei Watch GT 5 Pro": {
+      "productId": "prod1T1786686221777",
+      "skuId": "bgskuTrans3999231333",
+      "default_price": "AED 1,299.00",
+      "available_colors": [
+        "Black",
+        "Titanium"
+      ],
+      "payment_plans": [
+        "One time AED 1,299.00",
+        "24 months AED 59/mo"
+      ]
     }
   }
 }

@@ -23,9 +23,12 @@ string, which is what lets a table cell carry a multi-step procedure at all.
 """
 from __future__ import annotations
 
+import logging
 from typing import Iterator
 
 from . import stream
+
+logger = logging.getLogger(__name__)
 
 # The exact column set, in order. Shared with the prompt below so the two
 # cannot drift.
@@ -142,8 +145,9 @@ def stream_test_cases(
         flow_context = kb.build_flow_context_prompt(requirements)
         if flow_context:
             system_prompt = f"{SYSTEM_PROMPT}\n\n{flow_context}"
-    except Exception:
-        pass
+            logger.info("Enhanced test case generation prompt with Knowledge Base flow context")
+    except Exception as exc:
+        logger.warning("Failed to enhance prompt with Knowledge Base: %s", exc)
 
     return stream.stream_chat(
         system_prompt=system_prompt,
