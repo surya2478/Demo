@@ -146,6 +146,35 @@ def stream_test_cases(
         if flow_context:
             system_prompt = f"{SYSTEM_PROMPT}\n\n{flow_context}"
             logger.info("Enhanced test case generation prompt with Knowledge Base flow context")
+        # --- Automation Module: say why the context is missing ---------------
+        # Without this branch an absent Knowledge Base produced no log line at
+        # all. Generation still succeeded, just ungrounded -- test cases with
+        # "Navigate to the product page" and a placeholder card number instead
+        # of real eand.ae URLs, ProductIds and prices. That is a plausible
+        # enough result to read as the model having an off day, so the actual
+        # cause (no Knowledge Base) stayed invisible.
+        #
+        # The two cases below are genuinely different and want different
+        # levels. A missing root is a deployment fault: the data did not reach
+        # the process, and nothing about any BRD will match. No flow matching a
+        # given BRD is ordinary -- the Knowledge Base covers specific purchase
+        # journeys, and a requirement outside them is expected to generate
+        # without grounding.
+        elif not kb.get_kb_root().exists():
+            logger.warning(
+                "Knowledge Base not found at %s -- generating WITHOUT flow "
+                "grounding. Test cases will lack real URLs, product identifiers "
+                "and prices. Check the Knowledge Base shipped with the build, or "
+                "set AUTOMATION_KB_PATH. A backend still running from before the "
+                "Knowledge Base moved into ai-admin-module-py/ also lands here "
+                "until it is restarted.",
+                kb.get_kb_root(),
+            )
+        else:
+            logger.info(
+                "No Knowledge Base flow matched this requirement; generating "
+                "without flow grounding."
+            )
     except Exception as exc:
         logger.warning("Failed to enhance prompt with Knowledge Base: %s", exc)
 
