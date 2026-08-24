@@ -36,8 +36,20 @@ class AiParametersModel(BaseModel):
     maxTokens: int = Field(default=4096)
 # https://dx12348.etisalat.corp.ae/api/
 class AiConfigModel(BaseModel):
-    #BASE_URL: str = Field(default="https://dx12348.etisalat.corp.ae")
-    BASE_URL: str = Field(default="http://localhost:8002")
+    # --- Automation Module: this default decides what production talks to ----
+    # It was briefly "http://localhost:8002" for local generation work. That is
+    # safe on a dev host and wrong everywhere else, because the deployed
+    # container has no app/config.json at all -- .dockerignore excludes it, and
+    # compose mounts only ./db-backup -- so routers/settings.py writes a fresh
+    # one from THIS default on the first read. A localhost default therefore
+    # does not stay local: it points the deployed Test Assistant at itself and
+    # breaks Process Documents, which posts files to generateTestCases and
+    # expects the external service's extracted text back.
+    #
+    # To run generation against this backend instead, set it in app/config.json
+    # for that environment (or via generateTestCasesUrl, which repoints the one
+    # endpoint without dragging the other twelve along). Do not move it here.
+    BASE_URL: str = Field(default="https://dx12348.etisalat.corp.ae")
     ENDPOINTS: AiEndpointsModel = Field(default_factory=AiEndpointsModel)
     PARAMETERS: AiParametersModel = Field(default_factory=AiParametersModel)
 
@@ -133,6 +145,13 @@ class Settings(BaseSettings):
     AUTOMATION_RUN_TIMEOUT_SECONDS: int = Field(default=600)
     AUTOMATION_MAX_CONCURRENT_RUNS: int = Field(default=1)
     AUTOMATION_DEFAULT_SLOW_MO_MS: int = Field(default=1000)
+
+    # Directory holding the Knowledge Base's "applications/" folder. Empty
+    # means "use the copy baked into the image at /app/knowledge_base", which
+    # is the normal state. Set it to a bind-mounted path to update flow
+    # blueprints without rebuilding -- they are the part of this system most
+    # likely to change after a deployment goes live.
+    AUTOMATION_KB_PATH: str = Field(default="")
 
     # Which environment variables a generated test may see. Generated specs are
     # LLM output executed as a subprocess of this backend, so without a filter

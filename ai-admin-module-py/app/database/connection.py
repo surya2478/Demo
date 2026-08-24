@@ -49,6 +49,34 @@ else:
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+
+# --- Automation Module: one answer to "which database file?" -----------------
+# The add_*.py migration scripts each derived their own path with
+# os.path.join(os.path.dirname(__file__), "admin.db"). That is the right file
+# on a dev host, where the scripts sit beside admin.db, and the wrong one in
+# the container: DATABASE_URL there is sqlite:////app/external-db/admin.db,
+# but __file__ resolves to /app, so every script bailed with "No database at
+# /app/admin.db" and the columns never landed. create_all does not cover it --
+# it adds missing tables, never missing columns on an existing one.
+#
+# Asking SQLAlchemy to parse the URL keeps the scripts and the running
+# application pointed at the same file by construction, wherever they run.
+def sqlite_file_path() -> "os.PathLike | str | None":
+    """Filesystem path of the SQLite file behind DATABASE_URL, or None.
+
+    Returns None when the configured database is not SQLite, which the
+    migration scripts treat as "this needs a real migration tool, not
+    hand-written ALTER TABLE".
+    """
+    if not SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+        return None
+    database = engine.url.database
+    if not database or database == ":memory:":
+        return None
+    # Relative URLs (sqlite:///./admin.db) resolve against the working
+    # directory, which is how SQLAlchemy itself opened the file above.
+    return os.path.abspath(database)
+
 def get_db():
     db = SessionLocal()
     try:

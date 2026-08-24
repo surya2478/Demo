@@ -17,7 +17,28 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "admin.db")
+# --- Automation Module: target the database the application actually uses ----
+# Was: os.path.join(os.path.dirname(os.path.abspath(__file__)), "admin.db").
+# That is correct on a dev host and wrong in the container, where DATABASE_URL
+# is sqlite:////app/external-db/admin.db while this script lives in /app -- so
+# it bailed with "No database at /app/admin.db" and the schema change never
+# landed. Resolving through the application's own engine keeps the two in step
+# wherever this runs.
+def _resolve_db_path() -> str:
+    from app.database.connection import sqlite_file_path
+
+    path = sqlite_file_path()
+    if path is None:
+        print(
+            "DATABASE_URL does not point at a SQLite file. This script writes "
+            "SQLite-specific DDL; migrate that database with a real migration "
+            "tool instead."
+        )
+        raise SystemExit(2)
+    return path
+
+
+DB_PATH = _resolve_db_path()
 
 # (table, column, DDL type, backfill value or None)
 COLUMNS = [

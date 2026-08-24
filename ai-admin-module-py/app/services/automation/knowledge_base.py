@@ -14,12 +14,61 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from ...config import settings
+
 logger = logging.getLogger(__name__)
 
-# Base path for knowledge base inside automation module
-_candidate_internal = Path(__file__).resolve().parent / "knowledge_base" / "applications"
-_candidate_root = Path(__file__).resolve().parents[4] / "knowledge_base" / "applications"
-KB_ROOT_DIR = _candidate_internal if _candidate_internal.exists() else _candidate_root
+# --- Automation Module: make the Knowledge Base reach the container ----------
+# The data used to live at the repository root, one level above
+# ai-admin-module-py. The backend image is built with that directory as its
+# context, so `COPY . /app` could not see it and no candidate below resolved
+# inside the container -- KB_ROOT_DIR simply did not exist. Nothing raised:
+# every lookup here returns [] or None on a missing root, so the compiler, the
+# healer and testcases.py carried on producing ungrounded output. It reads as
+# an LLM quality problem rather than a packaging one, which is why it survived
+# three days of grounding work.
+#
+# The data now sits at ai-admin-module-py/knowledge_base, inside the build
+# context, and _candidate_package finds it at /app/knowledge_base in the image
+# and at ai-admin-module-py/knowledge_base on a dev host -- one path that works
+# in both places.
+#
+# AUTOMATION_KB_PATH wins over both. Flow blueprints are the part of this
+# system most likely to need a change after go-live, and an override lets a
+# deployment bind-mount an updated Knowledge Base over the baked-in one
+# without rebuilding the image.
+#
+# _candidate_repo_root is the old location, kept last so a working tree that
+# has not pulled the move still resolves.
+def _resolve_kb_root() -> Path:
+    here = Path(__file__).resolve()
+
+    override = (settings.AUTOMATION_KB_PATH or "").strip()
+    candidates = []
+    if override:
+        candidates.append(Path(override).expanduser() / "applications")
+
+    _candidate_package = here.parents[3] / "knowledge_base" / "applications"
+    _candidate_repo_root = here.parents[4] / "knowledge_base" / "applications"
+    candidates += [_candidate_package, _candidate_repo_root]
+
+    for candidate in candidates:
+        if candidate.exists():
+            logger.info("Knowledge Base root resolved to %s", candidate)
+            return candidate
+
+    # Say so once, at import, rather than letting every caller infer an empty
+    # Knowledge Base from empty results.
+    logger.warning(
+        "No Knowledge Base found. Tried: %s. Flow grounding will be skipped and "
+        "generated scripts will not be grounded against any application profile. "
+        "Set AUTOMATION_KB_PATH to the directory holding 'applications/'.",
+        ", ".join(str(c) for c in candidates),
+    )
+    return _candidate_package
+
+
+KB_ROOT_DIR = _resolve_kb_root()
 
 
 def get_kb_root() -> Path:

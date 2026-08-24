@@ -15,6 +15,30 @@ services:
       - "8002:8002" # Optional: useful for direct backend debugging
     volumes:
       - ./db-backup:/app/external-db
+      # --- Automation Module: two optional mounts, both off by default ------
+      # Neither is needed for a working deployment. Both exist so an operator
+      # can change something after go-live without rebuilding the image.
+      #
+      # 1. app/config.json holds ai_config (BASE_URL and the endpoint list).
+      #    The image ships without one -- .dockerignore excludes it -- so
+      #    routers/settings.py writes a fresh file from the defaults in
+      #    app/config.py on the first read. That default is correct for
+      #    production, but the file it writes lives inside the container and
+      #    is lost on redeploy, taking any Settings-screen change with it.
+      #    Mount it to make those edits survive.
+      #
+      # 2. external-kb pairs with AUTOMATION_KB_PATH (see .env.example) and
+      #    overrides the Knowledge Base baked into the image, for updating
+      #    flow blueprints without a rebuild.
+      #
+      # Create the host file or directory BEFORE uncommenting: Docker creates a
+      # directory where a bind-mounted file is missing, and a directory at
+      # app/config.json makes the backend fail on its first settings read.
+      # Both must also be writable by the container's uid:
+      #     sudo chown 10001:10001 ./ai-admin-module-py/app/config.json
+      #
+      # - ./ai-admin-module-py/app/config.json:/app/app/config.json
+      # - ./ai-admin-module-py/knowledge_base:/app/external-kb:ro
     # The image deliberately contains no .env (see ai-admin-module-py/
     # .dockerignore): baking the JWT signing key into a layer leaves it
     # readable with `docker cp`. The secrets are injected here at runtime.
