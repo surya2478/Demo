@@ -1,0 +1,203 @@
+{
+  "pages": [
+    {
+      "url": "https://rankix.ai/",
+      "title": "Rankix.ai — The credit score for AI talent",
+      "status": 200,
+      "via_href": null,
+      "via_text": null,
+      "from_url": null
+    },
+    {
+      "url": "https://rankix.ai/sign-up?role=candidate",
+      "title": "Rankix.ai — The credit score for AI talent",
+      "status": 200,
+      "via_href": "/sign-up?role=candidate",
+      "via_text": "I'm looking for opportunities Build an evidence-backed profile, raise your Rankix Score, get discovered by serious employers in UAE, India, and globally. Continue as candidate",
+      "from_url": "https://rankix.ai/"
+    }
+  ],
+  "elements": [
+    {
+      "page_url": "https://rankix.ai/",
+      "page_title": "Rankix.ai — The credit score for AI talent",
+      "role": "link",
+      "accessible_name": "I'm looking for opportunities Build an evidence-backed profile, raise your Rankix Score, get discovered by serious employers in UAE, India, and globally. Continue as candidate",
+      "recommended_locator": "page.getByRole('link', { name: 'I\\'m looking for opportunities Build an evidence-backed profile, raise your Rankix Score, get discovered by serious employers in UAE, India, and globally. Continue as candidate' })",
+      "recommended_strategy": "role",
+      "confidence_score": 80,
+      "href": "/sign-up?role=candidate"
+    },
+    {
+      "page_url": "https://rankix.ai/",
+      "page_title": "Rankix.ai — The credit score for AI talent",
+      "role": "link",
+      "accessible_name": "I'm hiring talent Verified candidates with explainable Rankix Match scores for your open roles. Shortlists in 72 hours, not 12 weeks. Continue as employer",
+      "recommended_locator": "page.getByRole('link', { name: 'I\\'m hiring talent Verified candidates with explainable Rankix Match scores for your open roles. Shortlists in 72 hours, not 12 weeks. Continue as employer' })",
+      "recommended_strategy": "role",
+      "confidence_score": 80,
+      "href": "/sign-up?role=employer"
+    },
+    {
+      "page_url": "https://rankix.ai/",
+      "page_title": "Rankix.ai — The credit score for AI talent",
+      "role": "link",
+      "accessible_name": "Already have an account? Sign in",
+      "recommended_locator": "page.getByRole('link', { name: 'Already have an account? Sign in' })",
+      "recommended_strategy": "role",
+      "confidence_score": 80,
+      "href": "/sign-in"
+    },
+    {
+      "page_url": "https://rankix.ai/",
+      "page_title": "Rankix.ai — The credit score for AI talent",
+      "role": "link",
+      "accessible_name": "View dashboard demo →",
+      "recommended_locator": "page.getByRole('link', { name: 'View dashboard demo →' })",
+      "recommended_strategy": "role",
+      "confidence_score": 80,
+      "href": "/dashboard"
+    },
+    {
+      "page_url": "https://rankix.ai/sign-up?role=candidate",
+      "page_title": "Rankix.ai — The credit score for AI talent",
+      "role": "link",
+      "accessible_name": "Switch role",
+      "recommended_locator": "page.getByRole('link', { name: 'Switch role' })",
+      "recommended_strategy": "role",
+      "confidence_score": 80,
+      "href": "/"
+    },
+    {
+      "page_url": "https://rankix.ai/sign-up?role=candidate",
+      "page_title": "Rankix.ai — The credit score for AI talent",
+      "role": "button",
+      "accessible_name": "Continue with GitHub",
+      "recommended_locator": "page.getByRole('button', { name: 'Continue with GitHub' })",
+      "recommended_strategy": "role",
+      "confidence_score": 80,
+      "href": null
+    },
+    {
+      "page_url": "https://rankix.ai/sign-up?role=candidate",
+      "page_title": "Rankix.ai — The credit score for AI talent",
+      "role": "button",
+      "accessible_name": "Continue with Google",
+      "recommended_locator": "page.getByRole('button', { name: 'Continue with Google' })",
+      "recommended_strategy": "role",
+      "confidence_score": 80,
+      "href": null
+    },
+    {
+      "page_url": "https://rankix.ai/sign-up?role=candidate",
+      "page_title": "Rankix.ai — The credit score for AI talent",
+      "role": "button",
+      "accessible_name": "Continue with LinkedIn",
+      "recommended_locator": "page.getByRole('button', { name: 'Continue with LinkedIn' })",
+      "recommended_strategy": "role",
+      "confidence_score": 80,
+      "href": null
+    },
+    {
+      "page_url": "https://rankix.ai/sign-up?role=candidate",
+      "page_title": "Rankix.ai — The credit score for AI talent",
+      "role": "textbox",
+      "accessible_name": "Email",
+      "recommended_locator": "page.getByLabel('Email')",
+      "recommended_strategy": "label",
+      "confidence_score": 85,
+      "href": null
+    },
+    {
+      "page_url": "https://rankix.ai/sign-up?role=candidate",
+      "page_title": "Rankix.ai — The credit score for AI talent",
+      "role": "textbox",
+      "accessible_name": "Password",
+      "recommended_locator": "page.getByLabel('Password')",
+      "recommended_strategy": "label",
+      "confidence_score": 45,
+      "href": null
+    },
+    {
+      "page_url": "https://rankix.ai/sign-up?role=candidate",
+      "page_title": "Rankix.ai — The credit score for AI talent",
+      "role": "button",
+      "accessible_name": "Show password",
+      "recommended_locator": "page.getByRole('button', { name: 'Show password' })",
+      "recommended_strategy": "role",
+      "confidence_score": 40,
+      "href": null
+    },
+    {
+      "page_url": "https://rankix.ai/sign-up?role=candidate",
+      "page_title": "Rankix.ai — The credit score for AI talent",
+      "role": "textbox",
+      "accessible_name": "Confirm password",
+      "recommended_locator": "page.getByLabel('Confirm password')",
+      "recommended_strategy": "label",
+      "confidence_score": 85,
+      "href": null
+    },
+    {
+      "page_url": "https://rankix.ai/sign-up?role=candidate",
+      "page_title": "Rankix.ai — The credit score for AI talent",
+      "role": "button",
+      "accessible_name": "Show password",
+      "recommended_locator": "page.getByRole('button', { name: 'Show password' })",
+      "recommended_strategy": "role",
+      "confidence_score": 40,
+      "href": null
+    },
+    {
+      "page_url": "https://rankix.ai/sign-up?role=candidate",
+      "page_title": "Rankix.ai — The credit score for AI talent",
+      "role": "checkbox",
+      "accessible_name": "I agree to Rankix's Terms of Service and Privacy Policy.",
+      "recommended_locator": "page.getByLabel('I agree to Rankix\\'s Terms of Service and Privacy Policy.')",
+      "recommended_strategy": "label",
+      "confidence_score": 85,
+      "href": null
+    },
+    {
+      "page_url": "https://rankix.ai/sign-up?role=candidate",
+      "page_title": "Rankix.ai — The credit score for AI talent",
+      "role": "link",
+      "accessible_name": "I agree to Rankix's Terms of Service and Privacy Policy.",
+      "recommended_locator": "page.getByLabel('I agree to Rankix\\'s Terms of Service and Privacy Policy.')",
+      "recommended_strategy": "label",
+      "confidence_score": 85,
+      "href": "/terms"
+    },
+    {
+      "page_url": "https://rankix.ai/sign-up?role=candidate",
+      "page_title": "Rankix.ai — The credit score for AI talent",
+      "role": "link",
+      "accessible_name": "I agree to Rankix's Terms of Service and Privacy Policy.",
+      "recommended_locator": "page.getByLabel('I agree to Rankix\\'s Terms of Service and Privacy Policy.')",
+      "recommended_strategy": "label",
+      "confidence_score": 85,
+      "href": "/privacy"
+    },
+    {
+      "page_url": "https://rankix.ai/sign-up?role=candidate",
+      "page_title": "Rankix.ai — The credit score for AI talent",
+      "role": "button",
+      "accessible_name": "Create account",
+      "recommended_locator": "page.getByRole('button', { name: 'Create account' })",
+      "recommended_strategy": "role",
+      "confidence_score": 80,
+      "href": null
+    },
+    {
+      "page_url": "https://rankix.ai/sign-up?role=candidate",
+      "page_title": "Rankix.ai — The credit score for AI talent",
+      "role": "link",
+      "accessible_name": "Sign in",
+      "recommended_locator": "page.getByRole('link', { name: 'Sign in' })",
+      "recommended_strategy": "role",
+      "confidence_score": 80,
+      "href": "/sign-in"
+    }
+  ],
+  "blockers": []
+}

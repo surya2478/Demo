@@ -1,0 +1,26 @@
+{
+  "BASE_URL": "http://localhost:8002",
+  "ENDPOINTS": {
+    "generateTestCases": "/generate/brd-testcases",
+    "generateTestCasesUrl": "http://127.0.0.1:8002/generate/brd-testcases",
+    "generateVisual": "/generate/visual",
+    "generateTestData": "/generate/test-data",
+    "codeChanges": "/code/changes",
+    "codeGenerateTestCase": "/code/generate-cases",
+    "codeGenerateUnitTest": "/code/generate-unit-tests",
+    "exportText": "/export/test-cases-txt",
+    "exportExcel": "/export/test-cases-excel",
+    "kbGenerate": "/kb/generate",
+    "kbUploadZip": "/kb/upload-zip",
+    "chatInitiate": "/chat/init",
+    "chatStream": "/chat/stream",
+    "chatSessions": "/chat/sessions",
+    "chatDelete": "/chat/session/{session_id}"
+  },
+  "PARAMETERS": {
+    "provider": "ollama",
+    "model": "gemma3:1b",
+    "temperature": 0.2,
+    "maxTokens": 4096
+  }
+}

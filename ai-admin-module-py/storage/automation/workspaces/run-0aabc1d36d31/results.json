@@ -1,0 +1,153 @@
+{
+  "config": {
+    "configFile": "C:\\AI-Testing\\ai-admin-module-py\\storage\\automation\\workspaces\\run-0aabc1d36d31\\playwright.config.ts",
+    "rootDir": "C:/AI-Testing/ai-admin-module-py/storage/automation/workspaces/run-0aabc1d36d31",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "C:/AI-Testing/ai-admin-module-py/storage/automation/workspaces/run-0aabc1d36d31/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "",
+        "name": "",
+        "testDir": "C:/AI-Testing/ai-admin-module-py/storage/automation/workspaces/run-0aabc1d36d31",
+        "testIgnore": [
+          "node_modules/**",
+          "test-results/**"
+        ],
+        "testMatch": [
+          "/.*\\.(spec|test)?.*\\.[jt]sx?$/"
+        ],
+        "timeout": 120000
+      }
+    ],
+    "shard": null,
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.55.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "tc-001-626097.spec.ts",
+      "file": "tc-001-626097.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "TC-001 (#626097) - Verify that a user can complete the end-to-end purchase flow for Business First Plus Standard 110 plan.",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 26443,
+                  "error": {
+                    "message": "Error: locator.selectOption: Error: Element is not a <select> element\nCall log:\n\u001b[2m  - waiting for locator('body')\u001b[22m\n\u001b[2m    - locator resolved to <body dir=\"ltr\" id=\"consumer-page-6269957757\" class=\"consumer-page page basicpage overflowHidden\">…</body>\u001b[22m\n\u001b[2m  - attempting select option action\u001b[22m\n\u001b[2m    - waiting for element to be visible and enabled\u001b[22m\n",
+                    "stack": "Error: locator.selectOption: Error: Element is not a <select> element\nCall log:\n\u001b[2m  - waiting for locator('body')\u001b[22m\n\u001b[2m    - locator resolved to <body dir=\"ltr\" id=\"consumer-page-6269957757\" class=\"consumer-page page basicpage overflowHidden\">…</body>\u001b[22m\n\u001b[2m  - attempting select option action\u001b[22m\n\u001b[2m    - waiting for element to be visible and enabled\u001b[22m\n\n    at C:\\AI-Testing\\ai-admin-module-py\\storage\\automation\\workspaces\\run-0aabc1d36d31\\tc-001-626097.spec.ts:48:30",
+                    "location": {
+                      "file": "C:\\AI-Testing\\ai-admin-module-py\\storage\\automation\\workspaces\\run-0aabc1d36d31\\tc-001-626097.spec.ts",
+                      "column": 30,
+                      "line": 48
+                    },
+                    "snippet": "\u001b[0m \u001b[90m 46 |\u001b[39m\n \u001b[90m 47 |\u001b[39m   \u001b[90m// 4. Select 'Business First Plus Standard 110' plan\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 48 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'body'\u001b[39m)\u001b[33m.\u001b[39mselectOption(\u001b[32m\"Business First Plus Standard 110\"\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                              \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 49 |\u001b[39m\n \u001b[90m 50 |\u001b[39m   \u001b[90m// 5. Click 'Buy Now' on the plan\u001b[39m\n \u001b[90m 51 |\u001b[39m   \u001b[90m// Proceed to Checkout\u001b[39m\u001b[0m"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\AI-Testing\\ai-admin-module-py\\storage\\automation\\workspaces\\run-0aabc1d36d31\\tc-001-626097.spec.ts",
+                        "column": 30,
+                        "line": 48
+                      },
+                      "message": "Error: locator.selectOption: Error: Element is not a <select> element\nCall log:\n\u001b[2m  - waiting for locator('body')\u001b[22m\n\u001b[2m    - locator resolved to <body dir=\"ltr\" id=\"consumer-page-6269957757\" class=\"consumer-page page basicpage overflowHidden\">…</body>\u001b[22m\n\u001b[2m  - attempting select option action\u001b[22m\n\u001b[2m    - waiting for element to be visible and enabled\u001b[22m\n\n\n  46 |\n  47 |   // 4. Select 'Business First Plus Standard 110' plan\n> 48 |   await page.locator('body').selectOption(\"Business First Plus Standard 110\");\n     |                              ^\n  49 |\n  50 |   // 5. Click 'Buy Now' on the plan\n  51 |   // Proceed to Checkout\n    at C:\\AI-Testing\\ai-admin-module-py\\storage\\automation\\workspaces\\run-0aabc1d36d31\\tc-001-626097.spec.ts:48:30"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-08-24T16:09:18.570Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "C:\\AI-Testing\\ai-admin-module-py\\storage\\automation\\workspaces\\run-0aabc1d36d31\\test-results\\tc-001-626097-TC-001-62609-d9fde-rst-Plus-Standard-110-plan-\\test-failed-1.png"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "C:\\AI-Testing\\ai-admin-module-py\\storage\\automation\\workspaces\\run-0aabc1d36d31\\test-results\\tc-001-626097-TC-001-62609-d9fde-rst-Plus-Standard-110-plan-\\video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\AI-Testing\\ai-admin-module-py\\storage\\automation\\workspaces\\run-0aabc1d36d31\\test-results\\tc-001-626097-TC-001-62609-d9fde-rst-Plus-Standard-110-plan-\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\AI-Testing\\ai-admin-module-py\\storage\\automation\\workspaces\\run-0aabc1d36d31\\test-results\\tc-001-626097-TC-001-62609-d9fde-rst-Plus-Standard-110-plan-\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\AI-Testing\\ai-admin-module-py\\storage\\automation\\workspaces\\run-0aabc1d36d31\\tc-001-626097.spec.ts",
+                    "column": 30,
+                    "line": 48
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "4b36d98a730b788ce806-f0f031ab254e54a6d0f9",
+          "file": "tc-001-626097.spec.ts",
+          "line": 18,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-08-24T16:09:16.761Z",
+    "duration": 30903.729000000003,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

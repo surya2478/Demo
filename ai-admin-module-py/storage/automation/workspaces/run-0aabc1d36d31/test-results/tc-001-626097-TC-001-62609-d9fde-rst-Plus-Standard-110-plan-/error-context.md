@@ -1,0 +1,923 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e4]:
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - generic [ref=e5]:
+            - generic [ref=e10]:
+              - generic:
+                - list
+            - generic [ref=e12]:
+              - list [ref=e16]:
+                - listitem [ref=e17]:
+                  - link "Consumer" [ref=e18] [cursor=pointer]:
+                    - /url: /en/index.html
+                - listitem [ref=e19]:
+                  - link "Business" [ref=e20] [cursor=pointer]:
+                    - /url: /en/smb/index.html
+                - listitem [ref=e21]:
+                  - link "Carrier & Wholesale" [ref=e22] [cursor=pointer]:
+                    - /url: /en/carrier-and-wholesale/index.html
+                - listitem [ref=e23]:
+                  - link "e& group" [ref=e24] [cursor=pointer]:
+                    - /url: https://www.eand.com/en/index.html
+              - list [ref=e28]:
+                - listitem [ref=e29]:
+                  - link "Find Us findus" [ref=e30] [cursor=pointer]:
+                    - /url: /en/storelocator.html
+                    - text: Find Us
+                    - img "findus" [ref=e32] [cursor=pointer]
+                - listitem [ref=e33]:
+                  - link "Accessibility hide" [ref=e34] [cursor=pointer]:
+                    - /url: "#"
+                    - text: Accessibility
+                    - img "hide" [ref=e36] [cursor=pointer]
+                - listitem [ref=e37]:
+                  - link "Quick Pay/Recharge quickpay" [ref=e38] [cursor=pointer]:
+                    - /url: /ecare/quick-pay/?locale=en
+                    - text: Quick Pay/Recharge
+                    - img "quickpay" [ref=e40] [cursor=pointer]
+                - listitem [ref=e41]:
+                  - link "العربية" [ref=e42] [cursor=pointer]:
+                    - /url: "#"
+          - generic:
+            - navigation [ref=e43]:
+              - generic [ref=e45]:
+                - link "etisalat-logo-english" [ref=e47] [cursor=pointer]:
+                  - /url: /en/index.html
+                  - img "etisalat-logo-english" [ref=e48] [cursor=pointer]
+                - generic [ref=e50]:
+                  - list [ref=e54]:
+                    - listitem [ref=e55]:
+                      - link "Mobile Plans" [ref=e56] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=e57]:
+                      - link "Home Plans" [ref=e58] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=e59]:
+                      - link "Devices" [ref=e60] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=e61]:
+                      - link "Smart Home" [ref=e62] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=e63]:
+                      - link "Digital Products" [ref=e64] [cursor=pointer]:
+                        - /url: "#"
+                  - generic [ref=e66]:
+                    - generic:
+                      - textbox "Search?"
+                    - img "search-icon" [ref=e68]
+                    - generic:
+                      - img "mic-icon"
+                  - list [ref=e72]:
+                    - listitem [ref=e73]:
+                      - link "Support" [ref=e74] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=e75]:
+                      - link "My Account" [ref=e76] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=e77]:
+                      - link "cart-icon" [ref=e78] [cursor=pointer]:
+                        - /url: /eshop/checkout/cart?lang=en
+                        - img "cart-icon" [ref=e80] [cursor=pointer]
+            - navigation [ref=e81]:
+              - list
+              - list [ref=e82]:
+                - listitem [ref=e83]:
+                  - link "My Account right-arrow-icon" [ref=e84] [cursor=pointer]:
+                    - /url: "#"
+                    - text: My Account
+                    - img "right-arrow-icon" [ref=e85] [cursor=pointer]
+                - listitem [ref=e86]:
+                  - link "Mobile Plans right-arrow-icon" [ref=e87] [cursor=pointer]:
+                    - /url: "#"
+                    - text: Mobile Plans
+                    - img "right-arrow-icon" [ref=e88] [cursor=pointer]
+                - listitem [ref=e89]:
+                  - link "Home Plans right-arrow-icon" [ref=e90] [cursor=pointer]:
+                    - /url: "#"
+                    - text: Home Plans
+                    - img "right-arrow-icon" [ref=e91] [cursor=pointer]
+                - listitem [ref=e92]:
+                  - link "Devices right-arrow-icon" [ref=e93] [cursor=pointer]:
+                    - /url: "#"
+                    - text: Devices
+                    - img "right-arrow-icon" [ref=e94] [cursor=pointer]
+                - listitem [ref=e95]:
+                  - link "Smart Home right-arrow-icon" [ref=e96] [cursor=pointer]:
+                    - /url: "#"
+                    - text: Smart Home
+                    - img "right-arrow-icon" [ref=e97] [cursor=pointer]
+                - listitem [ref=e98]:
+                  - link "Digital Products right-arrow-icon" [ref=e99] [cursor=pointer]:
+                    - /url: "#"
+                    - text: Digital Products
+                    - img "right-arrow-icon" [ref=e100] [cursor=pointer]
+                - listitem [ref=e101]:
+                  - link "Support right-arrow-icon" [ref=e102] [cursor=pointer]:
+                    - /url: "#"
+                    - text: Support
+                    - img "right-arrow-icon" [ref=e103] [cursor=pointer]
+              - list [ref=e104]:
+                - listitem [ref=e105]:
+                  - link "Find Us findus" [ref=e106] [cursor=pointer]:
+                    - /url: /en/storelocator.html
+                    - text: Find Us
+                    - img "findus" [ref=e107] [cursor=pointer]
+                - listitem [ref=e108]:
+                  - link "Accessibility hide" [ref=e109] [cursor=pointer]:
+                    - /url: "#"
+                    - text: Accessibility
+                    - img "hide" [ref=e110] [cursor=pointer]
+                - listitem [ref=e111]:
+                  - link "Quick Pay/Recharge quickpay" [ref=e112] [cursor=pointer]:
+                    - /url: /ecare/quick-pay/?locale=en
+                    - text: Quick Pay/Recharge
+                    - img "quickpay" [ref=e113] [cursor=pointer]
+              - generic [ref=e114]:
+                - list [ref=e115]:
+                  - listitem [ref=e116]:
+                    - link "Consumer right-arrow-icon" [ref=e117] [cursor=pointer]:
+                      - /url: /en/index.html
+                      - text: Consumer
+                      - img "right-arrow-icon" [ref=e118] [cursor=pointer]
+                    - link "Business right-arrow-icon" [ref=e119] [cursor=pointer]:
+                      - /url: /en/smb/index.html
+                      - text: Business
+                      - img "right-arrow-icon" [ref=e120] [cursor=pointer]
+                    - link "Carrier & Wholesale right-arrow-icon" [ref=e121] [cursor=pointer]:
+                      - /url: /en/carrier-and-wholesale/index.html
+                      - text: Carrier & Wholesale
+                      - img "right-arrow-icon" [ref=e122] [cursor=pointer]
+                    - link "e& group right-arrow-icon" [ref=e123] [cursor=pointer]:
+                      - /url: https://www.eand.com/en/index.html
+                      - text: e& group
+                      - img "right-arrow-icon" [ref=e124] [cursor=pointer]
+                - list [ref=e125]:
+                  - listitem [ref=e126]:
+                    - link "Language" [ref=e127] [cursor=pointer]:
+                      - /url: "#"
+                    - link "العربية icon-uae-flag-en" [ref=e128] [cursor=pointer]:
+                      - /url: "#"
+                      - generic [ref=e129] [cursor=pointer]: العربية
+                      - img "icon-uae-flag-en" [ref=e130] [cursor=pointer]
+  - generic [ref=e133]:
+    - generic [ref=e136]:
+      - generic [ref=e138]:
+        - group "1 / 7" [ref=e139]:
+          - generic [ref=e140]:
+            - generic [ref=e141]:
+              - generic [ref=e142]:
+                - heading "Back-to-School season" [level=2] [ref=e144]
+                - paragraph [ref=e147]: Save up to 60% on smartphones, laptops, tablets & more. Enjoy special data packs & free trials to power your everyday.
+              - link "Explore offers" [ref=e150] [cursor=pointer]:
+                - /url: /en/c/promotions/backtoschooloffers.html
+            - img "bts-rmp-en-p4-454x200" [ref=e153]
+        - group "2 / 7" [ref=e154]:
+          - generic [ref=e155]:
+            - generic [ref=e156]:
+              - generic [ref=e157]:
+                - link "Home Plans" [ref=e159] [cursor=pointer]:
+                  - /url: /eshop/elife/?category=homePlans&subCategory=cat1100023&catName=eLife_plan&listVal=eLife_plan&locale=EN
+                - heading "20% off on select Home Plans for 3 months" [level=2] [ref=e161]
+              - link "Subscribe now" [ref=e164] [cursor=pointer]:
+                - /url: /eshop/elife/?category=homePlans&subCategory=cat1100023&catName=eLife_plan&listVal=eLife_plan&locale=EN
+            - img "neo-fusion-rmp-en-p4-454x200" [ref=e167]
+        - group "3 / 7" [ref=e168]:
+          - generic [ref=e169]:
+            - generic [ref=e170]:
+              - generic [ref=e171]:
+                - heading "1GB exclusive offer" [level=2] [ref=e173]
+                - paragraph [ref=e176]: For first-time users. Download the e& UAE app and get 1GB free for yourself or your family.
+              - link "Learn more" [ref=e179] [cursor=pointer]:
+                - /url: /en/c/mobile/my-etisalat-uae-app.html
+            - img "prepaid-offer-1gb-rmp-en-p4-454x200" [ref=e182]
+        - group "4 / 7" [ref=e183]:
+          - generic [ref=e184]:
+            - generic [ref=e185]:
+              - generic [ref=e186]:
+                - heading "Unfold and save more. Pay over 6 months with zero fees." [level=2] [ref=e188]
+                - paragraph [ref=e191]: Get Galaxy Z Series with Samsung Care+screen coverage.
+              - link "Buy now" [ref=e194] [cursor=pointer]:
+                - /url: /en/c/devices/new-device-launch/samsung/z-fold-flip-8-series.html
+            - img "fold8-series-rmp-en-p4-454x200" [ref=e197]
+        - group "5 / 7" [ref=e198]:
+          - generic [ref=e199]:
+            - generic [ref=e200]:
+              - heading "Get up to 3x more data on selected roaming packs plus travel benefits worth up to AED 1,000" [level=2] [ref=e203]
+              - link "Subscribe now" [ref=e206] [cursor=pointer]:
+                - /url: /eshop/addons/?subCategory=cat550027&lang=en&categoryDimension=cat550044
+            - img "roming-pack-rmp-en-p4-454x200" [ref=e209]
+        - group "6 / 7" [ref=e210]:
+          - generic [ref=e211]:
+            - generic [ref=e212]:
+              - generic [ref=e213]:
+                - link "Postpaid Plans" [ref=e215] [cursor=pointer]:
+                  - /url: https://www.eand.ae/en/c/mobile/plans/postpaid-plans.html
+                - heading "Up to 50% off" [level=2] [ref=e217]
+                - paragraph [ref=e220]: 6 months discount on selected Freedom Plans
+              - link "Get offer" [ref=e223] [cursor=pointer]:
+                - /url: /b2c/heshop/plans/postpaid-plans?subCategory=catpost-spdeal1&lang=en
+            - img "postpaid-50p-rmp-en-p4-454x200" [ref=e226]
+        - group "7 / 7" [ref=e227]:
+          - generic [ref=e228]:
+            - generic [ref=e229]:
+              - generic [ref=e230]:
+                - link "DSS deals" [ref=e232] [cursor=pointer]:
+                  - /url: /en/c/promotions/dss/smartphones.html
+                - heading "Enjoy up to 70% off devices you’ll love this DSS." [level=2] [ref=e234]
+              - link "Shop now" [ref=e237] [cursor=pointer]:
+                - /url: /en/c/promotions/dss/smartphones.html
+            - img "dss-26-rmp-en-p4-454x200" [ref=e240]
+      - button "Next slide" [ref=e241] [cursor=pointer]:
+        - img [ref=e243] [cursor=pointer]
+      - button "Previous slide" [ref=e245] [cursor=pointer]:
+        - img [ref=e247] [cursor=pointer]
+      - generic [ref=e249]:
+        - button "Go to slide 1" [ref=e250] [cursor=pointer]
+        - button "Go to slide 2" [ref=e251] [cursor=pointer]
+        - button "Go to slide 3" [ref=e252] [cursor=pointer]
+        - button "Go to slide 4" [ref=e253] [cursor=pointer]
+        - button "Go to slide 5" [ref=e254] [cursor=pointer]
+        - button "Go to slide 6" [ref=e255] [cursor=pointer]
+        - button "Go to slide 7" [ref=e256] [cursor=pointer]
+    - generic [ref=e261]:
+      - heading "Quick Access" [level=4] [ref=e263]
+      - generic [ref=e264]:
+        - generic [ref=e266]:
+          - link [ref=e267] [cursor=pointer]:
+            - /url: /ecare/c/quick-pay?locale=en
+          - generic [ref=e268]:
+            - img "credit-card-fast" [ref=e270]
+            - paragraph [ref=e273]: Quick Pay & Recharge
+        - generic [ref=e275]:
+          - link [ref=e276] [cursor=pointer]:
+            - /url: https://www.etisalat.ae/en/c/mobile/plans/postpaid-plans.html
+          - generic [ref=e277]:
+            - img "postpaid" [ref=e279]
+            - paragraph [ref=e282]: Postpaid
+        - generic [ref=e284]:
+          - link [ref=e285] [cursor=pointer]:
+            - /url: https://www.eand.ae/en/c/mobile/plans/prepaid-plans.html
+          - generic [ref=e286]:
+            - img "prepaid" [ref=e288]
+            - paragraph [ref=e291]: Prepaid
+        - generic [ref=e293]:
+          - link [ref=e294] [cursor=pointer]:
+            - /url: /eshop/elife/?category=homePlans&subCategory=cat1100023&catName=eLife_plan&listVal=eLife_plan&locale=EN
+          - generic [ref=e295]:
+            - img "elife" [ref=e297]
+            - paragraph [ref=e300]: Home Internet
+        - generic [ref=e302]:
+          - link [ref=e303] [cursor=pointer]:
+            - /url: https://www.etisalat.ae/en/smb/dncr.html
+          - generic [ref=e304]:
+            - img "dont_call_registry" [ref=e306]
+            - paragraph [ref=e309]: Do Not Call Registry
+        - generic [ref=e311]:
+          - link [ref=e312] [cursor=pointer]:
+            - /url: https://www.etisalat.ae/en/c/devices/devices.html
+          - generic [ref=e313]:
+            - img "Devices" [ref=e315]
+            - paragraph [ref=e318]: Devices
+        - generic [ref=e320]:
+          - link [ref=e321] [cursor=pointer]:
+            - /url: https://www.etisalat.ae/en/c/devices/new-device-launch/esim.html
+          - generic [ref=e322]:
+            - img "esim-dualtone" [ref=e324]
+            - paragraph [ref=e327]: eSIM
+        - generic [ref=e329]:
+          - link [ref=e330] [cursor=pointer]:
+            - /url: https://www.etisalat.ae/en/c/home/smartliving-services.html
+          - generic [ref=e331]:
+            - img "smart-home" [ref=e333]
+            - paragraph [ref=e336]: Smart Home
+        - generic [ref=e338]:
+          - link [ref=e339] [cursor=pointer]:
+            - /url: https://www.etisalat.ae/eshop/addons/?subCategory=cat550027&lang=en&categoryDimension=cat550044
+          - generic [ref=e340]:
+            - img "faq" [ref=e342]
+            - paragraph [ref=e345]: Add-ons
+        - generic [ref=e347]:
+          - link [ref=e348] [cursor=pointer]:
+            - /url: https://www.etisalat.ae/en/c/home/home-wireless.html
+          - generic [ref=e349]:
+            - img "wifi" [ref=e351]
+            - paragraph [ref=e354]: Home Wireless
+        - generic [ref=e356]:
+          - link [ref=e357] [cursor=pointer]:
+            - /url: https://www.eand.ae/b2c/heshop/plans/sim-activation?locale=en
+          - generic [ref=e358]:
+            - img "esim-dualtone" [ref=e360]
+            - paragraph [ref=e363]: Activate your SIM
+    - generic [ref=e369]:
+      - tablist [ref=e372]:
+        - tab "Mobile Plans" [ref=e373] [cursor=pointer]
+        - tab "Home Internet" [ref=e374] [cursor=pointer]
+      - tabpanel [ref=e377]:
+        - generic [ref=e378]:
+          - tablist [ref=e380]:
+            - listitem [ref=e381]:
+              - tab "Buy" [ref=e382] [cursor=pointer]
+            - listitem [ref=e383]:
+              - tab "Manage" [ref=e384] [cursor=pointer]
+          - generic [ref=e386]:
+            - generic [ref=e389]:
+              - group "1 / 4" [ref=e390]:
+                - generic [ref=e391]:
+                  - generic [ref=e393]:
+                    - generic [ref=e394]:
+                      - img "mobile-plans-en-flip-card-1-bg" [ref=e396]
+                      - generic [ref=e397]:
+                        - generic [ref=e398]:
+                          - img "icon-postpaid-plans" [ref=e400]
+                          - generic [ref=e401] [cursor=pointer]:
+                            - img "flip-icon" [ref=e403] [cursor=pointer]
+                            - generic [ref=e404] [cursor=pointer]: Show details
+                        - heading "Postpaid Plans" [level=5] [ref=e407]
+                    - generic [ref=e409]:
+                      - generic [ref=e410]:
+                        - paragraph [ref=e413]: Starting from
+                        - paragraph [ref=e416]: AED 100/month
+                      - link [ref=e417] [cursor=pointer]:
+                        - /url: /en/c/mobile/plans/postpaid-plans.html
+                        - img [ref=e419] [cursor=pointer]
+                  - generic [ref=e422]:
+                    - generic [ref=e423]:
+                      - generic [ref=e425] [cursor=pointer]:
+                        - generic [ref=e426] [cursor=pointer]: Back
+                        - img "flip-icon-black" [ref=e428] [cursor=pointer]
+                      - list [ref=e431]:
+                        - listitem [ref=e432]: Up to 50% off for 6 months on selected Freedom Plans
+                        - listitem [ref=e433]: FREE STARZPLAY subscription on selected Freedom Plans
+                        - listitem [ref=e434]: Smiles Unlimited - Buy 1 Get 1 vouchers and FREE delivery on food, and groceries
+                        - listitem [ref=e435]: Stay close with GoChat - Free calls, chats & exclusive stickers daily
+                    - link "Buy now" [ref=e437] [cursor=pointer]:
+                      - /url: /en/c/mobile/plans/postpaid-plans.html
+              - group "2 / 4" [ref=e438]:
+                - generic [ref=e439]:
+                  - generic [ref=e441]:
+                    - generic [ref=e442]:
+                      - img "mobile-plans-en-flip-card-2-bg" [ref=e444]
+                      - generic [ref=e445]:
+                        - generic [ref=e446]:
+                          - img "icon-prepaid-plans" [ref=e448]
+                          - generic [ref=e449] [cursor=pointer]:
+                            - img "flip-icon" [ref=e451] [cursor=pointer]
+                            - generic [ref=e452] [cursor=pointer]: Show details
+                        - heading "Prepaid Plans" [level=5] [ref=e455]
+                    - generic [ref=e457]:
+                      - generic [ref=e458]:
+                        - paragraph [ref=e461]: Starting from
+                        - paragraph [ref=e464]: AED 30/month
+                      - link [ref=e465] [cursor=pointer]:
+                        - /url: /en/c/mobile/plans/wasel-flexi.html?catName=Prepaid_plan&listVal=Wasel_Flexi
+                        - img [ref=e467] [cursor=pointer]
+                  - generic [ref=e470]:
+                    - generic [ref=e471]:
+                      - generic [ref=e473] [cursor=pointer]:
+                        - generic [ref=e474] [cursor=pointer]: Back
+                        - img "flip-icon-black" [ref=e476] [cursor=pointer]
+                      - list [ref=e479]:
+                        - listitem [ref=e480]: Double data on all plans
+                        - listitem [ref=e481]: 25% FREE bonus credit
+                        - listitem [ref=e482]: Unlimited internet calling
+                        - listitem [ref=e483]: Exclusive unlimited calls to one preferred e& number
+                    - link "Buy now" [ref=e485] [cursor=pointer]:
+                      - /url: /en/c/mobile/plans/wasel-flexi.html?catName=Prepaid_plan&listVal=Wasel_Flexi
+              - group "3 / 4" [ref=e486]:
+                - generic [ref=e487]:
+                  - generic [ref=e489]:
+                    - generic [ref=e490]:
+                      - img "mobile-plans-en-flip-card-3-bg" [ref=e492]
+                      - generic [ref=e493]:
+                        - generic [ref=e494]:
+                          - img "icon-emirati-plans" [ref=e496]
+                          - generic [ref=e497] [cursor=pointer]:
+                            - img "flip-icon" [ref=e499] [cursor=pointer]
+                            - generic [ref=e500] [cursor=pointer]: Show details
+                        - heading "Emirati Exclusive Plans" [level=5] [ref=e503]
+                    - generic [ref=e505]:
+                      - generic [ref=e506]:
+                        - paragraph [ref=e509]: Starting from
+                        - paragraph [ref=e512]: AED 250/month
+                      - link [ref=e513] [cursor=pointer]:
+                        - /url: /b2c/heshop/plans/postpaid-plans?subCategory=cat1970015&category=cat1970019&lang=en
+                        - img [ref=e515] [cursor=pointer]
+                  - generic [ref=e518]:
+                    - generic [ref=e519]:
+                      - generic [ref=e521] [cursor=pointer]:
+                        - generic [ref=e522] [cursor=pointer]: Back
+                        - img "flip-icon-black" [ref=e524] [cursor=pointer]
+                      - list [ref=e527]:
+                        - listitem [ref=e528]: FREE STARZPLAY subscription on selected Freedom Plans
+                        - listitem [ref=e529]: Up to 200,000 Smiles Points
+                        - listitem [ref=e530]: FREE Roam Like Home
+                        - listitem [ref=e531]: Instant eSIM activation
+                        - listitem [ref=e532]: Smiles Unlimited - Buy 1 Get 1 vouchers and FREE delivery on food, and groceries
+                    - link "Buy now" [ref=e534] [cursor=pointer]:
+                      - /url: /b2c/heshop/plans/postpaid-plans?subCategory=cat1970015&category=cat1970019&lang=en
+              - group "4 / 4" [ref=e535]:
+                - generic [ref=e536]:
+                  - generic [ref=e538]:
+                    - generic [ref=e539]:
+                      - img "mobile-plans-en-flip-card-4-bg" [ref=e541]
+                      - generic [ref=e542]:
+                        - generic [ref=e543]:
+                          - img "icon-visitor-line" [ref=e545]
+                          - generic [ref=e546] [cursor=pointer]:
+                            - img "flip-icon" [ref=e548] [cursor=pointer]
+                            - generic [ref=e549] [cursor=pointer]: Show details
+                        - heading "Visitor Lines" [level=5] [ref=e552]
+                    - generic [ref=e554]:
+                      - generic [ref=e555]:
+                        - paragraph [ref=e558]: Starting from
+                        - paragraph [ref=e561]: AED 49/month
+                      - link [ref=e562] [cursor=pointer]:
+                        - /url: /en/c/mobile/plans/visitor-line.html
+                        - img [ref=e564] [cursor=pointer]
+                  - generic [ref=e567]:
+                    - generic [ref=e568]:
+                      - generic [ref=e570] [cursor=pointer]:
+                        - generic [ref=e571] [cursor=pointer]: Back
+                        - img "flip-icon-black" [ref=e573] [cursor=pointer]
+                      - list [ref=e576]:
+                        - listitem [ref=e577]: FREE SIM on selected plans
+                        - listitem [ref=e578]: Smiles Unlimited - Buy 1 Get 1 vouchers
+                        - listitem [ref=e579]: AED 100 Careem voucher; to be used for food, rides and more
+                        - listitem [ref=e580]: Free 24 hours delivery
+                        - listitem [ref=e581]: 25% off on 2 Hala rides
+                    - link "Buy now" [ref=e583] [cursor=pointer]:
+                      - /url: /en/c/mobile/plans/visitor-line.html
+            - generic [ref=e585]:
+              - img "plan-card-bg-responsive" [ref=e588]
+              - generic [ref=e589]:
+                - generic [ref=e591]:
+                  - img "eand-logo" [ref=e593]
+                  - heading "More value starts here." [level=5] [ref=e595]
+                - link "Switch now" [ref=e597] [cursor=pointer]:
+                  - /url: /en/c/mobile/switch-to-etisalat-mobile.html
+            - generic [ref=e600]:
+              - img "flip-card-mcta-bonus-credit-en-mob" [ref=e603]
+              - generic [ref=e604]:
+                - paragraph [ref=e608]: 25% bonus credit on every recharge of AED 10 or more!
+                - generic [ref=e609]:
+                  - link "Explore benefits" [ref=e610] [cursor=pointer]:
+                    - /url: https://www.etisalat.ae/ecare/c/quick-pay?locale=en
+                  - img [ref=e612]
+    - generic [ref=e617]:
+      - heading "Discover our cutting-edge collection of devices" [level=2] [ref=e619]:
+        - text: Discover
+        - generic [ref=e620]:
+          - text: our cutting-edge
+          - text: collection of
+        - text: devices
+      - generic [ref=e623]:
+        - group "1 / 8" [ref=e624]:
+          - generic [ref=e625]:
+            - generic [ref=e626]:
+              - link [ref=e627] [cursor=pointer]:
+                - /url: /en/c/devices/smartphones.html
+              - img "bg-mcta1-rmp-smartphones" [ref=e630]
+            - paragraph [ref=e633]: Smartphones
+        - group "2 / 8" [ref=e634]:
+          - generic [ref=e635]:
+            - generic [ref=e636]:
+              - link [ref=e637] [cursor=pointer]:
+                - /url: /en/c/devices/laptops.html
+              - img "bg-mcta1-rmp-laptops" [ref=e640]
+            - paragraph [ref=e643]: Laptops
+        - group "3 / 8" [ref=e644]:
+          - generic [ref=e645]:
+            - generic [ref=e646]:
+              - link [ref=e647] [cursor=pointer]:
+                - /url: /b2c/eshop/viewProducts?category=mobileDevices&subCategory=cat1100019&catName=Tablets&listVal=MegaMenu&locale=EN
+              - img "bg-mcta1-rmp-tablets" [ref=e650]
+            - paragraph [ref=e653]: Tablets
+        - group "4 / 8" [ref=e654]:
+          - generic [ref=e655]:
+            - generic [ref=e656]:
+              - link [ref=e657] [cursor=pointer]:
+                - /url: /en/c/devices/accessories.html
+              - img "bg-mcta1-rmp-accessories" [ref=e660]
+            - paragraph [ref=e663]: Accessories
+        - group "5 / 8" [ref=e664]:
+          - generic [ref=e665]:
+            - generic [ref=e666]:
+              - link [ref=e667] [cursor=pointer]:
+                - /url: /en/c/home/smartliving-services.html
+              - img "bg-mcta1-rmp-smart-home-dev" [ref=e670]
+            - paragraph [ref=e673]: Smart Home
+        - group "6 / 8" [ref=e674]:
+          - generic [ref=e675]:
+            - generic [ref=e676]:
+              - link [ref=e677] [cursor=pointer]:
+                - /url: /en/c/devices/gaming.html
+              - img "bg-mcta1-rmp-gaming" [ref=e680]
+            - paragraph [ref=e683]: Gaming Zone
+        - group "7 / 8" [ref=e684]:
+          - generic [ref=e685]:
+            - generic [ref=e686]:
+              - link [ref=e687] [cursor=pointer]:
+                - /url: /en/c/devices/wearables.html
+              - img "bg-mcta1-rmp-wearables" [ref=e690]
+            - paragraph [ref=e693]: Wearables
+        - group "8 / 8" [ref=e694]:
+          - generic [ref=e695]:
+            - generic [ref=e696]:
+              - link [ref=e697] [cursor=pointer]:
+                - /url: /en/c/home/smartliving-devices/smart-tvs.html
+              - img "bg-mcta1-rmp-smart-tvs" [ref=e700]
+            - paragraph [ref=e703]: Smart TVs
+      - generic [ref=e704]:
+        - link "Shop all devices" [ref=e705] [cursor=pointer]:
+          - /url: /en/c/devices/devices.html
+        - img [ref=e707]
+    - generic [ref=e712]:
+      - generic [ref=e715]:
+        - group "1 / 7" [ref=e716]:
+          - generic [ref=e717]:
+            - generic [ref=e718]:
+              - generic [ref=e719]:
+                - link "Buy now" [ref=e720] [cursor=pointer]:
+                  - /url: /en/c/devices/new-device-launch/samsung/z-fold-flip-8-series.html
+                - img "icon-arrow-chevron-right-white" [ref=e722]
+              - img "bg-mcta2-rmp-phones-v5-en-p3" [ref=e725]
+            - heading "Get the new Galaxy Z Series and pay over 6 months with zero fees" [level=5] [ref=e727]
+        - group "2 / 7" [ref=e728]:
+          - generic [ref=e729]:
+            - generic [ref=e730]:
+              - generic [ref=e731]:
+                - link "Buy now" [ref=e732] [cursor=pointer]:
+                  - /url: /b2c/eshop/device-configuration?productId=prod2T1752224284623&skuId=bgskuTrans3805094481&catName=Smartphones&locale=en
+                - img "icon-arrow-chevron-right-white" [ref=e734]
+              - img "bg-mcta2-rmp-phones-v2-en-p3" [ref=e737]
+            - heading "Capture memories with Huawei Pura80 Ultra with dual telephoto and Ultra large sensor" [level=5] [ref=e739]
+        - group "3 / 7" [ref=e740]:
+          - generic [ref=e741]:
+            - generic [ref=e742]:
+              - generic [ref=e743]:
+                - link "Buy now" [ref=e744] [cursor=pointer]:
+                  - /url: /en/c/devices/top-brands/samsung/wearables.html?catName=Wearables&listVal=TopBrands_Samsung
+                - img "icon-arrow-chevron-right-white" [ref=e746]
+              - img "bg-mcta2-rmp-wearables-v1-en-p3" [ref=e749]
+            - heading "Welcome to the era of AI-powered health! Explore Galaxy Watch Series now" [level=5] [ref=e751]
+        - group "4 / 7" [ref=e752]:
+          - generic [ref=e753]:
+            - generic [ref=e754]:
+              - generic [ref=e755]:
+                - link "Learn more" [ref=e756] [cursor=pointer]:
+                  - /url: /b2c/eshop/viewProducts?category=devices&subCategory=cat1100043&catName=Gaming&listVal=GamingConsoles&locale=EN
+                - img "icon-arrow-chevron-right-white" [ref=e758]
+              - img "bg-mcta2-rmp-gaming-v2-en-p3" [ref=e761]
+            - heading "Reward your kids with the perfect gift!" [level=5] [ref=e763]
+        - group "5 / 7" [ref=e764]:
+          - generic [ref=e765]:
+            - generic [ref=e766]:
+              - generic [ref=e767]:
+                - link "Buy now" [ref=e768] [cursor=pointer]:
+                  - /url: /b2c/eshop/device-configuration?productId=prod1T1756105496087&locale=EN
+                - img "icon-arrow-chevron-right-white" [ref=e770]
+              - img "bg-mcta2-rmp-phones-v1-en-p3" [ref=e773]
+            - heading "Designed to stand out, Nothing Phone (3) is available now" [level=5] [ref=e775]
+        - group "6 / 7" [ref=e776]:
+          - generic [ref=e777]:
+            - generic [ref=e778]:
+              - generic [ref=e779]:
+                - link "Buy now" [ref=e780] [cursor=pointer]:
+                  - /url: /b2c/eshop/viewProducts?category=devices&subCategory=cat1100075
+                - img "icon-arrow-chevron-right-white" [ref=e782]
+              - img "bg-mcta2-rmp-accessories-en-p3" [ref=e785]
+            - heading "Grab the best accessories for phones, laptops, gaming and more!" [level=5] [ref=e787]
+        - group "7 / 7" [ref=e788]:
+          - generic [ref=e789]:
+            - generic [ref=e790]:
+              - generic [ref=e791]:
+                - link "Learn more" [ref=e792] [cursor=pointer]:
+                  - /url: /b2c/eshop/viewProducts?category=devices&subCategory=cat1100038&catName=Gaming&listVal=GamingPc&locale=EN
+                - img "icon-arrow-chevron-right-white" [ref=e794]
+              - img "bg-mcta2-rmp-gaming-v3-en-p3" [ref=e797]
+            - heading "Conquer every arena with the latest gaming PCs" [level=5] [ref=e799]
+      - button "Next slide" [ref=e800] [cursor=pointer]:
+        - img [ref=e802] [cursor=pointer]
+      - generic [ref=e804]:
+        - button "Go to slide 1" [ref=e805] [cursor=pointer]
+        - button "Go to slide 2" [ref=e806] [cursor=pointer]
+        - button "Go to slide 3" [ref=e807] [cursor=pointer]
+        - button "Go to slide 4" [ref=e808] [cursor=pointer]
+    - generic [ref=e815]:
+      - heading "Explore our Digital Products" [level=2] [ref=e817]
+      - tablist [ref=e821]:
+        - tab "Entertainment" [ref=e822] [cursor=pointer]
+        - tab "Lifestyle" [ref=e823] [cursor=pointer]
+        - tab "Productivity" [ref=e824] [cursor=pointer]
+        - tab "Pay with e&" [ref=e825] [cursor=pointer]
+      - tabpanel [ref=e828]:
+        - generic [ref=e830]:
+          - group "1 / 3" [ref=e831]:
+            - generic [ref=e832]:
+              - generic [ref=e833]:
+                - link "Subscribe now" [ref=e834] [cursor=pointer]:
+                  - /url: /eshop/addons/addon-details?skuId=sku1620331&lang=en
+                - img "icon-arrow-chevron-right-white" [ref=e836]
+              - img "tab-rmp-starzplay-p-3" [ref=e839]
+          - group "2 / 3" [ref=e840]:
+            - generic [ref=e841]:
+              - generic [ref=e842]:
+                - link "Discover Arena Play" [ref=e843] [cursor=pointer]:
+                  - /url: /en/c/generic/arena.html
+                - img "icon-arrow-chevron-right-white" [ref=e845]
+              - img "tab-rmp-arenaplay-p-3" [ref=e848]
+          - group "3 / 3" [ref=e849]:
+            - generic [ref=e850]:
+              - generic [ref=e851]:
+                - link "Shop Gaming" [ref=e852] [cursor=pointer]:
+                  - /url: /en/c/devices/gaming.html
+                - img "icon-arrow-chevron-right-white" [ref=e854]
+              - img "tab-rmp-entertainment-p-3" [ref=e857]
+        - generic [ref=e858]:
+          - generic [ref=e859]:
+            - group "1 / 3" [ref=e860]:
+              - generic [ref=e862]:
+                - heading "Unlimited movies with STARZPLAY" [level=5] [ref=e864]
+                - paragraph [ref=e867]: Enjoy Hollywood blockbusters, your favourite TV shows and more!
+            - group "2 / 3"
+            - group "3 / 3" [ref=e868]:
+              - generic [ref=e870]:
+                - heading "Gaming Zone - Your world to premium unlimited gaming access" [level=5] [ref=e872]
+                - paragraph [ref=e875]: Gear up to your next gaming session with our collection of gaming PCs, Consoles, Laptops, Accessories and more!
+          - generic [ref=e876]:
+            - button "Go to slide 1" [ref=e877] [cursor=pointer]
+            - button "Go to slide 2" [ref=e878] [cursor=pointer]
+            - button "Go to slide 3" [ref=e879] [cursor=pointer]
+    - generic [ref=e881]:
+      - img "cross-promo-bg-mobile" [ref=e884]
+      - generic [ref=e887]:
+        - img "download-app-en" [ref=e891]
+        - generic [ref=e892]:
+          - heading "Join over 8 Million e& UAE App users. Download Now." [level=1] [ref=e894]
+          - generic [ref=e895]:
+            - link "icon-app-store" [ref=e897] [cursor=pointer]:
+              - /url: https://apps.apple.com/app/apple-store/id866147547?mt=8
+              - img "icon-app-store" [ref=e898] [cursor=pointer]
+            - link "icon-play-store" [ref=e900] [cursor=pointer]:
+              - /url: https://play.google.com/store/apps/details?id=com.Etisalat.ETIDA&referrer=utm_source%3Detisalat%26utm_medium%3Dmy-etisalat-uae-page%26utm_campaign%3Detisalat-raffle-2020&pli=1
+              - img "icon-play-store" [ref=e901] [cursor=pointer]
+            - link "icon-app-gallery" [ref=e903] [cursor=pointer]:
+              - /url: https://appgallery.huawei.com/#/app/C100619543?channel=MyEtisalatMEA&detailType=0
+              - img "icon-app-gallery" [ref=e904] [cursor=pointer]
+          - img "icon-app-download-qr-code" [ref=e906]
+    - iframe [ref=e918]:
+      
+    - generic [ref=e923]:
+      - heading "Get Support" [level=4] [ref=e925]
+      - generic [ref=e926]:
+        - generic [ref=e928]:
+          - link [ref=e929] [cursor=pointer]:
+            - /url: /en/c/support/index.html?cwin=true
+          - generic [ref=e930]:
+            - img "chat" [ref=e932]
+            - paragraph [ref=e935]: Live Chat
+        - generic [ref=e937]:
+          - link [ref=e938] [cursor=pointer]:
+            - /url: /b2c/eshop/orderTracking
+          - generic [ref=e939]:
+            - img "order-search" [ref=e941]
+            - paragraph [ref=e944]: Track Your Orders
+        - generic [ref=e946]:
+          - link [ref=e947] [cursor=pointer]:
+            - /url: /en/c/support/index.html
+          - generic [ref=e948]:
+            - img "faq" [ref=e950]
+            - paragraph [ref=e953]: FAQ
+  - generic [ref=e960]:
+    - generic [ref=e963]:
+      - generic [ref=e964]:
+        - heading "Quick Access" [level=5] [ref=e967]
+        - list [ref=e970]:
+          - listitem [ref=e971]:
+            - link "Quick Pay" [ref=e972] [cursor=pointer]:
+              - /url: /ecare/quick-pay/?locale=en
+          - listitem [ref=e973]:
+            - link "Switch from Prepaid to Postpaid" [ref=e974] [cursor=pointer]:
+              - /url: /b2c/heshop/plans/plan-migration
+          - listitem [ref=e975]:
+            - link "Autopay" [ref=e976] [cursor=pointer]:
+              - /url: /en/c/autopay.html
+          - listitem [ref=e977]:
+            - link "Mobile Registration Renewal" [ref=e978] [cursor=pointer]:
+              - /url: /en/c/mobile-registration-renewal.html
+          - listitem [ref=e979]:
+            - link "4-digit PIN" [ref=e980] [cursor=pointer]:
+              - /url: /en/c/mobile/4-digit-pin.html
+      - generic [ref=e981]:
+        - heading "Buy Plans" [level=5] [ref=e984]
+        - list [ref=e987]:
+          - listitem [ref=e988]:
+            - link "Emirati Freedom Postpaid" [ref=e989] [cursor=pointer]:
+              - /url: /en/c/mobile/plans/emirati-freedom-plans-purchase.html
+          - listitem [ref=e990]:
+            - link "Postpaid Plans" [ref=e991] [cursor=pointer]:
+              - /url: /en/c/mobile/plans/postpaid-plans.html
+          - listitem [ref=e992]:
+            - link "Prepaid/Wasel Flexi" [ref=e993] [cursor=pointer]:
+              - /url: /en/c/mobile/plans/wasel-flexi.html
+          - listitem [ref=e994]:
+            - link "eLife Plans" [ref=e995] [cursor=pointer]:
+              - /url: /eshop/elife/?category=homePlans&subCategory=cat1100023&catName=eLife_plan&listVal=eLife_plan&locale=EN
+          - listitem [ref=e996]:
+            - link "Absher Plan" [ref=e997] [cursor=pointer]:
+              - /url: /en/c/home/absher-plans-home.html
+          - listitem [ref=e998]:
+            - link "Switch to e&" [ref=e999] [cursor=pointer]:
+              - /url: /en/c/mobile/switch-to-etisalat-mobile.html
+      - generic [ref=e1000]:
+        - heading "Special For you" [level=5] [ref=e1003]
+        - list [ref=e1006]:
+          - listitem [ref=e1007]:
+            - link "#Tag" [ref=e1008] [cursor=pointer]:
+              - /url: /en/c/mobile/hash-tag.html
+          - listitem [ref=e1009]:
+            - link "Data and Credit Transfer" [ref=e1010] [cursor=pointer]:
+              - /url: /en/c/mobile/data-and-credit-transfer.html
+          - listitem [ref=e1011]:
+            - link "Device Trade-In" [ref=e1012] [cursor=pointer]:
+              - /url: /en/c/devices/trade-in.html
+          - listitem [ref=e1013]:
+            - link "Talking Bill" [ref=e1014] [cursor=pointer]:
+              - /url: /en/c/talking-bill.html
+          - listitem [ref=e1015]:
+            - link "People of Determination" [ref=e1016] [cursor=pointer]:
+              - /url: /en/c/people-of-determination.html
+          - listitem [ref=e1017]:
+            - link "Deals for you" [ref=e1018] [cursor=pointer]:
+              - /url: /en/c/deals-for-you.html
+          - listitem [ref=e1019]:
+            - link "MMS" [ref=e1020] [cursor=pointer]:
+              - /url: /en/c/mobile/mms.html
+          - listitem [ref=e1021]:
+            - link "Senior Citizens Offer" [ref=e1022] [cursor=pointer]:
+              - /url: /en/c/promotions/senior-citizens-offer.html
+      - generic [ref=e1023]:
+        - heading "Internet Services" [level=5] [ref=e1026]
+        - list [ref=e1029]:
+          - listitem [ref=e1030]:
+            - link "5G" [ref=e1031] [cursor=pointer]:
+              - /url: /en/c/mobile/5g-zte-launch.html
+          - listitem [ref=e1032]:
+            - link "UAE Wifi" [ref=e1033] [cursor=pointer]:
+              - /url: /en/c/promotions/uae-wi-fi.html
+          - listitem [ref=e1034]:
+            - link "Home Zone Internet" [ref=e1035] [cursor=pointer]:
+              - /url: /en/c/home/wifi-home-zone.html
+          - listitem [ref=e1036]:
+            - link "Internet Speed Test" [ref=e1037] [cursor=pointer]:
+              - /url: /en/c/generic/myspeed.html
+      - generic [ref=e1038]:
+        - heading "Help & Support" [level=5] [ref=e1041]
+        - list [ref=e1044]:
+          - listitem [ref=e1045]:
+            - link "New to e&" [ref=e1046] [cursor=pointer]:
+              - /url: /en/onboarding/get-started.html
+          - listitem [ref=e1047]:
+            - link "e& UAE Apps" [ref=e1048] [cursor=pointer]:
+              - /url: /en/c/apps.html
+          - listitem [ref=e1049]:
+            - link "Connect with e&" [ref=e1050] [cursor=pointer]:
+              - /url: /en/c/etisalat-virtual-advisor.html
+          - listitem [ref=e1051]:
+            - link "Privacy & Scam Reporting" [ref=e1052] [cursor=pointer]:
+              - /url: /en/c/phishing-and-fraud.html
+          - listitem [ref=e1053]:
+            - link "Block Promotional SMS" [ref=e1054] [cursor=pointer]:
+              - /url: /b2c/promotional-sms-registration-nonlogin.html?mfeRedirectServiceDetailsUrl=%2Fecare%2Fd%2Faccount-services%2Fview-account%2Fservice-details&mfeRedirectElifeServiceDetailsUrl=%2Fecare%2Fd%2Faccount-services%2Fview-account%2Felife-service-details&locale=en
+          - listitem [ref=e1055]:
+            - link "Do Not Call Registry" [ref=e1056] [cursor=pointer]:
+              - /url: /en/smb/dncr.html
+          - listitem [ref=e1057]:
+            - link "CNAP/Caller ID “Kashif”" [ref=e1058] [cursor=pointer]:
+              - /url: /en/c/support/mobile/postpaid/other-services/cnap/overview-and-benefits.html
+          - listitem [ref=e1059]:
+            - link "Value Added Tax" [ref=e1060] [cursor=pointer]:
+              - /url: /en/wst-vat.html
+          - listitem [ref=e1061]:
+            - link "e& Mail" [ref=e1062] [cursor=pointer]:
+              - /url: https://eim.ae/
+          - listitem [ref=e1063]:
+            - link "Customer Quotation – CQ" [ref=e1064] [cursor=pointer]:
+              - /url: /b2c/cqt-app/index.jsp
+          - listitem [ref=e1065]:
+            - link "UAE Online directory" [ref=e1066] [cursor=pointer]:
+              - /url: /en/search181.html
+          - listitem [ref=e1067]:
+            - link "Clearance Letter" [ref=e1068] [cursor=pointer]:
+              - /url: https://www.etisalat.ae/b2c/clearance/clearanceletterApp/
+          - listitem [ref=e1069]:
+            - link "Authorised Channel Partners" [ref=e1070] [cursor=pointer]:
+              - /url: https://www.etisalat.ae/content/dam/etisalat/consumer/docs/general/authorised-channel-partners.pdf
+          - listitem [ref=e1071]:
+            - link "TDRA Eye Initiative" [ref=e1072] [cursor=pointer]:
+              - /url: https://www.eand.ae/en/c/generic/tdra-eye.html
+      - generic [ref=e1073]:
+        - heading "e&" [level=5] [ref=e1076]
+        - list [ref=e1079]:
+          - listitem [ref=e1080]:
+            - link "e& actions-open-link" [ref=e1081] [cursor=pointer]:
+              - /url: https://www.eand.com/en/index.html
+              - text: e&
+              - img "actions-open-link" [ref=e1083] [cursor=pointer]
+          - listitem [ref=e1084]:
+            - link "e&life actions-open-link" [ref=e1085] [cursor=pointer]:
+              - /url: https://www.eand.com/en/e-and-life.html
+              - text: e&life
+              - img "actions-open-link" [ref=e1087] [cursor=pointer]
+          - listitem [ref=e1088]:
+            - link "e&enterprise actions-open-link" [ref=e1089] [cursor=pointer]:
+              - /url: https://www.eand.com/en/etisalat-enterprise.html
+              - text: e&enterprise
+              - img "actions-open-link" [ref=e1091] [cursor=pointer]
+          - listitem [ref=e1092]:
+            - link "e&capital actions-open-link" [ref=e1093] [cursor=pointer]:
+              - /url: https://www.eand.com/en/capital.html
+              - text: e&capital
+              - img "actions-open-link" [ref=e1095] [cursor=pointer]
+          - listitem [ref=e1096]:
+            - link "Telecoms actions-open-link" [ref=e1097] [cursor=pointer]:
+              - /url: https://www.eand.com/en/international-telecoms.html
+              - text: Telecoms
+              - img "actions-open-link" [ref=e1099] [cursor=pointer]
+    - generic [ref=e1102]:
+      - generic [ref=e1103]:
+        - heading "Download e& UAE App" [level=5] [ref=e1105]
+        - generic [ref=e1106]:
+          - link "apple-app-store" [ref=e1108] [cursor=pointer]:
+            - /url: https://apps.apple.com/app/apple-store/id866147547?mt=8
+            - img "apple-app-store" [ref=e1109] [cursor=pointer]
+          - link "google_play_app_store" [ref=e1111] [cursor=pointer]:
+            - /url: https://play.google.com/store/apps/details?id=com.Etisalat.ETIDA&referrer=utm_source%3Detisalat%26utm_medium%3Dmy-etisalat-uae-page%26utm_campaign%3Detisalat-raffle-2020
+            - img "google_play_app_store" [ref=e1112] [cursor=pointer]
+          - link "android_2_tcm313-205859" [ref=e1114] [cursor=pointer]:
+            - /url: https://appgallery.huawei.com/#/app/C100619543?channel=MyEtisalatMEA&detailType=0
+            - img "android_2_tcm313-205859" [ref=e1115] [cursor=pointer]
+      - generic [ref=e1116]:
+        - heading "Follow Us" [level=5] [ref=e1118]
+        - generic [ref=e1119]:
+          - link "facebook" [ref=e1120] [cursor=pointer]:
+            - /url: https://www.facebook.com/eAndUAE/
+            - img "facebook" [ref=e1122] [cursor=pointer]
+          - link "instagram" [ref=e1123] [cursor=pointer]:
+            - /url: https://www.instagram.com/eanduae
+            - img "instagram" [ref=e1125] [cursor=pointer]
+          - link "linkedin" [ref=e1126] [cursor=pointer]:
+            - /url: https://www.linkedin.com/company/eanduae/
+            - img "linkedin" [ref=e1128] [cursor=pointer]
+          - link "x" [ref=e1129] [cursor=pointer]:
+            - /url: https://x.com/eAndUAE
+            - img "x" [ref=e1131] [cursor=pointer]
+          - link "youtube" [ref=e1132] [cursor=pointer]:
+            - /url: https://www.youtube.com/@eAndUAE
+            - img "youtube" [ref=e1134] [cursor=pointer]
+          - link "tiktok" [ref=e1135] [cursor=pointer]:
+            - /url: https://www.tiktok.com/@eanduae
+            - img "tiktok" [ref=e1137] [cursor=pointer]
+      - generic [ref=e1138]:
+        - heading "Payment Accepted" [level=5] [ref=e1140]
+        - generic [ref=e1141]:
+          - img "amex-dualtone-v2" [ref=e1143]
+          - img "master-card-dualtone-v2" [ref=e1145]
+          - img "visa-dualtone-v2" [ref=e1147]
+          - img "apple-pay-dualtone-v2" [ref=e1149]
+          - img "samsung-pay-dualtone-v2" [ref=e1151]
+    - generic [ref=e1154]:
+      - generic [ref=e1155]:
+        - list [ref=e1158]:
+          - listitem [ref=e1159]:
+            - link "About Us" [ref=e1160] [cursor=pointer]:
+              - /url: /en/footer/about-us.html
+          - listitem [ref=e1161]:
+            - link "Code of Conduct" [ref=e1162] [cursor=pointer]:
+              - /url: /content/dam/etisalat/consumer/docs/general/eand-codeofconduct-en.pdf
+          - listitem [ref=e1163]:
+            - link "Privacy Policy" [ref=e1164] [cursor=pointer]:
+              - /url: /en/footer/privacy-policy.html
+          - listitem [ref=e1165]:
+            - link "Terms & Conditions" [ref=e1166] [cursor=pointer]:
+              - /url: /en/footer/terms-and-conditions.html
+          - listitem [ref=e1167]:
+            - link "e& Tenders" [ref=e1168] [cursor=pointer]:
+              - /url: /en/footer/doing-business-with-us.html
+          - listitem [ref=e1169]:
+            - link "Careers" [ref=e1170] [cursor=pointer]:
+              - /url: https://careers.etisalat.ae/en/index.jsp
+        - paragraph [ref=e1173]:
+          - text: ©
+          - generic [ref=e1174]: "2026"
+          - text: e&. All Rights Reserved.
+      - generic:
+        - link "etisalat_eand_English_Primary_logo_RGB_Black":
+          - /url: /en/index.html
+          - img "etisalat_eand_English_Primary_logo_RGB_Black"
+```
