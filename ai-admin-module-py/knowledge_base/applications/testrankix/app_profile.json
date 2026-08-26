@@ -1,0 +1,182 @@
+{
+  "app_id": "testrankix",
+  "app_name": "Rankix",
+  "base_url": "https://rankix.ai/",
+  "domain": "rankix.ai",
+  "framework": "Web Application",
+  "default_viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "url_templates": {
+    "base_route": "/",
+    "candidate_signup_route": "/sign-up?role=candidate",
+    "employer_signup_route": "/sign-up?role=employer",
+    "sign_in_route": "/sign-in",
+    "terms_route": "/terms",
+    "dashboard_route": "/dashboard"
+  },
+  "step_grounding_rules": [
+    {
+      "target": "{base_route}",
+      "keywords": [
+        "open the home page"
+      ],
+      "id": "open_the_home_page"
+    },
+    {
+      "target": "page.getByRole('link', { name: 'I\\'m looking for opportunities Build an evidence-backed profile, raise your Rankix Score, get discovered by serious employers in UAE, India, and globally. Continue as candidate' })",
+      "keywords": [
+        "sign up as candidate"
+      ],
+      "id": "sign_up_as_candidate"
+    },
+    {
+      "target": "page.getByRole('link', { name: 'I\\'m hiring talent Verified candidates with explainable Rankix Match scores for your open roles. Shortlists in 72 hours, not 12 weeks. Continue as employer' })",
+      "keywords": [
+        "sign up as employer"
+      ],
+      "id": "sign_up_as_employer"
+    },
+    {
+      "target": "page.getByRole('link', { name: 'Sign in' })",
+      "keywords": [
+        "sign in"
+      ],
+      "id": "sign_in"
+    },
+    {
+      "target": "page.getByRole('link', { name: 'View dashboard demo →' })",
+      "keywords": [
+        "view dashboard demo"
+      ],
+      "id": "view_dashboard_demo"
+    },
+    {
+      "target": "page.getByLabel('Email')",
+      "keywords": [
+        "enter email"
+      ],
+      "id": "enter_email"
+    },
+    {
+      "target": "page.getByLabel('Password')",
+      "keywords": [
+        "enter password"
+      ],
+      "id": "enter_password"
+    },
+    {
+      "target": "page.getByLabel('Confirm password')",
+      "keywords": [
+        "confirm password"
+      ],
+      "id": "confirm_password"
+    },
+    {
+      "target": "page.getByLabel('I agree to Rankix\\'s Terms of Service and Privacy Policy.')",
+      "keywords": [
+        "agree to terms"
+      ],
+      "id": "agree_to_terms"
+    },
+    {
+      "target": "page.getByRole('button', { name: 'Create account' })",
+      "keywords": [
+        "create account"
+      ],
+      "id": "create_account"
+    },
+    {
+      "target": "page.getByRole('button', { name: 'Continue with Google' })",
+      "keywords": [
+        "continue with google"
+      ],
+      "id": "continue_with_google"
+    },
+    {
+      "target": "page.getByRole('button', { name: 'Continue with GitHub' })",
+      "keywords": [
+        "continue with github"
+      ],
+      "id": "continue_with_github"
+    },
+    {
+      "target": "page.getByRole('button', { name: 'Continue with LinkedIn' })",
+      "keywords": [
+        "continue with linkedin"
+      ],
+      "id": "continue_with_linkedin"
+    },
+    {
+      "target": "page.getByRole('button', { name: 'Show password' })",
+      "keywords": [
+        "show password"
+      ],
+      "id": "show_password"
+    },
+    {
+      "target": "page.getByRole('link', { name: 'Switch role' })",
+      "keywords": [
+        "switch role"
+      ],
+      "id": "switch_role"
+    },
+    {
+      "target": "page.getByRole('link', { name: 'Already have an account? Sign in' })",
+      "keywords": [
+        "already have an account"
+      ],
+      "id": "already_have_an_account"
+    }
+  ],
+  "discovered_selectors": {
+    "https://rankix.ai/": {
+      "link_already_have_an_account_sign_in": "page.getByRole('link', { name: 'Already have an account? Sign in' })",
+      "link_i_m_hiring_talent_verified_candidates_with_explainable_rankix_match_scores_for_your_open_roles_shortlists_in_72_hours_not_12_weeks_continue_as_employer": "page.getByRole('link', { name: 'I\\'m hiring talent Verified candidates with explainable Rankix Match scores for your open roles. Shortlists in 72 hours, not 12 weeks. Continue as employer' })",
+      "link_i_m_looking_for_opportunities_build_an_evidence_backed_profile_raise_your_rankix_score_get_discovered_by_serious_employers_in_uae_india_and_globally_continue_as_candidate": "page.getByRole('link', { name: 'I\\'m looking for opportunities Build an evidence-backed profile, raise your Rankix Score, get discovered by serious employers in UAE, India, and globally. Continue as candidate' })",
+      "link_view_dashboard_demo": "page.getByRole('link', { name: 'View dashboard demo →' })"
+    },
+    "https://rankix.ai/sign-up?role=candidate": {
+      "checkbox_i_agree_to_rankix_s_terms_of_service_and_privacy_policy": "page.getByLabel('I agree to Rankix\\'s Terms of Service and Privacy Policy.')",
+      "link_i_agree_to_rankix_s_terms_of_service_and_privacy_policy": "page.getByLabel('I agree to Rankix\\'s Terms of Service and Privacy Policy.')",
+      "textbox_confirm_password": "page.getByLabel('Confirm password')",
+      "textbox_email": "page.getByLabel('Email')",
+      "button_continue_with_github": "page.getByRole('button', { name: 'Continue with GitHub' })",
+      "button_continue_with_google": "page.getByRole('button', { name: 'Continue with Google' })",
+      "button_continue_with_linkedin": "page.getByRole('button', { name: 'Continue with LinkedIn' })",
+      "button_create_account": "page.getByRole('button', { name: 'Create account' })",
+      "link_sign_in": "page.getByRole('link', { name: 'Sign in' })",
+      "link_switch_role": "page.getByRole('link', { name: 'Switch role' })",
+      "textbox_password": "page.getByLabel('Password')",
+      "button_show_password": "page.getByRole('button', { name: 'Show password' })"
+    }
+  },
+  "_draft": {
+    "generated_by": "Application Discovery crawl v1",
+    "generated_at": "2026-08-26T07:51:07.836375Z",
+    "pages_crawled": 2,
+    "elements_catalogued": 16,
+    "pages_blocked": 0,
+    "status": "DRAFT -- review before relying on it for grounding.",
+    "still_needed": [
+      "url_templates.product_configuration: the PDP/detail URL shape, with {product_id} / {sku_id} / {category} placeholders.",
+      "endpoints.cart: the cart or review URL, if this application has one.",
+      "selectors.catalog / selectors.product_configuration / selectors.cart: promote the useful entries out of discovered_selectors below. That block is raw material -- nothing compiles from it until you move entries into a named selectors group.",
+      "flows/*.json known_products: real product identifiers; a crawl cannot infer them."
+    ],
+    "synthesis": {
+      "pages_considered": 2,
+      "locators_considered": 16,
+      "notes": [
+        "The crawl only visited the landing page and the candidate sign-up page; employer sign-up, sign-in, terms, and dashboard routes were not crawled, so no locators are available for those pages.",
+        "No product, catalog, cart, or product-configuration flows exist in this crawl; url_templates contains no placeholders.",
+        "The 'I agree to Rankix's Terms of Service and Privacy Policy' control was catalogued both as a checkbox and as a link to /terms; both share the same verified locator."
+      ],
+      "rejected": []
+    },
+    "repairs": [
+      "step_grounding_rules were written with a 'wording' key, which ground_case_structured_steps does not read; renamed to 'keywords' and given ids."
+    ]
+  }
+}

@@ -1,0 +1,2036 @@
+{
+  "model_version": "3.0.0",
+  "generated_at": "2026-08-26T07:53:37.470134Z",
+  "applications": [
+    {
+      "model_version": "3.0.0",
+      "generated_at": "2026-08-26T07:53:37.426777Z",
+      "application_info": {
+        "app_id": "e_uae_smbapp",
+        "app_name": "e& UAE SMBApp",
+        "base_url": "https://www.eand.ae/en/smb/index.html",
+        "domain": "eand.ae",
+        "framework": "Angular SPA",
+        "default_viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "security_profile": {},
+        "search_mechanism": {
+          "input_selector": "page.getByPlaceholder('Search?')",
+          "_derived_from": "Application Discovery crawl"
+        }
+      },
+      "summary": {
+        "total_flows": 3,
+        "total_categories": 2,
+        "total_known_products": 6,
+        "total_registered_urls": 10,
+        "total_canonical_steps": 22
+      },
+      "url_registry": [
+        {
+          "url": "https://www.eand.ae/en/smb/index.html",
+          "route": "/en/smb/index.html",
+          "url_type": "Homepage",
+          "category": "General",
+          "name": "Portal Homepage",
+          "description": "Main landing page for e& UAE SMBApp.",
+          "query_parameters": {},
+          "associated_selectors": []
+        },
+        {
+          "url": "https://www.eand.ae/en/smb/index.html",
+          "route": "/en/smb/index.html",
+          "url_type": "Catalog_Listing",
+          "category": "Discovered",
+          "name": "Discovered Catalog Listing",
+          "description": "Product listing page for the Discovered category.",
+          "query_parameters": {},
+          "associated_selectors": []
+        },
+        {
+          "url": "https://www.eand.ae/en/smb/products/mobile/mobile-plans/business-first-plus.html",
+          "route": "/en/smb/products/mobile/mobile-plans/business-first-plus.html",
+          "url_type": "Catalog_Listing",
+          "category": "Mobile Plans",
+          "name": "Mobile Plans Catalog Listing",
+          "description": "Product listing page for the Mobile Plans category.",
+          "query_parameters": {},
+          "associated_selectors": []
+        },
+        {
+          "url": "https://www.eand.ae/b2bportal/ordering-email-verification.html",
+          "route": "/b2bportal/ordering-email-verification.html",
+          "url_type": "Cart_Checkout",
+          "category": "Checkout",
+          "name": "Shopping Cart & Checkout Review",
+          "description": "Cart review screen showing the selected items and the checkout CTA.",
+          "query_parameters": {},
+          "associated_selectors": []
+        },
+        {
+          "url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000379&contractPeriod=12%20Months%20Contract&locale=en",
+          "route": "/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000379&contractPeriod=12%20Months%20Contract&locale=en",
+          "url_type": "Product_Configuration",
+          "category": "Mobile Plans",
+          "name": "Business First Plus Local 110 Configuration Page",
+          "description": "Product detail and configuration page for Business First Plus Local 110.",
+          "query_parameters": {
+            "b2bFlow": "ONLINE_ORDERING",
+            "next": "mobile-plans-discovery",
+            "selectedFlow": "Mobile%20Plans",
+            "productId": "prod_PKBLATLBP000000379",
+            "contractPeriod": "12%20Months%20Contract",
+            "locale": "en"
+          },
+          "associated_selectors": []
+        },
+        {
+          "url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000377&contractPeriod=12%20Months%20Contract&locale=en",
+          "route": "/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000377&contractPeriod=12%20Months%20Contract&locale=en",
+          "url_type": "Product_Configuration",
+          "category": "Mobile Plans",
+          "name": "Business First Plus Local 150 Configuration Page",
+          "description": "Product detail and configuration page for Business First Plus Local 150.",
+          "query_parameters": {
+            "b2bFlow": "ONLINE_ORDERING",
+            "next": "mobile-plans-discovery",
+            "selectedFlow": "Mobile%20Plans",
+            "productId": "prod_PKBLATLBP000000377",
+            "contractPeriod": "12%20Months%20Contract",
+            "locale": "en"
+          },
+          "associated_selectors": []
+        },
+        {
+          "url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLBFPBP0000003J8&contractPeriod=12%20Months%20Contract&locale=en",
+          "route": "/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLBFPBP0000003J8&contractPeriod=12%20Months%20Contract&locale=en",
+          "url_type": "Product_Configuration",
+          "category": "Mobile Plans",
+          "name": "Business First Plus Local 200 Configuration Page",
+          "description": "Product detail and configuration page for Business First Plus Local 200.",
+          "query_parameters": {
+            "b2bFlow": "ONLINE_ORDERING",
+            "next": "mobile-plans-discovery",
+            "selectedFlow": "Mobile%20Plans",
+            "productId": "prod_PKBLBFPBP0000003J8",
+            "contractPeriod": "12%20Months%20Contract",
+            "locale": "en"
+          },
+          "associated_selectors": []
+        },
+        {
+          "url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000375&contractPeriod=12%20Months%20Contract&locale=en",
+          "route": "/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000375&contractPeriod=12%20Months%20Contract&locale=en",
+          "url_type": "Product_Configuration",
+          "category": "Mobile Plans",
+          "name": "Business First Plus Standard 110 Configuration Page",
+          "description": "Product detail and configuration page for Business First Plus Standard 110.",
+          "query_parameters": {
+            "b2bFlow": "ONLINE_ORDERING",
+            "next": "mobile-plans-discovery",
+            "selectedFlow": "Mobile%20Plans",
+            "productId": "prod_PKBLATLBP000000375",
+            "contractPeriod": "12%20Months%20Contract",
+            "locale": "en"
+          },
+          "associated_selectors": []
+        },
+        {
+          "url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000378&contractPeriod=12%20Months%20Contract&locale=en",
+          "route": "/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000378&contractPeriod=12%20Months%20Contract&locale=en",
+          "url_type": "Product_Configuration",
+          "category": "Mobile Plans",
+          "name": "Business First Plus Standard 150 Configuration Page",
+          "description": "Product detail and configuration page for Business First Plus Standard 150.",
+          "query_parameters": {
+            "b2bFlow": "ONLINE_ORDERING",
+            "next": "mobile-plans-discovery",
+            "selectedFlow": "Mobile%20Plans",
+            "productId": "prod_PKBLATLBP000000378",
+            "contractPeriod": "12%20Months%20Contract",
+            "locale": "en"
+          },
+          "associated_selectors": []
+        },
+        {
+          "url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLBFPBP0000003J9&contractPeriod=12%20Months%20Contract&locale=en",
+          "route": "/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLBFPBP0000003J9&contractPeriod=12%20Months%20Contract&locale=en",
+          "url_type": "Product_Configuration",
+          "category": "Mobile Plans",
+          "name": "Business First Plus Standard 200 Configuration Page",
+          "description": "Product detail and configuration page for Business First Plus Standard 200.",
+          "query_parameters": {
+            "b2bFlow": "ONLINE_ORDERING",
+            "next": "mobile-plans-discovery",
+            "selectedFlow": "Mobile%20Plans",
+            "productId": "prod_PKBLBFPBP0000003J9",
+            "contractPeriod": "12%20Months%20Contract",
+            "locale": "en"
+          },
+          "associated_selectors": []
+        }
+      ],
+      "page_models": {
+        "homepage": {
+          "page_name": "Portal Homepage",
+          "url": "https://www.eand.ae/en/smb/index.html",
+          "components": {
+            "cookie_overlay": {},
+            "search_bar": {
+              "input_selector": "page.getByPlaceholder('Search?')",
+              "_derived_from": "Application Discovery crawl"
+            },
+            "navigation_header": {
+              "selector": "header, nav.main-nav, .header-container",
+              "categories": [
+                "Discovered",
+                "Mobile Plans"
+              ]
+            }
+          }
+        },
+        "catalogs": {
+          "Discovered": {
+            "category": "Discovered",
+            "catalog_url": "/en/smb/index.html",
+            "components": {}
+          },
+          "Mobile Plans": {
+            "category": "Mobile Plans",
+            "catalog_url": "/en/smb/products/mobile/mobile-plans/business-first-plus.html",
+            "components": {}
+          }
+        },
+        "product_configuration": {
+          "url_template": "/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&ratePlanId={rate_plan_id}&productId={product_id}&displayName={plan_name}&p={price}&contractPeriod=12%20Months%20Contract&locale=en",
+          "components": {}
+        },
+        "shopping_cart": {
+          "url": "",
+          "components": {}
+        }
+      },
+      "flows": [
+        {
+          "flow_id": "flow_discovered_v1",
+          "flow_name": "Discovered walkthrough (draft, crawl v1)",
+          "category": "Discovered",
+          "target_match_keywords": [],
+          "catalog_entrypoint_url": "https://www.eand.ae/en/smb/index.html",
+          "catalog_entrypoint_route": "/en/smb/index.html",
+          "cart_endpoint_url": "",
+          "cart_endpoint_route": "",
+          "automation_boundary": {},
+          "canonical_steps": [
+            {
+              "step_number": 1,
+              "action": "Navigate to e& UAE | The Best Business Solutions for Small and Medium Businesses",
+              "target": "/en/smb/index.html",
+              "expected_result": "e& UAE | The Best Business Solutions for Small and Medium Businesses loads (HTTP 200 when crawled)."
+            },
+            {
+              "step_number": 2,
+              "action": "Navigate to e& (etisalat and ) UAE | Mobile plans, TV & Internet plans, WiFi & Smartphones",
+              "target": "/en/c/index.html",
+              "expected_result": "e& (etisalat and ) UAE | Mobile plans, TV & Internet plans, WiFi & Smartphones loads (HTTP 200 when crawled)."
+            },
+            {
+              "step_number": 3,
+              "action": "Navigate to e& UAE | Enterprise and Government",
+              "target": "/en/enterprise-and-government/index.html",
+              "expected_result": "e& UAE | Enterprise and Government loads (HTTP 200 when crawled)."
+            },
+            {
+              "step_number": 4,
+              "action": "Navigate to e& (etisalat and ) | Global technology group | index",
+              "target": "/en/carrier-and-wholesale/index.html",
+              "expected_result": "e& (etisalat and ) | Global technology group | index loads (HTTP 200 when crawled)."
+            },
+            {
+              "step_number": 5,
+              "action": "Navigate to Etisalat UAE | Etisalat Business",
+              "target": "/b2bportal/quick-payment.html?locale=en",
+              "expected_result": "Etisalat UAE | Etisalat Business loads (HTTP 200 when crawled)."
+            },
+            {
+              "step_number": 6,
+              "action": "Navigate to e& UAE | e& UAE | Business First Plus| Value Mobile Plans for UAE",
+              "target": "/en/smb/products/mobile/mobile-plans/business-first-plus.html",
+              "expected_result": "e& UAE | e& UAE | Business First Plus| Value Mobile Plans for UAE loads (HTTP 200 when crawled)."
+            },
+            {
+              "step_number": 7,
+              "action": "Navigate to e& UAE | e& UAE | Business Xtreme | Premium Plans",
+              "target": "/en/smb/products/mobile/mobile-plans/business-xtreme.html",
+              "expected_result": "e& UAE | e& UAE | Business Xtreme | Premium Plans loads (HTTP 200 when crawled)."
+            },
+            {
+              "step_number": 8,
+              "action": "Navigate to e& UAE | e& UAE | UAE-KSA Business Mobile Plans | Connect Without BordersUnlimited Mobile Plans UAE KSA",
+              "target": "/en/smb/products/mobile/uae-ksa-plans.html",
+              "expected_result": "e& UAE | e& UAE | UAE-KSA Business Mobile Plans | Connect Without BordersUnlimited Mobile Plans UAE KSA loads (HTTP 200 when crawled)."
+            }
+          ],
+          "graph_edges": [],
+          "registered_products": []
+        },
+        {
+          "flow_id": "flow_smb_business_first_plus_local",
+          "flow_name": "Business First Plus - Local Mobile Plans",
+          "category": "Mobile Plans",
+          "target_match_keywords": [
+            "business first plus",
+            "business first plus local",
+            "local plans",
+            "local 110",
+            "local 150",
+            "local 200",
+            "smb mobile plans",
+            "value plans",
+            "local minutes",
+            "careem plus",
+            "cug minutes",
+            "non-stop daily data",
+            "smb mobile",
+            "e& business first"
+          ],
+          "catalog_entrypoint_url": "https://www.eand.ae/en/smb/products/mobile/mobile-plans/business-first-plus.html",
+          "catalog_entrypoint_route": "/en/smb/products/mobile/mobile-plans/business-first-plus.html",
+          "cart_endpoint_url": "https://www.eand.ae/b2bportal/ordering-email-verification.html",
+          "cart_endpoint_route": "/b2bportal/ordering-email-verification.html",
+          "automation_boundary": {
+            "automated_scope": "SMB Portal Homepage -> Products Menu -> Mobile -> Value Plans (Business First Plus) -> Select Local Tab -> Choose Local Plan (110 / 150 / 200) -> Click 'Buy Now' -> Verify B2B Ordering Email Verification Page",
+            "external_boundary": "Corporate Trade License verification and Live SMS/Email OTP authentication are external boundaries."
+          },
+          "canonical_steps": [
+            {
+              "step_number": 1,
+              "action": "Navigate to e& UAE SMB Portal Homepage",
+              "target": "/en/smb/index.html",
+              "expected_result": "SMB portal loads successfully with active business navigation header"
+            },
+            {
+              "step_number": 2,
+              "action": "Dismiss cookie banner if present",
+              "target": "#usercentrics-root",
+              "expected_result": "Cookie overlay is dismissed cleanly"
+            },
+            {
+              "step_number": 3,
+              "action": "Navigate to Products -> Mobile -> Business First Plus Plans",
+              "target": "/en/smb/products/mobile/mobile-plans/business-first-plus.html",
+              "expected_result": "Business First Plus plans page loads displaying plan cards and tabs"
+            },
+            {
+              "step_number": 4,
+              "action": "Switch to 'Local' plans tab",
+              "target": "button:has-text('Local'), .tab-item:has-text('Local'), a:has-text('Local')",
+              "expected_result": "Local tab is activated displaying Local 110, Local 150, and Local 200 plans"
+            },
+            {
+              "step_number": 5,
+              "action": "Select {{plan_name}} and review plan allowances & promo pricing",
+              "target": ".plan-card:has-text('{{plan_name}}'), div:has-text('{{plan_name}}')",
+              "expected_result": "Plan details show discounted rate, local data, local minutes, CUG minutes, and flexi SMS"
+            },
+            {
+              "step_number": 6,
+              "action": "Click 'Buy Now' on {{plan_name}}",
+              "target": "a[href*='ratePlanId={{rate_plan_id}}'], a:has-text('Buy Now')",
+              "expected_result": "User is redirected to B2B Ordering verification page"
+            },
+            {
+              "step_number": 7,
+              "action": "Verify B2B Ordering Email Verification Page",
+              "target": "/b2bportal/ordering-email-verification.html",
+              "expected_result": "Online ordering email verification screen is displayed with matching plan parameters"
+            }
+          ],
+          "graph_edges": [
+            {
+              "from": "smb_homepage",
+              "to": "business_first_plus_catalog",
+              "action": "navigate_mobile_value_plans"
+            },
+            {
+              "from": "business_first_plus_catalog",
+              "to": "local_plans_tab",
+              "action": "click_local_tab"
+            },
+            {
+              "from": "local_plans_tab",
+              "to": "plan_card_selected",
+              "action": "select_plan_card"
+            },
+            {
+              "from": "plan_card_selected",
+              "to": "b2b_ordering_verification",
+              "action": "click_buy_now"
+            }
+          ],
+          "registered_products": [
+            {
+              "product_name": "Business First Plus Local 110",
+              "product_id": "prod_PKBLATLBP000000379",
+              "sku_id": "PKBLATLBP000000379",
+              "category": "Mobile Plans",
+              "default_price": "AED 77 / month",
+              "direct_configuration_url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000379&contractPeriod=12%20Months%20Contract&locale=en",
+              "direct_configuration_route": "/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000379&contractPeriod=12%20Months%20Contract&locale=en",
+              "available_storage": [],
+              "available_colors": [],
+              "payment_plans": [],
+              "optional_addons": [],
+              "sample_test_data_string": "Product: Business First Plus Local 110, ProductId: prod_PKBLATLBP000000379, SkuId: PKBLATLBP000000379"
+            },
+            {
+              "product_name": "Business First Plus Local 150",
+              "product_id": "prod_PKBLATLBP000000377",
+              "sku_id": "PKBLATLBP000000377",
+              "category": "Mobile Plans",
+              "default_price": "AED 105 / month",
+              "direct_configuration_url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000377&contractPeriod=12%20Months%20Contract&locale=en",
+              "direct_configuration_route": "/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000377&contractPeriod=12%20Months%20Contract&locale=en",
+              "available_storage": [],
+              "available_colors": [],
+              "payment_plans": [],
+              "optional_addons": [],
+              "sample_test_data_string": "Product: Business First Plus Local 150, ProductId: prod_PKBLATLBP000000377, SkuId: PKBLATLBP000000377"
+            },
+            {
+              "product_name": "Business First Plus Local 200",
+              "product_id": "prod_PKBLBFPBP0000003J8",
+              "sku_id": "PKBLBFPBP0000003J8",
+              "category": "Mobile Plans",
+              "default_price": "AED 140 / month",
+              "direct_configuration_url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLBFPBP0000003J8&contractPeriod=12%20Months%20Contract&locale=en",
+              "direct_configuration_route": "/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLBFPBP0000003J8&contractPeriod=12%20Months%20Contract&locale=en",
+              "available_storage": [],
+              "available_colors": [],
+              "payment_plans": [],
+              "optional_addons": [],
+              "sample_test_data_string": "Product: Business First Plus Local 200, ProductId: prod_PKBLBFPBP0000003J8, SkuId: PKBLBFPBP0000003J8"
+            }
+          ]
+        },
+        {
+          "flow_id": "flow_smb_business_first_plus_local_international",
+          "flow_name": "Business First Plus - Local & International Mobile Plans",
+          "category": "Mobile Plans",
+          "target_match_keywords": [
+            "business first plus standard",
+            "local and international",
+            "local & international",
+            "standard 110",
+            "standard 150",
+            "standard 200",
+            "international minutes",
+            "smb roaming",
+            "careem plus",
+            "cug minutes",
+            "non-stop daily data",
+            "smb international",
+            "business first plus intl"
+          ],
+          "catalog_entrypoint_url": "https://www.eand.ae/en/smb/products/mobile/mobile-plans/business-first-plus.html",
+          "catalog_entrypoint_route": "/en/smb/products/mobile/mobile-plans/business-first-plus.html",
+          "cart_endpoint_url": "https://www.eand.ae/b2bportal/ordering-email-verification.html",
+          "cart_endpoint_route": "/b2bportal/ordering-email-verification.html",
+          "automation_boundary": {
+            "automated_scope": "SMB Portal Homepage -> Products Menu -> Mobile -> Value Plans (Business First Plus) -> Select Local & International Tab -> Choose Standard Plan (110 / 150 / 200) -> Click 'Buy Now' -> Verify B2B Ordering Email Verification Page",
+            "external_boundary": "Corporate Trade License verification and Live SMS/Email OTP authentication are external boundaries."
+          },
+          "canonical_steps": [
+            {
+              "step_number": 1,
+              "action": "Navigate to e& UAE SMB Portal Homepage",
+              "target": "/en/smb/index.html",
+              "expected_result": "SMB portal loads successfully with active business navigation header"
+            },
+            {
+              "step_number": 2,
+              "action": "Dismiss cookie banner if present",
+              "target": "#usercentrics-root",
+              "expected_result": "Cookie overlay is dismissed cleanly"
+            },
+            {
+              "step_number": 3,
+              "action": "Navigate to Products -> Mobile -> Business First Plus Plans",
+              "target": "/en/smb/products/mobile/mobile-plans/business-first-plus.html",
+              "expected_result": "Business First Plus plans page loads displaying plan cards and tabs"
+            },
+            {
+              "step_number": 4,
+              "action": "Switch to 'Local & International' plans tab",
+              "target": "button:has-text('Local & International'), .tab-item:has-text('Local & International'), a:has-text('Local & International')",
+              "expected_result": "Local & International tab is activated displaying Standard 110, Standard 150, and Standard 200 plans"
+            },
+            {
+              "step_number": 5,
+              "action": "Select {{plan_name}} and review plan allowances & promo pricing",
+              "target": ".plan-card:has-text('{{plan_name}}'), div:has-text('{{plan_name}}')",
+              "expected_result": "Plan details show discounted rate, local data, local minutes, international minutes, CUG minutes, and flexi SMS"
+            },
+            {
+              "step_number": 6,
+              "action": "Click 'Buy Now' on {{plan_name}}",
+              "target": "a[href*='ratePlanId={{rate_plan_id}}'], a:has-text('Buy Now')",
+              "expected_result": "User is redirected to B2B Ordering verification page"
+            },
+            {
+              "step_number": 7,
+              "action": "Verify B2B Ordering Email Verification Page",
+              "target": "/b2bportal/ordering-email-verification.html",
+              "expected_result": "Online ordering email verification screen is displayed with matching plan parameters"
+            }
+          ],
+          "graph_edges": [
+            {
+              "from": "smb_homepage",
+              "to": "business_first_plus_catalog",
+              "action": "navigate_mobile_value_plans"
+            },
+            {
+              "from": "business_first_plus_catalog",
+              "to": "local_intl_plans_tab",
+              "action": "click_local_intl_tab"
+            },
+            {
+              "from": "local_intl_plans_tab",
+              "to": "plan_card_selected",
+              "action": "select_plan_card"
+            },
+            {
+              "from": "plan_card_selected",
+              "to": "b2b_ordering_verification",
+              "action": "click_buy_now"
+            }
+          ],
+          "registered_products": [
+            {
+              "product_name": "Business First Plus Standard 110",
+              "product_id": "prod_PKBLATLBP000000375",
+              "sku_id": "PKBLATLBP000000375",
+              "category": "Mobile Plans",
+              "default_price": "AED 77 / month",
+              "direct_configuration_url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000375&contractPeriod=12%20Months%20Contract&locale=en",
+              "direct_configuration_route": "/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000375&contractPeriod=12%20Months%20Contract&locale=en",
+              "available_storage": [],
+              "available_colors": [],
+              "payment_plans": [],
+              "optional_addons": [],
+              "sample_test_data_string": "Product: Business First Plus Standard 110, ProductId: prod_PKBLATLBP000000375, SkuId: PKBLATLBP000000375"
+            },
+            {
+              "product_name": "Business First Plus Standard 150",
+              "product_id": "prod_PKBLATLBP000000378",
+              "sku_id": "PKBLATLBP000000378",
+              "category": "Mobile Plans",
+              "default_price": "AED 105 / month",
+              "direct_configuration_url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000378&contractPeriod=12%20Months%20Contract&locale=en",
+              "direct_configuration_route": "/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000378&contractPeriod=12%20Months%20Contract&locale=en",
+              "available_storage": [],
+              "available_colors": [],
+              "payment_plans": [],
+              "optional_addons": [],
+              "sample_test_data_string": "Product: Business First Plus Standard 150, ProductId: prod_PKBLATLBP000000378, SkuId: PKBLATLBP000000378"
+            },
+            {
+              "product_name": "Business First Plus Standard 200",
+              "product_id": "prod_PKBLBFPBP0000003J9",
+              "sku_id": "PKBLBFPBP0000003J9",
+              "category": "Mobile Plans",
+              "default_price": "AED 140 / month",
+              "direct_configuration_url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLBFPBP0000003J9&contractPeriod=12%20Months%20Contract&locale=en",
+              "direct_configuration_route": "/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLBFPBP0000003J9&contractPeriod=12%20Months%20Contract&locale=en",
+              "available_storage": [],
+              "available_colors": [],
+              "payment_plans": [],
+              "optional_addons": [],
+              "sample_test_data_string": "Product: Business First Plus Standard 200, ProductId: prod_PKBLBFPBP0000003J9, SkuId: PKBLBFPBP0000003J9"
+            }
+          ]
+        }
+      ],
+      "products_catalog": {
+        "Discovered": [],
+        "Mobile Plans": [
+          {
+            "product_name": "Business First Plus Local 110",
+            "product_id": "prod_PKBLATLBP000000379",
+            "sku_id": "PKBLATLBP000000379",
+            "category": "Mobile Plans",
+            "default_price": "AED 77 / month",
+            "direct_configuration_url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000379&contractPeriod=12%20Months%20Contract&locale=en",
+            "direct_configuration_route": "/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000379&contractPeriod=12%20Months%20Contract&locale=en",
+            "available_storage": [],
+            "available_colors": [],
+            "payment_plans": [],
+            "optional_addons": [],
+            "sample_test_data_string": "Product: Business First Plus Local 110, ProductId: prod_PKBLATLBP000000379, SkuId: PKBLATLBP000000379"
+          },
+          {
+            "product_name": "Business First Plus Local 150",
+            "product_id": "prod_PKBLATLBP000000377",
+            "sku_id": "PKBLATLBP000000377",
+            "category": "Mobile Plans",
+            "default_price": "AED 105 / month",
+            "direct_configuration_url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000377&contractPeriod=12%20Months%20Contract&locale=en",
+            "direct_configuration_route": "/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000377&contractPeriod=12%20Months%20Contract&locale=en",
+            "available_storage": [],
+            "available_colors": [],
+            "payment_plans": [],
+            "optional_addons": [],
+            "sample_test_data_string": "Product: Business First Plus Local 150, ProductId: prod_PKBLATLBP000000377, SkuId: PKBLATLBP000000377"
+          },
+          {
+            "product_name": "Business First Plus Local 200",
+            "product_id": "prod_PKBLBFPBP0000003J8",
+            "sku_id": "PKBLBFPBP0000003J8",
+            "category": "Mobile Plans",
+            "default_price": "AED 140 / month",
+            "direct_configuration_url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLBFPBP0000003J8&contractPeriod=12%20Months%20Contract&locale=en",
+            "direct_configuration_route": "/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLBFPBP0000003J8&contractPeriod=12%20Months%20Contract&locale=en",
+            "available_storage": [],
+            "available_colors": [],
+            "payment_plans": [],
+            "optional_addons": [],
+            "sample_test_data_string": "Product: Business First Plus Local 200, ProductId: prod_PKBLBFPBP0000003J8, SkuId: PKBLBFPBP0000003J8"
+          },
+          {
+            "product_name": "Business First Plus Standard 110",
+            "product_id": "prod_PKBLATLBP000000375",
+            "sku_id": "PKBLATLBP000000375",
+            "category": "Mobile Plans",
+            "default_price": "AED 77 / month",
+            "direct_configuration_url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000375&contractPeriod=12%20Months%20Contract&locale=en",
+            "direct_configuration_route": "/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000375&contractPeriod=12%20Months%20Contract&locale=en",
+            "available_storage": [],
+            "available_colors": [],
+            "payment_plans": [],
+            "optional_addons": [],
+            "sample_test_data_string": "Product: Business First Plus Standard 110, ProductId: prod_PKBLATLBP000000375, SkuId: PKBLATLBP000000375"
+          },
+          {
+            "product_name": "Business First Plus Standard 150",
+            "product_id": "prod_PKBLATLBP000000378",
+            "sku_id": "PKBLATLBP000000378",
+            "category": "Mobile Plans",
+            "default_price": "AED 105 / month",
+            "direct_configuration_url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000378&contractPeriod=12%20Months%20Contract&locale=en",
+            "direct_configuration_route": "/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLATLBP000000378&contractPeriod=12%20Months%20Contract&locale=en",
+            "available_storage": [],
+            "available_colors": [],
+            "payment_plans": [],
+            "optional_addons": [],
+            "sample_test_data_string": "Product: Business First Plus Standard 150, ProductId: prod_PKBLATLBP000000378, SkuId: PKBLATLBP000000378"
+          },
+          {
+            "product_name": "Business First Plus Standard 200",
+            "product_id": "prod_PKBLBFPBP0000003J9",
+            "sku_id": "PKBLBFPBP0000003J9",
+            "category": "Mobile Plans",
+            "default_price": "AED 140 / month",
+            "direct_configuration_url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLBFPBP0000003J9&contractPeriod=12%20Months%20Contract&locale=en",
+            "direct_configuration_route": "/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&productId=prod_PKBLBFPBP0000003J9&contractPeriod=12%20Months%20Contract&locale=en",
+            "available_storage": [],
+            "available_colors": [],
+            "payment_plans": [],
+            "optional_addons": [],
+            "sample_test_data_string": "Product: Business First Plus Standard 200, ProductId: prod_PKBLBFPBP0000003J9, SkuId: PKBLBFPBP0000003J9"
+          }
+        ]
+      },
+      "navigation_graph": {
+        "nodes": [
+          {
+            "id": "homepage",
+            "label": "Portal Homepage",
+            "url": "https://www.eand.ae/en/smb/index.html",
+            "type": "entrypoint"
+          },
+          {
+            "id": "catalog_discovered",
+            "label": "Discovered Catalog",
+            "url": "/en/smb/index.html",
+            "type": "catalog"
+          },
+          {
+            "id": "catalog_mobile plans",
+            "label": "Mobile Plans Catalog",
+            "url": "/en/smb/products/mobile/mobile-plans/business-first-plus.html",
+            "type": "catalog"
+          },
+          {
+            "id": "shopping_cart",
+            "label": "Shopping Cart",
+            "url": "/b2bportal/ordering-email-verification.html",
+            "type": "cart"
+          }
+        ],
+        "edges": [
+          {
+            "from": "homepage",
+            "to": "catalog_discovered",
+            "action": "navigate_discovered_catalog",
+            "trigger_locator": "a[href*='discovered']"
+          },
+          {
+            "from": "homepage",
+            "to": "catalog_mobile plans",
+            "action": "navigate_mobile plans_catalog",
+            "trigger_locator": "a[href*='mobile plans']"
+          },
+          {
+            "from": "smb_homepage",
+            "to": "business_first_plus_catalog",
+            "action": "navigate_mobile_value_plans"
+          },
+          {
+            "from": "business_first_plus_catalog",
+            "to": "local_plans_tab",
+            "action": "click_local_tab"
+          },
+          {
+            "from": "local_plans_tab",
+            "to": "plan_card_selected",
+            "action": "select_plan_card"
+          },
+          {
+            "from": "plan_card_selected",
+            "to": "b2b_ordering_verification",
+            "action": "click_buy_now"
+          },
+          {
+            "from": "smb_homepage",
+            "to": "business_first_plus_catalog",
+            "action": "navigate_mobile_value_plans"
+          },
+          {
+            "from": "business_first_plus_catalog",
+            "to": "local_intl_plans_tab",
+            "action": "click_local_intl_tab"
+          },
+          {
+            "from": "local_intl_plans_tab",
+            "to": "plan_card_selected",
+            "action": "select_plan_card"
+          },
+          {
+            "from": "plan_card_selected",
+            "to": "b2b_ordering_verification",
+            "action": "click_buy_now"
+          }
+        ]
+      }
+    },
+    {
+      "model_version": "3.0.0",
+      "generated_at": "2026-08-26T07:53:37.430236Z",
+      "application_info": {
+        "app_id": "eand_ae",
+        "app_name": "e& UAE Web Portal",
+        "base_url": "https://www.eand.ae/en/index.html",
+        "domain": "eand.ae",
+        "framework": "Angular SPA",
+        "default_viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "security_profile": {
+          "waf_provider": "Akamai",
+          "rate_limit_policy": {
+            "min_inter_step_delay_ms": 1500,
+            "navigation_timeout_ms": 45000
+          },
+          "cookie_overlay": {
+            "type": "shadow_dom",
+            "host_selector": "#usercentrics-root",
+            "dismissal_code": "document.querySelector('#usercentrics-root')?.remove(); document.body.style.overflow = 'auto';"
+          }
+        },
+        "search_mechanism": {
+          "trigger_selector": ".search-wrap-dekstop, button[aria-label*='search' i], .search-btn",
+          "popup_container": "#searchPopup",
+          "input_selector": "input[type='search'], input[placeholder*='Search' i], #search-input"
+        }
+      },
+      "summary": {
+        "total_flows": 3,
+        "total_categories": 3,
+        "total_known_products": 9,
+        "total_registered_urls": 14,
+        "total_canonical_steps": 22
+      },
+      "url_registry": [
+        {
+          "url": "https://www.eand.ae/en/index.html",
+          "route": "/en/index.html",
+          "url_type": "Homepage",
+          "category": "General",
+          "name": "Portal Homepage",
+          "description": "Main landing page for e& UAE Web Portal.",
+          "query_parameters": {},
+          "associated_selectors": [
+            "#usercentrics-root",
+            ".search-wrap-dekstop, button[aria-label*='search' i], .search-btn"
+          ]
+        },
+        {
+          "url": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
+          "route": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
+          "url_type": "Catalog_Listing",
+          "category": "Accessories",
+          "name": "Accessories Catalog Listing",
+          "description": "Product listing page for the Accessories category.",
+          "query_parameters": {
+            "category": "mobileDevices",
+            "subCategory": "cat1100067",
+            "catName": "Earbuds",
+            "listVal": "Smartphones",
+            "locale": "EN"
+          },
+          "associated_selectors": [
+            ".device-card, .product-tile, .eshop-product-card",
+            ".filter-container, .brand-filter, .category-filter",
+            "select[name='sort'], .sort-by"
+          ]
+        },
+        {
+          "url": "https://www.eand.ae/eshop/checkout/cart",
+          "route": "/eshop/checkout/cart",
+          "url_type": "Cart_Checkout",
+          "category": "Checkout",
+          "name": "Shopping Cart & Checkout Review",
+          "description": "Cart review screen showing the selected items and the checkout CTA.",
+          "query_parameters": {},
+          "associated_selectors": [
+            ".cart-summary, .order-review-container",
+            ".cart-item-title, .product-name",
+            ".cart-payment-type, .installment-term",
+            "button:has-text('Checkout Now'), button:has-text('Proceed to Checkout')"
+          ]
+        },
+        {
+          "url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1786686221657&skuId=bgskuTrans3999231220&catName=Accessories&listVal=Smartphones&showDefault=true",
+          "route": "/eshop/devices/configuration?productId=prod1T1786686221657&skuId=bgskuTrans3999231220&catName=Accessories&listVal=Smartphones&showDefault=true",
+          "url_type": "Product_Configuration",
+          "category": "Accessories",
+          "name": "Huawei FreeClip 2s Configuration Page",
+          "description": "Product detail and configuration page for Huawei FreeClip 2s.",
+          "query_parameters": {
+            "productId": "prod1T1786686221657",
+            "skuId": "bgskuTrans3999231220",
+            "catName": "Accessories",
+            "listVal": "Smartphones",
+            "showDefault": "true"
+          },
+          "associated_selectors": [
+            ".device-variant-options, .storage-btn, label:has-text('GB'), [role='radio']:has-text('GB')",
+            ".color-swatch, .color-btn, [role='radio']:has-text('Titanium'), [role='radio']:has-text('Black')",
+            ".segment-tab, [role='radio']:has-text('One time'), button:has-text('One time'), button:has-text('Smart Pay')",
+            "button:has-text('ADD TO CART'), button:has-text('Checkout Now')",
+            ".price-container, .total-price, .device-price"
+          ]
+        },
+        {
+          "url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1775032063511&skuId=bgskuTrans3999229481&catName=Accessories&listVal=Smartphones&showDefault=true",
+          "route": "/eshop/devices/configuration?productId=prod1T1775032063511&skuId=bgskuTrans3999229481&catName=Accessories&listVal=Smartphones&showDefault=true",
+          "url_type": "Product_Configuration",
+          "category": "Accessories",
+          "name": "Apple AirPods Max 2 Configuration Page",
+          "description": "Product detail and configuration page for Apple AirPods Max 2.",
+          "query_parameters": {
+            "productId": "prod1T1775032063511",
+            "skuId": "bgskuTrans3999229481",
+            "catName": "Accessories",
+            "listVal": "Smartphones",
+            "showDefault": "true"
+          },
+          "associated_selectors": [
+            ".device-variant-options, .storage-btn, label:has-text('GB'), [role='radio']:has-text('GB')",
+            ".color-swatch, .color-btn, [role='radio']:has-text('Titanium'), [role='radio']:has-text('Black')",
+            ".segment-tab, [role='radio']:has-text('One time'), button:has-text('One time'), button:has-text('Smart Pay')",
+            "button:has-text('ADD TO CART'), button:has-text('Checkout Now')",
+            ".price-container, .total-price, .device-price"
+          ]
+        },
+        {
+          "url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1777616962903&skuId=bgskuTrans3999229892&catName=Accessories&listVal=Smartphones&showDefault=true",
+          "route": "/eshop/devices/configuration?productId=prod1T1777616962903&skuId=bgskuTrans3999229892&catName=Accessories&listVal=Smartphones&showDefault=true",
+          "url_type": "Product_Configuration",
+          "category": "Accessories",
+          "name": "Honor Earbuds 4 Configuration Page",
+          "description": "Product detail and configuration page for Honor Earbuds 4.",
+          "query_parameters": {
+            "productId": "prod1T1777616962903",
+            "skuId": "bgskuTrans3999229892",
+            "catName": "Accessories",
+            "listVal": "Smartphones",
+            "showDefault": "true"
+          },
+          "associated_selectors": [
+            ".device-variant-options, .storage-btn, label:has-text('GB'), [role='radio']:has-text('GB')",
+            ".color-swatch, .color-btn, [role='radio']:has-text('Titanium'), [role='radio']:has-text('Black')",
+            ".segment-tab, [role='radio']:has-text('One time'), button:has-text('One time'), button:has-text('Smart Pay')",
+            "button:has-text('ADD TO CART'), button:has-text('Checkout Now')",
+            ".price-container, .total-price, .device-price"
+          ]
+        },
+        {
+          "url": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100063&catName=Smartphones&listVal=Smartphones&locale=EN",
+          "route": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100063&catName=Smartphones&listVal=Smartphones&locale=EN",
+          "url_type": "Catalog_Listing",
+          "category": "Smartphones",
+          "name": "Smartphones Catalog Listing",
+          "description": "Product listing page for the Smartphones category.",
+          "query_parameters": {
+            "category": "mobileDevices",
+            "subCategory": "cat1100063",
+            "catName": "Smartphones",
+            "listVal": "Smartphones",
+            "locale": "EN"
+          },
+          "associated_selectors": [
+            ".device-card, .product-tile, .eshop-product-card",
+            ".filter-container, .brand-filter, .category-filter",
+            "select[name='sort'], .sort-by"
+          ]
+        },
+        {
+          "url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1757998040834&skuId=bgskuTrans3820239388&catName=Smartphones&listVal=Smartphones&showDefault=true",
+          "route": "/eshop/devices/configuration?productId=prod1T1757998040834&skuId=bgskuTrans3820239388&catName=Smartphones&listVal=Smartphones&showDefault=true",
+          "url_type": "Product_Configuration",
+          "category": "Smartphones",
+          "name": "Apple iPhone 17 Pro Configuration Page",
+          "description": "Product detail and configuration page for Apple iPhone 17 Pro.",
+          "query_parameters": {
+            "productId": "prod1T1757998040834",
+            "skuId": "bgskuTrans3820239388",
+            "catName": "Smartphones",
+            "listVal": "Smartphones",
+            "showDefault": "true"
+          },
+          "associated_selectors": [
+            ".device-variant-options, .storage-btn, label:has-text('GB'), [role='radio']:has-text('GB')",
+            ".color-swatch, .color-btn, [role='radio']:has-text('Titanium'), [role='radio']:has-text('Black')",
+            ".segment-tab, [role='radio']:has-text('One time'), button:has-text('One time'), button:has-text('Smart Pay')",
+            "button:has-text('ADD TO CART'), button:has-text('Checkout Now')",
+            ".price-container, .total-price, .device-price"
+          ]
+        },
+        {
+          "url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1772791900380&skuId=bgskuTrans3999229871&catName=Smartphones&listVal=Smartphones&showDefault=true",
+          "route": "/eshop/devices/configuration?productId=prod1T1772791900380&skuId=bgskuTrans3999229871&catName=Smartphones&listVal=Smartphones&showDefault=true",
+          "url_type": "Product_Configuration",
+          "category": "Smartphones",
+          "name": "Samsung Galaxy S26 Ultra Configuration Page",
+          "description": "Product detail and configuration page for Samsung Galaxy S26 Ultra.",
+          "query_parameters": {
+            "productId": "prod1T1772791900380",
+            "skuId": "bgskuTrans3999229871",
+            "catName": "Smartphones",
+            "listVal": "Smartphones",
+            "showDefault": "true"
+          },
+          "associated_selectors": [
+            ".device-variant-options, .storage-btn, label:has-text('GB'), [role='radio']:has-text('GB')",
+            ".color-swatch, .color-btn, [role='radio']:has-text('Titanium'), [role='radio']:has-text('Black')",
+            ".segment-tab, [role='radio']:has-text('One time'), button:has-text('One time'), button:has-text('Smart Pay')",
+            "button:has-text('ADD TO CART'), button:has-text('Checkout Now')",
+            ".price-container, .total-price, .device-price"
+          ]
+        },
+        {
+          "url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1772791900481&skuId=bgskuTrans3999229880&catName=Smartphones&listVal=Smartphones&showDefault=true",
+          "route": "/eshop/devices/configuration?productId=prod1T1772791900481&skuId=bgskuTrans3999229880&catName=Smartphones&listVal=Smartphones&showDefault=true",
+          "url_type": "Product_Configuration",
+          "category": "Smartphones",
+          "name": "Samsung Galaxy S26 Configuration Page",
+          "description": "Product detail and configuration page for Samsung Galaxy S26.",
+          "query_parameters": {
+            "productId": "prod1T1772791900481",
+            "skuId": "bgskuTrans3999229880",
+            "catName": "Smartphones",
+            "listVal": "Smartphones",
+            "showDefault": "true"
+          },
+          "associated_selectors": [
+            ".device-variant-options, .storage-btn, label:has-text('GB'), [role='radio']:has-text('GB')",
+            ".color-swatch, .color-btn, [role='radio']:has-text('Titanium'), [role='radio']:has-text('Black')",
+            ".segment-tab, [role='radio']:has-text('One time'), button:has-text('One time'), button:has-text('Smart Pay')",
+            "button:has-text('ADD TO CART'), button:has-text('Checkout Now')",
+            ".price-container, .total-price, .device-price"
+          ]
+        },
+        {
+          "url": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100069&catName=Smartwatches&listVal=Smartphones&locale=EN",
+          "route": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100069&catName=Smartwatches&listVal=Smartphones&locale=EN",
+          "url_type": "Catalog_Listing",
+          "category": "Smartwatches",
+          "name": "Smartwatches Catalog Listing",
+          "description": "Product listing page for the Smartwatches category.",
+          "query_parameters": {
+            "category": "mobileDevices",
+            "subCategory": "cat1100069",
+            "catName": "Smartwatches",
+            "listVal": "Smartphones",
+            "locale": "EN"
+          },
+          "associated_selectors": [
+            ".device-card, .product-tile, .eshop-product-card",
+            ".filter-container, .brand-filter, .category-filter",
+            "select[name='sort'], .sort-by"
+          ]
+        },
+        {
+          "url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1775032063518&skuId=bgskuTrans3999229899&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+          "route": "/eshop/devices/configuration?productId=prod1T1775032063518&skuId=bgskuTrans3999229899&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+          "url_type": "Product_Configuration",
+          "category": "Smartwatches",
+          "name": "Samsung Galaxy Watch 7 Ultra Configuration Page",
+          "description": "Product detail and configuration page for Samsung Galaxy Watch 7 Ultra.",
+          "query_parameters": {
+            "productId": "prod1T1775032063518",
+            "skuId": "bgskuTrans3999229899",
+            "catName": "Smartwatches",
+            "listVal": "Smartphones",
+            "showDefault": "true"
+          },
+          "associated_selectors": [
+            ".device-variant-options, .storage-btn, label:has-text('GB'), [role='radio']:has-text('GB')",
+            ".color-swatch, .color-btn, [role='radio']:has-text('Titanium'), [role='radio']:has-text('Black')",
+            ".segment-tab, [role='radio']:has-text('One time'), button:has-text('One time'), button:has-text('Smart Pay')",
+            "button:has-text('ADD TO CART'), button:has-text('Checkout Now')",
+            ".price-container, .total-price, .device-price"
+          ]
+        },
+        {
+          "url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1757998040899&skuId=bgskuTrans3820239399&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+          "route": "/eshop/devices/configuration?productId=prod1T1757998040899&skuId=bgskuTrans3820239399&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+          "url_type": "Product_Configuration",
+          "category": "Smartwatches",
+          "name": "Apple Watch Series 10 Configuration Page",
+          "description": "Product detail and configuration page for Apple Watch Series 10.",
+          "query_parameters": {
+            "productId": "prod1T1757998040899",
+            "skuId": "bgskuTrans3820239399",
+            "catName": "Smartwatches",
+            "listVal": "Smartphones",
+            "showDefault": "true"
+          },
+          "associated_selectors": [
+            ".device-variant-options, .storage-btn, label:has-text('GB'), [role='radio']:has-text('GB')",
+            ".color-swatch, .color-btn, [role='radio']:has-text('Titanium'), [role='radio']:has-text('Black')",
+            ".segment-tab, [role='radio']:has-text('One time'), button:has-text('One time'), button:has-text('Smart Pay')",
+            "button:has-text('ADD TO CART'), button:has-text('Checkout Now')",
+            ".price-container, .total-price, .device-price"
+          ]
+        },
+        {
+          "url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1786686221777&skuId=bgskuTrans3999231333&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+          "route": "/eshop/devices/configuration?productId=prod1T1786686221777&skuId=bgskuTrans3999231333&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+          "url_type": "Product_Configuration",
+          "category": "Smartwatches",
+          "name": "Huawei Watch GT 5 Pro Configuration Page",
+          "description": "Product detail and configuration page for Huawei Watch GT 5 Pro.",
+          "query_parameters": {
+            "productId": "prod1T1786686221777",
+            "skuId": "bgskuTrans3999231333",
+            "catName": "Smartwatches",
+            "listVal": "Smartphones",
+            "showDefault": "true"
+          },
+          "associated_selectors": [
+            ".device-variant-options, .storage-btn, label:has-text('GB'), [role='radio']:has-text('GB')",
+            ".color-swatch, .color-btn, [role='radio']:has-text('Titanium'), [role='radio']:has-text('Black')",
+            ".segment-tab, [role='radio']:has-text('One time'), button:has-text('One time'), button:has-text('Smart Pay')",
+            "button:has-text('ADD TO CART'), button:has-text('Checkout Now')",
+            ".price-container, .total-price, .device-price"
+          ]
+        }
+      ],
+      "page_models": {
+        "homepage": {
+          "page_name": "Portal Homepage",
+          "url": "https://www.eand.ae/en/index.html",
+          "components": {
+            "cookie_overlay": {
+              "type": "shadow_dom",
+              "host_selector": "#usercentrics-root",
+              "dismissal_code": "document.querySelector('#usercentrics-root')?.remove(); document.body.style.overflow = 'auto';"
+            },
+            "search_bar": {
+              "trigger_selector": ".search-wrap-dekstop, button[aria-label*='search' i], .search-btn",
+              "popup_container": "#searchPopup",
+              "input_selector": "input[type='search'], input[placeholder*='Search' i], #search-input"
+            },
+            "navigation_header": {
+              "selector": "header, .header-container, nav.main-nav",
+              "categories": [
+                "Accessories",
+                "Smartphones",
+                "Smartwatches"
+              ]
+            }
+          }
+        },
+        "catalogs": {
+          "Accessories": {
+            "category": "Accessories",
+            "catalog_url": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
+            "components": {
+              "product_cards": ".device-card, .product-tile, .eshop-product-card",
+              "filter_tabs": ".filter-container, .brand-filter, .category-filter",
+              "sort_dropdown": "select[name='sort'], .sort-by"
+            }
+          },
+          "Smartphones": {
+            "category": "Smartphones",
+            "catalog_url": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100063&catName=Smartphones&listVal=Smartphones&locale=EN",
+            "components": {
+              "product_cards": ".device-card, .product-tile, .eshop-product-card",
+              "filter_tabs": ".filter-container, .brand-filter, .category-filter",
+              "sort_dropdown": "select[name='sort'], .sort-by"
+            }
+          },
+          "Smartwatches": {
+            "category": "Smartwatches",
+            "catalog_url": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100069&catName=Smartwatches&listVal=Smartphones&locale=EN",
+            "components": {
+              "product_cards": ".device-card, .product-tile, .eshop-product-card",
+              "filter_tabs": ".filter-container, .brand-filter, .category-filter",
+              "sort_dropdown": "select[name='sort'], .sort-by"
+            }
+          }
+        },
+        "product_configuration": {
+          "url_template": "/eshop/devices/configuration?productId={product_id}&skuId={sku_id}&catName={category}&listVal=Smartphones&showDefault=true",
+          "components": {
+            "storage_selector": ".device-variant-options, .storage-btn, label:has-text('GB'), [role='radio']:has-text('GB')",
+            "color_selector": ".color-swatch, .color-btn, [role='radio']:has-text('Titanium'), [role='radio']:has-text('Black')",
+            "payment_plan_tabs": ".segment-tab, [role='radio']:has-text('One time'), button:has-text('One time'), button:has-text('Smart Pay')",
+            "add_to_cart_cta": "button:has-text('ADD TO CART'), button:has-text('Checkout Now')",
+            "price_display": ".price-container, .total-price, .device-price"
+          }
+        },
+        "shopping_cart": {
+          "url": "/eshop/checkout/cart",
+          "components": {
+            "cart_summary": ".cart-summary, .order-review-container",
+            "item_title": ".cart-item-title, .product-name",
+            "payment_breakdown": ".cart-payment-type, .installment-term",
+            "proceed_to_checkout_cta": "button:has-text('Checkout Now'), button:has-text('Proceed to Checkout')"
+          }
+        }
+      },
+      "flows": [
+        {
+          "flow_id": "flow_accessories_purchase",
+          "flow_name": "Accessories & Audio Earbuds Purchase Flow",
+          "category": "Accessories",
+          "target_match_keywords": [
+            "earbuds",
+            "earbud",
+            "headphones",
+            "headphone",
+            "freeclip",
+            "airpods",
+            "speaker",
+            "speakers",
+            "audio",
+            "accessories",
+            "accessory",
+            "buds",
+            "soundtec",
+            "headset"
+          ],
+          "catalog_entrypoint_url": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
+          "catalog_entrypoint_route": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
+          "cart_endpoint_url": "https://www.eand.ae/eshop/checkout/cart",
+          "cart_endpoint_route": "/eshop/checkout/cart",
+          "automation_boundary": {
+            "automated_scope": "Accessories Catalog -> Product Configuration -> Plan Selection -> ADD TO CART -> Shopping Cart Verification",
+            "external_boundary": "Live Payment Gateway (Credit Card / OTP) is an external boundary."
+          },
+          "canonical_steps": [
+            {
+              "step_number": 1,
+              "action": "Navigate to e& UAE portal homepage",
+              "target": "/en/index.html",
+              "expected_result": "e& UAE portal homepage loads with active navigation header"
+            },
+            {
+              "step_number": 2,
+              "action": "Dismiss cookie and privacy overlay banner",
+              "target": "#usercentrics-root",
+              "expected_result": "Privacy overlay is dismissed cleanly"
+            },
+            {
+              "step_number": 3,
+              "action": "Navigate to Accessories -> Earbuds catalog",
+              "target": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
+              "expected_result": "Earbuds catalog displays available products and pricing"
+            },
+            {
+              "step_number": 4,
+              "action": "Open product configuration for {{product_name}}",
+              "target": "/eshop/devices/configuration?productId={{product_id}}&skuId={{sku_id}}&catName=Earbuds&listVal=Smartphones&showDefault=true",
+              "expected_result": "Product configuration page loads with technical specs and pricing"
+            },
+            {
+              "step_number": 5,
+              "action": "Select One Time payment option",
+              "target": ".segment-tab:has-text('One time'), label:has-text('One Time'), button:has-text('One time')",
+              "expected_result": "One time payment option is activated"
+            },
+            {
+              "step_number": 6,
+              "action": "Detect stock state and Click 'ADD TO CART' / 'Checkout Now' button",
+              "target": "button:has-text('Checkout Now'), button:has-text('ADD TO CART')",
+              "expected_result": "If in stock, item is added to cart successfully; if out-of-stock, button is disabled"
+            },
+            {
+              "step_number": 7,
+              "action": "Verify Shopping Cart & Secure Checkout review screen",
+              "target": "/eshop/checkout/cart",
+              "expected_result": "Order summary is displayed with proceed to checkout options"
+            }
+          ],
+          "graph_edges": [],
+          "registered_products": [
+            {
+              "product_name": "Huawei FreeClip 2s",
+              "product_id": "prod1T1786686221657",
+              "sku_id": "bgskuTrans3999231220",
+              "category": "Accessories",
+              "default_price": "AED 749.00",
+              "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1786686221657&skuId=bgskuTrans3999231220&catName=Accessories&listVal=Smartphones&showDefault=true",
+              "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1786686221657&skuId=bgskuTrans3999231220&catName=Accessories&listVal=Smartphones&showDefault=true",
+              "available_storage": [],
+              "available_colors": [
+                "Black",
+                "Purple",
+                "White"
+              ],
+              "payment_plans": [
+                "One time AED 749.00",
+                "24 months AED 33/mo",
+                "18 months",
+                "12 months"
+              ],
+              "optional_addons": [],
+              "sample_test_data_string": "Product: Huawei FreeClip 2s, ProductId: prod1T1786686221657, SkuId: bgskuTrans3999231220, Color: Black, Payment: One time"
+            },
+            {
+              "product_name": "Apple AirPods Max 2",
+              "product_id": "prod1T1775032063511",
+              "sku_id": "bgskuTrans3999229481",
+              "category": "Accessories",
+              "default_price": "AED 2,099.00",
+              "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1775032063511&skuId=bgskuTrans3999229481&catName=Accessories&listVal=Smartphones&showDefault=true",
+              "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1775032063511&skuId=bgskuTrans3999229481&catName=Accessories&listVal=Smartphones&showDefault=true",
+              "available_storage": [],
+              "available_colors": [
+                "Midnight",
+                "Starlight",
+                "Blue",
+                "Purple",
+                "Orange"
+              ],
+              "payment_plans": [
+                "One time AED 2,099.00",
+                "24 months AED 96/mo"
+              ],
+              "optional_addons": [],
+              "sample_test_data_string": "Product: Apple AirPods Max 2, ProductId: prod1T1775032063511, SkuId: bgskuTrans3999229481, Color: Midnight, Payment: One time"
+            },
+            {
+              "product_name": "Honor Earbuds 4",
+              "product_id": "prod1T1777616962903",
+              "sku_id": "bgskuTrans3999229892",
+              "category": "Accessories",
+              "default_price": "AED 169.00",
+              "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1777616962903&skuId=bgskuTrans3999229892&catName=Accessories&listVal=Smartphones&showDefault=true",
+              "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1777616962903&skuId=bgskuTrans3999229892&catName=Accessories&listVal=Smartphones&showDefault=true",
+              "available_storage": [],
+              "available_colors": [
+                "White",
+                "Cyan"
+              ],
+              "payment_plans": [
+                "One time AED 169.00"
+              ],
+              "optional_addons": [],
+              "sample_test_data_string": "Product: Honor Earbuds 4, ProductId: prod1T1777616962903, SkuId: bgskuTrans3999229892, Color: White, Payment: One time"
+            }
+          ]
+        },
+        {
+          "flow_id": "flow_smartphones_purchase",
+          "flow_name": "Smartphones & Mobile Devices Purchase Flow",
+          "category": "Smartphones",
+          "target_match_keywords": [
+            "smartphone",
+            "smartphones",
+            "phone",
+            "phones",
+            "mobile",
+            "mobiles",
+            "handset",
+            "handsets",
+            "device",
+            "devices",
+            "samsung",
+            "galaxy",
+            "iphone",
+            "apple",
+            "huawei",
+            "s26",
+            "s25",
+            "ultra",
+            "pro max",
+            "eand",
+            "e&",
+            "etisalat",
+            "eshop",
+            "portal",
+            "store",
+            "purchase",
+            "order",
+            "checkout",
+            "cart"
+          ],
+          "catalog_entrypoint_url": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100063&catName=Smartphones&listVal=Smartphones&locale=EN",
+          "catalog_entrypoint_route": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100063&catName=Smartphones&listVal=Smartphones&locale=EN",
+          "cart_endpoint_url": "https://www.eand.ae/eshop/checkout/cart",
+          "cart_endpoint_route": "/eshop/checkout/cart",
+          "automation_boundary": {
+            "automated_scope": "Product Catalog -> Variant Configuration (Storage, Color, Payment Plan) -> ADD TO CART -> Shopping Cart Verification",
+            "external_boundary": "Live Payment Gateway (Credit Card / OTP) and UAE PASS login require external real credentials and are documented as an external boundary."
+          },
+          "canonical_steps": [
+            {
+              "step_number": 1,
+              "action": "Navigate to e& UAE portal homepage",
+              "target": "/en/index.html",
+              "expected_result": "e& UAE portal homepage loads successfully"
+            },
+            {
+              "step_number": 2,
+              "action": "Dismiss cookie and privacy overlay banner",
+              "target": "#usercentrics-root",
+              "expected_result": "Cookie overlay is dismissed cleanly"
+            },
+            {
+              "step_number": 3,
+              "action": "Navigate to Devices -> Smartphones catalog",
+              "target": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100063&catName=Smartphones&listVal=Smartphones&locale=EN",
+              "expected_result": "Smartphones catalog displays available models and pricing plans"
+            },
+            {
+              "step_number": 4,
+              "action": "Open product configuration for {{product_name}}",
+              "target": "/eshop/devices/configuration?productId={{product_id}}&skuId={{sku_id}}&catName=Smartphones&listVal=Smartphones&showDefault=true",
+              "expected_result": "Product configuration page loads with live storage, color swatches, and payment options"
+            },
+            {
+              "step_number": 5,
+              "action": "Select storage capacity and color variant",
+              "target": ".device-variant-options, [role='radio'], button.variant-btn, .storage-btn, label:has-text('GB')",
+              "expected_result": "Selected storage and color are highlighted and price updates"
+            },
+            {
+              "step_number": 6,
+              "action": "Select payment option (One Time or Smart Pay installment)",
+              "target": ".segment-tab, [role='radio'], button:has-text('One time')",
+              "expected_result": "Payment plan is selected"
+            },
+            {
+              "step_number": 7,
+              "action": "Detect stock state and Click 'ADD TO CART' / 'Checkout Now' button",
+              "target": "button:has-text('Checkout Now'), button:has-text('ADD TO CART')",
+              "expected_result": "If in-stock item is added to cart; if out-of-stock ADD TO CART is correctly disabled"
+            },
+            {
+              "step_number": 8,
+              "action": "Verify Shopping Cart & Secure Checkout review screen",
+              "target": "/eshop/checkout/cart",
+              "expected_result": "Shopping cart renders product summary with One Time or Installment details"
+            }
+          ],
+          "graph_edges": [
+            {
+              "from": "homepage",
+              "to": "smartphones_catalog",
+              "action": "navigate_catalog"
+            },
+            {
+              "from": "smartphones_catalog",
+              "to": "device_configuration",
+              "action": "select_product_sku"
+            },
+            {
+              "from": "device_configuration",
+              "to": "variant_selected",
+              "action": "select_storage_and_color"
+            },
+            {
+              "from": "variant_selected",
+              "to": "payment_plan_selected",
+              "action": "select_payment_plan"
+            },
+            {
+              "from": "payment_plan_selected",
+              "to": "cart_checkout",
+              "action": "click_add_to_cart"
+            }
+          ],
+          "registered_products": [
+            {
+              "product_name": "Apple iPhone 17 Pro",
+              "product_id": "prod1T1757998040834",
+              "sku_id": "bgskuTrans3820239388",
+              "category": "Smartphones",
+              "default_price": "Live",
+              "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1757998040834&skuId=bgskuTrans3820239388&catName=Smartphones&listVal=Smartphones&showDefault=true",
+              "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1757998040834&skuId=bgskuTrans3820239388&catName=Smartphones&listVal=Smartphones&showDefault=true",
+              "available_storage": [
+                "256GB",
+                "512GB",
+                "1TB"
+              ],
+              "available_colors": [
+                "Deep Blue",
+                "Silver",
+                "Space Black"
+              ],
+              "payment_plans": [
+                "One time AED 4,299.00",
+                "24 months AED 195/mo",
+                "18 months",
+                "12 months"
+              ],
+              "optional_addons": [
+                "AppleCare+ 2yr / AED 799.00"
+              ],
+              "sample_test_data_string": "Product: Apple iPhone 17 Pro, ProductId: prod1T1757998040834, SkuId: bgskuTrans3820239388, Storage: 256GB, Color: Deep Blue, Payment: One time"
+            },
+            {
+              "product_name": "Samsung Galaxy S26 Ultra",
+              "product_id": "prod1T1772791900380",
+              "sku_id": "bgskuTrans3999229871",
+              "category": "Smartphones",
+              "default_price": "Live",
+              "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1772791900380&skuId=bgskuTrans3999229871&catName=Smartphones&listVal=Smartphones&showDefault=true",
+              "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1772791900380&skuId=bgskuTrans3999229871&catName=Smartphones&listVal=Smartphones&showDefault=true",
+              "available_storage": [
+                "256GB",
+                "512GB",
+                "1TB"
+              ],
+              "available_colors": [
+                "Titanium Black",
+                "Titanium Gray",
+                "Titanium Violet"
+              ],
+              "payment_plans": [
+                "One time AED 5,099.00",
+                "24 months AED 232/mo",
+                "18 months",
+                "12 months"
+              ],
+              "optional_addons": [
+                "Samsung Care+ 2yr / AED 599.00"
+              ],
+              "sample_test_data_string": "Product: Samsung Galaxy S26 Ultra, ProductId: prod1T1772791900380, SkuId: bgskuTrans3999229871, Storage: 256GB, Color: Titanium Black, Payment: One time"
+            },
+            {
+              "product_name": "Samsung Galaxy S26",
+              "product_id": "prod1T1772791900481",
+              "sku_id": "bgskuTrans3999229880",
+              "category": "Smartphones",
+              "default_price": "Live",
+              "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1772791900481&skuId=bgskuTrans3999229880&catName=Smartphones&listVal=Smartphones&showDefault=true",
+              "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1772791900481&skuId=bgskuTrans3999229880&catName=Smartphones&listVal=Smartphones&showDefault=true",
+              "available_storage": [
+                "128GB",
+                "256GB"
+              ],
+              "available_colors": [
+                "Cobalt Violet",
+                "Amber Yellow",
+                "Onyx Black"
+              ],
+              "payment_plans": [
+                "One time AED 3,199.00",
+                "24 months AED 146/mo"
+              ],
+              "optional_addons": [],
+              "sample_test_data_string": "Product: Samsung Galaxy S26, ProductId: prod1T1772791900481, SkuId: bgskuTrans3999229880, Storage: 128GB, Color: Cobalt Violet, Payment: One time"
+            }
+          ]
+        },
+        {
+          "flow_id": "flow_smartwatches_purchase",
+          "flow_name": "Smartwatches & Wearables Purchase Flow",
+          "category": "Smartwatches",
+          "target_match_keywords": [
+            "smartwatch",
+            "smartwatches",
+            "watch",
+            "watches",
+            "wearable",
+            "wearables",
+            "galaxy watch",
+            "apple watch",
+            "fit",
+            "band",
+            "emberton",
+            "marshall"
+          ],
+          "catalog_entrypoint_url": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100069&catName=Smartwatches&listVal=Smartphones&locale=EN",
+          "catalog_entrypoint_route": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100069&catName=Smartwatches&listVal=Smartphones&locale=EN",
+          "cart_endpoint_url": "https://www.eand.ae/eshop/checkout/cart",
+          "cart_endpoint_route": "/eshop/checkout/cart",
+          "automation_boundary": {
+            "automated_scope": "Catalog -> Product Configuration -> Plan Selection -> Add to Cart -> Cart Verification",
+            "external_boundary": "Live Payment Gateway (Credit Card / OTP) is an external boundary."
+          },
+          "canonical_steps": [
+            {
+              "step_number": 1,
+              "action": "Navigate to e& UAE portal homepage",
+              "target": "/en/index.html",
+              "expected_result": "e& UAE portal homepage loads"
+            },
+            {
+              "step_number": 2,
+              "action": "Dismiss cookie and privacy overlay banner",
+              "target": "#usercentrics-root",
+              "expected_result": "Overlay is dismissed"
+            },
+            {
+              "step_number": 3,
+              "action": "Navigate to Devices -> Smartwatches catalog",
+              "target": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100069&catName=Smartwatches&listVal=Smartphones&locale=EN",
+              "expected_result": "Smartwatches catalog displays available models"
+            },
+            {
+              "step_number": 4,
+              "action": "Open product configuration for {{product_name}}",
+              "target": "/eshop/devices/configuration?productId={{product_id}}&skuId={{sku_id}}&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+              "expected_result": "Configuration page loads"
+            },
+            {
+              "step_number": 5,
+              "action": "Select payment option (One Time or Installments)",
+              "target": ".segment-tab, [role='radio'], button:has-text('One time')",
+              "expected_result": "Payment option selected"
+            },
+            {
+              "step_number": 6,
+              "action": "Click 'ADD TO CART' / 'Checkout Now' button",
+              "target": "button:has-text('Checkout Now'), button:has-text('ADD TO CART')",
+              "expected_result": "Item added to cart"
+            },
+            {
+              "step_number": 7,
+              "action": "Verify Shopping Cart & Secure Checkout review screen",
+              "target": "/eshop/checkout/cart",
+              "expected_result": "Checkout summary displayed"
+            }
+          ],
+          "graph_edges": [],
+          "registered_products": [
+            {
+              "product_name": "Samsung Galaxy Watch 7 Ultra",
+              "product_id": "prod1T1775032063518",
+              "sku_id": "bgskuTrans3999229899",
+              "category": "Smartwatches",
+              "default_price": "AED 2,499.00",
+              "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1775032063518&skuId=bgskuTrans3999229899&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+              "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1775032063518&skuId=bgskuTrans3999229899&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+              "available_storage": [],
+              "available_colors": [
+                "Titanium Silver",
+                "Titanium Gray",
+                "Titanium White"
+              ],
+              "payment_plans": [
+                "One time AED 2,499.00",
+                "24 months AED 114/mo"
+              ],
+              "optional_addons": [],
+              "sample_test_data_string": "Product: Samsung Galaxy Watch 7 Ultra, ProductId: prod1T1775032063518, SkuId: bgskuTrans3999229899, Color: Titanium Silver, Payment: One time"
+            },
+            {
+              "product_name": "Apple Watch Series 10",
+              "product_id": "prod1T1757998040899",
+              "sku_id": "bgskuTrans3820239399",
+              "category": "Smartwatches",
+              "default_price": "AED 1,799.00",
+              "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1757998040899&skuId=bgskuTrans3820239399&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+              "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1757998040899&skuId=bgskuTrans3820239399&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+              "available_storage": [],
+              "available_colors": [
+                "Jet Black",
+                "Rose Gold",
+                "Silver"
+              ],
+              "payment_plans": [
+                "One time AED 1,799.00",
+                "24 months AED 82/mo"
+              ],
+              "optional_addons": [],
+              "sample_test_data_string": "Product: Apple Watch Series 10, ProductId: prod1T1757998040899, SkuId: bgskuTrans3820239399, Color: Jet Black, Payment: One time"
+            },
+            {
+              "product_name": "Huawei Watch GT 5 Pro",
+              "product_id": "prod1T1786686221777",
+              "sku_id": "bgskuTrans3999231333",
+              "category": "Smartwatches",
+              "default_price": "AED 1,299.00",
+              "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1786686221777&skuId=bgskuTrans3999231333&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+              "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1786686221777&skuId=bgskuTrans3999231333&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+              "available_storage": [],
+              "available_colors": [
+                "Black",
+                "Titanium"
+              ],
+              "payment_plans": [
+                "One time AED 1,299.00",
+                "24 months AED 59/mo"
+              ],
+              "optional_addons": [],
+              "sample_test_data_string": "Product: Huawei Watch GT 5 Pro, ProductId: prod1T1786686221777, SkuId: bgskuTrans3999231333, Color: Black, Payment: One time"
+            }
+          ]
+        }
+      ],
+      "products_catalog": {
+        "Accessories": [
+          {
+            "product_name": "Huawei FreeClip 2s",
+            "product_id": "prod1T1786686221657",
+            "sku_id": "bgskuTrans3999231220",
+            "category": "Accessories",
+            "default_price": "AED 749.00",
+            "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1786686221657&skuId=bgskuTrans3999231220&catName=Accessories&listVal=Smartphones&showDefault=true",
+            "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1786686221657&skuId=bgskuTrans3999231220&catName=Accessories&listVal=Smartphones&showDefault=true",
+            "available_storage": [],
+            "available_colors": [
+              "Black",
+              "Purple",
+              "White"
+            ],
+            "payment_plans": [
+              "One time AED 749.00",
+              "24 months AED 33/mo",
+              "18 months",
+              "12 months"
+            ],
+            "optional_addons": [],
+            "sample_test_data_string": "Product: Huawei FreeClip 2s, ProductId: prod1T1786686221657, SkuId: bgskuTrans3999231220, Color: Black, Payment: One time"
+          },
+          {
+            "product_name": "Apple AirPods Max 2",
+            "product_id": "prod1T1775032063511",
+            "sku_id": "bgskuTrans3999229481",
+            "category": "Accessories",
+            "default_price": "AED 2,099.00",
+            "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1775032063511&skuId=bgskuTrans3999229481&catName=Accessories&listVal=Smartphones&showDefault=true",
+            "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1775032063511&skuId=bgskuTrans3999229481&catName=Accessories&listVal=Smartphones&showDefault=true",
+            "available_storage": [],
+            "available_colors": [
+              "Midnight",
+              "Starlight",
+              "Blue",
+              "Purple",
+              "Orange"
+            ],
+            "payment_plans": [
+              "One time AED 2,099.00",
+              "24 months AED 96/mo"
+            ],
+            "optional_addons": [],
+            "sample_test_data_string": "Product: Apple AirPods Max 2, ProductId: prod1T1775032063511, SkuId: bgskuTrans3999229481, Color: Midnight, Payment: One time"
+          },
+          {
+            "product_name": "Honor Earbuds 4",
+            "product_id": "prod1T1777616962903",
+            "sku_id": "bgskuTrans3999229892",
+            "category": "Accessories",
+            "default_price": "AED 169.00",
+            "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1777616962903&skuId=bgskuTrans3999229892&catName=Accessories&listVal=Smartphones&showDefault=true",
+            "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1777616962903&skuId=bgskuTrans3999229892&catName=Accessories&listVal=Smartphones&showDefault=true",
+            "available_storage": [],
+            "available_colors": [
+              "White",
+              "Cyan"
+            ],
+            "payment_plans": [
+              "One time AED 169.00"
+            ],
+            "optional_addons": [],
+            "sample_test_data_string": "Product: Honor Earbuds 4, ProductId: prod1T1777616962903, SkuId: bgskuTrans3999229892, Color: White, Payment: One time"
+          }
+        ],
+        "Smartphones": [
+          {
+            "product_name": "Apple iPhone 17 Pro",
+            "product_id": "prod1T1757998040834",
+            "sku_id": "bgskuTrans3820239388",
+            "category": "Smartphones",
+            "default_price": "Live",
+            "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1757998040834&skuId=bgskuTrans3820239388&catName=Smartphones&listVal=Smartphones&showDefault=true",
+            "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1757998040834&skuId=bgskuTrans3820239388&catName=Smartphones&listVal=Smartphones&showDefault=true",
+            "available_storage": [
+              "256GB",
+              "512GB",
+              "1TB"
+            ],
+            "available_colors": [
+              "Deep Blue",
+              "Silver",
+              "Space Black"
+            ],
+            "payment_plans": [
+              "One time AED 4,299.00",
+              "24 months AED 195/mo",
+              "18 months",
+              "12 months"
+            ],
+            "optional_addons": [
+              "AppleCare+ 2yr / AED 799.00"
+            ],
+            "sample_test_data_string": "Product: Apple iPhone 17 Pro, ProductId: prod1T1757998040834, SkuId: bgskuTrans3820239388, Storage: 256GB, Color: Deep Blue, Payment: One time"
+          },
+          {
+            "product_name": "Samsung Galaxy S26 Ultra",
+            "product_id": "prod1T1772791900380",
+            "sku_id": "bgskuTrans3999229871",
+            "category": "Smartphones",
+            "default_price": "Live",
+            "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1772791900380&skuId=bgskuTrans3999229871&catName=Smartphones&listVal=Smartphones&showDefault=true",
+            "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1772791900380&skuId=bgskuTrans3999229871&catName=Smartphones&listVal=Smartphones&showDefault=true",
+            "available_storage": [
+              "256GB",
+              "512GB",
+              "1TB"
+            ],
+            "available_colors": [
+              "Titanium Black",
+              "Titanium Gray",
+              "Titanium Violet"
+            ],
+            "payment_plans": [
+              "One time AED 5,099.00",
+              "24 months AED 232/mo",
+              "18 months",
+              "12 months"
+            ],
+            "optional_addons": [
+              "Samsung Care+ 2yr / AED 599.00"
+            ],
+            "sample_test_data_string": "Product: Samsung Galaxy S26 Ultra, ProductId: prod1T1772791900380, SkuId: bgskuTrans3999229871, Storage: 256GB, Color: Titanium Black, Payment: One time"
+          },
+          {
+            "product_name": "Samsung Galaxy S26",
+            "product_id": "prod1T1772791900481",
+            "sku_id": "bgskuTrans3999229880",
+            "category": "Smartphones",
+            "default_price": "Live",
+            "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1772791900481&skuId=bgskuTrans3999229880&catName=Smartphones&listVal=Smartphones&showDefault=true",
+            "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1772791900481&skuId=bgskuTrans3999229880&catName=Smartphones&listVal=Smartphones&showDefault=true",
+            "available_storage": [
+              "128GB",
+              "256GB"
+            ],
+            "available_colors": [
+              "Cobalt Violet",
+              "Amber Yellow",
+              "Onyx Black"
+            ],
+            "payment_plans": [
+              "One time AED 3,199.00",
+              "24 months AED 146/mo"
+            ],
+            "optional_addons": [],
+            "sample_test_data_string": "Product: Samsung Galaxy S26, ProductId: prod1T1772791900481, SkuId: bgskuTrans3999229880, Storage: 128GB, Color: Cobalt Violet, Payment: One time"
+          }
+        ],
+        "Smartwatches": [
+          {
+            "product_name": "Samsung Galaxy Watch 7 Ultra",
+            "product_id": "prod1T1775032063518",
+            "sku_id": "bgskuTrans3999229899",
+            "category": "Smartwatches",
+            "default_price": "AED 2,499.00",
+            "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1775032063518&skuId=bgskuTrans3999229899&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+            "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1775032063518&skuId=bgskuTrans3999229899&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+            "available_storage": [],
+            "available_colors": [
+              "Titanium Silver",
+              "Titanium Gray",
+              "Titanium White"
+            ],
+            "payment_plans": [
+              "One time AED 2,499.00",
+              "24 months AED 114/mo"
+            ],
+            "optional_addons": [],
+            "sample_test_data_string": "Product: Samsung Galaxy Watch 7 Ultra, ProductId: prod1T1775032063518, SkuId: bgskuTrans3999229899, Color: Titanium Silver, Payment: One time"
+          },
+          {
+            "product_name": "Apple Watch Series 10",
+            "product_id": "prod1T1757998040899",
+            "sku_id": "bgskuTrans3820239399",
+            "category": "Smartwatches",
+            "default_price": "AED 1,799.00",
+            "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1757998040899&skuId=bgskuTrans3820239399&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+            "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1757998040899&skuId=bgskuTrans3820239399&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+            "available_storage": [],
+            "available_colors": [
+              "Jet Black",
+              "Rose Gold",
+              "Silver"
+            ],
+            "payment_plans": [
+              "One time AED 1,799.00",
+              "24 months AED 82/mo"
+            ],
+            "optional_addons": [],
+            "sample_test_data_string": "Product: Apple Watch Series 10, ProductId: prod1T1757998040899, SkuId: bgskuTrans3820239399, Color: Jet Black, Payment: One time"
+          },
+          {
+            "product_name": "Huawei Watch GT 5 Pro",
+            "product_id": "prod1T1786686221777",
+            "sku_id": "bgskuTrans3999231333",
+            "category": "Smartwatches",
+            "default_price": "AED 1,299.00",
+            "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1786686221777&skuId=bgskuTrans3999231333&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+            "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1786686221777&skuId=bgskuTrans3999231333&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+            "available_storage": [],
+            "available_colors": [
+              "Black",
+              "Titanium"
+            ],
+            "payment_plans": [
+              "One time AED 1,299.00",
+              "24 months AED 59/mo"
+            ],
+            "optional_addons": [],
+            "sample_test_data_string": "Product: Huawei Watch GT 5 Pro, ProductId: prod1T1786686221777, SkuId: bgskuTrans3999231333, Color: Black, Payment: One time"
+          }
+        ]
+      },
+      "navigation_graph": {
+        "nodes": [
+          {
+            "id": "homepage",
+            "label": "Portal Homepage",
+            "url": "https://www.eand.ae/en/index.html",
+            "type": "entrypoint"
+          },
+          {
+            "id": "catalog_accessories",
+            "label": "Accessories Catalog",
+            "url": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
+            "type": "catalog"
+          },
+          {
+            "id": "shopping_cart",
+            "label": "Shopping Cart",
+            "url": "/eshop/checkout/cart",
+            "type": "cart"
+          },
+          {
+            "id": "catalog_smartphones",
+            "label": "Smartphones Catalog",
+            "url": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100063&catName=Smartphones&listVal=Smartphones&locale=EN",
+            "type": "catalog"
+          },
+          {
+            "id": "catalog_smartwatches",
+            "label": "Smartwatches Catalog",
+            "url": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100069&catName=Smartwatches&listVal=Smartphones&locale=EN",
+            "type": "catalog"
+          }
+        ],
+        "edges": [
+          {
+            "from": "homepage",
+            "to": "catalog_accessories",
+            "action": "navigate_accessories_catalog",
+            "trigger_locator": "a[href*='accessories']"
+          },
+          {
+            "from": "homepage",
+            "to": "catalog_smartphones",
+            "action": "navigate_smartphones_catalog",
+            "trigger_locator": "a[href*='smartphones']"
+          },
+          {
+            "from": "homepage",
+            "to": "smartphones_catalog",
+            "action": "navigate_catalog"
+          },
+          {
+            "from": "smartphones_catalog",
+            "to": "device_configuration",
+            "action": "select_product_sku"
+          },
+          {
+            "from": "device_configuration",
+            "to": "variant_selected",
+            "action": "select_storage_and_color"
+          },
+          {
+            "from": "variant_selected",
+            "to": "payment_plan_selected",
+            "action": "select_payment_plan"
+          },
+          {
+            "from": "payment_plan_selected",
+            "to": "cart_checkout",
+            "action": "click_add_to_cart"
+          },
+          {
+            "from": "homepage",
+            "to": "catalog_smartwatches",
+            "action": "navigate_smartwatches_catalog",
+            "trigger_locator": "a[href*='smartwatches']"
+          }
+        ]
+      }
+    },
+    {
+      "model_version": "3.0.0",
+      "generated_at": "2026-08-26T07:53:37.470134Z",
+      "application_info": {
+        "app_id": "testrankix",
+        "app_name": "Rankix",
+        "base_url": "https://rankix.ai/",
+        "domain": "rankix.ai",
+        "framework": "Web Application",
+        "default_viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "security_profile": {},
+        "search_mechanism": {}
+      },
+      "summary": {
+        "total_flows": 1,
+        "total_categories": 1,
+        "total_known_products": 0,
+        "total_registered_urls": 1,
+        "total_canonical_steps": 2
+      },
+      "url_registry": [
+        {
+          "url": "https://rankix.ai/",
+          "route": "/",
+          "url_type": "Homepage",
+          "category": "General",
+          "name": "Portal Homepage",
+          "description": "Main landing page for Rankix.",
+          "query_parameters": {},
+          "associated_selectors": []
+        }
+      ],
+      "page_models": {
+        "homepage": {
+          "page_name": "Portal Homepage",
+          "url": "https://rankix.ai/",
+          "components": {
+            "cookie_overlay": {},
+            "search_bar": {},
+            "navigation_header": {
+              "selector": "",
+              "categories": [
+                "Discovered"
+              ]
+            }
+          }
+        },
+        "catalogs": {
+          "Discovered": {
+            "category": "Discovered",
+            "catalog_url": "https://rankix.ai/",
+            "components": {}
+          }
+        },
+        "product_configuration": {
+          "url_template": "",
+          "components": {}
+        },
+        "shopping_cart": {
+          "url": "",
+          "components": {}
+        }
+      },
+      "flows": [
+        {
+          "flow_id": "flow_discovered_v1",
+          "flow_name": "Discovered walkthrough (draft, crawl v1)",
+          "category": "Discovered",
+          "target_match_keywords": [],
+          "catalog_entrypoint_url": "https://rankix.ai/",
+          "catalog_entrypoint_route": "/",
+          "cart_endpoint_url": "",
+          "cart_endpoint_route": "",
+          "automation_boundary": {},
+          "canonical_steps": [
+            {
+              "step_number": 1,
+              "action": "Navigate to Rankix.ai — The credit score for AI talent",
+              "target": "/",
+              "href": null,
+              "expected_result": "Rankix.ai — The credit score for AI talent loads (HTTP 200 when crawled)."
+            },
+            {
+              "step_number": 2,
+              "action": "Click 'I'm looking for opportunities Build an evidence-backed profile, raise your Rankix Score, get discovered by serious employers in UAE, India, and globally. Continue as candidate' to reach Rankix.ai — The credit score for AI talent",
+              "target": "/sign-up?role=candidate",
+              "href": "/sign-up?role=candidate",
+              "expected_result": "Rankix.ai — The credit score for AI talent loads (HTTP 200 when crawled)."
+            }
+          ],
+          "graph_edges": [],
+          "registered_products": []
+        }
+      ],
+      "products_catalog": {
+        "Discovered": []
+      },
+      "navigation_graph": {
+        "nodes": [
+          {
+            "id": "homepage",
+            "label": "Portal Homepage",
+            "url": "https://rankix.ai/",
+            "type": "entrypoint"
+          },
+          {
+            "id": "catalog_discovered",
+            "label": "Discovered Catalog",
+            "url": "https://rankix.ai/",
+            "type": "catalog"
+          }
+        ],
+        "edges": [
+          {
+            "from": "homepage",
+            "to": "catalog_discovered",
+            "action": "navigate_discovered_catalog",
+            "trigger_locator": "a[href*='discovered']"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -22,6 +22,8 @@ from sqlalchemy.orm import Session
 from ...database.connection import SessionLocal
 from ...models.automation import AutomationTestCase
 
+from . import knowledge_base as kb
+
 logger = logging.getLogger(__name__)
 
 # Script injected into all pages during guided discovery
@@ -202,6 +204,11 @@ GUIDED_DISCOVERY_INJECTED_SCRIPT = r"""
       recommended_locator: recommended,
       alternative_locators: Array.from(new Set(alternatives)),
       page_url: window.location.href,
+      // The href as authored, not as resolved. A recorded click on a link can
+      // then compile to `a[href="/eshop/cart"]` -- routing through the
+      // application the way the recording did -- rather than to a deep link
+      // at the absolute URL, which loses the session it was recorded in.
+      href: tag === 'a' ? (el.getAttribute('href') || null) : null,
     };
   }
 
@@ -265,6 +272,7 @@ GUIDED_DISCOVERY_INJECTED_SCRIPT = r"""
       tag_name: info.tag,
       role: info.role,
       accessible_name: info.accessible_name,
+      href: info.href,
       timestamp: new Date().toISOString()
     });
   }
@@ -309,7 +317,16 @@ class GuidedDiscoveryManager:
             if existing:
                 existing._stop_requested = True
 
-            url = (case.application_url or "https://www.eand.ae/en/index.html").strip()
+            # The case's own URL, else the registered application's. Was a
+            # literal eand.ae URL, which opened that site for a case belonging
+            # to any other application.
+            url = (case.application_url or kb.default_base_url()).strip()
+            if not url:
+                raise ValueError(
+                    f"{case.display_id} has no application URL and no application is "
+                    f"registered, so there is nowhere to open a browser. Set the case's "
+                    f"application URL, or register an application on Application Discovery."
+                )
             session = GuidedDiscoverySession(
                 test_case_id=case.id,
                 display_id=case.display_id,

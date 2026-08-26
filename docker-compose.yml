@@ -21,6 +21,15 @@ services:
       args:
         - HTTP_PROXY=${HTTP_PROXY}
         - HTTPS_PROXY=${HTTPS_PROXY}
+      # The Dockerfile's Node/Playwright step reads its proxy from
+      # /run/secrets/build_proxy, not from the args above. Without this the
+      # secret never arrives under compose and apt-get fetches through no
+      # proxy at all -- on a corporate network that returns an interception
+      # page, which apt reports as "Clearsigned file isn't valid, got
+      # 'NOSPLIT'". Optional: a build with no .build-proxy file present still
+      # works wherever the network needs no proxy.
+      secrets:
+        - build_proxy
     container_name: admin-module-py_backend
     ports:
       - "8002:8002" # Optional: useful for direct backend debugging
@@ -110,6 +119,13 @@ services:
       - backend
     networks:
       - existing-network
+
+# Build-time only. Never mounted into a running container, and never written
+# into a layer or into `docker history` -- that is the whole point of routing
+# the credential through a BuildKit secret rather than a build arg.
+secrets:
+  build_proxy:
+    file: ./ai-admin-module-py/.build-proxy
 
 networks:
   existing-network:

@@ -33,8 +33,8 @@
     "checkout",
     "cart"
   ],
-  "catalog_entrypoint": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100063&catName=Smartphones&listVal=Smartphones&locale=EN",
-  "cart_endpoint": "https://www.eand.ae/eshop/checkout/cart",
+  "catalog_entrypoint": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100063&catName=Smartphones&listVal=Smartphones&locale=EN",
+  "cart_endpoint": "/eshop/checkout/cart",
   "automation_boundary": {
     "automated_scope": "Product Catalog -> Variant Configuration (Storage, Color, Payment Plan) -> ADD TO CART -> Shopping Cart Verification",
     "external_boundary": "Live Payment Gateway (Credit Card / OTP) and UAE PASS login require external real credentials and are documented as an external boundary."
@@ -70,7 +70,7 @@
     {
       "step_number": 1,
       "action": "Navigate to e& UAE portal homepage",
-      "target": "https://www.eand.ae/en/index.html",
+      "target": "/en/index.html",
       "expected_result": "e& UAE portal homepage loads successfully"
     },
     {
@@ -82,13 +82,13 @@
     {
       "step_number": 3,
       "action": "Navigate to Devices -> Smartphones catalog",
-      "target": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100063&catName=Smartphones&listVal=Smartphones&locale=EN",
+      "target": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100063&catName=Smartphones&listVal=Smartphones&locale=EN",
       "expected_result": "Smartphones catalog displays available models and pricing plans"
     },
     {
       "step_number": 4,
       "action": "Open product configuration for {{product_name}}",
-      "target": "https://www.eand.ae/eshop/devices/configuration?productId={{product_id}}&skuId={{sku_id}}&catName=Smartphones&listVal=Smartphones&showDefault=true",
+      "target": "/eshop/devices/configuration?productId={{product_id}}&skuId={{sku_id}}&catName=Smartphones&listVal=Smartphones&showDefault=true",
       "expected_result": "Product configuration page loads with live storage, color swatches, and payment options"
     },
     {
@@ -112,7 +112,7 @@
     {
       "step_number": 8,
       "action": "Verify Shopping Cart & Secure Checkout review screen",
-      "target": "https://www.eand.ae/eshop/checkout/cart",
+      "target": "/eshop/checkout/cart",
       "expected_result": "Shopping cart renders product summary with One Time or Installment details"
     }
   ],

@@ -28,13 +28,28 @@ import uvicorn  # noqa: E402
 
 from app.main import app  # noqa: E402
 from app.database.connection import SessionLocal  # noqa: E402
-from app.models.automation import AutomationScript, AutomationTestCase  # noqa: E402
+from app.models.automation import (  # noqa: E402
+    AutomationApplication,
+    AutomationScript,
+    AutomationTestCase,
+)
 from app.utils.security import get_current_user_strict  # noqa: E402
 
 PORT = 8045
 BASE = f"http://127.0.0.1:{PORT}/automation"
 DISPLAY_ID = "TC-SCRIPTLAB-SMOKE"
 TARGET = "http://localhost:5175"
+# Its own application row. Compilation is scoped to an application now, and
+# with more than one registered the API refuses to guess which -- so the test
+# registers the one it means rather than borrowing a real one.
+APP_KEY = "smoke_scriptlab_local"
+# How long to wait for the real Playwright dry run to finish. A five-step
+# spec measures ~190s here -- trace, screenshot and video are all recorded
+# and slow_mo puts a second between actions -- so this is roughly a 50%
+# margin. The loop exits the moment the run reaches a terminal state, so a
+# generous ceiling costs nothing except when something is genuinely stuck,
+# which is exactly when it should not be mistaken for a runner fault.
+DRY_RUN_BUDGET_SECONDS = 300
 
 FAKE_ADMIN = {
     "username": "scriptlab-smoke",
@@ -75,7 +90,30 @@ def cleanup() -> None:
             for script in list(case.scripts or []):
                 db.delete(script)
             db.delete(case)
+        db.query(AutomationApplication).filter(
+            AutomationApplication.app_key == APP_KEY
+        ).delete(synchronize_session=False)
         db.commit()
+    finally:
+        db.close()
+
+
+def register_application() -> int:
+    """The application this test compiles against, created fresh each run."""
+    db = SessionLocal()
+    try:
+        row = AutomationApplication(
+            name="ScriptLab smoke target",
+            app_key=APP_KEY,
+            base_url=TARGET,
+            environment="SIT",
+            is_active=True,
+            created_by=FAKE_ADMIN["username"],
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+        return row.id
     finally:
         db.close()
 
@@ -89,16 +127,28 @@ def seed() -> int:
             display_id=DISPLAY_ID,
             objective="Proves the sign-in form rejects an empty submission.",
             preconditions="The application is reachable.",
-            steps_raw="1. Navigate. 2. Enter username. 3. Click Sign In. 4. Verify message.",
+            steps_raw=(
+                "1. Navigate. 2. Dismiss the cookie banner. 3. Enter username. "
+                "4. Click Sign In. 5. Verify message."
+            ),
             expected_result="A validation message is shown.",
             steps_structured=[
                 {"step_number": 1, "action": "Navigate to the sign-in page", "target": TARGET,
                  "test_data_ref": None, "expected_result": "The form is visible"},
-                {"step_number": 2, "action": "Enter the username", "target": "Username field",
+                # Step 2 exists to hold the compiler's cookie-dismissal branch
+                # under test. That branch was once written twice in a row -- a
+                # bare `if` before the if/elif chain, and the chain's first arm
+                # -- so every spec carrying a cookie step emitted the whole
+                # block twice. Nothing here noticed, because no fixture step
+                # reached that branch at all.
+                {"step_number": 2, "action": "Dismiss the cookie and privacy overlay banner",
+                 "target": "#usercentrics-root",
+                 "test_data_ref": None, "expected_result": "The overlay is gone"},
+                {"step_number": 3, "action": "Enter the username", "target": "Username field",
                  "test_data_ref": "valid_username", "expected_result": "The field holds the value"},
-                {"step_number": 3, "action": "Click the 'Sign In' button", "target": "Sign In button",
+                {"step_number": 4, "action": "Click the 'Sign In' button", "target": "Sign In button",
                  "test_data_ref": None, "expected_result": "The form submits"},
-                {"step_number": 4, "action": "Verify the validation message", "target": "Sign in to continue",
+                {"step_number": 5, "action": "Verify the validation message", "target": "Sign in to continue",
                  "test_data_ref": None, "expected_result": "A message is shown"},
             ],
             test_data_requirements=[
@@ -126,6 +176,7 @@ def seed() -> int:
 def main() -> int:
     server = serve()
     cleanup()
+    application_id = register_application()
     case_id = seed()
     print(f"=== seeded approved automation case #{case_id} ===\n")
 
@@ -145,8 +196,14 @@ def main() -> int:
         check("counts include per-framework tallies", "by_framework" in listing["counts"])
 
         print("\n=== POST /scripts/generate (playwright) ===")
+        # base_url pins the origin the compiled spec is relative to, and
+        # application_id names which catalogue to compile against -- with more
+        # than one application registered the API refuses to guess, which is
+        # the point of scoping discovery per application.
         gen = requests.post(f"{BASE}/scripts/generate",
-                            json={"case_ids": [case_id], "framework": "playwright"}, timeout=30).json()
+                            json={"case_ids": [case_id], "framework": "playwright",
+                                  "application_id": application_id,
+                                  "base_url": TARGET}, timeout=30).json()
         check("one script generated", gen["generated"] == 1, str(gen)[:200])
         script = gen["scripts"][0]
         script_id = script["id"]
@@ -155,7 +212,32 @@ def main() -> int:
         check("static gate passed", script["static_gate_result"]["passed"] is True,
               str(script["static_gate_result"])[:200])
         check("imports playwright", "@playwright/test" in code)
-        check("navigates to the real target", f"page.goto(\"{TARGET}\")" in code, code[:200])
+        # The spec routes rather than deep-links: the first step navigates to a
+        # ROUTE, and the host arrives from playwright.config.ts's `use.baseURL`.
+        # Asserting the absolute URL appeared inline is what the old contract
+        # said, and it is exactly the behaviour that made every step a cold load
+        # of the host with the session dropped in between.
+        check("navigates by route, not by absolute URL",
+              'await navigateTo(page, "/"' in code, code[:400])
+        check("the origin appears once, as a fallback constant",
+              code.count(TARGET) <= 1, f"{code.count(TARGET)} occurrences of the host")
+        check("an in-app navigation helper is emitted",
+              "async function navigateTo(page, route, hrefHint)" in code)
+        # The cookie step is compiled once, not twice. The regression this
+        # guards against emitted the dismissal block a second time from a bare
+        # `if` that ran before the if/elif chain it belonged to -- doubling the
+        # step and passing every other check here, because a duplicated-but-
+        # valid block still parses, still balances its braces, and still counts
+        # as one emitted step.
+        body = code.split("test(", 1)[1]
+        check("the cookie step is emitted once",
+              body.count("const cookieBtn = page.locator(") == 1,
+              f"{body.count('const cookieBtn = page.locator(')} cookie blocks")
+        check("dismissal delegates to the shared helper",
+              body.count("await dismissOverlays(page);") == 1
+              and "document.querySelector('#usercentrics-root')?.remove();" not in body,
+              "the overlay removal is inlined rather than calling dismissOverlays")
+
         check("label locator for the field", "getByLabel(\"Username\")" in code, "no getByLabel")
         check("role locator for the button", 'getByRole("button", { name: "Sign In" })' in code)
         check("test data via env, not a literal", "process.env.TESTDATA_VALID_USERNAME" in code)
@@ -174,6 +256,7 @@ def main() -> int:
         print("\n=== regenerate refuses to discard hand edits ===")
         again = requests.post(f"{BASE}/scripts/generate",
                               json={"case_ids": [case_id], "framework": "playwright",
+                                    "application_id": application_id,
                                     "regenerate": True}, timeout=30).json()
         check("refused", again["generated"] == 0 and len(again["skipped"]) == 1)
         check("says why", "hand-written edits" in again["skipped"][0]["reason"],
@@ -186,7 +269,8 @@ def main() -> int:
 
         print("\n=== katalon is generate-only ===")
         kat = requests.post(f"{BASE}/scripts/generate",
-                            json={"case_ids": [case_id], "framework": "katalon"}, timeout=30).json()
+                            json={"case_ids": [case_id], "framework": "katalon",
+                                  "application_id": application_id}, timeout=30).json()
         check("katalon script produced", kat["generated"] == 1, str(kat)[:150])
         kat_script = kat["scripts"][0]
         check("not runnable", kat_script["runnable"] is False)
@@ -206,15 +290,24 @@ def main() -> int:
             run_key = queued[0]["run_key"]
             check("linked by run_key", bool(run_key))
 
+            # Generous, because the run is not just the spec: the config
+            # records trace, screenshot and video, and slow_mo puts a second
+            # between actions, so a handful of steps costs a couple of minutes
+            # wall-clock. 90s used to be just enough, which meant adding one
+            # fixture step turned this into a red run that looked like a
+            # runner fault rather than a budget that was always marginal.
+            deadline = time.monotonic() + DRY_RUN_BUDGET_SECONDS
             state = None
-            for _ in range(90):
+            while time.monotonic() < deadline:
                 state = requests.get(f"{BASE}/scripts/{script_id}/dry-run", timeout=20).json()
                 if state["dry_run_status"] in ("passed", "failed", "blocked"):
                     break
                 time.sleep(1)
             check("dry run reached a terminal state",
                   state and state["dry_run_status"] in ("passed", "failed", "blocked"),
-                  str(state)[:200])
+                  f"still {state and state.get('dry_run_status')!r} after "
+                  f"{DRY_RUN_BUDGET_SECONDS}s -- raise DRY_RUN_BUDGET_SECONDS if the "
+                  f"runner is simply slow here")
             check("it is a real AutomationRun", state and state.get("run", {}).get("run_key") == run_key)
             print(f"        dry_run_status={state['dry_run_status']} "
                   f"outcome={state.get('run', {}).get('outcome')}")

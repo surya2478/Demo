@@ -1,0 +1,30 @@
+{
+  "flow_id": "flow_discovered_v1",
+  "flow_name": "Discovered walkthrough (draft, crawl v1)",
+  "category": "Discovered",
+  "target_match_keywords": [],
+  "catalog_entrypoint": "https://rankix.ai/",
+  "canonical_steps": [
+    {
+      "step_number": 1,
+      "action": "Navigate to Rankix.ai — The credit score for AI talent",
+      "target": "/",
+      "href": null,
+      "expected_result": "Rankix.ai — The credit score for AI talent loads (HTTP 200 when crawled)."
+    },
+    {
+      "step_number": 2,
+      "action": "Click 'I'm looking for opportunities Build an evidence-backed profile, raise your Rankix Score, get discovered by serious employers in UAE, India, and globally. Continue as candidate' to reach Rankix.ai — The credit score for AI talent",
+      "target": "/sign-up?role=candidate",
+      "href": "/sign-up?role=candidate",
+      "expected_result": "Rankix.ai — The credit score for AI talent loads (HTTP 200 when crawled)."
+    }
+  ],
+  "known_products": {},
+  "graph_edges": [],
+  "_draft": {
+    "generated_by": "Application Discovery crawl v1",
+    "generated_at": "2026-08-26T07:51:07.838668Z",
+    "status": "DRAFT -- the steps are pages the crawler reached, in the order it reached them, not a journey anybody designed. Rename, reorder, delete what is noise, and add known_products before using it."
+  }
+}

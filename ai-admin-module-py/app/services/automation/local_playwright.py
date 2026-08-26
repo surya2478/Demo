@@ -21,10 +21,13 @@ rather than choices:
 from __future__ import annotations
 
 import asyncio
+import io
 import json
+import logging
 import os
 import re
 import shlex
+import subprocess
 import time
 from pathlib import Path
 
@@ -39,6 +42,92 @@ def _strip_ansi(value):
     if not isinstance(value, str):
         return value
     return _ANSI_ESCAPE_RE.sub("", value).strip()
+
+
+logger = logging.getLogger(__name__)
+
+# ── Spawning on a loop that cannot spawn ─────────────────────────────────────
+# asyncio.create_subprocess_exec needs a loop with a subprocess transport. On
+# Windows only the Proactor loop has one, and uvicorn selects a SelectorEventLoop
+# whenever it runs with --reload or multiple workers -- so a dev server started
+# the ordinary way makes every run die before Playwright is reached, raising a
+# NotImplementedError whose str() is empty ("Unexpected error: " in the UI).
+# Threads work on any loop, so a run falls back to a blocking Popen driven from
+# the default executor rather than failing on how the server happened to boot.
+
+_THREAD_SPAWN_WARNED = False
+
+
+class _ThreadedStdout:
+    """The `.read()` half of StreamReader, backed by a blocking pipe."""
+
+    def __init__(self, pipe: io.BufferedReader) -> None:
+        self._pipe = pipe
+
+    async def read(self, n: int = -1) -> bytes:
+        # read1, not read: read() would block until n bytes or EOF, which stalls
+        # the tee until the report is complete instead of streaming it.
+        return await asyncio.to_thread(self._pipe.read1, n)
+
+
+class _ThreadedProcess:
+    """The slice of asyncio.subprocess.Process this runner actually uses."""
+
+    def __init__(self, popen: subprocess.Popen) -> None:
+        self._popen = popen
+        self.stdout = _ThreadedStdout(popen.stdout) if popen.stdout else None
+        self._exit: asyncio.Future | None = None
+
+    @property
+    def returncode(self) -> int | None:
+        return self._popen.returncode
+
+    def kill(self) -> None:
+        try:
+            self._popen.kill()
+        except OSError:
+            # Already gone: the timeout and the process exiting can race.
+            pass
+
+    async def wait(self) -> int:
+        # One shared waiter, shielded: await_process() cancels its copy when the
+        # timeout wins, and the caller then awaits wait() again after the kill.
+        # A thread per call would leak one on every timed-out run.
+        if self._exit is None:
+            self._exit = asyncio.ensure_future(asyncio.to_thread(self._popen.wait))
+        return await asyncio.shield(self._exit)
+
+
+async def _spawn(cmd, *, cwd, stderr, env):
+    """Start the runner process. Returns (process, used_thread_fallback)."""
+    global _THREAD_SPAWN_WARNED
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            cwd=cwd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=stderr,
+            env=env,
+        )
+        return proc, False
+    except NotImplementedError:
+        if not _THREAD_SPAWN_WARNED:
+            _THREAD_SPAWN_WARNED = True
+            logger.warning(
+                "This event loop (%s) has no subprocess support, so runs are "
+                "spawned on threads instead. On Windows, uvicorn selects such a "
+                "loop for --reload; start the server without it to avoid the "
+                "fallback.",
+                type(asyncio.get_running_loop()).__name__,
+            )
+        proc = subprocess.Popen(
+            cmd,
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=stderr,
+            env=env,
+        )
+        return _ThreadedProcess(proc), True
 
 
 # Playwright's vocabulary mapped to the one the database stores. "blocked" is
@@ -93,13 +182,13 @@ class LocalPlaywrightRunner(AutomationRunner):
         start = time.monotonic()
         json_stdout = bytearray()
         proc = None
+        spawned_on_thread = False
 
         try:
             with log_path.open("wb") as log_fh:
-                proc = await asyncio.create_subprocess_exec(
-                    *cmd,
+                proc, spawned_on_thread = await _spawn(
+                    cmd,
                     cwd=str(workspace_dir),
-                    stdout=asyncio.subprocess.PIPE,
                     stderr=log_fh,
                     env=env,
                 )
@@ -189,6 +278,7 @@ class LocalPlaywrightRunner(AutomationRunner):
                 "command": " ".join(shlex.quote(a) for a in cmd),
                 "exit_code": exit_code,
                 "env_withheld_count": len(withheld_env),
+                "spawn": "thread" if spawned_on_thread else "loop",
             },
         )
 

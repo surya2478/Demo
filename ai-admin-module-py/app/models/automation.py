@@ -197,6 +197,21 @@ class AutomationTestCase(Base):
 class AutomationApplication(Base):
     """A target application: where discovery crawls and tests run.
 
+    --- Automation Module: one identity per application ---------------------
+
+    This table was declared long before anything used it, and in the meantime
+    two half-registries grew up beside it: Discovery kept a single global
+    `is_current` crawl, and the Knowledge Base identified applications by
+    folder name with no link back here. The result was that crawling a second
+    application silently retired the first one's catalogue, and every test
+    case grounded against it started reporting against the wrong elements.
+
+    So this row is now the single identity. `app_key` is what ties it to its
+    Knowledge Base folder, which is why it is unique and required: the runtime
+    target (base URL, environment, credentials) lives here, the declarative
+    profile lives in knowledge_base/applications/<app_key>/, and neither can
+    name an application the other does not know about.
+
     Credentials are Fernet-encrypted under a key derived from SECRET_KEY and
     are never returned to the browser -- the API exposes only whether they are
     set. A saved password is replaceable, never readable.
@@ -206,8 +221,16 @@ class AutomationApplication(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
+    # The Knowledge Base folder this application's profile and flows live in.
+    # Slug-shaped and unique -- it is half of the application's identity.
+    app_key = Column(String(100), nullable=False, unique=True, index=True)
     base_url = Column(Text, nullable=False)
     environment = Column(String(50), nullable=False, default="SIT", index=True)
+    description = Column(Text, nullable=True)
+    # Retired rather than deleted: an application with crawl history and
+    # grounded test cases behind it should stop appearing in the picker
+    # without taking that history with it.
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
 
     auth_mode = Column(String(20), nullable=False, default="none")
     # Non-secret auth settings only: field selectors, login path, username.
@@ -431,10 +454,18 @@ class AutomationDiscoveryRun(Base):
     __tablename__ = "automation_discovery_runs"
 
     id = Column(Integer, primary_key=True, index=True)
+    # Which application this crawl catalogued. Required in practice -- the
+    # column stays nullable only because rows predating per-application
+    # scoping exist, and the migration backfills those rather than dropping
+    # them. Every code path below resolves an application first.
     application_id = Column(
         Integer, ForeignKey("automation_applications.id"), nullable=True, index=True
     )
 
+    # Both are per application, not global. `version` counts this
+    # application's crawls, and `is_current` marks the one its grounding is
+    # judged against -- crawling application B used to retire application A's
+    # catalogue, which is exactly the confusion this scoping removes.
     version = Column(Integer, nullable=False, default=1)
     is_current = Column(Boolean, nullable=False, default=True, index=True)
 

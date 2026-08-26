@@ -26,6 +26,7 @@ import uvicorn  # noqa: E402
 from app.main import app  # noqa: E402
 from app.database.connection import SessionLocal  # noqa: E402
 from app.models.automation import (  # noqa: E402
+    AutomationApplication,
     AutomationDiscoveredElement,
     AutomationDiscoveryRun,
     AutomationTestCase,
@@ -37,6 +38,8 @@ PORT = 8046
 BASE = f"http://127.0.0.1:{PORT}/automation"
 TARGET = "http://localhost:5175"
 DISPLAY_ID = "TC-GROUNDING-SMOKE"
+# Its own application row, so the test never touches a real one's catalogue.
+APP_KEY = "smoke_discovery_local"
 
 FAKE_ADMIN = {
     "username": "discovery-smoke",
@@ -66,14 +69,57 @@ def serve() -> uvicorn.Server:
 
 
 def cleanup() -> None:
+    """Remove only what this test created.
+
+    This used to delete every discovery run in the database. That was already
+    heavy-handed, and now that catalogues are scoped per application it would
+    destroy real crawl history belonging to applications the test never touched
+    -- so it deletes its own application's runs and then the application.
+    """
     db = SessionLocal()
     try:
         db.query(AutomationTestCase).filter(
             AutomationTestCase.display_id == DISPLAY_ID
         ).delete(synchronize_session=False)
-        for run in db.query(AutomationDiscoveryRun).all():
-            db.delete(run)
+        app_row = (
+            db.query(AutomationApplication)
+            .filter(AutomationApplication.app_key == APP_KEY)
+            .first()
+        )
+        if app_row:
+            for run in (
+                db.query(AutomationDiscoveryRun)
+                .filter(AutomationDiscoveryRun.application_id == app_row.id)
+                .all()
+            ):
+                db.delete(run)
+            db.delete(app_row)
         db.commit()
+    finally:
+        db.close()
+
+
+def register_application() -> int:
+    """Register the application this crawl belongs to, and return its id.
+
+    Discovery is scoped per application now: a crawl, its element catalogue and
+    the grounding verdicts that cite it all hang off one row. The test creates
+    its own rather than borrowing whatever the database happens to hold.
+    """
+    db = SessionLocal()
+    try:
+        app_row = AutomationApplication(
+            name="Discovery smoke target",
+            app_key=APP_KEY,
+            base_url=TARGET,
+            environment="LOCAL",
+            description="Created by smoke_discovery_api.py; removed on cleanup.",
+            created_by=FAKE_ADMIN["username"],
+        )
+        db.add(app_row)
+        db.commit()
+        db.refresh(app_row)
+        return app_row.id
     finally:
         db.close()
 
@@ -122,14 +168,15 @@ def main() -> int:
 
     server = serve()
     cleanup()
+    app_id = register_application()
     case_id = seed_case()
-    print(f"=== seeded case #{case_id}, crawling {TARGET} ===\n")
+    print(f"=== seeded case #{case_id}, application #{app_id}, crawling {TARGET} ===\n")
 
     try:
         print("=== POST /discovery/run ===")
         res = requests.post(
             f"{BASE}/discovery/run",
-            json={"application_url": TARGET, "application_environment": "LOCAL", "max_pages": 3},
+            json={"application_id": app_id, "max_pages": 3},
             timeout=60,
         )
         check("202 Accepted", res.status_code == 202, f"got {res.status_code}: {res.text[:200]}")
@@ -139,11 +186,22 @@ def main() -> int:
         check("versioned", started["version"] >= 1)
         check("linked to a run", bool(started["run_key"]))
         check("auth mode is anonymous", started["auth_mode"] == "none")
+        check("stored against the application", started["application_id"] == app_id,
+              str(started["application_id"]))
+        # The URL was never sent: it is inherited from the registered
+        # application, which is the point of registering one.
+        check("inherited the registered base URL", started["application_url"] == TARGET,
+              str(started["application_url"]))
+        check("inherited the registered environment",
+              started["application_environment"] == "LOCAL",
+              str(started["application_environment"]))
 
         print("\n=== GET /discovery (poll) ===")
         state = None
         for _ in range(90):
-            state = requests.get(f"{BASE}/discovery", timeout=20).json()
+            state = requests.get(
+                f"{BASE}/discovery", params={"application_id": app_id}, timeout=20
+            ).json()
             if state["discovery"] and state["discovery"]["status"] in ("completed", "failed"):
                 break
             time.sleep(1)
@@ -157,7 +215,9 @@ def main() -> int:
         print(f"        {disc['pages_discovered']} page(s), {state['elements']} element(s)")
 
         print("\n=== GET /discovery/elements ===")
-        catalog = requests.get(f"{BASE}/discovery/elements", timeout=20).json()
+        catalog = requests.get(
+            f"{BASE}/discovery/elements", params={"application_id": app_id}, timeout=20
+        ).json()
         check("catalogue returned", catalog["total"] > 0)
         check("roles surfaced", len(catalog["roles"]) > 0, str(catalog["roles"]))
         every_locator = all(e["recommended_locator"] for e in catalog["elements"])
@@ -171,7 +231,11 @@ def main() -> int:
                   f"{e['recommended_strategy']:11} conf={e['confidence_score']}")
 
         print("\n=== POST /workbench/ground ===")
-        res = requests.post(f"{BASE}/workbench/ground", json={"case_ids": [case_id]}, timeout=30)
+        res = requests.post(
+            f"{BASE}/workbench/ground",
+            json={"case_ids": [case_id], "application_id": app_id},
+            timeout=30,
+        )
         check("200", res.status_code == 200, res.text[:200])
         result = res.json()
         check("one case checked", result["checked"] == 1)
@@ -194,15 +258,29 @@ def main() -> int:
         print(f"        step {unresolved['step_number']}: {unresolved['reason'][:90]}")
 
         print("\n=== DELETE /discovery resets grounding ===")
-        removed = requests.delete(f"{BASE}/discovery", timeout=20).json()
+        removed = requests.delete(
+            f"{BASE}/discovery", params={"application_id": app_id}, timeout=20
+        ).json()
         check("catalogue removed", removed["elements_removed"] > 0)
         check("grounded cases reset", removed["test_cases_reset"] >= 1)
+        check("scoped to this application", removed["application_id"] == app_id)
         db = SessionLocal()
         try:
             after = db.query(AutomationTestCase).filter(AutomationTestCase.id == case_id).first()
             check("status back to not_checked",
                   after.grounding_status == grounding.STATUS_NOT_CHECKED, after.grounding_status)
-            check("elements gone", db.query(AutomationDiscoveredElement).count() == 0)
+            # Scoped: only this application's elements, so a real catalogue
+            # belonging to another application is not counted as a failure.
+            remaining = (
+                db.query(AutomationDiscoveredElement)
+                .join(
+                    AutomationDiscoveryRun,
+                    AutomationDiscoveredElement.discovery_run_id == AutomationDiscoveryRun.id,
+                )
+                .filter(AutomationDiscoveryRun.application_id == app_id)
+                .count()
+            )
+            check("elements gone", remaining == 0, str(remaining))
         finally:
             db.close()
 

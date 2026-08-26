@@ -35,6 +35,78 @@ from typing import Any, Optional
 
 from . import grounding
 
+# --- Automation Module: navigate the application, do not deep-link into it ---
+#
+# Every step whose target was an absolute URL used to compile to
+# `page.goto(<absolute>)`. A seven-step purchase journey therefore became seven
+# cold loads of the host: the application never routed itself, so SPA state, the
+# cart session and the referer chain were dropped between steps, and a
+# WAF-fronted site saw seven unreferred deep links rather than one visit.
+#
+# Steps now carry a route (`/eshop/checkout/cart`) and, where the Knowledge Base
+# or a crawl recorded one, the `href` of the link that reaches it. `navigateTo`
+# clicks that link when it is on the page and falls back to a *relative* goto
+# otherwise -- resolved against `use.baseURL`, which workspace.py has always
+# written into playwright.config.ts and nothing until now used. That fallback is
+# also what lets one script run against SIT, QA and UAT unchanged.
+NAVIGATION_HELPER = """
+/** Remove the consent overlay that otherwise intercepts every later click. */
+async function dismissOverlays(page) {
+  await page.evaluate(() => {
+    document.querySelector('#usercentrics-root')?.remove();
+    if (document.body) document.body.style.overflow = 'auto';
+  }).catch(() => {});
+}
+
+/**
+ * An attribute selector matching a link to `href`, exactly or by suffix.
+ *
+ * split/join rather than a regex literal: run_static_gate scans emitted lines
+ * for unterminated strings without modelling regex syntax, so `/"/g` reads to
+ * it as an unclosed double quote and refuses the whole spec.
+ */
+function hrefSelector(href) {
+  const safe = String(href).split('\\\\').join('\\\\\\\\').split('"').join('\\\\"');
+  return `a[href="${safe}"], a[href$="${safe}"]`;
+}
+
+/**
+ * Reach a route, preferring in-app navigation over a direct load.
+ *
+ * Clicks the in-app link when the current page offers one, so the app routes
+ * itself and the session survives; navigates relative to baseURL when it does
+ * not. Returns 'click' or 'goto' so the step log says which happened.
+ */
+async function navigateTo(page, route, hrefHint) {
+  const target = String(route || '/');
+  const href = String(hrefHint || route || '');
+  const from = page.url();
+
+  if (href && from && from !== 'about:blank') {
+    try {
+      const link = page.locator(hrefSelector(href)).first();
+      if (await link.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await link.click({ timeout: 10000 });
+        await page.waitForLoadState('domcontentloaded', { timeout: 30000 }).catch(() => {});
+        await dismissOverlays(page);
+        return 'click';
+      }
+    } catch (e) {}
+  }
+
+  // No link to this route on the page we are on. Navigate directly -- but
+  // relatively, so the host comes from the config rather than from this file.
+  const lowered = target.toLowerCase();
+  const isAbsolute = lowered.startsWith('http://') || lowered.startsWith('https://');
+  const destination = isAbsolute
+    ? target
+    : (BASE_URL ? new URL(target, BASE_URL).toString() : target);
+  await page.goto(destination, { waitUntil: 'domcontentloaded', timeout: 45000 });
+  await dismissOverlays(page);
+  return 'goto';
+}
+"""
+
 FRAMEWORKS = ("playwright", "katalon", "appium")
 FRAMEWORK_LABELS = {
     "playwright": "Playwright",
@@ -108,6 +180,52 @@ def _js(value: Any) -> str:
 
 def _env_key(data_ref: str) -> str:
     return "TESTDATA_" + re.sub(r"[^A-Za-z0-9]+", "_", data_ref).strip("_").upper()
+
+
+def _is_navigation_target(target: Any) -> bool:
+    """True when a step's target names a destination rather than an element.
+
+    A route and an absolute URL both qualify. A CSS or Playwright selector does
+    not -- and `//div[...]`, an XPath, is the case that makes the leading-slash
+    test alone wrong.
+    """
+    from .knowledge_base import is_route
+
+    raw = str(target or "").strip()
+    return bool(raw) and (raw.lower().startswith(("http://", "https://")) or is_route(raw))
+
+
+def _route(target: Any, base_url: Optional[str]) -> str:
+    """A step target as a route, when it is same-origin with the application."""
+    from .knowledge_base import to_route
+
+    return to_route(str(target or "").strip(), base_url or "")
+
+
+def _recorded_href(case: Any, number: int, target: Any) -> str:
+    """The href a guided recording captured for this step, if it captured one.
+
+    Guided Discovery records the authored href whenever the tester clicks a
+    link. A navigation step matching that recording can then click the same
+    link the tester did, rather than deep-linking to where it led.
+    """
+    target_text = str(target or "").lower()
+    for recorded in list(getattr(case, "recorded_flow_objects", None) or []):
+        href = str(recorded.get("href") or "").strip()
+        if not href:
+            continue
+        if recorded.get("step_number") == number:
+            return href
+        name = (recorded.get("target_name") or recorded.get("accessible_name") or "").lower()
+        if target_text and name and (target_text in name or name in target_text):
+            return href
+    return ""
+
+
+def _origin(url: Optional[str]) -> str:
+    """Scheme and host of `url`, which is all a relative navigation needs."""
+    match = re.match(r"(https?://[^/?#]+)", (url or "").strip(), re.IGNORECASE)
+    return match.group(1) if match else (url or "").strip()
 
 
 def _intent(action: str) -> str:
@@ -187,23 +305,32 @@ def _is_api_case(case: Any, steps: list[dict]) -> bool:
 
 
 def _phrase_locator(target: Optional[str], intent: str) -> tuple[str, Optional[str]]:
-    """Map a human phrase onto a resilient Playwright query.
-    Prioritizes data-testid -> getByRole -> getByLabel -> resilient locator.
+    """Map a human phrase or CSS/Playwright selector onto a resilient Playwright query.
+    Prioritizes direct CSS/locator selectors -> data-testid -> getByRole -> getByLabel -> resilient locator.
     """
     if not target or not target.strip():
         return "page.locator('body')", "No target on this step — using page body fallback."
 
     raw = target.strip()
 
+    # 0. Direct CSS / Playwright locator syntax
+    if (
+        raw.startswith((".", "#", "[", "button", "a[", "input[", "div[", "div.", "span["))
+        or ":has-text(" in raw
+        or "[href" in raw
+        or "[data-" in raw
+    ):
+        return f"page.locator({_js(raw)}).first", None
+
     # 1. If target contains data-testid
     if "data-testid=" in raw:
         tid_match = re.search(r'data-testid=["\']([^"\']+)["\']', raw)
         if tid_match:
             return f"page.getByTestId({_js(tid_match.group(1))})", None
-        return f"page.locator({_js(raw)})", None
+        return f"page.locator({_js(raw)}).first", None
 
     if raw.startswith("#"):
-        return f"page.locator({_js(raw)})", None
+        return f"page.locator({_js(raw)}).first", None
 
     name = _clean_target(raw)
     lowered = raw.lower()
@@ -281,7 +408,20 @@ def compile_playwright(
     display_id = case.display_id or "test-case"
     slug = re.sub(r"[^A-Za-z0-9]+", "-", display_id).strip("-").lower() or "spec"
     title = f"{display_id} - {case.objective or case.description or 'automated test'}"
-    target_url = (base_url or case.application_url or "").strip()
+    full_case_text = f"{getattr(case, 'description', '')} {getattr(case, 'objective', '')} {getattr(case, 'preconditions', '')} {getattr(case, 'steps_raw', '')} {getattr(case, 'test_data', '')}"
+    from . import knowledge_base as kb
+    flow = kb.match_flow_blueprint(full_case_text)
+    matched_app_id = (flow.get("_app_id") if flow else None) or kb.resolve_app_id(full_case_text) or kb.default_app_id()
+    prof = kb.load_app_profile(matched_app_id) or {}
+    flow_base_url = prof.get("base_url", "").strip()
+
+    case_app_url = (getattr(case, "application_url", "") or "").strip()
+    if base_url:
+        target_url = base_url.strip()
+    elif flow_base_url and ("smb" in full_case_text.lower() or not case_app_url or ("smb" in flow_base_url and "smb" not in case_app_url)):
+        target_url = flow_base_url
+    else:
+        target_url = case_app_url or flow_base_url or kb.default_base_url()
 
     is_api = _is_api_case(case, steps)
 
@@ -377,6 +517,12 @@ def compile_playwright(
         emitted += 1
     else:
         # ── Web UI Automation Compilation ──────────────────────────────────────
+        # The origin lives here once, and only as a fallback for a spec run
+        # outside the workspace: inside it, playwright.config.ts supplies
+        # `use.baseURL` and every navigation below is relative to it.
+        lines.append(f"const BASE_URL = process.env.BASE_URL ?? {_js(_origin(target_url))};")
+        lines.append(NAVIGATION_HELPER.rstrip())
+        lines.append("")
         lines.append(f"test({_js(title[:160])}, async ({{ page }}) => {{")
 
         if not steps:
@@ -402,12 +548,11 @@ def compile_playwright(
             quote_match = re.search(r'["\']([^"\']+)["\']', f"{action} {target or ''}")
             quoted_term = quote_match.group(1).strip() if quote_match else ""
 
+            is_verify_step = any(k in action_lower for k in ["verify", "assert", "review", "summary", "shopping cart", "screen is displayed", "page is displayed", "email verification"]) or (number == len(steps) and ("verify" in action_lower or "assert" in action_lower or "screen" in action_lower or "page" in action_lower))
+
             if is_cookie_dismissal:
                 lines.append("  // Dismiss cookie / privacy overlay")
-                lines.append("  await page.evaluate(() => {")
-                lines.append("    document.querySelector('#usercentrics-root')?.remove();")
-                lines.append("    document.body.style.overflow = 'auto';")
-                lines.append("  });")
+                lines.append("  await dismissOverlays(page);")
                 lines.append("  try {")
                 lines.append("    const cookieBtn = page.locator(")
                 lines.append("      '#usercentrics-root button, #onetrust-accept-btn-handler, #accept-all-cookies, button:has-text(\"Accept All\"), button:has-text(\"Accept all\"), button:has-text(\"Accept\")'")
@@ -416,9 +561,31 @@ def compile_playwright(
                 lines.append("      await cookieBtn.click({ force: true }).catch(() => {});")
                 lines.append("    }")
                 lines.append("  } catch (e) {}")
-            elif target and target.startswith(("http://", "https://")):
-                lines.append(f"  await page.goto({_js(target)}, {{ waitUntil: 'domcontentloaded', timeout: 45000 }});")
-                lines.append("  await page.evaluate(() => { document.querySelector('#usercentrics-root')?.remove(); document.body.style.overflow = 'auto'; });")
+            elif _is_navigation_target(target) and not is_verify_step:
+                route = _route(target, target_url)
+                href = _route(
+                    step.get("href") or _recorded_href(case, number, target), target_url
+                )
+                lines.append(f"  await navigateTo(page, {_js(route)}, {_js(href) if href else 'null'});")
+            elif is_verify_step:
+                lines.append("  // Verify target page / state")
+                lines.append("  await page.waitForTimeout(2000);")
+                if _is_navigation_target(target):
+                    # Assert on the route, not the absolute URL: the same
+                    # assertion then holds on SIT, QA and UAT, where only the
+                    # host differs. The last path segment is kept as a looser
+                    # second chance for an app that rewrites its own query.
+                    route = _route(target, target_url)
+                    path_slug = route.split("?")[0].rstrip("/").split("/")[-1].replace(".html", "")
+                    lines.append(f"  const onTargetPage = page.url().includes({_js(route.split('?')[0])}) || page.url().toLowerCase().includes({_js(path_slug.lower())});")
+                    lines.append("  expect(onTargetPage).toBe(true);")
+                elif target and (target.startswith((".", "#", "[", "button", "a")) or ":has-text" in target):
+                    lines.append(f"  const verifyEl = page.locator({_js(target)}).first();")
+                    lines.append("  await expect(verifyEl).toBeVisible({ timeout: 10000 });")
+                else:
+                    lines.append("  const cartOrCheckoutEl = page.locator('.cart-item, .cart-summary, .checkout-summary, button:has-text(\"Checkout\"), button:has-text(\"Proceed\"), :text(\"Cart\"), :text(\"Order Summary\"), :text(\"Checkout\")').first();")
+                    lines.append("  const onTargetPage = /.*(devices|configuration|cart|checkout|summary|order|ordering|b2bportal).*/i.test(page.url());")
+                    lines.append("  expect(onTargetPage).toBe(true);")
             elif "search for" in action_lower or "search" in action_lower and ("input" not in action_lower):
                 search_query = quoted_term or re.sub(r"^.*?search\s+(for\s+)?", "", action, flags=re.IGNORECASE).split("and")[0].strip()
                 lines.append(f"  // Search for {_js(search_query)}")
@@ -430,7 +597,7 @@ def compile_playwright(
                 lines.append("      await page.waitForTimeout(2000);")
                 lines.append("    }")
                 lines.append("  } catch (e) {}")
-            elif any(k in action_lower for k in ["click on", "select the", "select product", "choose product"]) and ("cart" not in action_lower and "checkout" not in action_lower and "payment" not in action_lower):
+            elif any(k in action_lower for k in ["click on", "select the", "select product", "choose product"]) and ("cart" not in action_lower and "checkout" not in action_lower and "payment" not in action_lower and "plan" not in action_lower):
                 item_term = quoted_term or re.sub(r"^.*?(click\s+(on\s+)?(the\s+)?|select\s+(the\s+)?|choose\s+(the\s+)?)", "", action, flags=re.IGNORECASE).replace("item", "").replace("product", "").strip()
                 lines.append(f"  // Select/Click item {_js(item_term)}")
                 lines.append("  try {")
@@ -482,16 +649,13 @@ def compile_playwright(
                 lines.append("      await page.waitForTimeout(2000);")
                 lines.append("    }")
                 lines.append("  }")
-            elif any(k in action_lower for k in ["verify", "assert", "review", "summary", "shopping cart"]) or (number == len(steps) and ("verify" in action_lower or "assert" in action_lower or "screen" in action_lower)):
-                lines.append("  // Verify Shopping Cart / Checkout Review state")
-                lines.append("  await page.waitForTimeout(2000);")
-                lines.append("  const cartOrCheckoutEl = page.locator('.cart-item, .cart-summary, .checkout-summary, button:has-text(\"Checkout\"), button:has-text(\"Proceed\"), :text(\"Cart\"), :text(\"Order Summary\"), :text(\"Checkout\")').first();")
-                lines.append("  const onTargetPage = /.*(devices|configuration|cart|checkout|summary|order).*/i.test(page.url());")
-                lines.append("  expect(onTargetPage).toBe(true);")
             elif any(k in action_lower for k in ["checkout", "proceed to", "buy now"]) or any(k in target_lower for k in ["checkout", "buy now"]):
-                lines.append("  // Proceed to Checkout")
+                lines.append("  // Click Buy Now / Proceed to Checkout")
                 lines.append("  try {")
-                lines.append("    const checkoutActionBtn = page.locator('button:has-text(\"Checkout Now\"), button:has-text(\"Proceed to Checkout\"), button:has-text(\"Checkout\"), a:has-text(\"Checkout\")').first();")
+                if target and (target.startswith((".", "#", "[", "button", "a")) or ":has-text" in target or "ratePlanId" in target):
+                    lines.append(f"    const checkoutActionBtn = page.locator({_js(target)}).first();")
+                else:
+                    lines.append("    const checkoutActionBtn = page.locator('button:has-text(\"Buy Now\"), a:has-text(\"Buy Now\"), button:has-text(\"Checkout Now\"), button:has-text(\"Proceed to Checkout\"), button:has-text(\"Checkout\"), a:has-text(\"Checkout\")').first();")
                 lines.append("    if (await checkoutActionBtn.isVisible({ timeout: 10000 }).catch(() => false)) {")
                 lines.append("      await checkoutActionBtn.click();")
                 lines.append("      await page.waitForTimeout(2000);")
@@ -506,7 +670,13 @@ def compile_playwright(
                 lines.append("    }")
                 lines.append("  } catch (e) {}")
             elif intent == "goto":
-                destination = target if (target or "").startswith(("/", "http")) else target_url
+                action_url_m = re.search(r"https?://[^\s'\"\)\>]+", action)
+                if _is_navigation_target(target):
+                    destination = target
+                elif action_url_m:
+                    destination = action_url_m.group(0).rstrip(".,)")
+                else:
+                    destination = target_url
                 if not destination:
                     issues.append(
                         StaticGateIssue(
@@ -515,15 +685,13 @@ def compile_playwright(
                         )
                     )
                     lines.append("  // TODO: no application URL configured for this navigation.")
-                    lines.append(f"  await page.goto({_js('/')});")
+                    lines.append("  await navigateTo(page, '/', null);")
                 else:
-                    lines.append(f"  await page.goto({_js(destination)});")
-                    lines.append("  await page.waitForLoadState('domcontentloaded');")
-                    lines.append("  // Dismiss cookie consent banner if present")
-                    lines.append("  await page.evaluate(() => {")
-                    lines.append("    document.querySelector('#usercentrics-root')?.remove();")
-                    lines.append("    document.body.style.overflow = 'auto';")
-                    lines.append("  });")
+                    route = _route(destination, target_url)
+                    href = _route(
+                        step.get("href") or _recorded_href(case, number, target), target_url
+                    )
+                    lines.append(f"  await navigateTo(page, {_js(route)}, {_js(href) if href else 'null'});")
             else:
                 recorded_objects = list(getattr(case, "recorded_flow_objects", None) or [])
                 recorded_match = None
@@ -555,12 +723,15 @@ def compile_playwright(
                     )
                     lines.append(f"  await {locator}.fill({value});")
                 elif intent == "select":
-                    value = (
-                        re.sub(r"[^A-Za-z0-9]+", "_", str(data_ref)).lower()
-                        if data_ref
-                        else _js(quoted_term or "1")
-                    )
-                    lines.append(f"  await {locator}.selectOption({value});")
+                    if any(k in locator.lower() for k in [".plan-card", "button", "tab", "role=", "div", "radio", ":has-text", "hastext", "card"]):
+                        lines.append(f"  await {locator}.click();")
+                    else:
+                        value = (
+                            re.sub(r"[^A-Za-z0-9]+", "_", str(data_ref)).lower()
+                            if data_ref
+                            else _js(quoted_term or "1")
+                        )
+                        lines.append(f"  await {locator}.selectOption({value});")
                 elif intent == "assert":
                     lines.append(f"  await expect({locator}).toBeVisible({{ timeout: 10000 }});")
                 elif intent == "wait":

@@ -254,6 +254,7 @@ class JobManager:
                     "phase_step": 5,
                 }
                 db.commit()
+                heal_timeout = float(settings.AUTOMATION_HEAL_TIMEOUT_SECONDS or 120)
                 try:
                     first_fail = next((r for r in result.results if r.status in ("fail", "error")), None)
                     err_msg = (first_fail.error_message if first_fail else "") or (result.error_message or "")
@@ -279,12 +280,25 @@ class JobManager:
                         for d in discovered_rows
                     ]
 
-                    healed_code, diagnosis, changes = healer.diagnose_and_heal(
-                        code=code,
-                        error_message=err_msg,
-                        stack_trace=stack,
-                        discovered_elements=discovered_list,
-                        base_url=base_url,
+                    # Two hazards, one call. diagnose_and_heal() is
+                    # synchronous and network-bound, so calling it directly
+                    # would block this event loop -- and this process serves
+                    # the whole API, so every request queues behind a heal.
+                    # And requests' timeout is per-socket-read, not a deadline:
+                    # a provider that trickles keep-alive bytes while it thinks
+                    # resets that clock forever. A run once sat at "running" for
+                    # 14 minutes with the API frozen behind it. to_thread frees
+                    # the loop; wait_for bounds the stage.
+                    healed_code, diagnosis, changes = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            healer.diagnose_and_heal,
+                            code=code,
+                            error_message=err_msg,
+                            stack_trace=stack,
+                            discovered_elements=discovered_list,
+                            base_url=base_url,
+                        ),
+                        timeout=heal_timeout,
                     )
 
                     if healed_code and healed_code.strip() != code.strip():
@@ -333,6 +347,13 @@ class JobManager:
                                 "original_code": code,
                                 "healed_code": healed_code,
                             }
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "Healer Agent exceeded its %.0fs deadline for %s; recording the "
+                        "original failure without a healed retry.",
+                        heal_timeout,
+                        run_key,
+                    )
                 except Exception as heal_exc:
                     logger.warning("Healer Agent threw an exception for %s: %s", run_key, heal_exc)
 
@@ -376,7 +397,11 @@ class JobManager:
             raise
         except Exception as exc:  # noqa: BLE001 - last resort, must not leave "running"
             logger.exception("Unhandled error executing run %s", run_key)
-            self._safe_finalise(db, run_key, "failed", "blocked", f"Unexpected error: {exc}")
+            # Some exceptions carry no message at all (NotImplementedError is
+            # the one that bit us), and "Unexpected error: " tells nobody
+            # anything. Fall back to the class name.
+            detail = str(exc) or type(exc).__name__
+            self._safe_finalise(db, run_key, "failed", "blocked", f"Unexpected error: {detail}")
         finally:
             db.close()
 

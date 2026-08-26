@@ -41,6 +41,8 @@ from ..automation.llm import LLMError
 from ..automation.refine import refine_case_content, refined_to_columns
 from ...models.automation import AutomationTestCase
 
+from . import knowledge_base as kb
+
 logger = logging.getLogger(__name__)
 
 CLASSIFICATION_AUTOMATION = "automation"
@@ -513,8 +515,17 @@ def sync_approved_test_cases(db: Session) -> int:
             for i, s in enumerate(split_s)
         ] if split_s else []
 
-        app_url_match = re.search(r"https?://[^\s'\"]+", f"{steps_raw} {details.get('Test Case Description', '')}")
-        app_url = app_url_match.group(0).rstrip(".,)") if app_url_match else "https://www.eand.ae/en/index.html"
+        # A URL written into the case wins; otherwise the registered
+        # application's. This was a literal eand.ae URL, which stamped that
+        full_case_text = f"{details.get('Preconditions', '')} {steps_raw} {details.get('Test Case Description', '')} {details.get('Expected Result', '')} {details.get('Test Data', '')}"
+        app_url_match = re.search(r"https?://[^\s'\"\)]+", full_case_text)
+        if app_url_match:
+            app_url = app_url_match.group(0).rstrip(".,)")
+        else:
+            flow = kb.match_flow_blueprint(full_case_text)
+            matched_app = (flow.get("_app_id") if flow else None) or kb.resolve_app_id(full_case_text) or kb.default_app_id()
+            prof = kb.load_app_profile(matched_app) or {}
+            app_url = (prof.get("base_url") or kb.default_base_url() or "").strip() or None
 
         created_at_dt = datetime.utcnow()
         if row.reviewed_datetime:
@@ -558,6 +569,8 @@ def sync_approved_test_cases(db: Session) -> int:
                 existing.origin_test_case_id = origin_id
             if not existing.origin_request_id:
                 existing.origin_request_id = row.request_id
+            if app_url and (not existing.application_url or "smb" in full_case_text.lower() and "smb" not in (existing.application_url or "")):
+                existing.application_url = app_url
 
     if synced > 0:
         db.commit()

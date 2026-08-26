@@ -1,0 +1,150 @@
+{
+  "flow_id": "flow_smb_business_first_plus_local",
+  "flow_name": "Business First Plus - Local Mobile Plans",
+  "category": "Mobile Plans",
+  "subcategory": "Business First Plus - Local",
+  "target_match_keywords": [
+    "business first plus",
+    "business first plus local",
+    "local plans",
+    "local 110",
+    "local 150",
+    "local 200",
+    "smb mobile plans",
+    "value plans",
+    "local minutes",
+    "careem plus",
+    "cug minutes",
+    "non-stop daily data",
+    "smb mobile",
+    "e& business first"
+  ],
+  "catalog_entrypoint": "/en/smb/products/mobile/mobile-plans/business-first-plus.html",
+  "cart_endpoint": "/b2bportal/ordering-email-verification.html",
+  "automation_boundary": {
+    "automated_scope": "SMB Portal Homepage -> Products Menu -> Mobile -> Value Plans (Business First Plus) -> Select Local Tab -> Choose Local Plan (110 / 150 / 200) -> Click 'Buy Now' -> Verify B2B Ordering Email Verification Page",
+    "external_boundary": "Corporate Trade License verification and Live SMS/Email OTP authentication are external boundaries."
+  },
+  "graph_edges": [
+    {
+      "from": "smb_homepage",
+      "to": "business_first_plus_catalog",
+      "action": "navigate_mobile_value_plans"
+    },
+    {
+      "from": "business_first_plus_catalog",
+      "to": "local_plans_tab",
+      "action": "click_local_tab"
+    },
+    {
+      "from": "local_plans_tab",
+      "to": "plan_card_selected",
+      "action": "select_plan_card"
+    },
+    {
+      "from": "plan_card_selected",
+      "to": "b2b_ordering_verification",
+      "action": "click_buy_now"
+    }
+  ],
+  "canonical_steps": [
+    {
+      "step_number": 1,
+      "action": "Navigate to e& UAE SMB Portal Homepage",
+      "target": "/en/smb/index.html",
+      "expected_result": "SMB portal loads successfully with active business navigation header"
+    },
+    {
+      "step_number": 2,
+      "action": "Dismiss cookie banner if present",
+      "target": "#usercentrics-root",
+      "expected_result": "Cookie overlay is dismissed cleanly"
+    },
+    {
+      "step_number": 3,
+      "action": "Navigate to Products -> Mobile -> Business First Plus Plans",
+      "target": "/en/smb/products/mobile/mobile-plans/business-first-plus.html",
+      "expected_result": "Business First Plus plans page loads displaying plan cards and tabs"
+    },
+    {
+      "step_number": 4,
+      "action": "Switch to 'Local' plans tab",
+      "target": "button:has-text('Local'), .tab-item:has-text('Local'), a:has-text('Local')",
+      "expected_result": "Local tab is activated displaying Local 110, Local 150, and Local 200 plans"
+    },
+    {
+      "step_number": 5,
+      "action": "Select {{plan_name}} and review plan allowances & promo pricing",
+      "target": ".plan-card:has-text('{{plan_name}}'), div:has-text('{{plan_name}}')",
+      "expected_result": "Plan details show discounted rate, local data, local minutes, CUG minutes, and flexi SMS"
+    },
+    {
+      "step_number": 6,
+      "action": "Click 'Buy Now' on {{plan_name}}",
+      "target": "a[href*='ratePlanId={{rate_plan_id}}'], a:has-text('Buy Now')",
+      "expected_result": "User is redirected to B2B Ordering verification page"
+    },
+    {
+      "step_number": 7,
+      "action": "Verify B2B Ordering Email Verification Page",
+      "target": "/b2bportal/ordering-email-verification.html",
+      "expected_result": "Online ordering email verification screen is displayed with matching plan parameters"
+    }
+  ],
+  "known_products": {
+    "Business First Plus Local 110": {
+      "productId": "prod_PKBLATLBP000000379",
+      "skuId": "PKBLATLBP000000379",
+      "ratePlanId": "PKBLATLBP000000379",
+      "default_price": "AED 77 / month",
+      "regular_price": "AED 110 / month (5% VAT excluded)",
+      "promo_offer": "30% Off for First 4 Months",
+      "contract_period": "12-Months Contract",
+      "local_data": "7.5 GB Full Speed Local Data",
+      "ai_productivity_data": "7.5 GB (250MB/Day) for AI apps (ChatGPT, Claude, Gemini, Copilot, Perplexity) & Productivity (Zoom, MS Teams, Email)",
+      "local_minutes": "900 Local Minutes",
+      "cug_minutes": "10,000 CUG Minutes (Intra-company)",
+      "flexi_sms": "110 Flexi SMS",
+      "carryforward": "Local Mins & Local Data (up to 3 months)",
+      "bonus_perks": "12 Months free Careem Plus Subscription",
+      "buy_now_url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&ratePlanId=PKBLATLBP000000379&productId=prod_PKBLATLBP000000379&displayName=Business%20First%20Plus%20Local%20110&showRequestCallBack=true&product=1&subject=Business%20First%20Plus%20Local%20110&productName=Business%20First%20Plus%20Local%20110&p=110&contractPeriod=12%20Months%20Contract&locale=en",
+      "more_info_url": "https://www.eand.ae/en/smb/products/mobile/mobile-plans/business-first-plus/local-900mins.html#12-month"
+    },
+    "Business First Plus Local 150": {
+      "productId": "prod_PKBLATLBP000000377",
+      "skuId": "PKBLATLBP000000377",
+      "ratePlanId": "PKBLATLBP000000377",
+      "default_price": "AED 105 / month",
+      "regular_price": "AED 150 / month (5% VAT excluded)",
+      "promo_offer": "30% Off for First 4 Months",
+      "contract_period": "12-Months Contract",
+      "local_data": "15 GB Full Speed Local Data",
+      "ai_productivity_data": "15 GB (500MB/Day) for AI apps (ChatGPT, Claude, Gemini, Copilot, Perplexity) & Productivity (Zoom, MS Teams, Email)",
+      "local_minutes": "1,100 Local Minutes",
+      "cug_minutes": "10,000 CUG Minutes (Intra-company)",
+      "flexi_sms": "150 Flexi SMS",
+      "carryforward": "Local Mins & Local Data (up to 3 months)",
+      "bonus_perks": "12 Months free Careem Plus Subscription",
+      "buy_now_url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&ratePlanId=PKBLATLBP000000377&productId=prod_PKBLATLBP000000377&displayName=Business%20First%20Plus%20Local%20150&showRequestCallBack=true&product=1&subject=Business%20First%20Plus%20Local%20150&productName=Business%20First%20Plus%20Local%20150&p=150&contractPeriod=12%20Months%20Contract&locale=en",
+      "more_info_url": "https://www.eand.ae/en/smb/products/mobile/mobile-plans/business-first-plus/local-1100mins.html#12-month"
+    },
+    "Business First Plus Local 200": {
+      "productId": "prod_PKBLBFPBP0000003J8",
+      "skuId": "PKBLBFPBP0000003J8",
+      "ratePlanId": "PKBLBFPBP0000003J8",
+      "default_price": "AED 140 / month",
+      "regular_price": "AED 200 / month (5% VAT excluded)",
+      "promo_offer": "30% Off for First 4 Months",
+      "contract_period": "12-Months Contract",
+      "local_data": "Endless Local Data (15 Mbps Speed)",
+      "ai_productivity_data": "15 GB (500MB/Day) for AI apps (ChatGPT, Claude, Gemini, Copilot, Perplexity) & Productivity (Zoom, MS Teams, Email)",
+      "local_minutes": "1,500 Local Minutes",
+      "cug_minutes": "10,000 CUG Minutes (Intra-company)",
+      "flexi_sms": "200 Flexi SMS",
+      "carryforward": "Local Mins (up to 3 months)",
+      "bonus_perks": "12 Months free Careem Plus Subscription",
+      "buy_now_url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&ratePlanId=PKBLBFPBP0000003J8&productId=prod_PKBLBFPBP0000003J8&displayName=Business%20First%20Plus%20Local%20200&showRequestCallBack=true&product=1&subject=Business%20First%20Plus%20Local%20200&productName=Business%20First%20Plus%20Local%20200&p=200&contractPeriod=12%20Months%20Contract&locale=en",
+      "more_info_url": "https://www.eand.ae/en/smb/products/mobile/mobile-plans/business-first-plus/local-1800mins.html#12-month"
+    }
+  }
+}

@@ -29,7 +29,7 @@ app/environment.json
 .build-proxy
 
 # ── Data ─────────────────────────────────────────────────────────────────────
-*.db
+.db
 *.db-wal
 *.db-shm
 *.sqlite

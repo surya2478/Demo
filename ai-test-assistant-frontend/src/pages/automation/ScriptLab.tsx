@@ -37,7 +37,7 @@ import LoadingSkeleton from '../../components/ui/LoadingSkeleton'
 import StatusBadge from '../../components/ui/StatusBadge'
 import { CodeViewer } from '../../components/automation/CodeViewer'
 import { StatTile } from '../../components/automation/workbenchPresentation'
-import { isDryRunSettled } from '../../types/automation'
+import { isDryRunSettled, readSelectedApplicationId } from '../../types/automation'
 import type {
   DryRunStatus,
   FrameworkInfo,
@@ -240,6 +240,11 @@ const ScriptLab: React.FC = () => {
       const res = await automationService.generateScripts({
         case_ids: Array.from(selectedCases),
         framework,
+        // Which application's discovery catalogue to compile against — the one
+        // selected on Application Discovery. Omitting it only works while a
+        // single application is registered; naming it keeps the scripts and
+        // the grounding badges judged against the same catalogue.
+        application_id: readSelectedApplicationId(),
         // No Base URL field on this screen any more: the compiler falls back
         // to the case's own application_url, which refinement already set.
         base_url: null,

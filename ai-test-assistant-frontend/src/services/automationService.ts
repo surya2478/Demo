@@ -38,6 +38,8 @@ import type {
   ScriptLabListing,
   DiscoveredElement,
   DiscoveryRun,
+  RegisteredApplication,
+  KnowledgeBaseDraftResult,
   IntakeBatch,
   IntakeRole,
   IntakeRoleResult,
@@ -366,6 +368,8 @@ const automationService = {
   generateScripts: (body: {
     case_ids: number[]
     framework: string
+    /** Whose discovery catalogue to compile against. */
+    application_id?: number | null
     base_url?: string | null
     regenerate?: boolean
   }): Promise<GenerateScriptsResult> =>
@@ -427,35 +431,64 @@ const automationService = {
   // ── Application Discovery and Grounding ────────────────────────────────
 
   /** Crawl the application. Resolves with the run to poll, not the catalogue. */
+  /**
+   * Crawl a registered application.
+   *
+   * The URL and environment are optional because the application already
+   * carries both — sending them per crawl is how the registered target and the
+   * crawled one drift apart. Pass them only to crawl one application in a
+   * different environment.
+   */
   startDiscovery: (body: {
-    application_url: string
+    application_id: number
+    application_url?: string | null
     application_environment?: string | null
-    application_id?: number | null
     max_pages?: number
   }): Promise<DiscoveryRun> =>
     call<DiscoveryRun>(() => api.post(`${BASE}/discovery/run`, body)),
 
-  /** Current catalogue state. Folds in a finished crawl on the way. */
-  getDiscovery: (): Promise<DiscoveryState> =>
-    call<DiscoveryState>(() => api.get(`${BASE}/discovery`)),
+  /** One application's catalogue state. Folds in a finished crawl on the way. */
+  getDiscovery: (applicationId?: number | null): Promise<DiscoveryState> =>
+    call<DiscoveryState>(() =>
+      api.get(`${BASE}/discovery`, { params: applicationId ? { application_id: applicationId } : {} })
+    ),
 
-  listDiscoveredElements: (params: { search?: string | null; role?: string | null } = {}) => {
-    const query: Record<string, string> = {}
+  listDiscoveredElements: (
+    params: { search?: string | null; role?: string | null; applicationId?: number | null } = {}
+  ) => {
+    const query: Record<string, string | number> = {}
     if (params.search && params.search.trim()) query.search = params.search.trim()
     if (params.role) query.role = params.role
+    if (params.applicationId) query.application_id = params.applicationId
     return call<ElementCatalog>(() => api.get(`${BASE}/discovery/elements`, { params: query }))
   },
 
-  /** Discards the catalogue and resets every case grounded against it. */
-  deleteDiscovery: (): Promise<{
+  /**
+   * Discards one application's catalogue and resets the cases it grounded.
+   * Scoped — this used to clear every application's discovery data at once.
+   */
+  deleteDiscovery: (
+    applicationId?: number | null
+  ): Promise<{
+    application_id: number
     discovery_runs_removed: number
     elements_removed: number
     test_cases_reset: number
-  }> => call(() => api.delete(`${BASE}/discovery`)),
+  }> =>
+    call(() =>
+      api.delete(`${BASE}/discovery`, {
+        params: applicationId ? { application_id: applicationId } : {}
+      })
+    ),
 
   /** Match test case steps against the catalogue. Empty list means all of them. */
-  groundCases: (caseIds: number[] = []): Promise<GroundResult> =>
-    call<GroundResult>(() => api.post(`${BASE}/workbench/ground`, { case_ids: caseIds })),
+  groundCases: (caseIds: number[] = [], applicationId?: number | null): Promise<GroundResult> =>
+    call<GroundResult>(() =>
+      api.post(`${BASE}/workbench/ground`, {
+        case_ids: caseIds,
+        application_id: applicationId ?? null
+      })
+    ),
 
   /* --- Document intake --------------------------------------------------- */
 
@@ -508,7 +541,110 @@ const automationService = {
    * second polling mechanism that would drift from it.
    */
   extractIntakeTestCases: (batchId: number): Promise<GenerationJob> =>
-    call<GenerationJob>(() => api.post(`${BASE}/intake/batches/${batchId}/extract`))
+    call<GenerationJob>(() => api.post(`${BASE}/intake/batches/${batchId}/extract`)),
+
+  /* --- Registered applications ------------------------------------------- */
+
+  /**
+   * Every registered application, each with its Knowledge Base link and the
+   * state of its own discovery catalogue.
+   */
+  listApplications: (
+    includeInactive = false
+  ): Promise<{ applications: RegisteredApplication[]; total: number }> =>
+    call(() =>
+      api.get(`${BASE}/applications`, {
+        params: includeInactive ? { include_inactive: true } : {}
+      })
+    ),
+
+  getApplication: (applicationId: number): Promise<RegisteredApplication> =>
+    call<RegisteredApplication>(() => api.get(`${BASE}/applications/${applicationId}`)),
+
+  createApplication: (body: {
+    name: string
+    app_key: string
+    base_url: string
+    environment?: string
+    description?: string | null
+    is_active?: boolean
+  }): Promise<RegisteredApplication> =>
+    call<RegisteredApplication>(() => api.post(`${BASE}/applications`, body)),
+
+  updateApplication: (
+    applicationId: number,
+    body: Partial<{
+      name: string
+      base_url: string
+      environment: string
+      description: string | null
+      is_active: boolean
+    }>
+  ): Promise<RegisteredApplication> =>
+    call<RegisteredApplication>(() => api.patch(`${BASE}/applications/${applicationId}`, body)),
+
+  deleteApplication: (applicationId: number): Promise<{ deleted: boolean; id: number }> =>
+    call(() => api.delete(`${BASE}/applications/${applicationId}`)),
+
+  /**
+   * Write Knowledge Base files from this application's current crawl.
+   *
+   * The seam between the two halves of the Discovery screen: the crawler fills
+   * a database with elements, the Knowledge Base is files, and this carries
+   * what a crawl can honestly state from one to the other. An existing
+   * app_profile.json is left alone unless `overwriteProfile` is passed — it is
+   * what every model and grounding rule compiles from.
+   */
+  /**
+   * Write Knowledge Base files from an application's current crawl.
+   *
+   * `synthesise` asks a model to classify the crawl into the keys the model
+   * compiler reads -- url_templates, endpoints, named selector groups,
+   * grounding rules -- rather than leaving them blank for a person to type.
+   * Every proposal is validated back against the crawl server-side, so a
+   * selector it never verified never reaches the file; turning it off yields
+   * the plain structural draft.
+   */
+  draftKnowledgeBase: (
+    applicationId: number,
+    overwriteProfile = false,
+    synthesise = true
+  ): Promise<KnowledgeBaseDraftResult> =>
+    call<KnowledgeBaseDraftResult>(() =>
+      api.post(`${BASE}/applications/${applicationId}/knowledge-base/draft`, {
+        overwrite_profile: overwriteProfile,
+        synthesise
+      })
+    ),
+
+  // ── Knowledge Base & Application Model ─────────────────────────────────
+
+  getKnowledgeBaseApplications: (): Promise<{ applications: any[]; total: number }> =>
+    call(() => api.get(`${BASE}/knowledge-base/applications`)),
+
+  getApplicationFlows: (appId: string): Promise<{ app_id: string; profile: any; flows: any[]; total: number }> =>
+    call(() => api.get(`${BASE}/knowledge-base/applications/${encodeURIComponent(appId)}/flows`)),
+
+  /**
+   * The compiled Application Model for one Knowledge Base application.
+   *
+   * There is no client-side fallback compiler any more. The one that lived
+   * here re-derived the model from raw flows with eand.ae URLs and selectors
+   * written into the TypeScript — so when the real endpoint failed, the screen
+   * quietly rendered another company's routes as though they were this
+   * application's. A failure is now a failure, and the caller shows it.
+   */
+  getApplicationModel: (appKey: string): Promise<any> =>
+    call(() => api.get(`${BASE}/knowledge-base/applications/${encodeURIComponent(appKey)}/model`)),
+
+  exportApplicationModelJson: async (appKey: string): Promise<Blob> => {
+    const res = await api.get(
+      `${BASE}/knowledge-base/applications/${encodeURIComponent(appKey)}/model/export`,
+      { responseType: 'blob' }
+    )
+    return res.data as Blob
+  }
 }
 
 export default automationService
+

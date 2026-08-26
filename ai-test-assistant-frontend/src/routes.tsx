@@ -211,13 +211,21 @@ const AppRoutes: React.FC = () => {
           <Route path="kb" element={<KB />} />
         </Route>
 
+        {/* Dedicated Application Discovery & Application Model Route */}
         <Route
           path="discovery"
           element={<Navigate to="/automation/discovery" replace />}
         />
+        <Route
+          path="automation/discovery"
+          element={
+            <ProtectedRoute allowedPermissions={['automation.view']}>
+              <Discovery />
+            </ProtectedRoute>
+          }
+        />
 
-        {/* Automation Studio with nested tab routes. Run Detail sits under
-            the runs tab so the workspace chrome stays put when opening one. */}
+        {/* Automation Studio with nested tab routes */}
         <Route
           path="automation"
           element={
@@ -226,15 +234,10 @@ const AppRoutes: React.FC = () => {
             </ProtectedRoute>
           }
         >
-          {/* Workbench is the landing tab. Candidates was removed: its candidate
-              list, single-case refine and CSV/manual intake are superseded by
-              Workbench's "What to refine" (approved + studio cases together,
-              via /workbench/sources) and Document Intake. */}
           <Route index element={<Navigate to="workbench" replace />} />
           <Route path="candidates" element={<Navigate to="../workbench" replace />} />
           <Route path="workbench" element={<Workbench />} />
           <Route path="script-lab" element={<ScriptLab />} />
-          <Route path="discovery" element={<Discovery />} />
           <Route path="runs" element={<Runs />} />
           <Route path="runs/:runKey" element={<RunDetail />} />
         </Route>

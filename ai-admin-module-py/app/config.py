@@ -132,6 +132,13 @@ class Settings(BaseSettings):
     # AUTOMATION_RUN_TIMEOUT_SECONDS
     #                           wall clock per run before the subprocess is
     #                           killed and the run recorded as timed out.
+    # AUTOMATION_HEAL_TIMEOUT_SECONDS
+    #                           wall clock for the self-healing stage. The LLM
+    #                           call inside it is bounded by a per-socket read
+    #                           timeout, which a provider that trickles
+    #                           keep-alive bytes never trips -- so the stage
+    #                           needs a deadline of its own, or a stalled
+    #                           provider parks the run at "running" forever.
     # AUTOMATION_MAX_CONCURRENT_RUNS
     #                           browser runs are memory-hungry and this backend
     #                           is a single process; 1 is the safe default and
@@ -143,6 +150,7 @@ class Settings(BaseSettings):
     AUTOMATION_STORAGE_PATH: str = Field(default="./storage/automation")
     AUTOMATION_NODE_PATH: str = Field(default="npx")
     AUTOMATION_RUN_TIMEOUT_SECONDS: int = Field(default=600)
+    AUTOMATION_HEAL_TIMEOUT_SECONDS: int = Field(default=120)
     AUTOMATION_MAX_CONCURRENT_RUNS: int = Field(default=1)
     AUTOMATION_DEFAULT_SLOW_MO_MS: int = Field(default=1000)
 

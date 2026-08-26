@@ -17,7 +17,18 @@ def main(case_id):
         logger.error('Test case not found: %s', case_id)
         db.close()
         return
-    url = (case.application_url or 'https://www.eand.ae/en/index.html').strip()
+    from . import knowledge_base as kb
+
+    # The case's own URL, else the registered application's -- never a literal
+    # belonging to one particular customer.
+    url = (case.application_url or kb.default_base_url()).strip()
+    if not url:
+        logger.error(
+            'Test case %s has no application URL and no application is registered; '
+            'there is nowhere to open a browser.', case.display_id
+        )
+        db.close()
+        return
     display_id = case.display_id
     db.close()
 

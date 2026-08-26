@@ -1,0 +1,1181 @@
+{
+  "model_version": "3.0.0",
+  "generated_at": "2026-08-26T07:53:37.430236Z",
+  "application_info": {
+    "app_id": "eand_ae",
+    "app_name": "e& UAE Web Portal",
+    "base_url": "https://www.eand.ae/en/index.html",
+    "domain": "eand.ae",
+    "framework": "Angular SPA",
+    "default_viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "security_profile": {
+      "waf_provider": "Akamai",
+      "rate_limit_policy": {
+        "min_inter_step_delay_ms": 1500,
+        "navigation_timeout_ms": 45000
+      },
+      "cookie_overlay": {
+        "type": "shadow_dom",
+        "host_selector": "#usercentrics-root",
+        "dismissal_code": "document.querySelector('#usercentrics-root')?.remove(); document.body.style.overflow = 'auto';"
+      }
+    },
+    "search_mechanism": {
+      "trigger_selector": ".search-wrap-dekstop, button[aria-label*='search' i], .search-btn",
+      "popup_container": "#searchPopup",
+      "input_selector": "input[type='search'], input[placeholder*='Search' i], #search-input"
+    }
+  },
+  "summary": {
+    "total_flows": 3,
+    "total_categories": 3,
+    "total_known_products": 9,
+    "total_registered_urls": 14,
+    "total_canonical_steps": 22
+  },
+  "url_registry": [
+    {
+      "url": "https://www.eand.ae/en/index.html",
+      "route": "/en/index.html",
+      "url_type": "Homepage",
+      "category": "General",
+      "name": "Portal Homepage",
+      "description": "Main landing page for e& UAE Web Portal.",
+      "query_parameters": {},
+      "associated_selectors": [
+        "#usercentrics-root",
+        ".search-wrap-dekstop, button[aria-label*='search' i], .search-btn"
+      ]
+    },
+    {
+      "url": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
+      "route": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
+      "url_type": "Catalog_Listing",
+      "category": "Accessories",
+      "name": "Accessories Catalog Listing",
+      "description": "Product listing page for the Accessories category.",
+      "query_parameters": {
+        "category": "mobileDevices",
+        "subCategory": "cat1100067",
+        "catName": "Earbuds",
+        "listVal": "Smartphones",
+        "locale": "EN"
+      },
+      "associated_selectors": [
+        ".device-card, .product-tile, .eshop-product-card",
+        ".filter-container, .brand-filter, .category-filter",
+        "select[name='sort'], .sort-by"
+      ]
+    },
+    {
+      "url": "https://www.eand.ae/eshop/checkout/cart",
+      "route": "/eshop/checkout/cart",
+      "url_type": "Cart_Checkout",
+      "category": "Checkout",
+      "name": "Shopping Cart & Checkout Review",
+      "description": "Cart review screen showing the selected items and the checkout CTA.",
+      "query_parameters": {},
+      "associated_selectors": [
+        ".cart-summary, .order-review-container",
+        ".cart-item-title, .product-name",
+        ".cart-payment-type, .installment-term",
+        "button:has-text('Checkout Now'), button:has-text('Proceed to Checkout')"
+      ]
+    },
+    {
+      "url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1786686221657&skuId=bgskuTrans3999231220&catName=Accessories&listVal=Smartphones&showDefault=true",
+      "route": "/eshop/devices/configuration?productId=prod1T1786686221657&skuId=bgskuTrans3999231220&catName=Accessories&listVal=Smartphones&showDefault=true",
+      "url_type": "Product_Configuration",
+      "category": "Accessories",
+      "name": "Huawei FreeClip 2s Configuration Page",
+      "description": "Product detail and configuration page for Huawei FreeClip 2s.",
+      "query_parameters": {
+        "productId": "prod1T1786686221657",
+        "skuId": "bgskuTrans3999231220",
+        "catName": "Accessories",
+        "listVal": "Smartphones",
+        "showDefault": "true"
+      },
+      "associated_selectors": [
+        ".device-variant-options, .storage-btn, label:has-text('GB'), [role='radio']:has-text('GB')",
+        ".color-swatch, .color-btn, [role='radio']:has-text('Titanium'), [role='radio']:has-text('Black')",
+        ".segment-tab, [role='radio']:has-text('One time'), button:has-text('One time'), button:has-text('Smart Pay')",
+        "button:has-text('ADD TO CART'), button:has-text('Checkout Now')",
+        ".price-container, .total-price, .device-price"
+      ]
+    },
+    {
+      "url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1775032063511&skuId=bgskuTrans3999229481&catName=Accessories&listVal=Smartphones&showDefault=true",
+      "route": "/eshop/devices/configuration?productId=prod1T1775032063511&skuId=bgskuTrans3999229481&catName=Accessories&listVal=Smartphones&showDefault=true",
+      "url_type": "Product_Configuration",
+      "category": "Accessories",
+      "name": "Apple AirPods Max 2 Configuration Page",
+      "description": "Product detail and configuration page for Apple AirPods Max 2.",
+      "query_parameters": {
+        "productId": "prod1T1775032063511",
+        "skuId": "bgskuTrans3999229481",
+        "catName": "Accessories",
+        "listVal": "Smartphones",
+        "showDefault": "true"
+      },
+      "associated_selectors": [
+        ".device-variant-options, .storage-btn, label:has-text('GB'), [role='radio']:has-text('GB')",
+        ".color-swatch, .color-btn, [role='radio']:has-text('Titanium'), [role='radio']:has-text('Black')",
+        ".segment-tab, [role='radio']:has-text('One time'), button:has-text('One time'), button:has-text('Smart Pay')",
+        "button:has-text('ADD TO CART'), button:has-text('Checkout Now')",
+        ".price-container, .total-price, .device-price"
+      ]
+    },
+    {
+      "url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1777616962903&skuId=bgskuTrans3999229892&catName=Accessories&listVal=Smartphones&showDefault=true",
+      "route": "/eshop/devices/configuration?productId=prod1T1777616962903&skuId=bgskuTrans3999229892&catName=Accessories&listVal=Smartphones&showDefault=true",
+      "url_type": "Product_Configuration",
+      "category": "Accessories",
+      "name": "Honor Earbuds 4 Configuration Page",
+      "description": "Product detail and configuration page for Honor Earbuds 4.",
+      "query_parameters": {
+        "productId": "prod1T1777616962903",
+        "skuId": "bgskuTrans3999229892",
+        "catName": "Accessories",
+        "listVal": "Smartphones",
+        "showDefault": "true"
+      },
+      "associated_selectors": [
+        ".device-variant-options, .storage-btn, label:has-text('GB'), [role='radio']:has-text('GB')",
+        ".color-swatch, .color-btn, [role='radio']:has-text('Titanium'), [role='radio']:has-text('Black')",
+        ".segment-tab, [role='radio']:has-text('One time'), button:has-text('One time'), button:has-text('Smart Pay')",
+        "button:has-text('ADD TO CART'), button:has-text('Checkout Now')",
+        ".price-container, .total-price, .device-price"
+      ]
+    },
+    {
+      "url": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100063&catName=Smartphones&listVal=Smartphones&locale=EN",
+      "route": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100063&catName=Smartphones&listVal=Smartphones&locale=EN",
+      "url_type": "Catalog_Listing",
+      "category": "Smartphones",
+      "name": "Smartphones Catalog Listing",
+      "description": "Product listing page for the Smartphones category.",
+      "query_parameters": {
+        "category": "mobileDevices",
+        "subCategory": "cat1100063",
+        "catName": "Smartphones",
+        "listVal": "Smartphones",
+        "locale": "EN"
+      },
+      "associated_selectors": [
+        ".device-card, .product-tile, .eshop-product-card",
+        ".filter-container, .brand-filter, .category-filter",
+        "select[name='sort'], .sort-by"
+      ]
+    },
+    {
+      "url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1757998040834&skuId=bgskuTrans3820239388&catName=Smartphones&listVal=Smartphones&showDefault=true",
+      "route": "/eshop/devices/configuration?productId=prod1T1757998040834&skuId=bgskuTrans3820239388&catName=Smartphones&listVal=Smartphones&showDefault=true",
+      "url_type": "Product_Configuration",
+      "category": "Smartphones",
+      "name": "Apple iPhone 17 Pro Configuration Page",
+      "description": "Product detail and configuration page for Apple iPhone 17 Pro.",
+      "query_parameters": {
+        "productId": "prod1T1757998040834",
+        "skuId": "bgskuTrans3820239388",
+        "catName": "Smartphones",
+        "listVal": "Smartphones",
+        "showDefault": "true"
+      },
+      "associated_selectors": [
+        ".device-variant-options, .storage-btn, label:has-text('GB'), [role='radio']:has-text('GB')",
+        ".color-swatch, .color-btn, [role='radio']:has-text('Titanium'), [role='radio']:has-text('Black')",
+        ".segment-tab, [role='radio']:has-text('One time'), button:has-text('One time'), button:has-text('Smart Pay')",
+        "button:has-text('ADD TO CART'), button:has-text('Checkout Now')",
+        ".price-container, .total-price, .device-price"
+      ]
+    },
+    {
+      "url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1772791900380&skuId=bgskuTrans3999229871&catName=Smartphones&listVal=Smartphones&showDefault=true",
+      "route": "/eshop/devices/configuration?productId=prod1T1772791900380&skuId=bgskuTrans3999229871&catName=Smartphones&listVal=Smartphones&showDefault=true",
+      "url_type": "Product_Configuration",
+      "category": "Smartphones",
+      "name": "Samsung Galaxy S26 Ultra Configuration Page",
+      "description": "Product detail and configuration page for Samsung Galaxy S26 Ultra.",
+      "query_parameters": {
+        "productId": "prod1T1772791900380",
+        "skuId": "bgskuTrans3999229871",
+        "catName": "Smartphones",
+        "listVal": "Smartphones",
+        "showDefault": "true"
+      },
+      "associated_selectors": [
+        ".device-variant-options, .storage-btn, label:has-text('GB'), [role='radio']:has-text('GB')",
+        ".color-swatch, .color-btn, [role='radio']:has-text('Titanium'), [role='radio']:has-text('Black')",
+        ".segment-tab, [role='radio']:has-text('One time'), button:has-text('One time'), button:has-text('Smart Pay')",
+        "button:has-text('ADD TO CART'), button:has-text('Checkout Now')",
+        ".price-container, .total-price, .device-price"
+      ]
+    },
+    {
+      "url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1772791900481&skuId=bgskuTrans3999229880&catName=Smartphones&listVal=Smartphones&showDefault=true",
+      "route": "/eshop/devices/configuration?productId=prod1T1772791900481&skuId=bgskuTrans3999229880&catName=Smartphones&listVal=Smartphones&showDefault=true",
+      "url_type": "Product_Configuration",
+      "category": "Smartphones",
+      "name": "Samsung Galaxy S26 Configuration Page",
+      "description": "Product detail and configuration page for Samsung Galaxy S26.",
+      "query_parameters": {
+        "productId": "prod1T1772791900481",
+        "skuId": "bgskuTrans3999229880",
+        "catName": "Smartphones",
+        "listVal": "Smartphones",
+        "showDefault": "true"
+      },
+      "associated_selectors": [
+        ".device-variant-options, .storage-btn, label:has-text('GB'), [role='radio']:has-text('GB')",
+        ".color-swatch, .color-btn, [role='radio']:has-text('Titanium'), [role='radio']:has-text('Black')",
+        ".segment-tab, [role='radio']:has-text('One time'), button:has-text('One time'), button:has-text('Smart Pay')",
+        "button:has-text('ADD TO CART'), button:has-text('Checkout Now')",
+        ".price-container, .total-price, .device-price"
+      ]
+    },
+    {
+      "url": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100069&catName=Smartwatches&listVal=Smartphones&locale=EN",
+      "route": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100069&catName=Smartwatches&listVal=Smartphones&locale=EN",
+      "url_type": "Catalog_Listing",
+      "category": "Smartwatches",
+      "name": "Smartwatches Catalog Listing",
+      "description": "Product listing page for the Smartwatches category.",
+      "query_parameters": {
+        "category": "mobileDevices",
+        "subCategory": "cat1100069",
+        "catName": "Smartwatches",
+        "listVal": "Smartphones",
+        "locale": "EN"
+      },
+      "associated_selectors": [
+        ".device-card, .product-tile, .eshop-product-card",
+        ".filter-container, .brand-filter, .category-filter",
+        "select[name='sort'], .sort-by"
+      ]
+    },
+    {
+      "url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1775032063518&skuId=bgskuTrans3999229899&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+      "route": "/eshop/devices/configuration?productId=prod1T1775032063518&skuId=bgskuTrans3999229899&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+      "url_type": "Product_Configuration",
+      "category": "Smartwatches",
+      "name": "Samsung Galaxy Watch 7 Ultra Configuration Page",
+      "description": "Product detail and configuration page for Samsung Galaxy Watch 7 Ultra.",
+      "query_parameters": {
+        "productId": "prod1T1775032063518",
+        "skuId": "bgskuTrans3999229899",
+        "catName": "Smartwatches",
+        "listVal": "Smartphones",
+        "showDefault": "true"
+      },
+      "associated_selectors": [
+        ".device-variant-options, .storage-btn, label:has-text('GB'), [role='radio']:has-text('GB')",
+        ".color-swatch, .color-btn, [role='radio']:has-text('Titanium'), [role='radio']:has-text('Black')",
+        ".segment-tab, [role='radio']:has-text('One time'), button:has-text('One time'), button:has-text('Smart Pay')",
+        "button:has-text('ADD TO CART'), button:has-text('Checkout Now')",
+        ".price-container, .total-price, .device-price"
+      ]
+    },
+    {
+      "url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1757998040899&skuId=bgskuTrans3820239399&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+      "route": "/eshop/devices/configuration?productId=prod1T1757998040899&skuId=bgskuTrans3820239399&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+      "url_type": "Product_Configuration",
+      "category": "Smartwatches",
+      "name": "Apple Watch Series 10 Configuration Page",
+      "description": "Product detail and configuration page for Apple Watch Series 10.",
+      "query_parameters": {
+        "productId": "prod1T1757998040899",
+        "skuId": "bgskuTrans3820239399",
+        "catName": "Smartwatches",
+        "listVal": "Smartphones",
+        "showDefault": "true"
+      },
+      "associated_selectors": [
+        ".device-variant-options, .storage-btn, label:has-text('GB'), [role='radio']:has-text('GB')",
+        ".color-swatch, .color-btn, [role='radio']:has-text('Titanium'), [role='radio']:has-text('Black')",
+        ".segment-tab, [role='radio']:has-text('One time'), button:has-text('One time'), button:has-text('Smart Pay')",
+        "button:has-text('ADD TO CART'), button:has-text('Checkout Now')",
+        ".price-container, .total-price, .device-price"
+      ]
+    },
+    {
+      "url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1786686221777&skuId=bgskuTrans3999231333&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+      "route": "/eshop/devices/configuration?productId=prod1T1786686221777&skuId=bgskuTrans3999231333&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+      "url_type": "Product_Configuration",
+      "category": "Smartwatches",
+      "name": "Huawei Watch GT 5 Pro Configuration Page",
+      "description": "Product detail and configuration page for Huawei Watch GT 5 Pro.",
+      "query_parameters": {
+        "productId": "prod1T1786686221777",
+        "skuId": "bgskuTrans3999231333",
+        "catName": "Smartwatches",
+        "listVal": "Smartphones",
+        "showDefault": "true"
+      },
+      "associated_selectors": [
+        ".device-variant-options, .storage-btn, label:has-text('GB'), [role='radio']:has-text('GB')",
+        ".color-swatch, .color-btn, [role='radio']:has-text('Titanium'), [role='radio']:has-text('Black')",
+        ".segment-tab, [role='radio']:has-text('One time'), button:has-text('One time'), button:has-text('Smart Pay')",
+        "button:has-text('ADD TO CART'), button:has-text('Checkout Now')",
+        ".price-container, .total-price, .device-price"
+      ]
+    }
+  ],
+  "page_models": {
+    "homepage": {
+      "page_name": "Portal Homepage",
+      "url": "https://www.eand.ae/en/index.html",
+      "components": {
+        "cookie_overlay": {
+          "type": "shadow_dom",
+          "host_selector": "#usercentrics-root",
+          "dismissal_code": "document.querySelector('#usercentrics-root')?.remove(); document.body.style.overflow = 'auto';"
+        },
+        "search_bar": {
+          "trigger_selector": ".search-wrap-dekstop, button[aria-label*='search' i], .search-btn",
+          "popup_container": "#searchPopup",
+          "input_selector": "input[type='search'], input[placeholder*='Search' i], #search-input"
+        },
+        "navigation_header": {
+          "selector": "header, .header-container, nav.main-nav",
+          "categories": [
+            "Accessories",
+            "Smartphones",
+            "Smartwatches"
+          ]
+        }
+      }
+    },
+    "catalogs": {
+      "Accessories": {
+        "category": "Accessories",
+        "catalog_url": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
+        "components": {
+          "product_cards": ".device-card, .product-tile, .eshop-product-card",
+          "filter_tabs": ".filter-container, .brand-filter, .category-filter",
+          "sort_dropdown": "select[name='sort'], .sort-by"
+        }
+      },
+      "Smartphones": {
+        "category": "Smartphones",
+        "catalog_url": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100063&catName=Smartphones&listVal=Smartphones&locale=EN",
+        "components": {
+          "product_cards": ".device-card, .product-tile, .eshop-product-card",
+          "filter_tabs": ".filter-container, .brand-filter, .category-filter",
+          "sort_dropdown": "select[name='sort'], .sort-by"
+        }
+      },
+      "Smartwatches": {
+        "category": "Smartwatches",
+        "catalog_url": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100069&catName=Smartwatches&listVal=Smartphones&locale=EN",
+        "components": {
+          "product_cards": ".device-card, .product-tile, .eshop-product-card",
+          "filter_tabs": ".filter-container, .brand-filter, .category-filter",
+          "sort_dropdown": "select[name='sort'], .sort-by"
+        }
+      }
+    },
+    "product_configuration": {
+      "url_template": "/eshop/devices/configuration?productId={product_id}&skuId={sku_id}&catName={category}&listVal=Smartphones&showDefault=true",
+      "components": {
+        "storage_selector": ".device-variant-options, .storage-btn, label:has-text('GB'), [role='radio']:has-text('GB')",
+        "color_selector": ".color-swatch, .color-btn, [role='radio']:has-text('Titanium'), [role='radio']:has-text('Black')",
+        "payment_plan_tabs": ".segment-tab, [role='radio']:has-text('One time'), button:has-text('One time'), button:has-text('Smart Pay')",
+        "add_to_cart_cta": "button:has-text('ADD TO CART'), button:has-text('Checkout Now')",
+        "price_display": ".price-container, .total-price, .device-price"
+      }
+    },
+    "shopping_cart": {
+      "url": "/eshop/checkout/cart",
+      "components": {
+        "cart_summary": ".cart-summary, .order-review-container",
+        "item_title": ".cart-item-title, .product-name",
+        "payment_breakdown": ".cart-payment-type, .installment-term",
+        "proceed_to_checkout_cta": "button:has-text('Checkout Now'), button:has-text('Proceed to Checkout')"
+      }
+    }
+  },
+  "flows": [
+    {
+      "flow_id": "flow_accessories_purchase",
+      "flow_name": "Accessories & Audio Earbuds Purchase Flow",
+      "category": "Accessories",
+      "target_match_keywords": [
+        "earbuds",
+        "earbud",
+        "headphones",
+        "headphone",
+        "freeclip",
+        "airpods",
+        "speaker",
+        "speakers",
+        "audio",
+        "accessories",
+        "accessory",
+        "buds",
+        "soundtec",
+        "headset"
+      ],
+      "catalog_entrypoint_url": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
+      "catalog_entrypoint_route": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
+      "cart_endpoint_url": "https://www.eand.ae/eshop/checkout/cart",
+      "cart_endpoint_route": "/eshop/checkout/cart",
+      "automation_boundary": {
+        "automated_scope": "Accessories Catalog -> Product Configuration -> Plan Selection -> ADD TO CART -> Shopping Cart Verification",
+        "external_boundary": "Live Payment Gateway (Credit Card / OTP) is an external boundary."
+      },
+      "canonical_steps": [
+        {
+          "step_number": 1,
+          "action": "Navigate to e& UAE portal homepage",
+          "target": "/en/index.html",
+          "expected_result": "e& UAE portal homepage loads with active navigation header"
+        },
+        {
+          "step_number": 2,
+          "action": "Dismiss cookie and privacy overlay banner",
+          "target": "#usercentrics-root",
+          "expected_result": "Privacy overlay is dismissed cleanly"
+        },
+        {
+          "step_number": 3,
+          "action": "Navigate to Accessories -> Earbuds catalog",
+          "target": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
+          "expected_result": "Earbuds catalog displays available products and pricing"
+        },
+        {
+          "step_number": 4,
+          "action": "Open product configuration for {{product_name}}",
+          "target": "/eshop/devices/configuration?productId={{product_id}}&skuId={{sku_id}}&catName=Earbuds&listVal=Smartphones&showDefault=true",
+          "expected_result": "Product configuration page loads with technical specs and pricing"
+        },
+        {
+          "step_number": 5,
+          "action": "Select One Time payment option",
+          "target": ".segment-tab:has-text('One time'), label:has-text('One Time'), button:has-text('One time')",
+          "expected_result": "One time payment option is activated"
+        },
+        {
+          "step_number": 6,
+          "action": "Detect stock state and Click 'ADD TO CART' / 'Checkout Now' button",
+          "target": "button:has-text('Checkout Now'), button:has-text('ADD TO CART')",
+          "expected_result": "If in stock, item is added to cart successfully; if out-of-stock, button is disabled"
+        },
+        {
+          "step_number": 7,
+          "action": "Verify Shopping Cart & Secure Checkout review screen",
+          "target": "/eshop/checkout/cart",
+          "expected_result": "Order summary is displayed with proceed to checkout options"
+        }
+      ],
+      "graph_edges": [],
+      "registered_products": [
+        {
+          "product_name": "Huawei FreeClip 2s",
+          "product_id": "prod1T1786686221657",
+          "sku_id": "bgskuTrans3999231220",
+          "category": "Accessories",
+          "default_price": "AED 749.00",
+          "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1786686221657&skuId=bgskuTrans3999231220&catName=Accessories&listVal=Smartphones&showDefault=true",
+          "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1786686221657&skuId=bgskuTrans3999231220&catName=Accessories&listVal=Smartphones&showDefault=true",
+          "available_storage": [],
+          "available_colors": [
+            "Black",
+            "Purple",
+            "White"
+          ],
+          "payment_plans": [
+            "One time AED 749.00",
+            "24 months AED 33/mo",
+            "18 months",
+            "12 months"
+          ],
+          "optional_addons": [],
+          "sample_test_data_string": "Product: Huawei FreeClip 2s, ProductId: prod1T1786686221657, SkuId: bgskuTrans3999231220, Color: Black, Payment: One time"
+        },
+        {
+          "product_name": "Apple AirPods Max 2",
+          "product_id": "prod1T1775032063511",
+          "sku_id": "bgskuTrans3999229481",
+          "category": "Accessories",
+          "default_price": "AED 2,099.00",
+          "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1775032063511&skuId=bgskuTrans3999229481&catName=Accessories&listVal=Smartphones&showDefault=true",
+          "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1775032063511&skuId=bgskuTrans3999229481&catName=Accessories&listVal=Smartphones&showDefault=true",
+          "available_storage": [],
+          "available_colors": [
+            "Midnight",
+            "Starlight",
+            "Blue",
+            "Purple",
+            "Orange"
+          ],
+          "payment_plans": [
+            "One time AED 2,099.00",
+            "24 months AED 96/mo"
+          ],
+          "optional_addons": [],
+          "sample_test_data_string": "Product: Apple AirPods Max 2, ProductId: prod1T1775032063511, SkuId: bgskuTrans3999229481, Color: Midnight, Payment: One time"
+        },
+        {
+          "product_name": "Honor Earbuds 4",
+          "product_id": "prod1T1777616962903",
+          "sku_id": "bgskuTrans3999229892",
+          "category": "Accessories",
+          "default_price": "AED 169.00",
+          "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1777616962903&skuId=bgskuTrans3999229892&catName=Accessories&listVal=Smartphones&showDefault=true",
+          "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1777616962903&skuId=bgskuTrans3999229892&catName=Accessories&listVal=Smartphones&showDefault=true",
+          "available_storage": [],
+          "available_colors": [
+            "White",
+            "Cyan"
+          ],
+          "payment_plans": [
+            "One time AED 169.00"
+          ],
+          "optional_addons": [],
+          "sample_test_data_string": "Product: Honor Earbuds 4, ProductId: prod1T1777616962903, SkuId: bgskuTrans3999229892, Color: White, Payment: One time"
+        }
+      ]
+    },
+    {
+      "flow_id": "flow_smartphones_purchase",
+      "flow_name": "Smartphones & Mobile Devices Purchase Flow",
+      "category": "Smartphones",
+      "target_match_keywords": [
+        "smartphone",
+        "smartphones",
+        "phone",
+        "phones",
+        "mobile",
+        "mobiles",
+        "handset",
+        "handsets",
+        "device",
+        "devices",
+        "samsung",
+        "galaxy",
+        "iphone",
+        "apple",
+        "huawei",
+        "s26",
+        "s25",
+        "ultra",
+        "pro max",
+        "eand",
+        "e&",
+        "etisalat",
+        "eshop",
+        "portal",
+        "store",
+        "purchase",
+        "order",
+        "checkout",
+        "cart"
+      ],
+      "catalog_entrypoint_url": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100063&catName=Smartphones&listVal=Smartphones&locale=EN",
+      "catalog_entrypoint_route": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100063&catName=Smartphones&listVal=Smartphones&locale=EN",
+      "cart_endpoint_url": "https://www.eand.ae/eshop/checkout/cart",
+      "cart_endpoint_route": "/eshop/checkout/cart",
+      "automation_boundary": {
+        "automated_scope": "Product Catalog -> Variant Configuration (Storage, Color, Payment Plan) -> ADD TO CART -> Shopping Cart Verification",
+        "external_boundary": "Live Payment Gateway (Credit Card / OTP) and UAE PASS login require external real credentials and are documented as an external boundary."
+      },
+      "canonical_steps": [
+        {
+          "step_number": 1,
+          "action": "Navigate to e& UAE portal homepage",
+          "target": "/en/index.html",
+          "expected_result": "e& UAE portal homepage loads successfully"
+        },
+        {
+          "step_number": 2,
+          "action": "Dismiss cookie and privacy overlay banner",
+          "target": "#usercentrics-root",
+          "expected_result": "Cookie overlay is dismissed cleanly"
+        },
+        {
+          "step_number": 3,
+          "action": "Navigate to Devices -> Smartphones catalog",
+          "target": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100063&catName=Smartphones&listVal=Smartphones&locale=EN",
+          "expected_result": "Smartphones catalog displays available models and pricing plans"
+        },
+        {
+          "step_number": 4,
+          "action": "Open product configuration for {{product_name}}",
+          "target": "/eshop/devices/configuration?productId={{product_id}}&skuId={{sku_id}}&catName=Smartphones&listVal=Smartphones&showDefault=true",
+          "expected_result": "Product configuration page loads with live storage, color swatches, and payment options"
+        },
+        {
+          "step_number": 5,
+          "action": "Select storage capacity and color variant",
+          "target": ".device-variant-options, [role='radio'], button.variant-btn, .storage-btn, label:has-text('GB')",
+          "expected_result": "Selected storage and color are highlighted and price updates"
+        },
+        {
+          "step_number": 6,
+          "action": "Select payment option (One Time or Smart Pay installment)",
+          "target": ".segment-tab, [role='radio'], button:has-text('One time')",
+          "expected_result": "Payment plan is selected"
+        },
+        {
+          "step_number": 7,
+          "action": "Detect stock state and Click 'ADD TO CART' / 'Checkout Now' button",
+          "target": "button:has-text('Checkout Now'), button:has-text('ADD TO CART')",
+          "expected_result": "If in-stock item is added to cart; if out-of-stock ADD TO CART is correctly disabled"
+        },
+        {
+          "step_number": 8,
+          "action": "Verify Shopping Cart & Secure Checkout review screen",
+          "target": "/eshop/checkout/cart",
+          "expected_result": "Shopping cart renders product summary with One Time or Installment details"
+        }
+      ],
+      "graph_edges": [
+        {
+          "from": "homepage",
+          "to": "smartphones_catalog",
+          "action": "navigate_catalog"
+        },
+        {
+          "from": "smartphones_catalog",
+          "to": "device_configuration",
+          "action": "select_product_sku"
+        },
+        {
+          "from": "device_configuration",
+          "to": "variant_selected",
+          "action": "select_storage_and_color"
+        },
+        {
+          "from": "variant_selected",
+          "to": "payment_plan_selected",
+          "action": "select_payment_plan"
+        },
+        {
+          "from": "payment_plan_selected",
+          "to": "cart_checkout",
+          "action": "click_add_to_cart"
+        }
+      ],
+      "registered_products": [
+        {
+          "product_name": "Apple iPhone 17 Pro",
+          "product_id": "prod1T1757998040834",
+          "sku_id": "bgskuTrans3820239388",
+          "category": "Smartphones",
+          "default_price": "Live",
+          "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1757998040834&skuId=bgskuTrans3820239388&catName=Smartphones&listVal=Smartphones&showDefault=true",
+          "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1757998040834&skuId=bgskuTrans3820239388&catName=Smartphones&listVal=Smartphones&showDefault=true",
+          "available_storage": [
+            "256GB",
+            "512GB",
+            "1TB"
+          ],
+          "available_colors": [
+            "Deep Blue",
+            "Silver",
+            "Space Black"
+          ],
+          "payment_plans": [
+            "One time AED 4,299.00",
+            "24 months AED 195/mo",
+            "18 months",
+            "12 months"
+          ],
+          "optional_addons": [
+            "AppleCare+ 2yr / AED 799.00"
+          ],
+          "sample_test_data_string": "Product: Apple iPhone 17 Pro, ProductId: prod1T1757998040834, SkuId: bgskuTrans3820239388, Storage: 256GB, Color: Deep Blue, Payment: One time"
+        },
+        {
+          "product_name": "Samsung Galaxy S26 Ultra",
+          "product_id": "prod1T1772791900380",
+          "sku_id": "bgskuTrans3999229871",
+          "category": "Smartphones",
+          "default_price": "Live",
+          "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1772791900380&skuId=bgskuTrans3999229871&catName=Smartphones&listVal=Smartphones&showDefault=true",
+          "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1772791900380&skuId=bgskuTrans3999229871&catName=Smartphones&listVal=Smartphones&showDefault=true",
+          "available_storage": [
+            "256GB",
+            "512GB",
+            "1TB"
+          ],
+          "available_colors": [
+            "Titanium Black",
+            "Titanium Gray",
+            "Titanium Violet"
+          ],
+          "payment_plans": [
+            "One time AED 5,099.00",
+            "24 months AED 232/mo",
+            "18 months",
+            "12 months"
+          ],
+          "optional_addons": [
+            "Samsung Care+ 2yr / AED 599.00"
+          ],
+          "sample_test_data_string": "Product: Samsung Galaxy S26 Ultra, ProductId: prod1T1772791900380, SkuId: bgskuTrans3999229871, Storage: 256GB, Color: Titanium Black, Payment: One time"
+        },
+        {
+          "product_name": "Samsung Galaxy S26",
+          "product_id": "prod1T1772791900481",
+          "sku_id": "bgskuTrans3999229880",
+          "category": "Smartphones",
+          "default_price": "Live",
+          "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1772791900481&skuId=bgskuTrans3999229880&catName=Smartphones&listVal=Smartphones&showDefault=true",
+          "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1772791900481&skuId=bgskuTrans3999229880&catName=Smartphones&listVal=Smartphones&showDefault=true",
+          "available_storage": [
+            "128GB",
+            "256GB"
+          ],
+          "available_colors": [
+            "Cobalt Violet",
+            "Amber Yellow",
+            "Onyx Black"
+          ],
+          "payment_plans": [
+            "One time AED 3,199.00",
+            "24 months AED 146/mo"
+          ],
+          "optional_addons": [],
+          "sample_test_data_string": "Product: Samsung Galaxy S26, ProductId: prod1T1772791900481, SkuId: bgskuTrans3999229880, Storage: 128GB, Color: Cobalt Violet, Payment: One time"
+        }
+      ]
+    },
+    {
+      "flow_id": "flow_smartwatches_purchase",
+      "flow_name": "Smartwatches & Wearables Purchase Flow",
+      "category": "Smartwatches",
+      "target_match_keywords": [
+        "smartwatch",
+        "smartwatches",
+        "watch",
+        "watches",
+        "wearable",
+        "wearables",
+        "galaxy watch",
+        "apple watch",
+        "fit",
+        "band",
+        "emberton",
+        "marshall"
+      ],
+      "catalog_entrypoint_url": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100069&catName=Smartwatches&listVal=Smartphones&locale=EN",
+      "catalog_entrypoint_route": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100069&catName=Smartwatches&listVal=Smartphones&locale=EN",
+      "cart_endpoint_url": "https://www.eand.ae/eshop/checkout/cart",
+      "cart_endpoint_route": "/eshop/checkout/cart",
+      "automation_boundary": {
+        "automated_scope": "Catalog -> Product Configuration -> Plan Selection -> Add to Cart -> Cart Verification",
+        "external_boundary": "Live Payment Gateway (Credit Card / OTP) is an external boundary."
+      },
+      "canonical_steps": [
+        {
+          "step_number": 1,
+          "action": "Navigate to e& UAE portal homepage",
+          "target": "/en/index.html",
+          "expected_result": "e& UAE portal homepage loads"
+        },
+        {
+          "step_number": 2,
+          "action": "Dismiss cookie and privacy overlay banner",
+          "target": "#usercentrics-root",
+          "expected_result": "Overlay is dismissed"
+        },
+        {
+          "step_number": 3,
+          "action": "Navigate to Devices -> Smartwatches catalog",
+          "target": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100069&catName=Smartwatches&listVal=Smartphones&locale=EN",
+          "expected_result": "Smartwatches catalog displays available models"
+        },
+        {
+          "step_number": 4,
+          "action": "Open product configuration for {{product_name}}",
+          "target": "/eshop/devices/configuration?productId={{product_id}}&skuId={{sku_id}}&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+          "expected_result": "Configuration page loads"
+        },
+        {
+          "step_number": 5,
+          "action": "Select payment option (One Time or Installments)",
+          "target": ".segment-tab, [role='radio'], button:has-text('One time')",
+          "expected_result": "Payment option selected"
+        },
+        {
+          "step_number": 6,
+          "action": "Click 'ADD TO CART' / 'Checkout Now' button",
+          "target": "button:has-text('Checkout Now'), button:has-text('ADD TO CART')",
+          "expected_result": "Item added to cart"
+        },
+        {
+          "step_number": 7,
+          "action": "Verify Shopping Cart & Secure Checkout review screen",
+          "target": "/eshop/checkout/cart",
+          "expected_result": "Checkout summary displayed"
+        }
+      ],
+      "graph_edges": [],
+      "registered_products": [
+        {
+          "product_name": "Samsung Galaxy Watch 7 Ultra",
+          "product_id": "prod1T1775032063518",
+          "sku_id": "bgskuTrans3999229899",
+          "category": "Smartwatches",
+          "default_price": "AED 2,499.00",
+          "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1775032063518&skuId=bgskuTrans3999229899&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+          "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1775032063518&skuId=bgskuTrans3999229899&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+          "available_storage": [],
+          "available_colors": [
+            "Titanium Silver",
+            "Titanium Gray",
+            "Titanium White"
+          ],
+          "payment_plans": [
+            "One time AED 2,499.00",
+            "24 months AED 114/mo"
+          ],
+          "optional_addons": [],
+          "sample_test_data_string": "Product: Samsung Galaxy Watch 7 Ultra, ProductId: prod1T1775032063518, SkuId: bgskuTrans3999229899, Color: Titanium Silver, Payment: One time"
+        },
+        {
+          "product_name": "Apple Watch Series 10",
+          "product_id": "prod1T1757998040899",
+          "sku_id": "bgskuTrans3820239399",
+          "category": "Smartwatches",
+          "default_price": "AED 1,799.00",
+          "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1757998040899&skuId=bgskuTrans3820239399&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+          "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1757998040899&skuId=bgskuTrans3820239399&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+          "available_storage": [],
+          "available_colors": [
+            "Jet Black",
+            "Rose Gold",
+            "Silver"
+          ],
+          "payment_plans": [
+            "One time AED 1,799.00",
+            "24 months AED 82/mo"
+          ],
+          "optional_addons": [],
+          "sample_test_data_string": "Product: Apple Watch Series 10, ProductId: prod1T1757998040899, SkuId: bgskuTrans3820239399, Color: Jet Black, Payment: One time"
+        },
+        {
+          "product_name": "Huawei Watch GT 5 Pro",
+          "product_id": "prod1T1786686221777",
+          "sku_id": "bgskuTrans3999231333",
+          "category": "Smartwatches",
+          "default_price": "AED 1,299.00",
+          "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1786686221777&skuId=bgskuTrans3999231333&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+          "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1786686221777&skuId=bgskuTrans3999231333&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+          "available_storage": [],
+          "available_colors": [
+            "Black",
+            "Titanium"
+          ],
+          "payment_plans": [
+            "One time AED 1,299.00",
+            "24 months AED 59/mo"
+          ],
+          "optional_addons": [],
+          "sample_test_data_string": "Product: Huawei Watch GT 5 Pro, ProductId: prod1T1786686221777, SkuId: bgskuTrans3999231333, Color: Black, Payment: One time"
+        }
+      ]
+    }
+  ],
+  "products_catalog": {
+    "Accessories": [
+      {
+        "product_name": "Huawei FreeClip 2s",
+        "product_id": "prod1T1786686221657",
+        "sku_id": "bgskuTrans3999231220",
+        "category": "Accessories",
+        "default_price": "AED 749.00",
+        "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1786686221657&skuId=bgskuTrans3999231220&catName=Accessories&listVal=Smartphones&showDefault=true",
+        "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1786686221657&skuId=bgskuTrans3999231220&catName=Accessories&listVal=Smartphones&showDefault=true",
+        "available_storage": [],
+        "available_colors": [
+          "Black",
+          "Purple",
+          "White"
+        ],
+        "payment_plans": [
+          "One time AED 749.00",
+          "24 months AED 33/mo",
+          "18 months",
+          "12 months"
+        ],
+        "optional_addons": [],
+        "sample_test_data_string": "Product: Huawei FreeClip 2s, ProductId: prod1T1786686221657, SkuId: bgskuTrans3999231220, Color: Black, Payment: One time"
+      },
+      {
+        "product_name": "Apple AirPods Max 2",
+        "product_id": "prod1T1775032063511",
+        "sku_id": "bgskuTrans3999229481",
+        "category": "Accessories",
+        "default_price": "AED 2,099.00",
+        "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1775032063511&skuId=bgskuTrans3999229481&catName=Accessories&listVal=Smartphones&showDefault=true",
+        "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1775032063511&skuId=bgskuTrans3999229481&catName=Accessories&listVal=Smartphones&showDefault=true",
+        "available_storage": [],
+        "available_colors": [
+          "Midnight",
+          "Starlight",
+          "Blue",
+          "Purple",
+          "Orange"
+        ],
+        "payment_plans": [
+          "One time AED 2,099.00",
+          "24 months AED 96/mo"
+        ],
+        "optional_addons": [],
+        "sample_test_data_string": "Product: Apple AirPods Max 2, ProductId: prod1T1775032063511, SkuId: bgskuTrans3999229481, Color: Midnight, Payment: One time"
+      },
+      {
+        "product_name": "Honor Earbuds 4",
+        "product_id": "prod1T1777616962903",
+        "sku_id": "bgskuTrans3999229892",
+        "category": "Accessories",
+        "default_price": "AED 169.00",
+        "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1777616962903&skuId=bgskuTrans3999229892&catName=Accessories&listVal=Smartphones&showDefault=true",
+        "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1777616962903&skuId=bgskuTrans3999229892&catName=Accessories&listVal=Smartphones&showDefault=true",
+        "available_storage": [],
+        "available_colors": [
+          "White",
+          "Cyan"
+        ],
+        "payment_plans": [
+          "One time AED 169.00"
+        ],
+        "optional_addons": [],
+        "sample_test_data_string": "Product: Honor Earbuds 4, ProductId: prod1T1777616962903, SkuId: bgskuTrans3999229892, Color: White, Payment: One time"
+      }
+    ],
+    "Smartphones": [
+      {
+        "product_name": "Apple iPhone 17 Pro",
+        "product_id": "prod1T1757998040834",
+        "sku_id": "bgskuTrans3820239388",
+        "category": "Smartphones",
+        "default_price": "Live",
+        "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1757998040834&skuId=bgskuTrans3820239388&catName=Smartphones&listVal=Smartphones&showDefault=true",
+        "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1757998040834&skuId=bgskuTrans3820239388&catName=Smartphones&listVal=Smartphones&showDefault=true",
+        "available_storage": [
+          "256GB",
+          "512GB",
+          "1TB"
+        ],
+        "available_colors": [
+          "Deep Blue",
+          "Silver",
+          "Space Black"
+        ],
+        "payment_plans": [
+          "One time AED 4,299.00",
+          "24 months AED 195/mo",
+          "18 months",
+          "12 months"
+        ],
+        "optional_addons": [
+          "AppleCare+ 2yr / AED 799.00"
+        ],
+        "sample_test_data_string": "Product: Apple iPhone 17 Pro, ProductId: prod1T1757998040834, SkuId: bgskuTrans3820239388, Storage: 256GB, Color: Deep Blue, Payment: One time"
+      },
+      {
+        "product_name": "Samsung Galaxy S26 Ultra",
+        "product_id": "prod1T1772791900380",
+        "sku_id": "bgskuTrans3999229871",
+        "category": "Smartphones",
+        "default_price": "Live",
+        "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1772791900380&skuId=bgskuTrans3999229871&catName=Smartphones&listVal=Smartphones&showDefault=true",
+        "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1772791900380&skuId=bgskuTrans3999229871&catName=Smartphones&listVal=Smartphones&showDefault=true",
+        "available_storage": [
+          "256GB",
+          "512GB",
+          "1TB"
+        ],
+        "available_colors": [
+          "Titanium Black",
+          "Titanium Gray",
+          "Titanium Violet"
+        ],
+        "payment_plans": [
+          "One time AED 5,099.00",
+          "24 months AED 232/mo",
+          "18 months",
+          "12 months"
+        ],
+        "optional_addons": [
+          "Samsung Care+ 2yr / AED 599.00"
+        ],
+        "sample_test_data_string": "Product: Samsung Galaxy S26 Ultra, ProductId: prod1T1772791900380, SkuId: bgskuTrans3999229871, Storage: 256GB, Color: Titanium Black, Payment: One time"
+      },
+      {
+        "product_name": "Samsung Galaxy S26",
+        "product_id": "prod1T1772791900481",
+        "sku_id": "bgskuTrans3999229880",
+        "category": "Smartphones",
+        "default_price": "Live",
+        "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1772791900481&skuId=bgskuTrans3999229880&catName=Smartphones&listVal=Smartphones&showDefault=true",
+        "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1772791900481&skuId=bgskuTrans3999229880&catName=Smartphones&listVal=Smartphones&showDefault=true",
+        "available_storage": [
+          "128GB",
+          "256GB"
+        ],
+        "available_colors": [
+          "Cobalt Violet",
+          "Amber Yellow",
+          "Onyx Black"
+        ],
+        "payment_plans": [
+          "One time AED 3,199.00",
+          "24 months AED 146/mo"
+        ],
+        "optional_addons": [],
+        "sample_test_data_string": "Product: Samsung Galaxy S26, ProductId: prod1T1772791900481, SkuId: bgskuTrans3999229880, Storage: 128GB, Color: Cobalt Violet, Payment: One time"
+      }
+    ],
+    "Smartwatches": [
+      {
+        "product_name": "Samsung Galaxy Watch 7 Ultra",
+        "product_id": "prod1T1775032063518",
+        "sku_id": "bgskuTrans3999229899",
+        "category": "Smartwatches",
+        "default_price": "AED 2,499.00",
+        "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1775032063518&skuId=bgskuTrans3999229899&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+        "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1775032063518&skuId=bgskuTrans3999229899&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+        "available_storage": [],
+        "available_colors": [
+          "Titanium Silver",
+          "Titanium Gray",
+          "Titanium White"
+        ],
+        "payment_plans": [
+          "One time AED 2,499.00",
+          "24 months AED 114/mo"
+        ],
+        "optional_addons": [],
+        "sample_test_data_string": "Product: Samsung Galaxy Watch 7 Ultra, ProductId: prod1T1775032063518, SkuId: bgskuTrans3999229899, Color: Titanium Silver, Payment: One time"
+      },
+      {
+        "product_name": "Apple Watch Series 10",
+        "product_id": "prod1T1757998040899",
+        "sku_id": "bgskuTrans3820239399",
+        "category": "Smartwatches",
+        "default_price": "AED 1,799.00",
+        "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1757998040899&skuId=bgskuTrans3820239399&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+        "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1757998040899&skuId=bgskuTrans3820239399&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+        "available_storage": [],
+        "available_colors": [
+          "Jet Black",
+          "Rose Gold",
+          "Silver"
+        ],
+        "payment_plans": [
+          "One time AED 1,799.00",
+          "24 months AED 82/mo"
+        ],
+        "optional_addons": [],
+        "sample_test_data_string": "Product: Apple Watch Series 10, ProductId: prod1T1757998040899, SkuId: bgskuTrans3820239399, Color: Jet Black, Payment: One time"
+      },
+      {
+        "product_name": "Huawei Watch GT 5 Pro",
+        "product_id": "prod1T1786686221777",
+        "sku_id": "bgskuTrans3999231333",
+        "category": "Smartwatches",
+        "default_price": "AED 1,299.00",
+        "direct_configuration_url": "https://www.eand.ae/eshop/devices/configuration?productId=prod1T1786686221777&skuId=bgskuTrans3999231333&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+        "direct_configuration_route": "/eshop/devices/configuration?productId=prod1T1786686221777&skuId=bgskuTrans3999231333&catName=Smartwatches&listVal=Smartphones&showDefault=true",
+        "available_storage": [],
+        "available_colors": [
+          "Black",
+          "Titanium"
+        ],
+        "payment_plans": [
+          "One time AED 1,299.00",
+          "24 months AED 59/mo"
+        ],
+        "optional_addons": [],
+        "sample_test_data_string": "Product: Huawei Watch GT 5 Pro, ProductId: prod1T1786686221777, SkuId: bgskuTrans3999231333, Color: Black, Payment: One time"
+      }
+    ]
+  },
+  "navigation_graph": {
+    "nodes": [
+      {
+        "id": "homepage",
+        "label": "Portal Homepage",
+        "url": "https://www.eand.ae/en/index.html",
+        "type": "entrypoint"
+      },
+      {
+        "id": "catalog_accessories",
+        "label": "Accessories Catalog",
+        "url": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
+        "type": "catalog"
+      },
+      {
+        "id": "shopping_cart",
+        "label": "Shopping Cart",
+        "url": "/eshop/checkout/cart",
+        "type": "cart"
+      },
+      {
+        "id": "catalog_smartphones",
+        "label": "Smartphones Catalog",
+        "url": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100063&catName=Smartphones&listVal=Smartphones&locale=EN",
+        "type": "catalog"
+      },
+      {
+        "id": "catalog_smartwatches",
+        "label": "Smartwatches Catalog",
+        "url": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100069&catName=Smartwatches&listVal=Smartphones&locale=EN",
+        "type": "catalog"
+      }
+    ],
+    "edges": [
+      {
+        "from": "homepage",
+        "to": "catalog_accessories",
+        "action": "navigate_accessories_catalog",
+        "trigger_locator": "a[href*='accessories']"
+      },
+      {
+        "from": "homepage",
+        "to": "catalog_smartphones",
+        "action": "navigate_smartphones_catalog",
+        "trigger_locator": "a[href*='smartphones']"
+      },
+      {
+        "from": "homepage",
+        "to": "smartphones_catalog",
+        "action": "navigate_catalog"
+      },
+      {
+        "from": "smartphones_catalog",
+        "to": "device_configuration",
+        "action": "select_product_sku"
+      },
+      {
+        "from": "device_configuration",
+        "to": "variant_selected",
+        "action": "select_storage_and_color"
+      },
+      {
+        "from": "variant_selected",
+        "to": "payment_plan_selected",
+        "action": "select_payment_plan"
+      },
+      {
+        "from": "payment_plan_selected",
+        "to": "cart_checkout",
+        "action": "click_add_to_cart"
+      },
+      {
+        "from": "homepage",
+        "to": "catalog_smartwatches",
+        "action": "navigate_smartwatches_catalog",
+        "trigger_locator": "a[href*='smartwatches']"
+      }
+    ]
+  }
+}

@@ -18,8 +18,8 @@
     "soundtec",
     "headset"
   ],
-  "catalog_entrypoint": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
-  "cart_endpoint": "https://www.eand.ae/eshop/checkout/cart",
+  "catalog_entrypoint": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
+  "cart_endpoint": "/eshop/checkout/cart",
   "automation_boundary": {
     "automated_scope": "Accessories Catalog -> Product Configuration -> Plan Selection -> ADD TO CART -> Shopping Cart Verification",
     "external_boundary": "Live Payment Gateway (Credit Card / OTP) is an external boundary."
@@ -28,7 +28,7 @@
     {
       "step_number": 1,
       "action": "Navigate to e& UAE portal homepage",
-      "target": "https://www.eand.ae/en/index.html",
+      "target": "/en/index.html",
       "expected_result": "e& UAE portal homepage loads with active navigation header"
     },
     {
@@ -40,13 +40,13 @@
     {
       "step_number": 3,
       "action": "Navigate to Accessories -> Earbuds catalog",
-      "target": "https://www.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
+      "target": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
       "expected_result": "Earbuds catalog displays available products and pricing"
     },
     {
       "step_number": 4,
       "action": "Open product configuration for {{product_name}}",
-      "target": "https://www.eand.ae/eshop/devices/configuration?productId={{product_id}}&skuId={{sku_id}}&catName=Earbuds&listVal=Smartphones&showDefault=true",
+      "target": "/eshop/devices/configuration?productId={{product_id}}&skuId={{sku_id}}&catName=Earbuds&listVal=Smartphones&showDefault=true",
       "expected_result": "Product configuration page loads with technical specs and pricing"
     },
     {
@@ -64,7 +64,7 @@
     {
       "step_number": 7,
       "action": "Verify Shopping Cart & Secure Checkout review screen",
-      "target": "https://www.eand.ae/eshop/checkout/cart",
+      "target": "/eshop/checkout/cart",
       "expected_result": "Order summary is displayed with proceed to checkout options"
     }
   ],

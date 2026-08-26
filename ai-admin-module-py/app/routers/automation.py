@@ -34,6 +34,7 @@ from ..config import settings
 from ..database.connection import get_db
 from ..models.database import TestCaseDetail
 from ..models.automation import (
+    AutomationApplication,
     AutomationDiscoveredElement,
     AutomationDiscoveryRun,
     AutomationIntakeBatch,
@@ -57,6 +58,7 @@ from ..services.automation import extraction
 from ..services.automation import intake
 from ..services.automation import workbench as wb
 from ..services.automation import healer
+from ..services.automation import knowledge_base as kb
 from ..services.automation.guided_discovery import guided_discovery_manager
 from ..services.audit_logger import audit_log
 
@@ -2085,6 +2087,9 @@ def export_workbench_cases(
 class GenerateScriptsRequest(BaseModel):
     case_ids: list[int] = Field(min_length=1)
     framework: str = Field(default="playwright")
+    # Which application's discovery catalogue to compile against. Omitted is
+    # fine while one application is registered; with several it has to be said.
+    application_id: Optional[int] = None
     base_url: Optional[str] = Field(default=None, max_length=2000)
     # Regenerating replaces the current script for the pair rather than adding
     # a version nobody asked for.
@@ -2240,7 +2245,7 @@ def generate_scripts(
     # times over one request. [] when nothing has been discovered -- compile_for
     # then falls back to the phrase heuristic exactly as it did before grounding
     # existed, so a deployment that has never run Discovery is unaffected.
-    catalog = _current_catalog(db)
+    catalog = _current_catalog(db, _resolve_application(db, body.application_id).id)
 
     produced, skipped = [], []
     for case in cases:
@@ -2687,6 +2692,396 @@ def download_script_bundle(
     )
 
 
+# ── Applications: the registry everything else hangs off ─────────────────────
+#
+# `automation_applications` existed from the start and nothing ever wrote to
+# it. Discovery kept one global `is_current` crawl instead, so a second
+# application's crawl retired the first one's catalogue and every test case
+# grounded against it silently began reporting against the wrong elements.
+# The Knowledge Base meanwhile identified applications by folder name with no
+# link back here, which made "an application" two unrelated things.
+#
+# One row is now the identity. `app_key` names the Knowledge Base folder
+# holding the declarative profile and flows; the row itself holds the runtime
+# target. Discovery, its element catalogue and grounding are all scoped by
+# application_id from here down.
+
+
+APP_KEY_PATTERN = r"^[a-z0-9][a-z0-9_-]{0,99}$"
+
+
+class ApplicationRequest(BaseModel):
+    """A target application to register."""
+
+    name: str = Field(min_length=1, max_length=255)
+    # Slug-shaped because it is a directory name in the Knowledge Base.
+    app_key: str = Field(min_length=1, max_length=100, pattern=APP_KEY_PATTERN)
+    base_url: str = Field(min_length=1, max_length=2000)
+    environment: str = Field(default="SIT", max_length=50)
+    description: Optional[str] = Field(default=None, max_length=2000)
+    is_active: bool = True
+
+
+class ApplicationUpdate(BaseModel):
+    """A partial edit. `app_key` is deliberately absent.
+
+    Repointing a registered application at a different Knowledge Base folder
+    would silently re-ground every test case behind it against a different
+    profile. Register a second application instead.
+    """
+
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    base_url: Optional[str] = Field(default=None, min_length=1, max_length=2000)
+    environment: Optional[str] = Field(default=None, max_length=50)
+    description: Optional[str] = Field(default=None, max_length=2000)
+    is_active: Optional[bool] = None
+
+
+def _application_detail(db: Session, app: AutomationApplication) -> dict:
+    """One application with the two things the screen needs beside it.
+
+    The Knowledge Base link and the discovery state are folded in here rather
+    than fetched separately, because "is this application actually usable" is
+    the question the picker has to answer, and it is those two facts.
+    """
+    profile = None
+    flows: list = []
+    try:
+        profile = kb.load_app_profile(app.app_key)
+        if profile:
+            flows = kb.list_flows(app.app_key)
+    except Exception as exc:  # a broken profile must not hide the application
+        logger.warning("Knowledge Base lookup failed for %s: %s", app.app_key, exc)
+
+    run = _current_discovery(db, app.id)
+    discovery_summary = None
+    if run:
+        count = (
+            db.query(AutomationDiscoveredElement)
+            .filter(AutomationDiscoveredElement.discovery_run_id == run.id)
+            .count()
+        )
+        discovery_summary = {
+            "id": run.id,
+            "status": run.status,
+            "version": run.version,
+            "elements_discovered": count,
+            "pages_discovered": run.pages_discovered,
+            "updated_at": run.updated_at.isoformat() if run.updated_at else None,
+        }
+
+    return {
+        "id": app.id,
+        "name": app.name,
+        "app_key": app.app_key,
+        "base_url": app.base_url,
+        "environment": app.environment,
+        "description": app.description,
+        "is_active": bool(app.is_active),
+        "auth_mode": app.auth_mode,
+        # Whether a password is stored, never the password itself.
+        "has_credentials": bool(app.auth_secret_encrypted),
+        "knowledge_base": {
+            "linked": profile is not None,
+            "app_name": (profile or {}).get("app_name"),
+            "domain": (profile or {}).get("domain"),
+            "flows": len(flows),
+        },
+        "discovery": discovery_summary,
+        "created_by": app.created_by,
+        "created_at": app.created_at.isoformat() if app.created_at else None,
+        "updated_at": app.updated_at.isoformat() if app.updated_at else None,
+    }
+
+
+def _application_or_404(db: Session, application_id: int) -> AutomationApplication:
+    app = (
+        db.query(AutomationApplication)
+        .filter(AutomationApplication.id == application_id)
+        .first()
+    )
+    if not app:
+        raise HTTPException(status_code=404, detail="That application is not registered.")
+    return app
+
+
+def _resolve_application(
+    db: Session, application_id: Optional[int]
+) -> AutomationApplication:
+    """The application a request means, or a 409 that says what to do about it.
+
+    An explicit id always wins. Without one, a deployment with a single
+    registered application has an unambiguous answer and gets it -- which is
+    what keeps existing single-application callers working. With several, there
+    is no defensible default: picking one would ground test cases against an
+    application nobody named.
+    """
+    if application_id is not None:
+        return _application_or_404(db, application_id)
+
+    active = (
+        db.query(AutomationApplication)
+        .filter(AutomationApplication.is_active.is_(True))
+        .order_by(AutomationApplication.id)
+        .all()
+    )
+    if len(active) == 1:
+        return active[0]
+    if not active:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "No application is registered yet. Add one on the Application "
+                "Discovery screen before crawling or grounding."
+            ),
+        )
+    raise HTTPException(
+        status_code=409,
+        detail=(
+            f"{len(active)} applications are registered. Say which one this is for "
+            f"by passing application_id."
+        ),
+    )
+
+
+@router.get("/applications")
+def list_registered_applications(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+    include_inactive: bool = Query(default=False),
+):
+    """Every registered application, with its Knowledge Base and crawl state."""
+    query = db.query(AutomationApplication)
+    if not include_inactive:
+        query = query.filter(AutomationApplication.is_active.is_(True))
+    apps = query.order_by(AutomationApplication.name).all()
+    return {
+        "applications": [_application_detail(db, app) for app in apps],
+        "total": len(apps),
+    }
+
+
+@router.get("/applications/{application_id}")
+def get_application(
+    application_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+):
+    return _application_detail(db, _application_or_404(db, application_id))
+
+
+@router.post("/applications", status_code=201)
+def create_application(
+    body: ApplicationRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Register an application.
+
+    A Knowledge Base folder is not required up front -- an application can be
+    crawled before anyone writes its flow blueprints, and the response says
+    whether the folder resolved so the screen can show it.
+    """
+    existing = (
+        db.query(AutomationApplication)
+        .filter(AutomationApplication.app_key == body.app_key)
+        .first()
+    )
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail=f"An application with the key '{body.app_key}' is already registered.",
+        )
+
+    username = (current_user or {}).get("username")
+    app = AutomationApplication(
+        name=body.name.strip(),
+        app_key=body.app_key.strip(),
+        base_url=body.base_url.strip(),
+        environment=(body.environment or "SIT").strip(),
+        description=(body.description or None),
+        is_active=body.is_active,
+        created_by=username,
+    )
+    db.add(app)
+    db.commit()
+    db.refresh(app)
+
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="create",
+        resource_type="automation_application",
+        resource_id=str(app.id),
+        resource_name=app.name,
+        status="success",
+        details={"description": f"{username} registered application {app.name}"},
+    )
+    return _application_detail(db, app)
+
+
+@router.patch("/applications/{application_id}")
+def update_application(
+    application_id: int,
+    body: ApplicationUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    app = _application_or_404(db, application_id)
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(app, field, value.strip() if isinstance(value, str) else value)
+    db.commit()
+    db.refresh(app)
+    return _application_detail(db, app)
+
+
+@router.delete("/applications/{application_id}")
+def delete_application(
+    application_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Remove an application that has no crawl history.
+
+    An application with crawls behind it is deactivated instead of deleted:
+    test cases grounded against those runs still point at them, and deleting
+    the runs to make room for the delete would quietly discard that evidence.
+    """
+    app = _application_or_404(db, application_id)
+    runs = (
+        db.query(AutomationDiscoveryRun)
+        .filter(AutomationDiscoveryRun.application_id == app.id)
+        .count()
+    )
+    if runs:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{app.name} has {runs} discovery run(s) behind it. Deactivate it "
+                f"instead, or delete its discovery data first."
+            ),
+        )
+
+    username = (current_user or {}).get("username")
+    name = app.name
+    db.delete(app)
+    db.commit()
+
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="delete",
+        resource_type="automation_application",
+        resource_id=str(application_id),
+        resource_name=name,
+        status="success",
+        details={"description": f"{username} removed application {name}"},
+    )
+    return {"deleted": True, "id": application_id}
+
+
+class KnowledgeBaseDraftRequest(BaseModel):
+    """Turn this application's current crawl into Knowledge Base files.
+
+    `overwrite_profile` is off by default and has to be asked for: an existing
+    app_profile.json is what every model, prompt and grounding rule compiles
+    from, and a crawl is not entitled to replace curated ground truth.
+    """
+
+    overwrite_profile: bool = False
+    # Classify the crawl into the keys the model compiler reads -- url_templates,
+    # endpoints, named selector groups, grounding rules -- instead of leaving
+    # them for a person to type. Every proposal is checked back against the
+    # crawl before it is written, and a model that cannot be reached simply
+    # yields the plain structural draft.
+    synthesise: bool = True
+
+
+@router.post("/applications/{application_id}/knowledge-base/draft")
+def draft_knowledge_base_from_crawl(
+    application_id: int,
+    body: KnowledgeBaseDraftRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Write a Knowledge Base draft from the application's current crawl.
+
+    The seam between the two halves of this screen. Discovery fills a database
+    with elements; the Knowledge Base is files somebody typed; until now
+    nothing carried anything from one to the other, so a crawl that catalogued
+    hundreds of controls moved a single counter and left the three beside it --
+    compiled from the files -- untouched.
+
+    One direction only. A crawl proposes, a person disposes: what comes out is
+    stamped as a draft, says what it could not work out, and lands under names
+    that cannot collide with hand-authored blueprints.
+    """
+    app = _application_or_404(db, application_id)
+    run = _current_discovery(db, app.id)
+    if not run:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{app.name} has not been crawled yet, so there is nothing to draft "
+                f"from. Run discovery against it first."
+            ),
+        )
+    run = _absorb_discovery_result(db, run)
+    if run.status != "completed":
+        raise HTTPException(
+            status_code=409,
+            detail=f"The current crawl of {app.name} is {run.status}. Wait for it to finish.",
+        )
+
+    elements = [
+        # _element_detail already carries element_name, which is the handle the
+        # draft keys its selector groups on.
+        _element_detail(row)
+        for row in db.query(AutomationDiscoveredElement)
+        .filter(AutomationDiscoveredElement.discovery_run_id == run.id)
+        .all()
+    ]
+
+    try:
+        result = kb.write_draft_from_crawl(
+            app_key=app.app_key,
+            app_name=app.name,
+            base_url=run.application_url or app.base_url or "",
+            pages=run.explored_pages or [],
+            elements=elements,
+            blockers=run.blockers or [],
+            crawl_version=run.version,
+            overwrite_profile=body.overwrite_profile,
+            synthesise=body.synthesise,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    username = (current_user or {}).get("username")
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="update",
+        resource_type="automation_knowledge_base",
+        resource_id=app.app_key,
+        resource_name=app.name,
+        status="success",
+        details={
+            "description": (
+                f"{username} drafted Knowledge Base files for {app.name} from crawl "
+                f"v{run.version}"
+            ),
+            "written": result["written"],
+            "skipped": [entry["path"] for entry in result["skipped"]],
+        },
+    )
+    return {**result, "crawl_version": run.version, "application_id": app.id}
+
+
+
 # ── Application Discovery and Grounding ──────────────────────────────────────
 #
 # Discovery crawls the running application and catalogues what it renders.
@@ -2700,21 +3095,34 @@ def download_script_bundle(
 
 
 class DiscoveryRequest(BaseModel):
-    application_url: str = Field(min_length=1, max_length=2000)
-    application_environment: Optional[str] = Field(default=None, max_length=50)
+    """What to crawl.
+
+    Only the application is really required: its registered base URL and
+    environment are what a crawl should use by default, and re-typing them per
+    crawl is how the two drift apart. Both stay overridable for the case of
+    crawling one application in a second environment.
+    """
+
     application_id: Optional[int] = None
+    application_url: Optional[str] = Field(default=None, max_length=2000)
+    application_environment: Optional[str] = Field(default=None, max_length=50)
     max_pages: int = Field(default=discovery.DEFAULT_MAX_PAGES, ge=1, le=40)
 
 
 class GroundRequest(BaseModel):
-    """Which cases to ground. Empty means every refined case."""
+    """Which cases to ground, against which application's catalogue.
+
+    Empty `case_ids` means every refined case.
+    """
 
     case_ids: list[int] = Field(default_factory=list)
+    application_id: Optional[int] = None
 
 
 def _discovery_detail(run: AutomationDiscoveryRun, element_count: Optional[int] = None) -> dict:
     return {
         "id": run.id,
+        "application_id": run.application_id,
         "version": run.version,
         "is_current": bool(run.is_current),
         "status": run.status,
@@ -2753,16 +3161,29 @@ def _element_detail(element: AutomationDiscoveredElement) -> dict:
     }
 
 
-def _current_discovery(db: Session) -> Optional[AutomationDiscoveryRun]:
-    return (
-        db.query(AutomationDiscoveryRun)
-        .filter(AutomationDiscoveryRun.is_current.is_(True))
-        .order_by(AutomationDiscoveryRun.id.desc())
-        .first()
+def _current_discovery(
+    db: Session, application_id: Optional[int] = None
+) -> Optional[AutomationDiscoveryRun]:
+    """This application's current catalogue.
+
+    `is_current` is per application, not per deployment. Without the filter,
+    crawling application B returned B's catalogue to every question asked about
+    A -- and because both are real catalogues of real elements, the wrong
+    answers looked exactly like right ones.
+
+    Runs predating scoping carry application_id NULL and match no application,
+    so they read as "never crawled" until add_automation_application_scope.py
+    adopts them. That is deliberate: reporting an unattributed catalogue under
+    some application's name is the failure this filter exists to prevent.
+    """
+    query = db.query(AutomationDiscoveryRun).filter(
+        AutomationDiscoveryRun.is_current.is_(True)
     )
+    query = query.filter(AutomationDiscoveryRun.application_id == application_id)
+    return query.order_by(AutomationDiscoveryRun.id.desc()).first()
 
 
-def _current_catalog(db: Session) -> list[dict]:
+def _current_catalog(db: Session, application_id: Optional[int] = None) -> list[dict]:
     """The current discovery run's elements, in grounding's shape, or [].
 
     Shared by /workbench/ground and /scripts/generate so a script and its
@@ -2770,7 +3191,7 @@ def _current_catalog(db: Session) -> list[dict]:
     separate lookups here previously risked disagreeing if a crawl finished
     between them.
     """
-    run = _current_discovery(db)
+    run = _current_discovery(db, application_id)
     if not run:
         return []
     run = _absorb_discovery_result(db, run)
@@ -2883,21 +3304,37 @@ def start_discovery(
         raise HTTPException(status_code=429, detail=reason)
 
     username = (current_user or {}).get("username")
+    application = _resolve_application(db, body.application_id)
+
+    # The registered application supplies both unless this crawl overrides
+    # them, so the common case is "pick the application, press Crawl".
+    target_url = (body.application_url or application.base_url or "").strip()
+    if not target_url:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"{application.name} has no base URL registered and none was given. "
+                f"Set one on the application before crawling."
+            ),
+        )
+    environment = (body.application_environment or application.environment or "").strip() or None
 
     # Versioned, not overwritten: a case grounded against the previous
     # catalogue keeps pointing at the run it was actually matched against.
-    previous = _current_discovery(db)
+    # Both the numbering and the retirement are scoped to this application --
+    # crawling one must leave every other application's catalogue current.
+    previous = _current_discovery(db, application.id)
     next_version = (previous.version + 1) if previous else 1
     if previous:
         previous.is_current = False
 
     run = AutomationDiscoveryRun(
-        application_id=body.application_id,
+        application_id=application.id,
         version=next_version,
         is_current=True,
         status="queued",
-        application_url=body.application_url,
-        application_environment=body.application_environment,
+        application_url=target_url,
+        application_environment=environment,
         auth_mode="none",
         auth_status="not_required",
         auth_detail=(
@@ -2914,14 +3351,22 @@ def start_discovery(
     execution = AutomationRun(
         run_key=run_key,
         framework="playwright",
-        environment=body.application_environment,
+        environment=environment,
         status="queued",
         run_config={"headless": True, "slow_mo_ms": 1000, "mode": "discovery"},
         run_metadata={
             "code": discovery.build_discovery_spec(
-                body.application_url, max_pages=body.max_pages
+                target_url,
+                max_pages=body.max_pages,
+                # Derived from max_pages and capped below the runner's own
+                # subprocess timeout, so asking for more pages actually buys
+                # time for them instead of timing out partway through.
+                budget_ms=discovery.crawl_budget_ms(
+                    body.max_pages,
+                    run_timeout_seconds=int(settings.AUTOMATION_RUN_TIMEOUT_SECONDS or 600),
+                ),
             ),
-            "base_url": body.application_url,
+            "base_url": target_url,
             "file_name": "discovery.spec.ts",
         },
         triggered_by=username,
@@ -2940,10 +3385,14 @@ def start_discovery(
         action="discover",
         resource_type="automation_discovery_run",
         resource_id=str(run.id),
-        resource_name=body.application_url,
+        resource_name=target_url,
         status="success",
         details={
-            "description": f"{username} started discovery of {body.application_url}",
+            "description": (
+                f"{username} started discovery of {application.name} at {target_url}"
+            ),
+            "application_id": application.id,
+            "application": application.name,
             "version": next_version,
         },
     )
@@ -2956,11 +3405,13 @@ def start_discovery(
 def get_discovery(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission(PERM_VIEW)),
+    application_id: Optional[int] = Query(default=None),
 ):
-    """The current catalogue's state. Absorbs a finished crawl on the way."""
-    run = _current_discovery(db)
+    """One application's catalogue state. Absorbs a finished crawl on the way."""
+    application = _resolve_application(db, application_id)
+    run = _current_discovery(db, application.id)
     if not run:
-        return {"discovery": None, "elements": 0}
+        return {"discovery": None, "elements": 0, "application_id": application.id}
 
     run = _absorb_discovery_result(db, run)
     count = (
@@ -2968,7 +3419,11 @@ def get_discovery(
         .filter(AutomationDiscoveredElement.discovery_run_id == run.id)
         .count()
     )
-    return {"discovery": _discovery_detail(run, element_count=count), "elements": count}
+    return {
+        "discovery": _discovery_detail(run, element_count=count),
+        "elements": count,
+        "application_id": application.id,
+    }
 
 
 @router.get("/discovery/elements")
@@ -2977,10 +3432,12 @@ def list_discovered_elements(
     current_user: dict = Depends(require_permission(PERM_VIEW)),
     search: Optional[str] = Query(default=None, max_length=200),
     role: Optional[str] = Query(default=None, max_length=50),
+    application_id: Optional[int] = Query(default=None),
 ):
-    run = _current_discovery(db)
+    application = _resolve_application(db, application_id)
+    run = _current_discovery(db, application.id)
     if not run:
-        return {"elements": [], "total": 0}
+        return {"elements": [], "total": 0, "roles": []}
 
     query = db.query(AutomationDiscoveredElement).filter(
         AutomationDiscoveredElement.discovery_run_id == run.id
@@ -3009,19 +3466,39 @@ def list_discovered_elements(
 def delete_discovery(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+    application_id: Optional[int] = Query(default=None),
 ):
-    """Discard the catalogue and reset every case that was grounded against it.
+    """Discard one application's catalogue and reset the cases it grounded.
 
     Leaving a grounding verdict behind after deleting what produced it would
     leave the grid asserting something nothing backs.
+
+    Scoped to the application: this used to delete every run in the deployment
+    and reset every grounded case, so clearing a stale crawl of one application
+    also threw away another application's working catalogue.
     """
-    runs = db.query(AutomationDiscoveryRun).all()
-    elements = db.query(AutomationDiscoveredElement).count()
+    application = _resolve_application(db, application_id)
+    runs = (
+        db.query(AutomationDiscoveryRun)
+        .filter(AutomationDiscoveryRun.application_id == application.id)
+        .all()
+    )
+    run_ids = [run.id for run in runs]
+    elements = (
+        db.query(AutomationDiscoveredElement)
+        .filter(AutomationDiscoveredElement.discovery_run_id.in_(run_ids))
+        .count()
+        if run_ids
+        else 0
+    )
 
     reset = (
         db.query(AutomationTestCase)
         .filter(AutomationTestCase.grounding_status != grounding.STATUS_NOT_CHECKED)
+        .filter(AutomationTestCase.discovery_run_id.in_(run_ids))
         .all()
+        if run_ids
+        else []
     )
     for case in reset:
         case.grounding_status = grounding.STATUS_NOT_CHECKED
@@ -3034,6 +3511,7 @@ def delete_discovery(
     db.commit()
 
     return {
+        "application_id": application.id,
         "discovery_runs_removed": len(runs),
         "elements_removed": elements,
         "test_cases_reset": len(reset),
@@ -3046,16 +3524,20 @@ def ground_cases(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission(PERM_EXECUTE)),
 ):
-    """Match test case steps against the current catalogue.
+    """Match test case steps against one application's current catalogue.
 
     Deterministic and instant -- no browser, no model call -- so it runs inline
     rather than as a job.
     """
-    run = _current_discovery(db)
+    application = _resolve_application(db, body.application_id)
+    run = _current_discovery(db, application.id)
     if not run:
         raise HTTPException(
             status_code=409,
-            detail="Nothing has been discovered yet. Run discovery against the application first.",
+            detail=(
+                f"Nothing has been discovered for {application.name} yet. Run "
+                f"discovery against it first."
+            ),
         )
     run = _absorb_discovery_result(db, run)
     if run.status != "completed":
@@ -3064,7 +3546,7 @@ def ground_cases(
             detail=f"The current discovery run is {run.status}. Wait for it to finish.",
         )
 
-    catalog = _current_catalog(db)
+    catalog = _current_catalog(db, application.id)
 
     query = db.query(AutomationTestCase).filter(AutomationTestCase.source == "refined")
     if body.case_ids:
@@ -3087,7 +3569,7 @@ def ground_cases(
     db.commit()
 
     return {
-        "grounded_against": _discovery_detail(run, element_count=len(elements)),
+        "grounded_against": _discovery_detail(run, element_count=len(catalog)),
         "checked": len(cases),
         "counts": tallies,
         "test_cases": [_workbench_case(case) for case in cases],
@@ -3589,7 +4071,6 @@ def get_kb_applications(
     current_user: dict = Depends(require_permission(PERM_VIEW)),
 ):
     """List all registered applications and their flow count in the Knowledge Base."""
-    from ..services.automation import knowledge_base as kb
     apps = kb.list_applications()
     return {"applications": apps, "total": len(apps)}
 
@@ -3600,7 +4081,6 @@ def get_kb_application_flows(
     current_user: dict = Depends(require_permission(PERM_VIEW)),
 ):
     """List all Flow Blueprints for a specific application."""
-    from ..services.automation import knowledge_base as kb
     flows = kb.list_flows(app_id)
     profile = kb.load_app_profile(app_id)
     return {"app_id": app_id, "profile": profile, "flows": flows, "total": len(flows)}
@@ -3613,9 +4093,38 @@ def get_kb_flow_detail(
     current_user: dict = Depends(require_permission(PERM_VIEW)),
 ):
     """Get details of a specific Flow Blueprint."""
-    from ..services.automation import knowledge_base as kb
     flows = kb.list_flows(app_id)
     matched = next((f for f in flows if f.get("flow_id") == flow_id), None)
     if not matched:
         raise HTTPException(status_code=404, detail=f"Flow blueprint {flow_id} not found for {app_id}")
     return matched
+
+
+@router.get("/knowledge-base/applications/{app_id}/model")
+def get_kb_application_model(
+    app_id: str,
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+):
+    """
+    Get the comprehensive Application Model in structured JSON format with full URL details,
+    component selectors, known products catalog, and navigation graph.
+    """
+    model = kb.build_application_model(app_id)
+    return model
+
+
+@router.get("/knowledge-base/applications/{app_id}/model/export")
+def export_kb_application_model(
+    app_id: str,
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+):
+    """
+    Download the Application Model as a formatted JSON file attachment.
+    """
+    json_str = kb.export_application_model_json(app_id, indent=2)
+    return Response(
+        content=json_str,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{app_id}_application_model.json"'}
+    )
+

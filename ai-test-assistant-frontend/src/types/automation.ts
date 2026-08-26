@@ -476,9 +476,105 @@ export const isDryRunSettled = (status: DryRunStatus): boolean =>
 export type GroundingStatus = 'not_checked' | 'grounded' | 'partially_grounded' | 'ungrounded'
 export type LocatorStrategy = 'role' | 'label' | 'text' | 'placeholder' | 'testid'
 
+/**
+ * Which application the user last selected on Application Discovery.
+ *
+ * Shared rather than private to that screen: the Script Lab compiles against a
+ * discovery catalogue, and it has to be the catalogue of the application the
+ * user is actually working on. Without this the Lab fell back to whatever the
+ * backend picked, which is only unambiguous while exactly one application is
+ * registered.
+ */
+export const SELECTED_APP_STORAGE_KEY = 'automation.discovery.applicationId'
+
+/** The selected application id, or null if none has been chosen or it is unset. */
+export const readSelectedApplicationId = (): number | null => {
+  if (typeof window === 'undefined') return null
+  const stored = Number(window.localStorage.getItem(SELECTED_APP_STORAGE_KEY))
+  return Number.isFinite(stored) && stored > 0 ? stored : null
+}
+
+/**
+ * A registered target application — the identity Discovery, its element
+ * catalogue and grounding all hang off.
+ *
+ * `app_key` names the Knowledge Base folder holding the application's profile
+ * and flow blueprints; `knowledge_base.linked` says whether that folder
+ * actually resolved, so the picker can show an application that is registered
+ * but has no ground truth behind it yet.
+ */
+export interface RegisteredApplication {
+  id: number
+  name: string
+  app_key: string
+  base_url: string
+  environment: string
+  description: string | null
+  is_active: boolean
+  auth_mode: string
+  /** Whether a password is stored. The password itself is never returned. */
+  has_credentials: boolean
+  knowledge_base: {
+    linked: boolean
+    app_name: string | null
+    domain: string | null
+    flows: number
+  }
+  /** This application's current crawl, or null if it has never been crawled. */
+  discovery: {
+    id: number
+    status: DiscoveryRun['status']
+    version: number
+    elements_discovered: number
+    pages_discovered: number
+    updated_at: string | null
+  } | null
+  created_by: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+/**
+ * What drafting a Knowledge Base from a crawl actually wrote.
+ *
+ * `skipped` matters as much as `written`: a curated app_profile.json is never
+ * replaced without being asked, and the reason says so rather than leaving the
+ * caller to wonder why one file appeared and another did not.
+ */
+export interface KnowledgeBaseDraftResult {
+  application_id: number
+  app_key: string
+  kb_dir: string
+  crawl_version: number
+  written: string[]
+  skipped: Array<{ path: string; reason: string }>
+  pages_crawled: number
+  elements_catalogued: number
+  pages_blocked: number
+  /** Whether the draft asked a model to classify the crawl into profile keys. */
+  synthesis_requested: boolean
+  /**
+   * The outcome of that classification, or null when it was not asked for OR
+   * no model could be reached — `synthesis_requested` separates the two, and
+   * the second case is the one worth fixing.
+   *
+   * `rejected` is what the model proposed and the crawl would not vouch for. A
+   * long list points at a crawl that was too shallow, not at a bad model.
+   */
+  synthesis: {
+    requested: boolean
+    rejected: string[]
+    notes: string[]
+    flows_proposed: number
+  } | null
+}
+
 export interface DiscoveryRun {
   id: number
-  /** Catalogues are versioned, so a grounding verdict stays tied to its crawl. */
+  /** Which application was crawled. Null only for runs predating scoping. */
+  application_id: number | null
+  /** Catalogues are versioned per application, so a grounding verdict stays
+   *  tied to its crawl and another application's crawl cannot retire it. */
   version: number
   is_current: boolean
   status: 'queued' | 'running' | 'completed' | 'failed'
@@ -518,6 +614,8 @@ export interface DiscoveredElement {
 export interface DiscoveryState {
   discovery: DiscoveryRun | null
   elements: number
+  /** Which application this state describes — echoed back when it was resolved. */
+  application_id?: number
 }
 
 export interface ElementCatalog {

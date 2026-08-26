@@ -37,6 +37,35 @@ logger = logging.getLogger(__name__)
 DEFAULT_MAX_PAGES = 8
 DISCOVERY_OUTPUT_FILE = "discovery.json"
 
+# --- Automation Module: a time budget that follows max_pages -----------------
+#
+# The spec used to hardcode `test.setTimeout(300_000)` -- five minutes for the
+# whole crawl, whatever max_pages said. Against a WAF-fronted production site a
+# page costs roughly 30s (35s navigation allowance, a 6s networkidle settle,
+# cookie handling, a 1s inter-page delay), so 300s buys about ten pages. Asking
+# for twenty produced ten pages, one genuine timeout, and then a blocker per
+# still-queued page reading "Target page, context or browser has been closed"
+# -- which names the teardown, not the cause, and buries it under nine copies.
+#
+# The budget is now derived, and the crawl stops itself before it runs out so
+# it can say so once, in words that name the fix.
+PER_PAGE_BUDGET_MS = 30_000
+MIN_CRAWL_BUDGET_MS = 90_000
+# Leave the spec room to write the catalogue it has already gathered.
+BUDGET_WRITE_RESERVE_MS = 15_000
+
+
+def crawl_budget_ms(max_pages: int, *, run_timeout_seconds: int = 600) -> int:
+    """How long a crawl of `max_pages` pages may take.
+
+    Capped below the runner's own subprocess timeout: a crawl killed from
+    outside never reaches the spec's `finally`, so its catalogue is lost
+    entirely rather than arriving short.
+    """
+    wanted = MIN_CRAWL_BUDGET_MS + max(1, max_pages) * PER_PAGE_BUDGET_MS
+    ceiling = max(MIN_CRAWL_BUDGET_MS, int(run_timeout_seconds * 1000 * 0.85))
+    return min(wanted, ceiling)
+
 
 def slugify(role: str | None, name: str | None) -> str:
     """A stable handle for one control, from its role and accessible name."""
@@ -49,6 +78,7 @@ def build_discovery_spec(
     base_url: str,
     *,
     max_pages: int = DEFAULT_MAX_PAGES,
+    budget_ms: Optional[int] = None,
 ) -> str:
     """A Playwright spec that walks the app and writes a catalogue as JSON.
 
@@ -56,6 +86,8 @@ def build_discovery_spec(
     parses stdout as a JSON test report and a catalogue printed there would
     have to be disentangled from it.
     """
+    budget = budget_ms if budget_ms is not None else crawl_budget_ms(max_pages)
+    reserve = BUDGET_WRITE_RESERVE_MS
     return f"""import {{ test, expect }} from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
@@ -66,6 +98,9 @@ import path from 'path';
 
 const START = {json.dumps(base_url)};
 const MAX_PAGES = {max_pages};
+const BUDGET_MS = {budget};
+// Stop early enough to still write what has been gathered.
+const DEADLINE = Date.now() + BUDGET_MS - {reserve};
 
 /** Escape a value for a single-quoted Playwright query. */
 function q(value) {{
@@ -73,9 +108,13 @@ function q(value) {{
 }}
 
 test('discover application', async ({{ page }}) => {{
-  test.setTimeout(300_000);
+  test.setTimeout(BUDGET_MS);
   const origin = new URL(START).origin;
-  const queue = [START];
+  // Each entry carries the link that reached it, not just the destination.
+  // A generated script can then click `a[href="/eshop/cart"]` -- routing through
+  // the application the way a user does -- instead of deep-linking to the
+  // absolute URL and losing the session on every step.
+  const queue = [{{ url: START, viaHref: null, viaText: null, from: null }}];
   const seen = new Set();
   const pages = [];
   const elements = [];
@@ -90,7 +129,20 @@ test('discover application', async ({{ page }}) => {{
 
   try {{
     while (queue.length && seen.size < MAX_PAGES) {{
-      const url = queue.shift();
+      // Say it once, in words that name the fix -- rather than letting the
+      // test time out mid-navigation and log a teardown error per queued page.
+      if (Date.now() > DEADLINE) {{
+        blockers.push({{
+          url: (queue[0] && queue[0].url) || START,
+          reason: `The crawl ran out of its ${{Math.round(BUDGET_MS / 1000)}}s time budget after `
+            + `${{pages.length}} page(s), with ${{queue.length}} still queued. Lower Max pages, `
+            + `or raise AUTOMATION_RUN_TIMEOUT_SECONDS to buy a longer budget.`
+        }});
+        break;
+      }}
+
+      const entry = queue.shift();
+      const url = entry.url;
       if (seen.has(url)) continue;
       seen.add(url);
 
@@ -110,14 +162,24 @@ test('discover application', async ({{ page }}) => {{
 
         const status = response ? response.status() : 0;
         const title = await page.title().catch(() => '');
-        pages.push({{ url, title, status }});
+        pages.push({{
+          url, title, status,
+          via_href: entry.viaHref,
+          via_text: entry.viaText,
+          from_url: entry.from
+        }});
 
         if (status >= 400 || title.includes('Request Rejected') || title.includes('Access Denied')) {{
           blockers.push({{ url, reason: `The page returned HTTP ${{status}} or WAF challenge (${{title}}).` }});
           continue;
         }}
       }} catch (error) {{
-        blockers.push({{ url, reason: String(error && error.message ? error.message : error).slice(0, 300) }});
+        const message = String(error && error.message ? error.message : error);
+        blockers.push({{ url, reason: message.slice(0, 300) }});
+        // Once the context is gone every later navigation fails identically.
+        // Recording one blocker per queued page buries whatever really went
+        // wrong under a wall of teardown noise.
+        if (/context or browser has been closed|Target closed/i.test(message)) break;
         continue;
       }}
 
@@ -242,15 +304,27 @@ test('discover application', async ({{ page }}) => {{
       try {{
         const links = await page.evaluate(() =>
           Array.from(document.querySelectorAll('a[href]'))
-            .map((a) => a.href)
-            .filter(Boolean)
+            .map((a) => ({{
+              absolute: a.href,
+              // The href as authored, not as resolved. `a[href="/eshop/cart"]`
+              // matches what the application renders; the absolute form does
+              // not, so the authored value is the one a script can select on.
+              href: a.getAttribute('href') || '',
+              text: (a.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 200)
+            }}))
+            .filter((link) => link.absolute)
         );
         for (const link of links) {{
           try {{
-            const parsed = new URL(link);
+            const parsed = new URL(link.absolute);
             parsed.hash = '';
             if (parsed.origin === origin && !seen.has(parsed.href) && queue.length + seen.size < MAX_PAGES) {{
-              queue.push(parsed.href);
+              queue.push({{
+                url: parsed.href,
+                viaHref: link.href,
+                viaText: link.text,
+                from: url
+              }});
             }}
           }} catch {{}}
         }}
@@ -322,6 +396,12 @@ def parse_discovery_output(raw: str) -> dict[str, Any]:
                 "url": (p.get("url") or "")[:1000],
                 "title": (p.get("title") or "")[:500],
                 "status": p.get("status"),
+                # How the crawl reached this page: the authored href of the
+                # link it followed, that link's text, and the page it was on.
+                # Null for the entry point, which nothing linked to.
+                "via_href": (p.get("via_href") or None),
+                "via_text": (p.get("via_text") or "")[:200] or None,
+                "from_url": (p.get("from_url") or "")[:1000] or None,
             }
             for p in pages
         ],
