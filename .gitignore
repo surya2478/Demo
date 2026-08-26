@@ -26,15 +26,15 @@
 
 # Runtime config written by the Settings screen — app/environment.json holds
 # SOLUTIONS_API_AUTH_TOKEN, app/config.json holds the live AI endpoint config.
-ai-admin-module-py/app/config.json
-ai-admin-module-py/app/environment.json
+#ai-admin-module-py/app/config.json
+#ai-admin-module-py/app/environment.json
 
 # ---------------------------------------------------------------------------
 # Databases
 # ---------------------------------------------------------------------------
 # admin.db contains real user rows. The -wal/-shm sidecars appear once WAL
 # journal mode is enabled (see app/database/connection.py).
-*.db
+#*.db
 *.db-wal
 *.db-shm
 *.sqlite
@@ -74,11 +74,11 @@ dist.tar.gz
 # ---------------------------------------------------------------------------
 # Materialised workspaces, generated specs and captured artifacts are run
 # output, not source. Regenerated on every run; large and non-reviewable.
-storage/
-ai-admin-module-py/storage/
-automation_workspace/
-playwright-report/
-test-results/
+#storage/
+#ai-admin-module-py/storage/
+#automation_workspace/
+#playwright-report/
+#test-results/
 *.webm
 *.zip.part
 
