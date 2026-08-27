@@ -50,6 +50,25 @@ from . import grounding
 # written into playwright.config.ts and nothing until now used. That fallback is
 # also what lets one script run against SIT, QA and UAT unchanged.
 NAVIGATION_HELPER = """
+/**
+ * True when `locator` is visible within `ms`, false if it never becomes so.
+ *
+ * isVisible() looks like the waiting version of this and is not: it samples the
+ * DOM once and returns, and its `timeout` option is ignored entirely. Measured
+ * against this application, `isVisible({ timeout: 10000 })` on an absent element
+ * returned false after 88ms while `waitFor` on the same locator honoured its
+ * 3000ms. Every generated guard therefore tested whether an element had already
+ * rendered at the instant the step began, which on a card grid that populates
+ * after its own fetch is a coin toss -- and a lost toss skipped the step's real
+ * work while reporting it passed.
+ */
+async function appears(locator, ms = 5000) {
+  return await locator
+    .waitFor({ state: 'visible', timeout: ms })
+    .then(() => true)
+    .catch(() => false);
+}
+
 /** Remove the consent overlay that otherwise intercepts every later click. */
 async function dismissOverlays(page) {
   await page.evaluate(() => {
@@ -85,7 +104,7 @@ async function navigateTo(page, route, hrefHint) {
   if (href && from && from !== 'about:blank') {
     try {
       const link = page.locator(hrefSelector(href)).first();
-      if (await link.isVisible({ timeout: 2000 }).catch(() => false)) {
+      if (await appears(link, 2000)) {
         await link.click({ timeout: 10000 });
         await page.waitForLoadState('domcontentloaded', { timeout: 30000 }).catch(() => {});
         await dismissOverlays(page);
@@ -156,6 +175,10 @@ class CompiledScript:
     setup_notes: list[str] = field(default_factory=list)
     generation_mode: str = "compiled"
     issues: list[StaticGateIssue] = field(default_factory=list)
+    # How many test.step() blocks the spec will report. Known at compile time,
+    # so a run can show "Step 0 of 6" the moment it starts rather than staying
+    # blank until the first reporter event lands.
+    step_count: int = 0
 
     def gate_result(self) -> dict[str, Any]:
         errors = [i for i in self.issues if i.level == "error"]
@@ -270,6 +293,53 @@ def comment_text(value: Any, *, limit: int = 300) -> str:
     return flattened
 
 
+# --- Automation Module: steps that report themselves -------------------------
+#
+# A compiled step used to be a `// 3. Click Buy Now` comment above its own
+# statements. A comment is inert: the step boundary existed in the source and
+# nowhere in the running process, so the UI could say "executing" and nothing
+# more until the whole spec exited. Wrapping the same statements in
+# `test.step()` gives the boundary a runtime existence -- the reporter is
+# called on entry and exit, and progress-reporter.cjs turns those calls into
+# the NDJSON the runner tails.
+#
+# The trace viewer groups by test.step too, so the same change buys named
+# sections in every trace without asking for them.
+
+
+def step_title(number: Any, action: Any, *, limit: int = 120) -> str:
+    """A step's label as it appears in the reporter, the trace and the UI.
+
+    Braces are stripped rather than escaped. They survive json.dumps into the
+    emitted string literal perfectly well, but run_static_gate decides whether
+    a file will parse by counting `{` against `}` across the whole text without
+    modelling string literals -- so an action phrased "select {plan} tier"
+    would leave the counts uneven and the gate would refuse a spec that is in
+    fact valid. Nothing downstream needs the braces.
+    """
+    text = comment_text(action, limit=limit).replace("{", "(").replace("}", ")")
+    return f"{number}. {text}" if text else f"Step {number}"
+
+
+def _wrap_step_body(lines: list[str], start: int, title: str) -> None:
+    """Enclose the statements emitted since `start` in an `await test.step`.
+
+    Splicing after the fact, rather than threading an indent level through the
+    ~200 lines of emit logic above, keeps this to one call site per step and
+    leaves every existing `lines.append("  ...")` untouched.
+
+    A step that emitted nothing executable is left alone: wrapping bare
+    comments in a step would report progress for work that never happened.
+    """
+    body = lines[start:]
+    if not any(line.strip() and not line.strip().startswith("//") for line in body):
+        return
+    del lines[start:]
+    lines.append(f"  await test.step({_js(title)}, async () => {{")
+    lines.extend(("  " + line) if line.strip() else line for line in body)
+    lines.append("  });")
+
+
 def sanitize_catalog_locator(expr: Optional[str]) -> Optional[str]:
     """A discovered locator made safe to paste into a source file, or None."""
     if not expr:
@@ -320,17 +390,17 @@ def _phrase_locator(target: Optional[str], intent: str) -> tuple[str, Optional[s
         or "[href" in raw
         or "[data-" in raw
     ):
-        return f"page.locator({_js(raw)}).first", None
+        return f"page.locator({_js(raw)}).first()", None
 
     # 1. If target contains data-testid
     if "data-testid=" in raw:
         tid_match = re.search(r'data-testid=["\']([^"\']+)["\']', raw)
         if tid_match:
             return f"page.getByTestId({_js(tid_match.group(1))})", None
-        return f"page.locator({_js(raw)}).first", None
+        return f"page.locator({_js(raw)}).first()", None
 
     if raw.startswith("#"):
-        return f"page.locator({_js(raw)}).first", None
+        return f"page.locator({_js(raw)}).first()", None
 
     name = _clean_target(raw)
     lowered = raw.lower()
@@ -539,6 +609,9 @@ def compile_playwright(
 
             lines.append("")
             lines.append(f"  // {number}. {comment_text(action)}")
+            # Everything appended from here to the end of this iteration is the
+            # step's body, and gets wrapped in test.step() below.
+            step_body_start = len(lines)
 
             action_lower = action.lower()
             target_lower = (target or "").lower()
@@ -557,7 +630,7 @@ def compile_playwright(
                 lines.append("    const cookieBtn = page.locator(")
                 lines.append("      '#usercentrics-root button, #onetrust-accept-btn-handler, #accept-all-cookies, button:has-text(\"Accept All\"), button:has-text(\"Accept all\"), button:has-text(\"Accept\")'")
                 lines.append("    ).first();")
-                lines.append("    if (await cookieBtn.isVisible({ timeout: 2500 }).catch(() => false)) {")
+                lines.append("    if (await appears(cookieBtn, 2500)) {")
                 lines.append("      await cookieBtn.click({ force: true }).catch(() => {});")
                 lines.append("    }")
                 lines.append("  } catch (e) {}")
@@ -577,8 +650,24 @@ def compile_playwright(
                     # second chance for an app that rewrites its own query.
                     route = _route(target, target_url)
                     path_slug = route.split("?")[0].rstrip("/").split("/")[-1].replace(".html", "")
-                    lines.append(f"  const onTargetPage = page.url().includes({_js(route.split('?')[0])}) || page.url().toLowerCase().includes({_js(path_slug.lower())});")
-                    lines.append("  expect(onTargetPage).toBe(true);")
+                    # toHaveURL rather than a boolean the step computes itself.
+                    # The old form -- `const onTargetPage = page.url().includes(..)`
+                    # then `expect(onTargetPage).toBe(true)` -- read the URL once
+                    # and failed with "Expected: true Received: false", naming
+                    # neither the URL it wanted nor the one it got, on a step that
+                    # is usually racing a client-side navigation. toHaveURL retries
+                    # until the timeout and prints both URLs on failure.
+                    pattern = "|".join(
+                        dict.fromkeys(
+                            re.escape(part)
+                            for part in (route.split("?")[0], path_slug.lower())
+                            if part
+                        )
+                    )
+                    lines.append(
+                        f"  await expect(page).toHaveURL(new RegExp({_js(pattern)}, 'i'), "
+                        f"{{ timeout: 15000 }});"
+                    )
                 elif target and (target.startswith((".", "#", "[", "button", "a")) or ":has-text" in target):
                     lines.append(f"  const verifyEl = page.locator({_js(target)}).first();")
                     lines.append("  await expect(verifyEl).toBeVisible({ timeout: 10000 });")
@@ -591,7 +680,7 @@ def compile_playwright(
                 lines.append(f"  // Search for {_js(search_query)}")
                 lines.append("  try {")
                 lines.append("    const searchField = page.locator('input[type=\"search\"], input[placeholder*=\"Search\" i], input[aria-label*=\"Search\" i], input.search-field, #search-input').first();")
-                lines.append("    if (await searchField.isVisible({ timeout: 4000 }).catch(() => false)) {")
+                lines.append("    if (await appears(searchField, 4000)) {")
                 lines.append(f"      await searchField.fill({_js(search_query)});")
                 lines.append("      await searchField.press('Enter');")
                 lines.append("      await page.waitForTimeout(2000);")
@@ -602,7 +691,7 @@ def compile_playwright(
                 lines.append(f"  // Select/Click item {_js(item_term)}")
                 lines.append("  try {")
                 lines.append(f"    const productEl = page.locator('a, button, div.product-card, div.device-card, [class*=\"card\"]').filter({{ hasText: /{re.escape(item_term[:20])}/i }}).first();")
-                lines.append("    if (await productEl.isVisible({ timeout: 4000 }).catch(() => false)) {")
+                lines.append("    if (await appears(productEl, 4000)) {")
                 lines.append("      await productEl.click();")
                 lines.append("      await page.waitForLoadState('domcontentloaded');")
                 lines.append("      await page.waitForTimeout(1500);")
@@ -612,7 +701,7 @@ def compile_playwright(
                 lines.append("  // Select/verify variant options and price update")
                 lines.append("  try {")
                 lines.append("    const opt = page.locator('.device-variant-options, [role=\"radio\"], button.variant-btn, .color-swatch, .storage-btn, label:has-text(\"One Time\"), label:has-text(\"GB\")').first();")
-                lines.append("    if (await opt.isVisible({ timeout: 3000 }).catch(() => false)) {")
+                lines.append("    if (await appears(opt, 3000)) {")
                 lines.append("      await opt.click({ force: true }).catch(() => {});")
                 lines.append("      await page.waitForTimeout(500);")
                 lines.append("    }")
@@ -625,47 +714,70 @@ def compile_playwright(
                 lines.append("  const outOfStockEl = page.locator(")
                 lines.append("    '.out-of-stock, :text(\"OUT OF STOCK\"), :text(\"Out of stock\"), :text(\"Sold Out\"), :text(\"Notify Me\"), :text(\"NOTIFY ME\"), :text(\"Temporarily Unavailable\"), button:has-text(\"Notify Me\"), button:has-text(\"Out of Stock\")'")
                 lines.append("  ).first();")
-                lines.append("  const isOutOfStock = await outOfStockEl.isVisible({ timeout: 2500 }).catch(() => false);")
+                lines.append("  const isOutOfStock = await appears(outOfStockEl, 2500);")
                 lines.append("  const addBtn = page.locator(")
                 lines.append("    'button:has-text(\"ADD TO CART\"), button:has-text(\"Add to cart\"), button:has-text(\"Add to Cart\"), button:has-text(\"Add To Cart\"), button:has-text(\"Checkout Now\"), button:has-text(\"CHECKOUT NOW\"), button:has-text(\"Proceed to Checkout\"), button:has-text(\"Buy Now\"), button:has-text(\"BUY NOW\"), [data-testid*=\"cart\" i], [class*=\"add-to-cart\" i], [class*=\"addToCart\" i], button.btn-primary:has-text(\"Add\"), button.checkout-btn, button:has-text(\"Select Plan\"), button:has-text(\"Order Now\")'")
                 lines.append("  ).first();")
                 lines.append("  if (isOutOfStock) {")
                 lines.append("    console.log(\"Product is OUT OF STOCK on live site — asserting out-of-stock status or disabled CTA\");")
-                lines.append("    if (await addBtn.isVisible({ timeout: 2000 }).catch(() => false)) {")
+                lines.append("    if (await appears(addBtn, 2000)) {")
                 lines.append("      await expect(addBtn).toBeDisabled();")
                 lines.append("    } else {")
                 lines.append("      await expect(outOfStockEl).toBeVisible();")
                 lines.append("    }")
                 lines.append("  } else {")
                 lines.append("    await addBtn.scrollIntoViewIfNeeded().catch(() => {});")
-                lines.append("    if (await addBtn.isVisible({ timeout: 8000 }).catch(() => false)) {")
+                lines.append("    if (await appears(addBtn, 8000)) {")
                 lines.append("      await addBtn.click({ force: true }).catch(() => {});")
                 lines.append("      await page.waitForTimeout(2500);")
                 lines.append("    } else {")
                 lines.append("      const fallbackCta = page.locator('button.btn-primary, [role=\"button\"]:has-text(\"Cart\"), a:has-text(\"Cart\"), button:has-text(\"Continue\")').first();")
-                lines.append("      if (await fallbackCta.isVisible({ timeout: 3000 }).catch(() => false)) {")
+                lines.append("      if (await appears(fallbackCta, 3000)) {")
                 lines.append("        await fallbackCta.click({ force: true }).catch(() => {});")
                 lines.append("      }")
                 lines.append("      await page.waitForTimeout(2000);")
                 lines.append("    }")
                 lines.append("  }")
             elif any(k in action_lower for k in ["checkout", "proceed to", "buy now"]) or any(k in target_lower for k in ["checkout", "buy now"]):
+                # --- A click step has to be able to fail -------------------
+                # This block used to be `if (await appears(btn)) { click }`
+                # wrapped in `try {} catch (e) {}`: an absent button skipped the
+                # if, a failed click was swallowed, and either way the step was
+                # reported green. The journey then died two steps later at "the
+                # URL is not the ordering page", which is true, unhelpful, and
+                # blames the wrong step.
+                #
+                # Buy Now is the step's whole purpose, so its absence is the
+                # result. toBeVisible retries to the timeout and names the
+                # locator it waited on; the click is then unguarded, because a
+                # click that throws is a finding rather than an inconvenience.
+                # --- filter({ visible: true }) before first() ----------------
+                # These targets are comma-lists pairing something precise with
+                # something generic -- "a[href*='ratePlanId=...375'], a:has-text
+                # ('Buy Now')". Playwright resolves the whole list in DOM order,
+                # so first() does not prefer the specific half: on a plans page
+                # carrying both tabs' cards in one DOM, it took the *earlier*
+                # Buy Now, which belonged to the tab that was not selected and
+                # was therefore hidden. The precise selector was present and
+                # correct, and lost to its own fallback.
+                #
+                # Filtering to visible first makes the pairing safe: the generic
+                # half can only ever match something the user can actually see,
+                # which on a tabbed catalogue is the tab in front.
                 lines.append("  // Click Buy Now / Proceed to Checkout")
-                lines.append("  try {")
                 if target and (target.startswith((".", "#", "[", "button", "a")) or ":has-text" in target or "ratePlanId" in target):
-                    lines.append(f"    const checkoutActionBtn = page.locator({_js(target)}).first();")
+                    lines.append(f"  const checkoutActionBtn = page.locator({_js(target)}).filter({{ visible: true }}).first();")
                 else:
-                    lines.append("    const checkoutActionBtn = page.locator('button:has-text(\"Buy Now\"), a:has-text(\"Buy Now\"), button:has-text(\"Checkout Now\"), button:has-text(\"Proceed to Checkout\"), button:has-text(\"Checkout\"), a:has-text(\"Checkout\")').first();")
-                lines.append("    if (await checkoutActionBtn.isVisible({ timeout: 10000 }).catch(() => false)) {")
-                lines.append("      await checkoutActionBtn.click();")
-                lines.append("      await page.waitForTimeout(2000);")
-                lines.append("    }")
-                lines.append("  } catch (e) {}")
+                    lines.append("  const checkoutActionBtn = page.locator('button:has-text(\"Buy Now\"), a:has-text(\"Buy Now\"), button:has-text(\"Checkout Now\"), button:has-text(\"Proceed to Checkout\"), button:has-text(\"Checkout\"), a:has-text(\"Checkout\")').filter({ visible: true }).first();")
+                lines.append("  await checkoutActionBtn.scrollIntoViewIfNeeded().catch(() => {});")
+                lines.append("  await expect(checkoutActionBtn).toBeVisible({ timeout: 15000 });")
+                lines.append("  await checkoutActionBtn.click();")
+                lines.append("  await page.waitForLoadState('domcontentloaded', { timeout: 30000 }).catch(() => {});")
             elif any(k in action_lower for k in ["shipping address", "payment method", "enter address", "credit card", "fill form"]):
                 lines.append("  // Fill address/checkout details if form presented")
                 lines.append("  try {")
                 lines.append("    const addressInput = page.locator('input[name*=\"address\" i], input[placeholder*=\"address\" i], textarea, input[name*=\"name\" i], input[type=\"text\"]').first();")
-                lines.append("    if (await addressInput.isVisible({ timeout: 3000 }).catch(() => false)) {")
+                lines.append("    if (await appears(addressInput, 3000)) {")
                 lines.append("      await addressInput.fill(\"Dubai, UAE\");")
                 lines.append("    }")
                 lines.append("  } catch (e) {}")
@@ -741,6 +853,8 @@ def compile_playwright(
 
             if expected and intent != "assert":
                 lines.append(f"  // expected: {comment_text(expected)}")
+
+            _wrap_step_body(lines, step_body_start, step_title(number, action))
             emitted += 1
 
     if case.expected_result:
@@ -771,6 +885,7 @@ def compile_playwright(
             else []
         ),
         issues=issues,
+        step_count=emitted,
     )
     script.issues.extend(run_static_gate(code, emitted, len(steps) if steps else 1))
     return script
@@ -827,6 +942,16 @@ def _unterminated_string(line: str) -> bool:
     current string -- only that delimiter can close it, and a backslash escapes
     whatever follows. A `//` outside a string ends the line as a comment.
     """
+    # A line inside a /** ... */ block carries no code, and prose in one
+    # routinely contains an apostrophe -- "the step's real work". The scanner
+    # already stops at a `//`, so line comments were safe; block comments were
+    # not, and a helper documented in JSDoc could fail the gate for a sentence
+    # rather than for anything the file does. Recognising the continuation and
+    # delimiter lines is enough: nothing here emits code on them.
+    stripped = line.strip()
+    if stripped.startswith(("*", "/*")) or stripped.endswith("*/"):
+        return False
+
     quote = None
     index = 0
     while index < len(line):
@@ -863,6 +988,23 @@ def run_static_gate(code: str, emitted: int, expected_steps: int) -> list[Static
         issues.append(
             StaticGateIssue("error", "The spec points at a placeholder domain (example.com).")
         )
+
+    # first/last/nth are methods on a Locator, not properties, so `.first.click()`
+    # reads the function object and calls `.click` on it: "TypeError:
+    # page.locator(...).first.click is not a function", thrown the instant the
+    # step runs. Every other check here passed such a spec, so the defect cost a
+    # browser, a workspace and a red run to discover something no element on the
+    # page could have changed. Anchored to a closing paren so a selector string
+    # that happens to contain ".first." is not mistaken for one.
+    for match in re.finditer(r"\)\.(first|last|nth)\s*\.", code):
+        issues.append(
+            StaticGateIssue(
+                "error",
+                f".{match.group(1)} is called without parentheses - it is a method, "
+                f"so this throws at runtime. Use .{match.group(1)}() instead.",
+            )
+        )
+        break
     if expected_steps and emitted < expected_steps:
         issues.append(
             StaticGateIssue(

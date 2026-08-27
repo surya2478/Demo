@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -111,6 +112,7 @@ class AutomationRunner(ABC):
         environment: str | None,
         timeout_seconds: int = 600,
         cancellation: asyncio.Event | None = None,
+        on_progress: Callable[[dict], None] | None = None,
     ) -> RunnerResult:
         """Execute the script under workspace_dir and return a normalised result.
 
@@ -125,5 +127,11 @@ class AutomationRunner(ABC):
                           the process and reports run_status="cancelled" with
                           whatever artifacts it already wrote. Ignoring this
                           would make a Cancel control a lie.
+        on_progress       called with a snapshot dict as the run advances
+                          through its steps, so a caller can surface progress
+                          before the result exists. Optional, best-effort and
+                          never load-bearing: a runner with nothing to report,
+                          or a callback that raises, must not change the run's
+                          outcome.
         """
         raise NotImplementedError

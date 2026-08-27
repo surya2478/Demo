@@ -287,5 +287,23 @@
       ],
       "target": "{cart_route}"
     }
+  ],
+  "generation_directives": [
+    "1. PRECONDITIONS: Must state that the user is on '{app_name}' ({base_url}) with the cookie banner dismissed.",
+    "2. TEST STEPS: Reproduce EVERY step of the CANONICAL STEP TRAVERSAL above, in order. Do not omit a step and do not merge two steps into one:",
+    "   - Begin with navigation to the SMB portal ({base_url}), then to the plans catalogue ({catalog_entrypoint}).",
+    "   - Switching the plans tab ('Local' or 'Local & International') is its own step.",
+    "   - Selecting the plan card and reviewing its allowances and promotional pricing are separate steps.",
+    "   - Include the 'Buy Now' click, which carries the plan's ratePlanId.",
+    "   - ALWAYS finish with a verification step asserting that the B2B Ordering Email Verification page ({cart_endpoint}) has been reached. A case that ends at 'Buy Now' asserts nothing about the purchase and must not be generated.",
+    "3. TEST DATA: Must explicitly include 'ProductId: <id>' and 'SkuId: <id>' together with the plan name and its monthly price from the Knowledge Base, so downstream automated execution can parse them.",
+    "4. BOUNDARY: Trade licence verification, OTP and live payment are outside the automated scope. Stop at the email verification page and generate no steps beyond it."
+  ],
+  "test_case_matrix": [
+    "Positive path: purchase the selected Business First Plus plan through to the B2B ordering email verification page.",
+    "Tab coverage: the 'Local' and 'Local & International' tabs each list their own plan set.",
+    "Plan comparison: allowances and promotional pricing shown on each plan card (110 / 150 / 200).",
+    "Navigation integrity: 'Buy Now' carries the ratePlanId of the plan actually chosen.",
+    "Negative: proceeding without selecting a plan does not reach the ordering page."
   ]
 }

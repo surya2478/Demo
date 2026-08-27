@@ -29,8 +29,10 @@ import re
 import shlex
 import subprocess
 import time
+from collections.abc import Callable
 from pathlib import Path
 
+from . import workspace as ws
 from .base import AutomationRunner, PerTestResult, RunnerResult, await_process
 from .env_policy import build_runner_env
 from .preflight import is_available, npx_command
@@ -130,6 +132,160 @@ async def _spawn(cmd, *, cwd, stderr, env):
         return _ThreadedProcess(proc), True
 
 
+# ── Live step progress ───────────────────────────────────────────────────────
+# progress-reporter.cjs appends one NDJSON line per test.step boundary while
+# the run is still going. Reading it here is what lets the UI show step 3 of 6
+# instead of a spinner: the JSON reporter on stdout says nothing until the
+# process exits, and by then the question has answered itself.
+#
+# Polling a file rather than watching it. The reporter appends from another
+# process, there is no portable async file-watch in the stdlib, and with slowMo
+# in play the events are seconds apart -- so a 0.75s poll is well inside the
+# resolution anyone can perceive and costs a stat plus a short read.
+
+_PROGRESS_POLL_SECONDS = 0.75
+
+_WHITESPACE_RUN_RE = re.compile(r"\s+")
+
+
+def _collapse(value, *, limit: int = 300):
+    """Multi-line reporter text as one readable line, or None."""
+    if not value:
+        return None
+    flattened = _WHITESPACE_RUN_RE.sub(" ", str(value)).strip()
+    if not flattened:
+        return None
+    return flattened if len(flattened) <= limit else flattened[: limit - 1].rstrip() + "…"
+
+
+def _reduce_progress(state: dict, event: dict) -> bool:
+    """Fold one reporter event into `state`. True when something changed.
+
+    History is append-only and keyed by (attempt, index): a retry restarts its
+    numbering, and without the attempt the list would appear to run backwards
+    on the second pass rather than starting a new one.
+    """
+    kind = event.get("event")
+
+    if kind == "run_begin":
+        state["history"] = []
+        state["current"] = 0
+        state["title"] = None
+        state["status"] = "running"
+        return True
+
+    if kind == "step_begin":
+        state["current"] = event.get("index") or (state.get("current") or 0) + 1
+        state["title"] = event.get("title")
+        state["attempt"] = event.get("attempt") or 1
+        state["status"] = "running"
+        return True
+
+    if kind == "step_end":
+        state["history"] = [
+            row
+            for row in state.get("history") or []
+            if not (
+                row.get("n") == event.get("index")
+                and row.get("attempt") == (event.get("attempt") or 1)
+            )
+        ] + [
+            {
+                "n": event.get("index"),
+                "attempt": event.get("attempt") or 1,
+                "title": event.get("title"),
+                "ok": bool(event.get("ok")),
+                "ms": event.get("duration_ms"),
+                # Same treatment the per-test error gets. Playwright colours
+                # its call log, so without this the UI renders a step failure
+                # as "[2m - waiting for getByLabel('Username')[22m". Newlines
+                # collapse too: this is a one-line label under a step row, not
+                # a stack trace panel.
+                "error": _collapse(_strip_ansi(event.get("error"))),
+            }
+        ]
+        state["current"] = event.get("index") or state.get("current")
+        state["title"] = event.get("title")
+        if not event.get("ok"):
+            state["status"] = "failed"
+        return True
+
+    if kind == "test_end":
+        state["status"] = event.get("status") or state.get("status")
+        return True
+
+    return False
+
+
+def _read_new_lines(path: Path, cursor: dict) -> list[dict]:
+    """Events appended since the last call. Never raises."""
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return []
+    # The reporter truncates at onBegin, so a shrunken file is a new run rather
+    # than corruption -- rewind instead of reading from a stale offset.
+    if size < cursor.get("offset", 0):
+        cursor["offset"] = 0
+    if size == cursor.get("offset", 0):
+        return []
+
+    try:
+        with path.open("r", encoding="utf-8") as fh:
+            fh.seek(cursor.get("offset", 0))
+            chunk = fh.read()
+            # A partial final line means the reporter is mid-append. Leave it
+            # for the next pass rather than parsing half a record.
+            if chunk and not chunk.endswith("\n"):
+                chunk = chunk[: chunk.rfind("\n") + 1]
+            cursor["offset"] = cursor.get("offset", 0) + len(chunk.encode("utf-8"))
+    except OSError:
+        return []
+
+    events = []
+    for line in chunk.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            events.append(json.loads(line))
+        except ValueError:
+            continue
+    return events
+
+
+def _publish(state: dict, on_progress) -> None:
+    """Hand a snapshot to the caller. A reporting failure never fails a run."""
+    try:
+        on_progress(dict(state))
+    except Exception:  # noqa: BLE001 - progress is diagnostics, not the result
+        logger.exception("Progress callback raised; continuing the run")
+
+
+def _drain_progress_once(path: Path, on_progress) -> None:
+    """Final synchronous sweep, for after the process has already exited."""
+    state: dict = {"history": [], "current": 0, "status": "running"}
+    cursor = {"offset": 0}
+    changed = False
+    for event in _read_new_lines(path, cursor):
+        changed = _reduce_progress(state, event) or changed
+    if changed:
+        _publish(state, on_progress)
+
+
+async def _tail_progress(path: Path, on_progress) -> None:
+    """Follow the reporter's NDJSON and publish a snapshot on every change."""
+    state: dict = {"history": [], "current": 0, "status": "running"}
+    cursor = {"offset": 0}
+    while True:
+        await asyncio.sleep(_PROGRESS_POLL_SECONDS)
+        changed = False
+        for event in _read_new_lines(path, cursor):
+            changed = _reduce_progress(state, event) or changed
+        if changed:
+            _publish(state, on_progress)
+
+
 # Playwright's vocabulary mapped to the one the database stores. "blocked" is
 # not produced here — it is decided a level up, when the target itself could
 # not be reached.
@@ -154,6 +310,7 @@ class LocalPlaywrightRunner(AutomationRunner):
         environment: str | None,
         timeout_seconds: int = 600,
         cancellation: asyncio.Event | None = None,
+        on_progress: Callable[[dict], None] | None = None,
     ) -> RunnerResult:
         available, detail = is_available("playwright")
         if not available:
@@ -171,7 +328,23 @@ class LocalPlaywrightRunner(AutomationRunner):
         # generated config cannot leave the run unparseable.
         # Full path, not a bare name: on Windows npx is a .CMD shim that
         # subprocess cannot launch. See preflight.resolve_node_tool.
-        cmd = [npx_command() or "npx", "--yes", "playwright", "test", script_file_name, "--reporter=json"]
+        # progress-reporter.cjs rides alongside the JSON reporter to emit step
+        # boundaries while the run is still going -- the JSON reporter writes
+        # nothing until the process exits. It appends to progress.ndjson and
+        # never touches stdout, so the parse below is unaffected. A workspace
+        # written before that reporter existed simply has no file to run, so
+        # it is only requested when present.
+        reporter = "json"
+        if (workspace_dir / ws.PROGRESS_REPORTER_FILE_NAME).exists():
+            reporter = f"json,./{ws.PROGRESS_REPORTER_FILE_NAME}"
+        cmd = [
+            npx_command() or "npx",
+            "--yes",
+            "playwright",
+            "test",
+            script_file_name,
+            f"--reporter={reporter}",
+        ]
 
         env, withheld_env = build_runner_env(
             source=os.environ,
@@ -206,9 +379,24 @@ class LocalPlaywrightRunner(AutomationRunner):
                         log_fh.write(chunk)
 
                 drain_task = asyncio.create_task(drain_stdout())
+                progress_task = (
+                    asyncio.create_task(
+                        _tail_progress(workspace_dir / ws.PROGRESS_FILE_NAME, on_progress)
+                    )
+                    if on_progress is not None
+                    else None
+                )
                 outcome = await await_process(
                     proc, timeout_seconds=timeout_seconds, cancellation=cancellation
                 )
+                # One last pass before tearing the tail down, so the steps that
+                # completed in the final second are not lost -- on a timeout or
+                # a cancel those are the most informative records there are.
+                if progress_task is not None:
+                    progress_task.cancel()
+                    _drain_progress_once(
+                        workspace_dir / ws.PROGRESS_FILE_NAME, on_progress
+                    )
 
                 if outcome != "exited":
                     proc.kill()

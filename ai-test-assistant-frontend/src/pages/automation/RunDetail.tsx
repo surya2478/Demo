@@ -62,6 +62,137 @@ function stringifyLogs(value: unknown): string | null {
   }
 }
 
+/**
+ * What the runner publishes into run_metadata.step_progress as a spec runs.
+ *
+ * `history` is append-only and authoritative; `current` is only a hint. A step
+ * that starts and finishes between two polls is never observed as running, so
+ * rendering from `current` alone would silently skip it — on a fast page most
+ * steps would never appear at all.
+ */
+interface StepProgress {
+  total?: number | null
+  current?: number | null
+  title?: string | null
+  status?: string | null
+  attempt?: number | null
+  healed?: boolean | null
+  history?: Array<{
+    n: number
+    attempt?: number
+    title?: string | null
+    ok?: boolean
+    ms?: number | null
+    error?: string | null
+  }> | null
+}
+
+/**
+ * The steps of the test case, inside stage 4 of the pipeline.
+ *
+ * Rows come from the union of what has finished (history) and what is in
+ * flight (current), padded out to `total` so the remaining work is visible as
+ * pending rather than absent — "3 of 6" reads very differently from "3".
+ */
+const StepProgressList: React.FC<{ progress: StepProgress; live: boolean }> = ({
+  progress,
+  live,
+}) => {
+  const history = progress.history ?? []
+  const total = progress.total ?? 0
+  const current = progress.current ?? 0
+  const failedOverall = progress.status === 'failed'
+
+  const rowCount = Math.max(total, history.length, current)
+  if (rowCount === 0) return null
+
+  const byIndex = new Map(history.map(h => [h.n, h]))
+  const rows = Array.from({ length: rowCount }, (_, i) => {
+    const n = i + 1
+    const done = byIndex.get(n)
+    // A step in flight is the current one with nothing recorded against it.
+    // Once the run stops being live it cannot still be running, so an
+    // unrecorded step there was never reached rather than still going.
+    const running = !done && n === current && live && !failedOverall
+    return { n, done, running, title: done?.title ?? (n === current ? progress.title : null) }
+  })
+
+  const doneCount = history.filter(h => h.ok).length
+
+  return (
+    <div className="mt-2.5 rounded-lg border border-gray-100 bg-gray-50/70 px-3 py-2.5">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+          Test Case Steps
+          {progress.healed ? (
+            <span className="ml-1.5 rounded bg-violet-100 px-1.5 py-px text-[10px] font-semibold normal-case tracking-normal text-violet-700">
+              healed retry
+            </span>
+          ) : null}
+        </span>
+        <span className="text-[11px] font-semibold tabular-nums text-gray-600">
+          {doneCount} / {total || rowCount} passed
+        </span>
+      </div>
+
+      <ol className="space-y-1">
+        {rows.map(row => {
+          const failed = row.done && !row.done.ok
+          return (
+            <li
+              key={row.n}
+              className={`flex items-start gap-2 text-[12px] leading-snug ${
+                row.done || row.running ? 'opacity-100' : 'opacity-45'
+              }`}
+            >
+              <span
+                className={`mt-px flex h-4 w-4 flex-none items-center justify-center rounded-full text-[9px] font-bold ${
+                  failed
+                    ? 'bg-red-100 text-red-700'
+                    : row.done
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : row.running
+                    ? 'bg-red-500 text-white animate-pulse'
+                    : 'bg-gray-200 text-gray-500'
+                }`}
+              >
+                {failed ? '✕' : row.done ? '✓' : row.n}
+              </span>
+
+              <span
+                className={`min-w-0 flex-1 truncate ${
+                  failed
+                    ? 'font-medium text-red-700'
+                    : row.running
+                    ? 'font-medium text-gray-900'
+                    : 'text-gray-600'
+                }`}
+                title={row.title ?? undefined}
+              >
+                {row.title ?? `Step ${row.n}`}
+              </span>
+
+              {row.running ? (
+                <span className="flex-none text-[10px] font-medium text-red-500">running…</span>
+              ) : row.done?.ms != null ? (
+                <span className="flex-none text-[10px] tabular-nums text-gray-400">
+                  {(row.done.ms / 1000).toFixed(1)}s
+                </span>
+              ) : null}
+            </li>
+          )
+        })}
+      </ol>
+
+      {rows.some(r => r.done && !r.done.ok) ? (
+        <p className="mt-2 border-t border-gray-200 pt-2 text-[11px] leading-snug text-red-600">
+          {rows.find(r => r.done && !r.done.ok)?.done?.error ?? 'Step failed.'}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
 const Collapsible: React.FC<{
   title: string
   count?: number | null
@@ -121,6 +252,9 @@ const RunDetail: React.FC = () => {
   const [healSubmitting, setHealSubmitting] = useState(false)
 
   const results = run?.results ?? []
+  // Written by the runner as the spec advances; absent on runs recorded before
+  // step reporting existed, which is why every use below is guarded.
+  const stepProgress = ((run?.run_metadata as any)?.step_progress ?? null) as StepProgress | null
 
   const handleTriggerHeal = async () => {
     if (!runKey) return
@@ -427,6 +561,11 @@ const RunDetail: React.FC = () => {
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-0.5 text-[11px] font-semibold text-red-600 border border-red-200">
                           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-600" />
                           Live Stage {Math.min(5, Math.max(1, (run.run_metadata as any)?.phase_step || (run.status === 'queued' ? 1 : 4)))} of 5
+                          {stepProgress && (stepProgress.total ?? 0) > 0 && (stepProgress.current ?? 0) > 0 ? (
+                            <span className="tabular-nums opacity-80">
+                              {' '}· Step {stepProgress.current}/{stepProgress.total}
+                            </span>
+                          ) : null}
                         </span>
                       ) : run.status === 'completed' ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 border border-emerald-200">
@@ -513,6 +652,15 @@ const RunDetail: React.FC = () => {
                             )}
                           </div>
                           <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-1">{step.desc}</p>
+
+                          {/* Stage 4 is where the time goes, and it used to be
+                              a single boolean. The per-step list turns it from
+                              "executing" into "step 3 of 6, and here is which
+                              one". Rendered once the stage has been reached so
+                              a finished run keeps its step trail. */}
+                          {step.num === 4 && stepProgress && activeStep >= 4 ? (
+                            <StepProgressList progress={stepProgress} live={live && activeStep === 4} />
+                          ) : null}
                         </div>
                       </div>
                     );
