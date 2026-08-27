@@ -115,7 +115,7 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileClose }) 
       {/* Logo header */}
       <div className="flex items-center gap-3 px-5 pt-5 pb-4">
         <div className="flex h-11 w-11 items-center justify-center rounded-app bg-white/10 backdrop-blur">
-          <img src="/etisalat-logo.svg" alt="Logo" className="h-7 w-7 object-contain" />
+          <img src="/app-logo.svg" alt="Logo" className="h-7 w-7 object-contain" />
         </div>
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold leading-tight text-white">

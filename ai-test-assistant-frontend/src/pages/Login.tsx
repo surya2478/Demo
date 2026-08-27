@@ -26,7 +26,7 @@ const Login: React.FC = () => {
         {/* Left — brand panel */}
         <div className="relative hidden lg:flex lg:w-[42%] flex-col justify-between bg-[linear-gradient(160deg,#4D0507_0%,#B71920_55%,#E8292E_100%)] p-10 text-white">
           <div>
-            <img src="/etisalat-logo.svg" alt="Etisalat" className="h-10 object-contain brightness-0 invert" />
+            <img src="/app-logo.svg" alt="Test Automation Studio" className="h-10 object-contain brightness-0 invert" />
           </div>
           <div className="relative z-10">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/60 mb-3">AI Testing Platform</p>
@@ -49,7 +49,7 @@ const Login: React.FC = () => {
         <div className="flex flex-1 flex-col justify-center px-8 py-12 sm:px-12">
           {/* Logo for mobile */}
           <div className="mb-6 flex items-center gap-3 lg:hidden">
-            <img src="/etisalat-logo.svg" alt="Etisalat" className="h-8 object-contain" />
+            <img src="/app-logo.svg" alt="Test Automation Studio" className="h-8 object-contain" />
           </div>
 
           <div className="mb-8">
