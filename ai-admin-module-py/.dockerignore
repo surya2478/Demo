@@ -29,7 +29,11 @@ app/environment.json
 .build-proxy
 
 # ── Data ─────────────────────────────────────────────────────────────────────
-.db
+# Was ".db", which matches a file literally NAMED ".db" and nothing else --
+# Docker compares each pattern with Go's filepath.Match, so admin.db never
+# matched it. The header above claimed admin.db was excluded while
+# COPY . /app was copying all 43 MB of it, user rows included, into the image.
+*.db
 *.db-wal
 *.db-shm
 *.sqlite
