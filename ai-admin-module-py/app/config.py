@@ -34,22 +34,30 @@ class AiParametersModel(BaseModel):
     model: str = Field(default="gemma3:1b")
     temperature: float = Field(default=0.1)
     maxTokens: int = Field(default=4096)
-# https://dx12348.etisalat.corp.ae/api/
+# https://ai-studio.example.com/api/
 class AiConfigModel(BaseModel):
-    # --- Automation Module: this default decides what production talks to ----
-    # It was briefly "http://localhost:8002" for local generation work. That is
-    # safe on a dev host and wrong everywhere else, because the deployed
-    # container has no app/config.json at all -- .dockerignore excludes it, and
-    # compose mounts only ./db-backup -- so routers/settings.py writes a fresh
-    # one from THIS default on the first read. A localhost default therefore
-    # does not stay local: it points the deployed Test Assistant at itself and
-    # breaks Process Documents, which posts files to generateTestCases and
-    # expects the external service's extracted text back.
+    # --- This default decides what an unconfigured deployment talks to -------
+    # THIS IS A PLACEHOLDER AND EVERY DEPLOYMENT MUST OVERRIDE IT. The host
+    # below does not exist; it is here so no real organisation's address ships
+    # in source. Set the real AI service in app/config.json for the
+    # environment, or from the Settings screen once the app is up.
     #
-    # To run generation against this backend instead, set it in app/config.json
-    # for that environment (or via generateTestCasesUrl, which repoints the one
-    # endpoint without dragging the other twelve along). Do not move it here.
-    BASE_URL: str = Field(default="https://dx12348.etisalat.corp.ae")
+    # Why the placeholder still matters: the deployed container has no
+    # app/config.json at all -- .dockerignore excludes it, and compose mounts
+    # only ./db-backup -- so routers/settings.py writes a fresh one from THIS
+    # default on the first read. An unconfigured deployment therefore comes up
+    # pointing at a host that does not resolve, which fails loudly and
+    # obviously. That is deliberate: the alternative default that suggests
+    # itself is "http://localhost:8002", and that one fails quietly instead --
+    # it points the deployed Test Assistant at itself and breaks Process
+    # Documents, which posts files to generateTestCases and expects the
+    # external service's extracted text back.
+    #
+    # To run generation against this backend on purpose, set it in
+    # app/config.json for that environment (or via generateTestCasesUrl, which
+    # repoints the one endpoint without dragging the other twelve along). Do
+    # not move it here.
+    BASE_URL: str = Field(default="https://ai-studio.example.com")
     ENDPOINTS: AiEndpointsModel = Field(default_factory=AiEndpointsModel)
     PARAMETERS: AiParametersModel = Field(default_factory=AiParametersModel)
 
@@ -67,7 +75,7 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7)
     JWT_ALGORITHM: str = Field(default="HS256")
     # keep as comma/string for dotenv compatibility
-    CORS_ALLOW_ORIGINS: str = Field(default="https://dx12348.etisalat.corp.ae,https://dx12348.etisalat.corp.ae,http://localhost:5175")
+    CORS_ALLOW_ORIGINS: str = Field(default="https://ai-studio.example.com,https://ai-studio.example.com,http://localhost:5175")
 
     # --- Automation Module: LDAP configuration moved to .env -------------------
     # Every value below previously shipped as a literal default in this file,
@@ -112,7 +120,7 @@ class Settings(BaseSettings):
     COOKIE_SAMESITE: str = Field(default="lax")
     COOKIE_DOMAIN: Optional[str] = Field(default=None)
     OSLC_CA_BUNDLE_PATH: Optional[str] = Field(default=None)
-    SOLUTIONS_API_BASE_URL: str = Field(default="https://e2e-ai-dev.etisalat.corp.ae")
+    SOLUTIONS_API_BASE_URL: str = Field(default="https://solutions.example.com")
     SOLUTIONS_API_TIMEOUT_SECONDS: int = Field(default=60)
     SOLUTIONS_API_AUTH_TOKEN: str = Field(default="")
 

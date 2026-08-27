@@ -104,12 +104,12 @@ services:
         # The frontend Dockerfile fails the build when this is empty rather
         # than quietly falling back to the developer .env, which carries
         # http://127.0.0.1:8002.
-        - VITE_API_URL=${VITE_API_URL:-https://dx12348.etisalat.corp.ae/admin/}
+        - VITE_API_URL=${VITE_API_URL:-https://ai-studio.example.com/admin/}
     container_name: ai-test-assistant_frontend
     environment:
       # Kept for parity with existing deployments. Has no effect on the served
       # bundle -- see the build arg above.
-      - VITE_API_URL=${VITE_API_URL:-https://dx12348.etisalat.corp.ae/admin/}
+      - VITE_API_URL=${VITE_API_URL:-https://ai-studio.example.com/admin/}
         # Pass proxy variables to the running container environment as well
       - HTTP_PROXY=${HTTP_PROXY}
       - HTTPS_PROXY=${HTTPS_PROXY}

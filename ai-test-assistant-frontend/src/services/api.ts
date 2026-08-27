@@ -2,7 +2,7 @@ import axios from 'axios';
 import { setupRequestTrackerInterceptor } from '../utils/requestTrackerInterceptor';
 
 
-const API_BASE = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:8002'; //'https://dx12348.etisalat.corp.ae/admin/';
+const API_BASE = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:8002'; //'https://ai-studio.example.com/admin/';
 console.log("API_BASE",API_BASE)
 const api = axios.create({
   baseURL: API_BASE,

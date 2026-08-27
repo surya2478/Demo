@@ -11,7 +11,7 @@ export default defineConfig({
     proxy: {
       // proxy REST and websocket upgrade for /audit
       '/audit': {
-        target: process.env.VITE_API_URL || 'https://dx12348.etisalat.corp.ae',
+        target: process.env.VITE_API_URL || 'https://ai-studio.example.com',
         changeOrigin: true,
         secure: false,
         ws: true

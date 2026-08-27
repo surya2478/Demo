@@ -11,7 +11,7 @@
 #
 # Build (with an authenticated proxy):
 #
-#   printf 'http://USER:PASS@proxy.etisalat.corp.ae:8080' > .build-proxy
+#   printf 'http://USER:PASS@proxy.example.com:8080' > .build-proxy
 #   DOCKER_BUILDKIT=1 docker build --secret id=build_proxy,src=.build-proxy -t admin_module:latest .
 #   rm .build-proxy
 #
@@ -44,7 +44,7 @@ ARG INSTALL_AUTOMATION_RUNTIME=true
 # network -- pass an empty value to build or run outside the corporate proxy,
 # which is also what makes the build verifiable off-site:
 #     docker build --build-arg RUNTIME_PROXY= ...
-ARG RUNTIME_PROXY=http://proxy.etisalat.corp.ae:8080
+ARG RUNTIME_PROXY=http://proxy.example.com:8080
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -56,12 +56,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     http_proxy=${RUNTIME_PROXY} \
     https_proxy=${RUNTIME_PROXY} \
     # --- Automation Module: typo fix ---------------------------------------
-    # The lowercase list read "ai-admin-module-pydx12348.etisalat.corp.ae" --
+    # The lowercase list read "ai-admin-module-pyai-studio.example.com" --
     # a missing comma joined two hosts into one, so neither was matched and
     # calls to dx12348 were proxied despite the uppercase list exempting them.
     # Python's requests library reads the lowercase form first.
-    NO_PROXY=localhost,127.0.0.1,10.0.0.0/8,172.16.0.0/16,192.168.0.0/24,ai-admin-module-py,dx12348.etisalat.corp.ae,*.dx12348.etisalat.corp.ae \
-    no_proxy=localhost,127.0.0.1,10.0.0.0/8,172.16.0.0/16,192.168.0.0/24,ai-admin-module-py,dx12348.etisalat.corp.ae,*.dx12348.etisalat.corp.ae
+    NO_PROXY=localhost,127.0.0.1,10.0.0.0/8,172.16.0.0/16,192.168.0.0/24,ai-admin-module-py,ai-studio.example.com,*.ai-studio.example.com \
+    no_proxy=localhost,127.0.0.1,10.0.0.0/8,172.16.0.0/16,192.168.0.0/24,ai-admin-module-py,ai-studio.example.com,*.ai-studio.example.com
 
 # --- Automation Module: browsers outside /root -------------------------------
 # Set before any install so both the CLI and any future Python Playwright

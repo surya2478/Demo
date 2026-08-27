@@ -1,5 +1,5 @@
 {
-  "BASE_URL": "https://dx12348.etisalat.corp.ae",
+  "BASE_URL": "https://ai-studio.example.com",
   "ENDPOINTS": {
     "generateTestCases": "/generate/brd-testcases",
     "generateTestCasesUrl": "",
