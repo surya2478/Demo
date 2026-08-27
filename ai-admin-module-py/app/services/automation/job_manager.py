@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -217,6 +218,17 @@ class JobManager:
                     **(run.run_metadata or {}),
                     "execution_phase": "Executing Playwright Engine",
                     "phase_step": 4,
+                    # Counted from the spec rather than carried down from the
+                    # compiler, so a script hand-edited in Script Lab reports
+                    # the steps it actually has. Seeded before the run starts
+                    # so the UI can say "0 of 6" immediately instead of staying
+                    # blank until the first step reports.
+                    "step_progress": {
+                        "total": code.count("await test.step("),
+                        "current": 0,
+                        "status": "running",
+                        "history": [],
+                    },
                 }
                 db.commit()
             except Exception as exc:  # noqa: BLE001 - surfaced on the run itself
@@ -230,10 +242,52 @@ class JobManager:
                 )
                 return
 
+            # --- Live step progress ------------------------------------------
+            # The runner publishes a snapshot each time a step starts or ends;
+            # this writes it where the run-detail poll already looks. `total`
+            # is preserved from the seed above because the reporter counts
+            # steps as it meets them and cannot know how many are coming.
+            #
+            # Throttled, and deliberately so: the poll is on a 2s interval, so
+            # committing faster than that writes rows nobody reads on a host
+            # that is also driving a browser. A terminal snapshot is always
+            # written, whatever the clock says, so the last step never sticks
+            # at "running".
+            progress_state: dict[str, Any] = {"last_commit": 0.0}
+
+            def publish_progress(snapshot: dict) -> None:
+                now = time.monotonic()
+                terminal = snapshot.get("status") in ("failed", "passed", "timedOut")
+                if not terminal and now - progress_state["last_commit"] < 1.0:
+                    return
+                progress_state["last_commit"] = now
+                try:
+                    current = (
+                        db.query(AutomationRun)
+                        .filter(AutomationRun.run_key == run_key)
+                        .first()
+                    )
+                    if current is None:
+                        return
+                    meta = dict(current.run_metadata or {})
+                    previous = dict(meta.get("step_progress") or {})
+                    meta["step_progress"] = {
+                        **previous,
+                        **snapshot,
+                        "total": previous.get("total") or len(snapshot.get("history") or []),
+                        "updated_at": datetime.utcnow().isoformat(),
+                    }
+                    current.run_metadata = meta
+                    db.commit()
+                except Exception:  # noqa: BLE001 - never fail a run over progress
+                    logger.exception("Could not persist step progress for %s", run_key)
+                    db.rollback()
+
             result = await LocalPlaywrightRunner().run(
                 workspace_dir=Path(run.workspace_path),
                 script_file_name=script_name,
                 environment=run.environment,
+                on_progress=publish_progress,
                 timeout_seconds=int(settings.AUTOMATION_RUN_TIMEOUT_SECONDS or 600),
                 cancellation=cancel,
             )
@@ -306,12 +360,29 @@ class JobManager:
                         healed_file = ws.materialize_script(
                             workspace=workspace, code=healed_code, suggested_file_path=file_name_hint
                         )
+                        # The healed spec is a different file with its own step
+                        # count, and the reporter restarts its numbering for a
+                        # fresh process -- so reseed rather than letting the
+                        # original run's total describe this one.
+                        run.run_metadata = {
+                            **(run.run_metadata or {}),
+                            "step_progress": {
+                                "total": healed_code.count("await test.step("),
+                                "current": 0,
+                                "status": "running",
+                                "history": [],
+                                "healed": True,
+                            },
+                        }
+                        db.commit()
+
                         healed_result = await LocalPlaywrightRunner().run(
                             workspace_dir=Path(run.workspace_path),
                             script_file_name=healed_file,
                             environment=run.environment,
                             timeout_seconds=min(180, int(settings.AUTOMATION_RUN_TIMEOUT_SECONDS or 600)),
                             cancellation=cancel,
+                            on_progress=publish_progress,
                         )
 
                         healed_counts = {"pass": 0, "fail": 0, "skip": 0, "error": 0, "blocked": 0}

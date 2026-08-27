@@ -339,6 +339,102 @@ def default_base_url() -> str:
     return (profile.get("base_url") or "").strip()
 
 
+def identify_app_id(hint: Optional[str] = None) -> Optional[str]:
+    """The application a hint NAMES, or None when it names none.
+
+    --- Automation Module: why this exists next to resolve_app_id ------------
+    resolve_app_id() and load_app_profile() both end in a fallback -- the
+    default application, and `profiles[0]` respectively -- because most callers
+    have a single deployment in mind and want *an* answer.
+
+    That fallback is wrong for one caller. match_flow_blueprint() asks "did the
+    requirement name an application?" so it can narrow the search to that one,
+    and asked through the falling-back helpers the answer was always yes: a BRD
+    naming no application at all resolved to the first app on disk. Every
+    requirement was therefore matched against one application's flows, and a
+    product belonging to any other application could not win however well it
+    scored -- a BRD for "Business First Plus Local 110" (score 104 in
+    e_uae_smbapp) lost to a smartphones flow scoring 4, purely because
+    eand_ae sorts first.
+
+    So this returns None rather than guessing. Longest signal wins, so a hint
+    carrying a specific base_url is not beaten by a shorter bare domain.
+    """
+    text = (hint or "").strip()
+    if not text or not KB_ROOT_DIR.exists():
+        return None
+
+    # An exact folder name or app_id is unambiguous.
+    folder = KB_ROOT_DIR / text
+    if folder.is_dir() and (folder / "app_profile.json").exists():
+        return text
+    for app in list_applications():
+        if app.get("app_id") and app.get("app_id") == text:
+            return app["app_id"]
+
+    # Otherwise the hint has to contain a string that belongs to exactly one
+    # application. Longest wins, so the more specific of two nested signals
+    # decides -- see _identifying_signals for why that matters here.
+    lowered = text.lower()
+    best_id, best_len = None, 0
+    for app_id, tokens in _identifying_signals().items():
+        for token in tokens:
+            if token in lowered and len(token) > best_len:
+                best_id, best_len = app_id, len(token)
+    return best_id or None
+
+
+def _identifying_signals() -> Dict[str, set]:
+    """Per application, the strings that identify *only* it.
+
+    --- Automation Module: two applications, one host -------------------------
+    eand_ae and e_uae_smbapp are both `eand.ae`. They are different catalogues
+    -- consumer devices against SMB mobile plans -- separated only by a path
+    prefix, `/en/` against `/en/smb/`.
+
+    Treating `domain` as identifying therefore pinned every requirement quoting
+    any eand.ae URL to whichever application happened to be iterated first, SMB
+    requirements included. That is the same misrouting the falling-back
+    resolver caused, arriving through a different door: a shared signal cannot
+    identify, however specific it looks.
+
+    So a token claimed by more than one application is discarded, and the
+    base_url contributes its host-plus-directory prefix. Those nest --
+    `www.eand.ae/en/` inside `www.eand.ae/en/smb/` -- and because the caller
+    takes the longest match, an SMB URL resolves to the SMB app while a
+    consumer URL, which contains only the shorter prefix, resolves to eand_ae.
+    """
+    per_app: Dict[str, set] = {}
+    for app in list_applications():
+        app_id = app.get("app_id") or ""
+        if not app_id:
+            continue
+        tokens = set()
+        for raw in (app.get("base_url"), app.get("domain"), app.get("app_name"), app_id):
+            token = (raw or "").strip().lower()
+            # Short tokens appear in ordinary prose and would reintroduce
+            # exactly the false pin this function exists to prevent.
+            if len(token) >= 5:
+                tokens.add(token)
+
+        base = (app.get("base_url") or "").strip().lower()
+        if base:
+            without_scheme = re.sub(r"^[a-z]+://", "", base)
+            host_and_dir = without_scheme.rsplit("/", 1)[0] + "/"
+            if len(host_and_dir) >= 5:
+                tokens.add(host_and_dir)
+        per_app[app_id] = tokens
+
+    claims: Dict[str, int] = {}
+    for tokens in per_app.values():
+        for token in tokens:
+            claims[token] = claims.get(token, 0) + 1
+
+    return {
+        app_id: {t for t in tokens if claims[t] == 1} for app_id, tokens in per_app.items()
+    }
+
+
 def resolve_app_id(hint: Optional[str] = None) -> Optional[str]:
     """Best application id for a hint that may be an id, a domain, a URL, or text."""
     hint = (hint or "").strip()
@@ -442,9 +538,10 @@ def match_flow_blueprint(
 
     direct_app = app_id
     if not direct_app and (query_or_url or "").strip():
-        resolved = resolve_app_id(query_or_url)
-        if resolved and load_app_profile(query_or_url):
-            direct_app = resolved
+        # identify_app_id, not resolve_app_id: narrowing to one application is
+        # only correct when the text names one. See identify_app_id's docstring
+        # for what the falling-back version cost.
+        direct_app = identify_app_id(query_or_url)
 
     if direct_app:
         candidate_apps = [direct_app]
@@ -501,8 +598,16 @@ def match_flow_blueprint(
         best_match["_app_id"] = best_app_id
         return best_match
 
-    # Fallback to default flow of primary application
-    fallback_app = direct_app or default_app_id()
+    # Fallback to the default flow -- but only for a caller that named the
+    # application. "You asked about this app, here is its primary journey" is a
+    # reasonable guess; "you asked about something I could not place, here is an
+    # unrelated app's journey" is not. The second form is worse than returning
+    # nothing: an ungrounded generation reads the requirement on its own terms,
+    # whereas one grounded in the wrong product is told, with full confidence,
+    # that the catalogue contains smartphones -- and answers that the product in
+    # the requirement is absent from the Knowledge Base. It is in the Knowledge
+    # Base; it was never in the part that got sent.
+    fallback_app = direct_app or app_id
     if fallback_app:
         fallback_profile = load_app_profile(fallback_app) or {}
         fallback_flows = list_flows(fallback_app)

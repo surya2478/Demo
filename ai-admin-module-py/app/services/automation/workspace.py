@@ -180,6 +180,120 @@ def materialize_bundle(*, workspace: Path, files: dict[str, str]) -> None:
 
 # ── Framework config ─────────────────────────────────────────────────────────
 
+# --- Automation Module: live step progress -----------------------------------
+#
+# The JSON reporter is the only one the runner reads, and it holds everything
+# until the process exits -- which is why a run could report "executing" and
+# nothing further for two minutes. This reporter exists to emit while the run
+# is still going.
+#
+# It writes to a file and never to stdout. That is not a style preference:
+# local_playwright.py invokes `--reporter=json,./progress-reporter.cjs` and
+# parses stdout as a single JSON document, so one stray line from a second
+# reporter would make the whole run unparseable and be reported as "no test
+# result was produced".
+#
+# .cjs, not .js: package.json here has no "type" field, so Node treats .js as
+# CommonJS today, but the extension states it rather than relying on that.
+#
+# Appends are synchronous and unbuffered. A run is one worker with slowMo, so
+# the write volume is a few dozen short lines over minutes, and a crash mid-run
+# should still leave every step that completed on disk for the tail to find.
+PROGRESS_REPORTER_CJS = """/**
+ * Emits one NDJSON line per test.step boundary, for the backend to tail.
+ *
+ * Written to progress.ndjson -- never stdout, which carries the JSON report.
+ */
+const fs = require('fs');
+const path = require('path');
+
+const OUT = path.join(__dirname, 'progress.ndjson');
+
+function emit(payload) {
+  try {
+    fs.appendFileSync(OUT, JSON.stringify(payload) + '\\n');
+  } catch (e) {
+    // A progress line is never worth failing a run over.
+  }
+}
+
+class ProgressReporter {
+  constructor() {
+    this._index = 0;
+  }
+
+  onBegin(config, suite) {
+    // Truncate here rather than from Python. The healed retry reuses the same
+    // workspace and re-runs without rewriting the config, so anchoring the
+    // file's lifetime to this process is what keeps "step 1" meaning the first
+    // step of the run being watched rather than the first step of the original.
+    try {
+      fs.writeFileSync(OUT, '');
+    } catch (e) {}
+    emit({ event: 'run_begin', tests: suite.allTests().length, at: Date.now() });
+  }
+
+  onTestBegin(test) {
+    // Steps are numbered per attempt: a retry restarts at 1, and `attempt`
+    // is what tells the consumer that rather than the count going backwards.
+    this._index = 0;
+    emit({ event: 'test_begin', title: test.title, at: Date.now() });
+  }
+
+  onStepBegin(test, result, step) {
+    if (step.category !== 'test.step') return;
+    this._index += 1;
+    emit({
+      event: 'step_begin',
+      index: this._index,
+      attempt: result.retry + 1,
+      title: step.title,
+      at: Date.now(),
+    });
+  }
+
+  onStepEnd(test, result, step) {
+    if (step.category !== 'test.step') return;
+    emit({
+      event: 'step_end',
+      index: this._index,
+      attempt: result.retry + 1,
+      title: step.title,
+      ok: !step.error,
+      error: step.error ? String(step.error.message || '').slice(0, 500) : null,
+      duration_ms: step.duration,
+      at: Date.now(),
+    });
+  }
+
+  onTestEnd(test, result) {
+    emit({
+      event: 'test_end',
+      title: test.title,
+      status: result.status,
+      attempt: result.retry + 1,
+      at: Date.now(),
+    });
+  }
+
+  onEnd(result) {
+    emit({ event: 'run_end', status: result.status, at: Date.now() });
+  }
+
+  // Without this Playwright buffers the worker's stdout to hand to the
+  // reporter, which is pointless here and would hold the JSON report back.
+  printsToStdio() {
+    return false;
+  }
+}
+
+module.exports = ProgressReporter;
+"""
+
+PROGRESS_FILE_NAME = "progress.ndjson"
+PROGRESS_REPORTER_FILE_NAME = "progress-reporter.cjs"
+
+
 def _render_playwright_config(
     base_url: str | None,
     test_dir: str,
@@ -220,6 +334,13 @@ def write_playwright_config(
         _render_playwright_config(base_url, test_dir, slow_mo_ms=slow_mo_ms, headless=headless),
         encoding="utf-8",
     )
+    (workspace / PROGRESS_REPORTER_FILE_NAME).write_text(
+        PROGRESS_REPORTER_CJS, encoding="utf-8"
+    )
+    # Created empty so a tail can open it before the run emits anything. The
+    # reporter truncates it again at onBegin, which is what makes the file
+    # describe one process rather than every attempt in this workspace.
+    (workspace / PROGRESS_FILE_NAME).write_text("", encoding="utf-8")
     _link_npm_global_modules(workspace)
 
 
