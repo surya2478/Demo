@@ -200,6 +200,14 @@ class Settings(BaseSettings):
     # every request.
     LLM_PROVIDER: str = Field(default="ai_service")
 
+    # Wall clock for one call on the ai_service path. Separate from
+    # OPENROUTER_TIMEOUT_SECONDS because the two providers are tuned
+    # independently, and because the Automation module previously read the
+    # OpenRouter value here whatever LLM_PROVIDER said -- so raising the AI
+    # service's timeout meant setting a variable named after a provider the
+    # deployment was not using.
+    AI_SERVICE_TIMEOUT_SECONDS: int = Field(default=120)
+
     # Secret. Empty means "not configured" -- see openrouter_missing_keys(),
     # which names what is absent rather than failing on an anonymous 401.
     OPENROUTER_API_KEY: str = Field(default="")

@@ -26,8 +26,15 @@
 
 # Runtime config written by the Settings screen — app/environment.json holds
 # SOLUTIONS_API_AUTH_TOKEN, app/config.json holds the live AI endpoint config.
-#ai-admin-module-py/app/config.json
-#ai-admin-module-py/app/environment.json
+#
+# Both are PER-ENVIRONMENT and must not be committed. config.json in particular
+# decides where the Test Assistant sends its requests: a developer's copy names
+# a localhost backend, and committing that carries local routing into every
+# other deployment. Neither file needs to ship -- routers/settings.py writes a
+# fresh one from the defaults in app/config.py on the first read, and those
+# defaults are the production values. See app/config.json.example.
+ai-admin-module-py/app/config.json
+ai-admin-module-py/app/environment.json
 
 # ---------------------------------------------------------------------------
 # Databases

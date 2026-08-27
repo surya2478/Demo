@@ -114,19 +114,46 @@ def _ai_service_url() -> str:
     return f"{base}{endpoint if endpoint.startswith('/') else '/' + endpoint}"
 
 
-def _call_ai_service(*, system_prompt: str, user_input: str, timeout: float) -> str:
+def _call_ai_service(
+    *, system_prompt: str, user_input: str, timeout: float, max_tokens: int, temperature: float
+) -> str:
     """Post to the AI service's chat endpoint and accumulate the reply.
 
     The endpoint streams raw text chunks rather than returning a JSON envelope,
     so the whole body is read and concatenated before anything tries to parse
     it. Reading it as `response.text` would work too, but streaming keeps
     memory flat on a long reply and matches how the frontend consumes it.
+
+    WHICH MODEL ANSWERS is ai_config.PARAMETERS, the same configuration the
+    Test Assistant tabs send and the Settings screen edits. This module used to
+    send neither field, so the AI service fell back to whatever its own default
+    was and the Studio had no say in it -- the Settings screen could name a
+    model that the Automation module then quietly did not use.
+
+    Note the split, which is deliberate. `provider` and `model_name` come from
+    the shared configuration because they identify the model, and that is the
+    thing the two modules must agree on. `temperature` and `max_tokens` come
+    from the call site, because they are per-task: refinement and script
+    generation ask for strict JSON against a pydantic schema and pass a low
+    temperature and a large ceiling to get it. Clamping those to
+    PARAMETERS.maxTokens (4096 in the shipped config) would truncate a long
+    JSON reply mid-structure, and complete_json's docstring explains why a
+    truncated reply is the one failure a retry cannot fix.
+
+    Unlike the OpenRouter transport, honouring a browser-supplied model is not
+    a spending question here: the AI service owns the model and its
+    credentials, so this backend's key is not what pays for the call.
     """
     url = _ai_service_url()
+    params = settings.ai_config.PARAMETERS
     payload = {
         "session_id": (None, ""),
         "user_input": (None, user_input),
         "system_prompt": (None, system_prompt),
+        "provider": (None, str(params.provider or "")),
+        "model_name": (None, str(params.model or "")),
+        "temperature": (None, str(temperature)),
+        "max_tokens": (None, str(max_tokens)),
     }
 
     try:
@@ -211,7 +238,11 @@ def _dispatch(
         )
     if provider == "ai_service":
         return _call_ai_service(
-            system_prompt=system_prompt, user_input=user_input, timeout=timeout
+            system_prompt=system_prompt,
+            user_input=user_input,
+            timeout=timeout,
+            max_tokens=max_tokens,
+            temperature=temperature,
         )
     raise LLMUnavailable(
         f"LLM_PROVIDER is set to {provider!r}, which is not a transport this build "
@@ -244,7 +275,14 @@ def complete_json(
     A transport failure is never retried here: LLMUnavailable means the model
     was not reached, and hammering an unreachable service helps nobody.
     """
-    timeout = timeout or float(settings.OPENROUTER_TIMEOUT_SECONDS or 120)
+    # Provider-specific, because reading OPENROUTER_TIMEOUT_SECONDS on the
+    # ai_service path meant an operator tuning the AI service's timeout had to
+    # set a variable named after a provider they were not using.
+    if timeout is None:
+        if (settings.LLM_PROVIDER or "ai_service").strip().lower() == "openrouter":
+            timeout = float(settings.OPENROUTER_TIMEOUT_SECONDS or 120)
+        else:
+            timeout = float(settings.AI_SERVICE_TIMEOUT_SECONDS or 120)
     last_error: Exception | None = None
     prompt = user_input
 

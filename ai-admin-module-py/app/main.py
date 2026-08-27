@@ -104,6 +104,25 @@ async def _session_cleanup_loop(interval_seconds: int = 1 * 60):
 
 @app.on_event("startup")
 async def start_background_tasks():
+    # --- Read the live AI configuration into memory --------------------------
+    # config.json is written by the Settings screen and read back by the
+    # frontend, but until this call nothing loaded it into settings.ai_config
+    # -- GET /settings/ai-config returned the file to the browser without
+    # publishing it. Anything server-side that resolves ai_config therefore
+    # used the defaults in config.py instead of the deployed configuration.
+    #
+    # services/automation/llm.py is the caller that makes this matter: with
+    # LLM_PROVIDER=ai_service it posts to ai_config.BASE_URL +
+    # ENDPOINTS.chatStream, so a stale copy silently sends the Automation
+    # module's prompts somewhere other than the AI service the Settings screen
+    # names.
+    try:
+        from .routers.settings import load_ai_config_from_disk
+
+        load_ai_config_from_disk()
+    except Exception as exc:  # noqa: BLE001 - never block startup on this
+        print(f"[Settings] ai_config load skipped: {exc}")
+
     # schedule cleanup loop (runs in background)
     asyncio.create_task(_session_cleanup_loop())
 

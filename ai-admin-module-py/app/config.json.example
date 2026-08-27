@@ -1,8 +1,8 @@
 {
-  "BASE_URL": "http://localhost:8002",
+  "BASE_URL": "https://dx12348.etisalat.corp.ae",
   "ENDPOINTS": {
     "generateTestCases": "/generate/brd-testcases",
-    "generateTestCasesUrl": "http://127.0.0.1:8002/generate/brd-testcases",
+    "generateTestCasesUrl": "",
     "generateVisual": "/generate/visual",
     "generateTestData": "/generate/test-data",
     "codeChanges": "/code/changes",
@@ -12,15 +12,15 @@
     "exportExcel": "/export/test-cases-excel",
     "kbGenerate": "/kb/generate",
     "kbUploadZip": "/kb/upload-zip",
-    "chatInitiate": "/chat/init",
-    "chatStream": "/chat/stream",
+    "chatInitiate": "/chat/session-init",
+    "chatStream": "/chat/message",
     "chatSessions": "/chat/sessions",
     "chatDelete": "/chat/session/{session_id}"
   },
   "PARAMETERS": {
     "provider": "ollama",
     "model": "gemma3:1b",
-    "temperature": 0.2,
+    "temperature": 0.1,
     "maxTokens": 4096
   }
 }
