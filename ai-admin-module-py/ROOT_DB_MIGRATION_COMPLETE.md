@@ -52,22 +52,22 @@ D:\AI-App\GitRepo\vs-code-gitlab-projects\ai-testing-assistant-app-vs-code-v7\ai
 
 ### Total Users: 14
 
-| Username | Email                | Role           | Auth Source | Active |
-| -------- | -------------------- | -------------- | ----------- | ------ |
-| admin    | admin@example.com    | admin          | local       | ✓      |
-| manager  | manager@example.com  | manager        | local       | ✓      |
-| user1    | test123@gmail.com    | user           | local       | ✓      |
-| user2    | gunaapps14@gmail.com | tester         | local       | ✓      |
-| adel     | adel@etisalat.ae     | solution       | local       | ✓      |
-| user3    | testuser1@gmail.com  | code_changes   | local       | ✓      |
-| user4    | user4@gmail.com      | tester_level_2 | local       | ✓      |
-| user5    | user5@gmail.com      | user           | local       | ✓      |
-| string   | user@example.com     | manager        | local       | ✓      |
-| string1  | user11@example.com   | tester_level_2 | local       | ✗      |
-| user7    | user7@gmail.com      | user           | local       | ✗      |
-| Hassan   | haasan@eand.com      | solution       | local       | ✓      |
-| user6    | user6@gmail.com      | user           | local       | ✓      |
-| qauser   | qauser@eand.com      | tester         | local       | ✓      |
+| Username | Email               | Role           | Auth Source | Active |
+| -------- | ------------------- | -------------- | ----------- | ------ |
+| admin    | admin@example.com   | admin          | local       | ✓      |
+| manager  | manager@example.com | manager        | local       | ✓      |
+| user1    | user1@example.com   | user           | local       | ✓      |
+| user2    | user2@example.com   | tester         | local       | ✓      |
+| user8    | user8@example.com   | solution       | local       | ✓      |
+| user3    | user3@example.com   | code_changes   | local       | ✓      |
+| user4    | user4@example.com   | tester_level_2 | local       | ✓      |
+| user5    | user5@example.com   | user           | local       | ✓      |
+| string   | user@example.com    | manager        | local       | ✓      |
+| string1  | user11@example.com  | tester_level_2 | local       | ✗      |
+| user7    | user7@example.com   | user           | local       | ✗      |
+| user9    | user9@example.com   | solution       | local       | ✓      |
+| user6    | user6@example.com   | user           | local       | ✓      |
+| qauser   | qauser@example.com  | tester         | local       | ✓      |
 
 **Auth Source Distribution**:
 

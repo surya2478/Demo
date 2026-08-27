@@ -47,7 +47,7 @@ def setup_test_database():
         test_users = [
             User(
                 username="ldapuser1",
-                email="ldapuser1@etisalat.ae",
+                email="ldapuser1@example.com",
                 password="",  # LDAP users don't need password in DB
                 role="User",
                 roles=["user"],
@@ -73,7 +73,7 @@ def setup_test_database():
             ),
             User(
                 username="ldapuser2",
-                email="ldapuser2@etisalat.ae",
+                email="ldapuser2@example.com",
                 password="",
                 role="Admin",
                 roles=["admin", "user"],
