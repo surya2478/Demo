@@ -39,9 +39,19 @@ ai-admin-module-py/app/environment.json
 # ---------------------------------------------------------------------------
 # Databases
 # ---------------------------------------------------------------------------
-# admin.db contains real user rows. The -wal/-shm sidecars appear once WAL
-# journal mode is enabled (see app/database/connection.py).
-#*.db
+# admin.db contains real user rows, and local authentication stores their
+# passwords in cleartext -- so a committed database is a committed credential
+# list. Both tracked copies were removed from the index; they remain on disk
+# and are runtime state, not source.
+#
+# A fresh deployment does not need one: SQLite creates the file, init_db
+# creates the tables, and app/seed.py provides the starting accounts. The
+# database under db-backup/ is the live one and belongs to the server that
+# runs it -- back it up there, not here.
+#
+# The -wal/-shm sidecars appear once WAL journal mode is enabled (see
+# app/database/connection.py).
+*.db
 *.db-wal
 *.db-shm
 *.sqlite
