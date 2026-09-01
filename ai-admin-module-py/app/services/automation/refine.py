@@ -160,7 +160,7 @@ You receive a JSON object with:
 Quality & Fidelity Rules:
 1. 100% STEP PRESERVATION: Preserve EVERY step and interaction from the source content. Do NOT compress, skip, or omit steps.
 2. CONCRETE SPECIFICATIONS: Keep all specific product names, options, colors, storage capacities, memory variants, payment methods, and exact button labels (e.g. "Choose 'Samsung Galaxy Fold8 Ultra Eco Bundle' with Graphite Color, 256 GB Storage and 12 GB Memory", "Select 'One-time payment'").
-3. CONCRETE EXPECTED RESULTS: Every single step MUST have a specific, verifiable post-condition describing what is observably visible/true after that step. Never use vague filler like "Step succeeds".
+3. CONCRETE EXPECTED RESULTS: Every single step MUST have a specific, verifiable post-condition describing what is observably visible/true after that step. Never use vague filler like "Step succeeds". Write it so a machine can check it, not only a human: when the post-condition depends on text the user would see on screen, reproduce that text in single quotes EXACTLY as it appears (e.g. A banner reading 'Order Placed' is shown); when it depends on which page was reached, give the URL path (e.g. The cart page at /eshop/checkout/cart is displayed). Quote only the literal on-screen string - never quote a description of it, a field name, or a paraphrase.
 4. NAVIGATION: When application_url is provided, Step 1 must navigate to that URL verbatim.
 5. ATOMICITY: Each step must be a single concrete action (click, fill, select, assert, navigate).
 
