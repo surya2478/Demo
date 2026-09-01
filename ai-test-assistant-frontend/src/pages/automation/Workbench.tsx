@@ -22,7 +22,6 @@ import {
   HiOutlineTrash,
   HiOutlinePencil,
   HiOutlineReply,
-  HiOutlineDownload,
   HiOutlineCheck,
   HiOutlineX,
   HiOutlineExclamationCircle,
@@ -38,7 +37,8 @@ import EmptyState from '../../components/ui/EmptyState'
 import LoadingSkeleton from '../../components/ui/LoadingSkeleton'
 import StatusBadge from '../../components/ui/StatusBadge'
 import TestCaseEditor from '../../components/automation/TestCaseEditor'
-import DocumentIntake from '../../components/automation/DocumentIntake'
+// Hidden on request -- restore together with the element below.
+// import DocumentIntake from '../../components/automation/DocumentIntake'
 import { GroundingBadge } from '../../components/automation/groundingPresentation'
 import {
   ApprovalBadge,
@@ -70,17 +70,16 @@ const EMPTY_COUNTS: WorkbenchCounts = {
 
 const ENVIRONMENTS = ['SIT', 'UAT', 'QA', 'DEV']
 
-/** Hand the browser a blob as a download. */
-function saveBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
-}
+
+
+/**
+ * Hidden for now, not deleted.
+ *
+ * The tiles still compute correctly and the data behind them is still fetched,
+ * so this is one line to put back when the row is wanted again -- which is why
+ * it is a flag rather than a commented-out block or a deletion.
+ */
+const SHOW_STAT_TILES = false
 
 const Workbench: React.FC = () => {
   const { canExecute } = useAutomationContext()
@@ -399,6 +398,47 @@ const Workbench: React.FC = () => {
     }
   }
 
+  /**
+   * Delete refined cases outright, scripts and all.
+   *
+   * Both entry points -- the toolbar button and the per-row trash icon -- come
+   * through here so they cannot disagree about what a delete does or whether
+   * it asks first. Neither used to ask, while the Sources tab beside them
+   * always has, so the more destructive of the two paths was the quieter one:
+   * this removes the case from Automation Studio and every script generated
+   * from it, and nothing brings either back.
+   */
+  const handleDeleteCases = (caseToDelete?: WorkbenchCase) => {
+    const toDelete = caseToDelete
+      ? [caseToDelete]
+      : cases.filter(testCase => selectedCases.has(testCase.id))
+    if (toDelete.length === 0) return
+
+    const count = toDelete.length
+    if (
+      !window.confirm(
+        `Delete ${
+          count === 1
+            ? `test case "${toDelete[0].tc_display_id}"`
+            : `${count} selected test cases`
+        } and every script generated from ${count === 1 ? 'it' : 'them'}? This cannot be undone.`
+      )
+    ) {
+      return
+    }
+
+    void runAction('delete', async () => {
+      const res = await automationService.deleteWorkbenchCases(
+        toDelete.map(testCase => testCase.id)
+      )
+      if (!caseToDelete) setSelectedCases(new Set())
+      setNotice(
+        `${res.deleted} test case(s) deleted` +
+          (res.scripts_removed ? `, along with ${res.scripts_removed} script(s).` : '.')
+      )
+    })
+  }
+
   const handleDeleteSources = (sourceToDelete?: WorkbenchSource) => {
     const toDelete = sourceToDelete
       ? [sourceToDelete]
@@ -477,6 +517,7 @@ const Workbench: React.FC = () => {
 
   return (
     <div className="space-y-3">
+      {SHOW_STAT_TILES && (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <StatTile label="Test cases" value={loading ? '—' : counts.total} />
         <StatTile label="Automation" value={loading ? '—' : counts.automation} />
@@ -489,6 +530,7 @@ const Workbench: React.FC = () => {
           hint={counts.needs_data ? 'Blocks approval' : undefined}
         />
       </div>
+      )}
 
       {/* ── Document intake ────────────────────────────────────────────── */}
       {/*
@@ -496,12 +538,12 @@ const Workbench: React.FC = () => {
         the same table the panel below reads, so `load` is all that is needed
         to make them appear -- there is no separate intake list to reconcile.
       */}
-      <DocumentIntake onCasesHarvested={() => void load()} />
+      {/* Hidden on request. Restore by uncommenting this line and its import. */}
+      {/* <DocumentIntake onCasesHarvested={() => void load()} /> */}
 
       {/* ── Test Cases Workbench ────────────────────────────────────────── */}
       <SectionCard
         title="Test Cases Workbench"
-        description="Classify against automation rules, review quality, edit steps, approve, or AI refine on demand."
         noPadding
         actions={
           <div className="flex flex-wrap items-center gap-2">
@@ -589,12 +631,7 @@ const Workbench: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() =>
-                runAction('delete', async () => {
-                  await automationService.deleteWorkbenchCases(Array.from(selectedCases))
-                  setSelectedCases(new Set())
-                })
-              }
+              onClick={() => handleDeleteCases()}
               disabled={!anySelected || !canExecute || busy !== null}
               title="Delete the selected test cases and any scripts generated from them"
               className="app-btn app-btn-secondary inline-flex items-center gap-1 text-app-danger disabled:opacity-50 text-xs font-medium"
@@ -610,80 +647,7 @@ const Workbench: React.FC = () => {
             >
               <HiOutlineRefresh className="h-4 w-4" />
             </button>
-          </div>
-        }
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-app px-5 py-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-app-secondary">
-              Download
-            </span>
-            <button
-              type="button"
-              onClick={() =>
-                runAction('export', async () => {
-                  // The workbook is built client-side from the two CSVs: SheetJS
-                  // already ships with this app, so the backend does not need an
-                  // xlsx dependency just to format a download.
-                  const XLSX = await import('xlsx')
-                  const [automation, manual] = await Promise.all([
-                    automationService.exportWorkbenchCsv('automation'),
-                    automationService.exportWorkbenchCsv('manual')
-                  ])
-                  const book = XLSX.utils.book_new()
-                  XLSX.utils.book_append_sheet(
-                    book,
-                    XLSX.read(await automation.text(), { type: 'string' }).Sheets.Sheet1,
-                    'Automation'
-                  )
-                  XLSX.utils.book_append_sheet(
-                    book,
-                    XLSX.read(await manual.text(), { type: 'string' }).Sheets.Sheet1,
-                    'Manual'
-                  )
-                  XLSX.writeFile(book, 'automation-test-cases.xlsx')
-                })
-              }
-              disabled={busy !== null}
-              className="app-btn app-btn-secondary inline-flex items-center gap-1.5 disabled:opacity-50"
-            >
-              <HiOutlineDownload className="h-4 w-4" />
-              Workbook (both sheets)
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                runAction('export', async () =>
-                  saveBlob(
-                    await automationService.exportWorkbenchCsv('automation'),
-                    'automation-test-cases-automation.csv'
-                  )
-                )
-              }
-              disabled={busy !== null}
-              className="app-btn app-btn-secondary inline-flex items-center gap-1.5 disabled:opacity-50"
-            >
-              <HiOutlineDownload className="h-4 w-4" />
-              Automation CSV
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                runAction('export', async () =>
-                  saveBlob(
-                    await automationService.exportWorkbenchCsv('manual'),
-                    'automation-test-cases-manual.csv'
-                  )
-                )
-              }
-              disabled={busy !== null}
-              className="app-btn app-btn-secondary inline-flex items-center gap-1.5 disabled:opacity-50"
-            >
-              <HiOutlineDownload className="h-4 w-4" />
-              Manual CSV
-            </button>
-
-            <div className="ml-2 flex items-center gap-2 border-l border-app pl-3">
+            <div className="ml-1 flex items-center gap-2 border-l border-app pl-3">
               <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-app-secondary">
                 Filter:
               </span>
@@ -700,7 +664,8 @@ const Workbench: React.FC = () => {
               </select>
             </div>
           </div>
-        </div>
+        }
+      >
 
         {activeDiscoveryCase ? (
           <div className="mx-5 mt-4 flex items-center justify-between rounded-xl border border-amber-300 bg-amber-50/95 p-4 text-amber-950 shadow-md">
@@ -963,11 +928,7 @@ const Workbench: React.FC = () => {
                         )}
                         <button
                           type="button"
-                          onClick={() =>
-                            runAction('delete', () =>
-                              automationService.deleteWorkbenchCases([testCase.id])
-                            )
-                          }
+                          onClick={() => handleDeleteCases(testCase)}
                           disabled={!canExecute || busy !== null}
                           className="rounded-md p-1.5 text-app-secondary transition hover:bg-app-danger-bg hover:text-app-danger disabled:opacity-40"
                           title={`Delete ${testCase.tc_display_id}`}
