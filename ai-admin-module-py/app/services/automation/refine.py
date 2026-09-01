@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from .eligibility import score_test_case, split_steps
 from .llm import complete_json, wrap_user_content
@@ -50,12 +50,60 @@ REFINE_MAX_TOKENS = 16000
 REFINE_TEMPERATURE = 0.1
 
 
+# --- Automation Module: why a step declares its own action type ---------------
+#
+# compiler._intent() classifies a step by regex over its action verb and
+# returns "click" when nothing matches. That default is silent: an unrecognised
+# verb compiles to a click on an element the step never meant to click, and the
+# first sign of it is a red run. The risk is worst on an application with no
+# Knowledge Base entry, where nothing downstream corrects the guess.
+#
+# So the refiner is asked to say what kind of action it wrote. The field is
+# advisory, not authoritative: a value outside the vocabulary normalises to
+# None and the regex decides as before, because dropping a case over an
+# off-list string is a worse outcome than a guessed intent. Cases refined
+# before this field existed carry no action_type and take the path they always
+# did.
+ACTION_TYPES: tuple[str, ...] = ("navigate", "click", "fill", "select", "assert", "wait")
+
+# Synonyms a model reaches for anyway. Mapping them costs nothing and saves a
+# fall back to the regex that this field exists to avoid.
+_ACTION_TYPE_ALIASES: dict[str, str] = {
+    "goto": "navigate", "open": "navigate", "visit": "navigate", "browse": "navigate",
+    "launch": "navigate",
+    "tap": "click", "press": "click", "submit": "click", "check": "click",
+    "uncheck": "click", "hit": "click",
+    "type": "fill", "enter": "fill", "input": "fill", "set": "fill", "provide": "fill",
+    "choose": "select", "pick": "select",
+    "verify": "assert", "confirm": "assert", "validate": "assert", "expect": "assert",
+    "ensure": "assert",
+    "pause": "wait",
+}
+
+
+def normalize_action_type(value: Any) -> str | None:
+    """One of ACTION_TYPES, or None when the model wrote something else."""
+    if not isinstance(value, str):
+        return None
+    lowered = value.strip().lower()
+    if lowered in ACTION_TYPES:
+        return lowered
+    return _ACTION_TYPE_ALIASES.get(lowered)
+
+
+
 class RefinedStepLLM(BaseModel):
     step_number: int
     action: str
+    action_type: str | None = None
     target: str | None = None
     test_data_ref: str | None = None
     expected_result: str | None = None
+
+    @field_validator("action_type", mode="before")
+    @classmethod
+    def _coerce_action_type(cls, value: Any) -> str | None:
+        return normalize_action_type(value)
 
 
 class TestDataRequirementLLM(BaseModel):
@@ -124,6 +172,8 @@ For each item emit one object with:
 - steps: list of step objects, each with:
     step_number: 1-based, contiguous
     action: ONE observable interaction, naming the concrete UI element, option, button, and value
+    action_type: EXACTLY one of navigate | click | fill | select | assert | wait - the kind of
+      interaction this step performs. Pick the closest one; never invent another value.
     target: the element/control the action addresses (label, button text, or role)
     test_data_ref: key of test data if parameterized, else null
     expected_result: concrete observable verification immediately after this step
@@ -290,6 +340,7 @@ def score_manual_input(payload: dict[str, Any]) -> Any:
 
 
 __all__ = [
+    "ACTION_TYPES",
     "REFINEMENT_SYSTEM",
     "REFINE_MAX_TOKENS",
     "REFINE_TEMPERATURE",
@@ -297,6 +348,7 @@ __all__ = [
     "RefinedTestCaseLLM",
     "TestDataRequirementLLM",
     "build_refine_payload",
+    "normalize_action_type",
     "refine_case_content",
     "refined_to_columns",
     "score_manual_input",

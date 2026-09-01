@@ -255,6 +255,33 @@ def absolutize(route: Optional[str], base_url: Optional[str]) -> str:
     return f"{origin}{raw}" if origin else raw
 
 
+# --- Automation Module: a hint is not always a folder name -------------------
+# load_app_profile and identify_app_id both accept "an id, a domain, a URL, or
+# text", and both open by testing the hint as a directory under KB_ROOT_DIR.
+# When the hint is genuinely prose that is not a cheap miss, it is a crash:
+# workbench.sync_approved_test_cases passes a whole test case -- preconditions,
+# steps, expected result -- which becomes a single path component of several
+# hundred bytes, and os.stat answers ENAMETOOLONG rather than "no such file".
+# Python 3.12's Path.exists()/is_dir() re-raise that errno; only ENOENT,
+# ENOTDIR, EBADF and ELOOP are swallowed. So the lookup blew up instead of
+# falling through to the base_url and keyword matching that prose hints exist
+# for, and because the caller discarded the exception, approved test cases
+# simply never arrived in the Workbench.
+def _looks_like_folder_name(hint: str) -> bool:
+    """Whether `hint` could be a directory name, decided without touching disk.
+
+    Deliberately strict: application ids are short, separator-free and carry no
+    whitespace, so anything else is prose and belongs in the matching below.
+    The byte length is what matters -- NAME_MAX is counted in bytes, not
+    characters -- and 64 leaves ample room for any real app_id.
+    """
+    if not hint or len(hint.encode("utf-8")) > 64:
+        return False
+    if any(sep in hint for sep in ("/", "\\", "\x00")):
+        return False
+    return not any(ch.isspace() for ch in hint)
+
+
 def load_app_profile(app_id_or_domain: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Load an application profile by folder name, app_id, domain or base URL."""
     if not KB_ROOT_DIR.exists():
@@ -268,10 +295,11 @@ def load_app_profile(app_id_or_domain: Optional[str] = None) -> Optional[Dict[st
         hint = resolved
 
     # 1. Try direct folder match
-    app_dir = KB_ROOT_DIR / hint
-    if app_dir.exists() and (app_dir / "app_profile.json").exists():
-        with open(app_dir / "app_profile.json", "r", encoding="utf-8") as f:
-            return json.load(f)
+    if _looks_like_folder_name(hint):
+        app_dir = KB_ROOT_DIR / hint
+        if app_dir.exists() and (app_dir / "app_profile.json").exists():
+            with open(app_dir / "app_profile.json", "r", encoding="utf-8") as f:
+                return json.load(f)
 
     # 2. Collect all valid profiles
     profiles: List[Dict[str, Any]] = []
@@ -365,9 +393,10 @@ def identify_app_id(hint: Optional[str] = None) -> Optional[str]:
         return None
 
     # An exact folder name or app_id is unambiguous.
-    folder = KB_ROOT_DIR / text
-    if folder.is_dir() and (folder / "app_profile.json").exists():
-        return text
+    if _looks_like_folder_name(text):
+        folder = KB_ROOT_DIR / text
+        if folder.is_dir() and (folder / "app_profile.json").exists():
+            return text
     for app in list_applications():
         if app.get("app_id") and app.get("app_id") == text:
             return app["app_id"]
@@ -455,7 +484,11 @@ def resolve_app_id(hint: Optional[str] = None) -> Optional[str]:
 def list_flows(app_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """List all flow blueprints for an application."""
     app_id = app_id or default_app_id()
-    if not app_id:
+    if not app_id or not _looks_like_folder_name(app_id):
+        # Same reasoning as _looks_like_folder_name's own comment. Callers here
+        # pass a resolved id, but routers/automation.py takes one straight from
+        # the URL path, and an over-long segment would raise ENAMETOOLONG out of
+        # exists() below rather than answering "no such application".
         return []
 
     flows_dir = KB_ROOT_DIR / app_id / "flows"
@@ -969,6 +1002,11 @@ def ground_case_structured_steps(
         grounded_steps.append({
             "step_number": s_num,
             "action": action,
+            # Carried through, not re-derived: grounding rewrites a step's
+            # target, never what kind of interaction it is. Dropping it here
+            # sent the compiler back to guessing the intent from the verb,
+            # which is exactly what refine.py sets this field to avoid.
+            "action_type": st.get("action_type"),
             "target": target,
             "href": to_route(href_hint, base_url) or None,
             "test_data_ref": st.get("test_data_ref"),

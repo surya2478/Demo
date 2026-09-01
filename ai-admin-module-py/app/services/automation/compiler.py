@@ -251,12 +251,60 @@ def _origin(url: Optional[str]) -> str:
     return match.group(1) if match else (url or "").strip()
 
 
-def _intent(action: str) -> str:
+# refine.ACTION_TYPES -> the intent vocabulary this module emits. Kept as a
+# mapping rather than shared constants so compiling a case never depends on
+# importing the refiner.
+_DECLARED_INTENTS: dict[str, str] = {
+    "navigate": "goto",
+    "click": "click",
+    "fill": "fill",
+    "select": "select",
+    "assert": "assert",
+    "wait": "wait",
+}
+
+
+def _intent(action: str, action_type: Optional[str] = None) -> str:
+    """A step's intent: what the refiner declared, else the verb heuristic.
+
+    The regex below returns "click" when no verb matches, and that default is
+    silent -- an unrecognised verb ("punch in the code") compiles to a click on
+    an element the step never meant to click, and the first sign of it is a red
+    run. refine.py now asks the model to name the action kind outright, so a
+    step that carries one is not guessed at.
+
+    Anything else falls through to the regex: a case refined before the field
+    existed, a step the model left it off, or a value outside the vocabulary.
+    That is the behaviour every step had before, so nothing regresses on rows
+    already in the database.
+    """
+    declared = _DECLARED_INTENTS.get((action_type or "").strip().lower())
+    if declared:
+        return declared
+
     lowered = (action or "").lower()
     for pattern, intent in _INTENTS:
         if re.search(pattern, lowered):
             return intent
     return "click"
+
+
+# The verbs a step's action can open with, in the same vocabulary _INTENTS
+# reads. Stripping a leading verb is safe in a way that stripping a trailing
+# phrase is not: an accessible name never begins with the step's own action,
+# but "Enter the code in the Promo field" and "Click Save on the Orders page"
+# put the element at opposite ends of the sentence, and no regex tells them
+# apart. So this strips the end it can be sure of and _unresolved_name flags
+# what is left when the result still does not look like a name.
+_LEADING_ACTION = re.compile(
+    r"^\s*(?:please\s+)?"
+    r"(?:click|press|tap|submit|hit|select|choose|pick|enter|type|input"
+    r"|fill(?:\s+in)?|provide|key\s+in|set|verify|assert|confirm|check"
+    r"|validate|ensure|navigate|go|browse|visit|launch|open|wait)\b"
+    r"(?:\s+(?:to|on|in|into|at|for))?"
+    r"(?:\s+(?:the|a|an|its))?\s*",
+    re.IGNORECASE,
+)
 
 
 def _clean_target(target: str) -> str:
@@ -266,6 +314,7 @@ def _clean_target(target: str) -> str:
     if quoted_match:
         return quoted_match.group(1).strip()
 
+    text = _LEADING_ACTION.sub("", text, count=1)
     text = re.sub(
         r"^(click\s+(on\s+)?(the\s+)?|the\s+|a\s+|an\s+|select\s+(the\s+)?|choose\s+(the\s+)?|under\s+|in\s+)",
         "",
@@ -279,6 +328,61 @@ def _clean_target(target: str) -> str:
         flags=re.IGNORECASE,
     )
     return text.strip().strip("'\"").strip()
+
+
+# An accessible name is short. Six words is generous for one -- "Proceed to
+# checkout" is three -- and anything longer is the step's sentence wearing a
+# name's clothes.
+_MAX_NAME_WORDS = 6
+
+# Joins that belong to a sentence and never to an accessible name. "Back to the
+# top" is a plausible button, which is why "to" is not here; "in the", "from
+# the" and an assertion's "is displayed" have no business inside a name and are
+# the surest sign the step's prose was never split into an action and a target.
+_SENTENCE_TELLS: tuple[tuple[str, str], ...] = (
+    (r"\b(?:in|on|from|at|under|within|inside|of)\s+the\b", "joins two clauses"),
+    (r"\bis\s+(?:displayed|visible|shown|present|enabled|disabled|selected)\b",
+     "states an assertion"),
+    (r"\bshould\b", "states an expectation"),
+)
+
+
+def _unresolved_name(name: str) -> Optional[str]:
+    """Why `name` cannot be trusted as an accessible name, or None if it can.
+
+    Three tells, and all of them mean the same thing: the phrase is still a
+    sentence, so the query built from it looks confident and matches nothing.
+
+    That silence was the defect. A step whose target arrived as a whole
+    sentence -- which is what /scripts/generate writes when steps_structured is
+    rebuilt from steps_raw -- compiled to getByRole with the sentence as the
+    name and NO todo, so the static gate saw nothing, review saw nothing, and
+    the first red run was the first anyone heard of it. Emitting a reason here
+    does not repair the locator; it puts the guess where a person can see it.
+    """
+    for pattern, why in _SENTENCE_TELLS:
+        if re.search(pattern, name, re.IGNORECASE):
+            return (
+                f"{name!r} {why}, so it is the step's prose rather than the name of "
+                "one element. Name the element in the step's target, or run "
+                "Application Discovery so this locator can be grounded."
+            )
+
+    words = name.split()
+    if len(words) > _MAX_NAME_WORDS:
+        return (
+            f"{name!r} reads as a sentence rather than an element name, so this "
+            "locator is a guess. Name the element in the step's target, or run "
+            "Application Discovery so it can be grounded against the catalogue."
+        )
+    for pattern, role in _ROLE_HINTS:
+        if re.search(pattern, name, re.IGNORECASE):
+            return (
+                f"{name!r} still carries the element's own kind ({role}), so the "
+                "accessible name was not isolated cleanly and this locator is "
+                "unlikely to match."
+            )
+    return None
 
 
 _WHITESPACE_RUN = re.compile(r"\s+")
@@ -403,6 +507,7 @@ def _phrase_locator(target: Optional[str], intent: str) -> tuple[str, Optional[s
         return f"page.locator({_js(raw)}).first()", None
 
     name = _clean_target(raw)
+    unresolved = _unresolved_name(name)
     lowered = raw.lower()
 
     # 2. Multi-element disambiguation (e.g. main, header, body -> page.locator('body'))
@@ -412,11 +517,11 @@ def _phrase_locator(target: Optional[str], intent: str) -> tuple[str, Optional[s
     # 3. Match accessible roles
     for pattern, role in _ROLE_HINTS:
         if re.search(pattern, lowered):
-            return f"page.getByRole({_js(role)}, {{ name: {_js(name)} }})", None
+            return f"page.getByRole({_js(role)}, {{ name: {_js(name)} }})", unresolved
 
     # 4. Form fields
     if any(re.search(p, lowered) for p in _FIELD_HINTS) or intent in ("fill", "select"):
-        return f"page.getByLabel({_js(name)})", None
+        return f"page.getByLabel({_js(name)})", unresolved
 
     # 5. Path or URL
     if raw.startswith(("/", "http://", "https://")):
@@ -427,13 +532,13 @@ def _phrase_locator(target: Optional[str], intent: str) -> tuple[str, Optional[s
         return (
             f"page.locator('a, button, [role=\"button\"], [role=\"link\"], [role=\"menuitem\"], [role=\"tab\"], span')"
             f".filter({{ hasText: {_js(name)} }}).first()",
-            None if len(name) > 1 else f"Could not tell what kind of element {raw!r} is — using a resilient text match.",
+            unresolved if len(name) > 1 else f"Could not tell what kind of element {raw!r} is — using a resilient text match.",
         )
 
     # 7. Exact/text match
     return (
         f"page.getByText({_js(name)})",
-        None if len(name) > 1 else f"Could not tell what kind of element {raw!r} is — using a text match.",
+        unresolved if len(name) > 1 else f"Could not tell what kind of element {raw!r} is — using a text match.",
     )
 
 
@@ -461,6 +566,73 @@ def build_locator(
         return fallback_locator, (reason or fallback_todo)
 
     return _phrase_locator(target, intent)
+
+
+# --- Automation Module: post-conditions become assertions --------------------
+#
+# refine.py's prompt rule 3 requires every step to carry a concrete, observable
+# post-condition, and the refiner spends tokens producing them. This compiler
+# emitted each one as `// expected: ...` and asserted nothing, so a generated
+# spec verified only what the is_verify_step heuristic recognised from the
+# action text. A script that clicks through a journey without checking it is
+# not a test, and on an application with no Knowledge Base entry those
+# per-step post-conditions are the only verification the case has at all.
+#
+# The rule here is high precision, not high recall. A post-condition is prose,
+# and a locator invented from prose matches nothing while looking confident --
+# the failure _unresolved_name exists to expose. So an assertion is emitted
+# only from a literal the refiner actually quoted, or a URL/path it actually
+# named. Everything else keeps the comment it had before: a missing assertion
+# is a gap, a fabricated one is a red run against a working application, and
+# the second costs far more, because it teaches people to ignore failures.
+# A bare path only counts when it stands on its own. Without the leading
+# boundary this matched "/privacy" inside "the cookie/privacy banner" and
+# asserted the page had navigated to /privacy -- a red run on a working
+# application, from a post-condition about dismissing an overlay.
+_EXPECTED_URL_RE = re.compile(
+    r"(https?://[^\s,;'\"]+"
+    r"|(?:(?<=\s)|^)/[A-Za-z0-9][A-Za-z0-9\-_/.]{2,})"
+)
+_EXPECTED_QUOTED_RE = re.compile(r"[\"']([^\"']{2,80})[\"']")
+
+
+def expected_assertion(expected: Any, intent: str) -> Optional[str]:
+    """A Playwright assertion for a step's expected_result, or None.
+
+    None means "emit the comment, as before" -- see the note above for why that
+    is the default rather than a locator guessed from a sentence.
+    """
+    if intent == "assert":
+        # The step already emitted its own visibility assertion.
+        return None
+
+    text = str(expected or "").strip()
+    if not text:
+        return None
+
+    url_match = _EXPECTED_URL_RE.search(text)
+    if url_match:
+        raw = url_match.group(1).rstrip(".,;:)")
+        path = raw.split("://", 1)[-1]
+        if "/" in path:
+            path = path[path.find("/"):]
+        if len(path) > 2:
+            return (
+                f"await expect(page).toHaveURL(new RegExp({_js(re.escape(path))}, 'i'), "
+                "{ timeout: 15000 });"
+            )
+
+    quoted = _EXPECTED_QUOTED_RE.search(text)
+    if quoted:
+        literal = quoted.group(1).strip()
+        # A quoted selector or URL is not an observable string on the page.
+        if literal and not literal.startswith(("http", "/", ".", "#", "[")):
+            return (
+                f"await expect(page.getByText({_js(literal)}).first())"
+                ".toBeVisible({ timeout: 15000 });"
+            )
+
+    return None
 
 
 def compile_playwright(
@@ -605,7 +777,7 @@ def compile_playwright(
             target = step.get("target")
             data_ref = step.get("test_data_ref")
             expected = step.get("expected_result")
-            intent = _intent(action)
+            intent = _intent(action, step.get("action_type"))
 
             lines.append("")
             lines.append(f"  // {number}. {comment_text(action)}")
@@ -853,6 +1025,9 @@ def compile_playwright(
 
             if expected and intent != "assert":
                 lines.append(f"  // expected: {comment_text(expected)}")
+                assertion = expected_assertion(expected, intent)
+                if assertion:
+                    lines.append(f"  {assertion}")
 
             _wrap_step_body(lines, step_body_start, step_title(number, action))
             emitted += 1
