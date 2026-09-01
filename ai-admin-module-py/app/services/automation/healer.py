@@ -55,6 +55,142 @@ Rules:
 """
 
 
+# --- Automation Module: why the CTA block is spliced, not regex-replaced -----
+# The Add-to-Cart heal below rewrites a whole `if (isOutOfStock) {...} else
+# {...}` construct. Finding the end of that construct with a regex does not
+# work, and the way it failed was silent and expensive.
+#
+# The pattern used to end at `await page.waitForTimeout(\d+);\s*\}` with a
+# non-greedy `.*?` in front. compiler.py emits *two* such statements in this
+# block -- one closing the inner `if (await appears(addBtn, 8000))` branch and
+# one closing its `else` -- so the match stopped at the first, and the
+# substitution truncated the construct mid-way, leaving the original's
+# trailing `} else { ... }` stranded after a replacement that had already
+# closed the `if`. Two `else` blocks on one `if` is a SyntaxError, and
+# Playwright answers a spec it cannot parse with "No tests found": zero tests,
+# no browser launched, and therefore no video, screenshot or trace. The run
+# reports as failed with an empty test-results/ directory, which reads as an
+# artifact-capture problem rather than as a compile error.
+#
+# Brace matching is not a regular language, so the end is found by scanning.
+def _skip_to_matching_brace(code: str, open_idx: int) -> int:
+    """Index just past the `}` matching the `{` at `open_idx`, or -1.
+
+    Braces inside strings, template literals and comments are not counted. The
+    generated selectors are full of quoted CSS and `:has-text("...")`, so a
+    scanner that ignored quoting would reintroduce the same class of bug.
+    """
+    depth = 0
+    i = open_idx
+    n = len(code)
+    while i < n:
+        ch = code[i]
+        if ch in "'\"`":
+            quote = ch
+            i += 1
+            while i < n:
+                if code[i] == "\\":
+                    i += 2
+                    continue
+                if code[i] == quote:
+                    break
+                i += 1
+            i += 1
+            continue
+        if ch == "/" and i + 1 < n:
+            if code[i + 1] == "/":
+                j = code.find("\n", i)
+                i = n if j == -1 else j + 1
+                continue
+            if code[i + 1] == "*":
+                j = code.find("*/", i + 2)
+                i = n if j == -1 else j + 2
+                continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        i += 1
+    return -1
+
+
+def _skip_parens(code: str, open_idx: int) -> int:
+    """Index just past the `)` matching the `(` at `open_idx`, or -1."""
+    depth = 0
+    i = open_idx
+    n = len(code)
+    while i < n:
+        ch = code[i]
+        if ch in "'\"`":
+            quote = ch
+            i += 1
+            while i < n:
+                if code[i] == "\\":
+                    i += 2
+                    continue
+                if code[i] == quote:
+                    break
+                i += 1
+            i += 1
+            continue
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        i += 1
+    return -1
+
+
+_CTA_HEAD_RE = re.compile(r"(?://[^\n]*\n\s*)?const\s+outOfStockEl\s*=", re.IGNORECASE)
+_CTA_IF_RE = re.compile(r"if\s*\(\s*isOutOfStock\s*\)\s*", re.IGNORECASE)
+_CTA_ELSE_RE = re.compile(r"\s*else\b\s*", re.IGNORECASE)
+_CTA_ELSE_IF_RE = re.compile(r"if\s*(?=\()", re.IGNORECASE)
+
+
+def _cta_block_span(code: str) -> Optional[tuple[int, int]]:
+    """Character span of the generated stock-detection / Add-to-Cart block.
+
+    Starts at the `// Detect stock state...` comment when present, otherwise at
+    `const outOfStockEl`, and ends past the `}` that closes the whole
+    `if (isOutOfStock) ... else ...` chain. Returns None when the block is
+    absent or its braces do not balance, so an unrecognised shape is left
+    untouched rather than half-rewritten.
+    """
+    head = _CTA_HEAD_RE.search(code)
+    if not head:
+        return None
+    if_m = _CTA_IF_RE.search(code, head.end())
+    if not if_m:
+        return None
+
+    pos = if_m.end()
+    while True:
+        if pos >= len(code) or code[pos] != "{":
+            return None
+        end = _skip_to_matching_brace(code, pos)
+        if end < 0:
+            return None
+        nxt = _CTA_ELSE_RE.match(code, end)
+        if not nxt:
+            return head.start(), end
+        pos = nxt.end()
+        # `else if (...) {` -- step over the condition and keep walking the
+        # chain. compiler.py does not emit that shape today, but a healed or
+        # hand-edited spec may.
+        chained = _CTA_ELSE_IF_RE.match(code, pos)
+        if chained:
+            paren = _skip_parens(code, chained.end())
+            if paren < 0:
+                return None
+            pos = paren
+            while pos < len(code) and code[pos].isspace():
+                pos += 1
+
+
 def _fast_rule_heal(
     code: str,
     error_message: str,
@@ -95,12 +231,6 @@ def _fast_rule_heal(
     if ("add to cart" in combined_err or "addbtn" in combined_err or "checkout now" in combined_err or "checkout" in combined_err) and (
         "tobevisible" in combined_err or "element(s) not found" in combined_err or "timeouterror" in combined_err or "timeout 15000ms" in combined_err
     ):
-        add_cart_block_pat = re.compile(
-            r"(?://[^\n]*\n\s*)?"
-            r"const\s+outOfStockEl\s*=[^;]+;.*?"
-            r"await\s+page\.waitForTimeout\(\d+\);\s*\}",
-            re.DOTALL | re.IGNORECASE,
-        )
         replacement = (
             "// [Healed via Knowledge Base] Resilient CTA interaction & stock detection\n"
             "  await page.evaluate(() => window.scrollBy(0, 450)).catch(() => {});\n"
@@ -133,8 +263,10 @@ def _fast_rule_heal(
             "    }\n"
             "  }"
         )
-        if add_cart_block_pat.search(code):
-            healed = add_cart_block_pat.sub(replacement, code, count=1)
+        span = _cta_block_span(code)
+        if span:
+            start, end = span
+            healed = code[:start] + replacement + code[end:]
             diagnosis = (
                 "The 'ADD TO CART' / 'Checkout Now' button failed visibility check. This happens when product variants "
                 "require viewport scrolling, sticky footer lazy-rendering, or when the item is out of stock. "
@@ -271,6 +403,70 @@ def _fast_rule_heal(
     return None
 
 
+# --- Automation Module: a heal that will not parse is worse than no heal ------
+#
+# Every repair below rewrites a script that is about to be re-run, and none of
+# them were checked before being handed back. A regex substitution that
+# truncated a block, or a model that returned confident but unbalanced
+# TypeScript, produced a spec Playwright cannot parse -- and Playwright answers
+# that with "No tests found": zero tests, no browser, and therefore no video,
+# screenshot or trace. The run reports as failed with an empty test-results/
+# directory, which reads as an artifact-capture problem rather than a compile
+# error, and the real failure the heal was meant to address never gets seen.
+#
+# compile_playwright already runs these checks on freshly compiled code. Running
+# them again on healed code costs nothing -- no browser, no network -- and turns
+# that whole class of defect into a rejected repair. Rejecting means the ORIGINAL
+# script runs: it still fails, but it fails honestly, with artifacts and a real
+# error message.
+def _reject_if_broken(
+    healed: str,
+    diagnosis: str,
+    changes: list[str],
+    *,
+    original: str,
+    source: str,
+) -> tuple[str, str, list[str]]:
+    """The repair, or the original script when the repair breaks it.
+
+    Only errors the repair INTRODUCED count. The gate also enforces things that
+    have nothing to do with healing -- a placeholder domain, say -- and a script
+    that arrived with one still has it afterwards. Rejecting over a pre-existing
+    error would throw away a good repair and change nothing about the problem,
+    since the original carries it too. So the two sets are compared, and the
+    repair is refused only for damage that was not already there.
+    """
+    from .compiler import run_static_gate
+
+    # 0 expected steps: the step-count check does not apply to a heal, which
+    # rewrites a script rather than emitting one from a case.
+    before = {i.message for i in run_static_gate(original, 0, 0) if i.level == "error"}
+    introduced = [
+        i
+        for i in run_static_gate(healed, 0, 0)
+        if i.level == "error" and i.message not in before
+    ]
+    if not introduced:
+        return healed, diagnosis, changes
+
+    reasons = "; ".join(i.message for i in introduced)
+    logger.error(
+        "%s heal REJECTED -- the repaired script fails the static gate (%s). "
+        "Keeping the original script so the run reports its real failure.",
+        source,
+        reasons,
+    )
+    return (
+        original,
+        (
+            f"A repair was produced but rejected before it could run: {reasons} "
+            "The original script was kept, so this run reports its real failure "
+            "rather than a script that cannot be parsed."
+        ),
+        [f"Rejected {source} heal: {reasons}"],
+    )
+
+
 def diagnose_and_heal(
     *,
     code: str,
@@ -290,7 +486,9 @@ def diagnose_and_heal(
     if rule_fix is not None:
         healed_code, diagnosis, changes = rule_fix
         logger.info("Rule-based healer successfully produced repair: %s", diagnosis)
-        return healed_code, diagnosis, changes
+        return _reject_if_broken(
+            healed_code, diagnosis, changes, original=code, source="Rule-based"
+        )
 
     # 2. Try LLM-based intelligent healing
     discovered_summary = []
@@ -339,7 +537,13 @@ def diagnose_and_heal(
         )
         if response.healed_code and "test(" in response.healed_code:
             logger.info("LLM Healer produced repaired script. Diagnosis: %s", response.diagnosis)
-            return response.healed_code, response.diagnosis, response.changes_made
+            return _reject_if_broken(
+                response.healed_code,
+                response.diagnosis,
+                response.changes_made,
+                original=code,
+                source="LLM",
+            )
     except Exception as exc:
         logger.warning("LLM Healer call failed (%s). Falling back to safe script adjustment.", exc)
 
@@ -349,8 +553,10 @@ def diagnose_and_heal(
         r"await page.\1.click({ force: true }).catch(() => {});",
         code,
     )
-    return (
+    return _reject_if_broken(
         fallback_code,
         "Applied general actionability & timeout resilience to element interactions.",
-        ["Updated element clicks to use safe force action and catch handlers."]
+        ["Updated element clicks to use safe force action and catch handlers."],
+        original=code,
+        source="Fallback",
     )
