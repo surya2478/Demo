@@ -622,15 +622,31 @@ def expected_assertion(expected: Any, intent: str) -> Optional[str]:
                 "{ timeout: 15000 });"
             )
 
-    quoted = _EXPECTED_QUOTED_RE.search(text)
-    if quoted:
-        literal = quoted.group(1).strip()
-        # A quoted selector or URL is not an observable string on the page.
-        if literal and not literal.startswith(("http", "/", ".", "#", "[")):
+    # A quoted selector or URL is not an observable string on the page.
+    literals = [
+        q.strip()
+        for q in _EXPECTED_QUOTED_RE.findall(text)
+        if q.strip() and not q.strip().startswith(("http", "/", ".", "#", "["))
+    ]
+    if literals:
+        # "One of ('ADD TO CART' or 'Checkout Now') becomes visible" is satisfied
+        # by either, so asserting the first one turns a passing application into
+        # a red run. The post-condition already names the alternatives, so it
+        # compiles to an alternation rather than being dropped.
+        if len(literals) > 1 and re.search(r"\bor\b", text, re.IGNORECASE):
+            # re.escape() escapes spaces too, and a backslash-space escape is
+            # only valid in a JS regex under Annex B -- it throws under the `u` flag.
+            pattern = "|".join(
+                dict.fromkeys(re.escape(l).replace(r"\ ", " ") for l in literals)
+            )
             return (
-                f"await expect(page.getByText({_js(literal)}).first())"
+                f"await expect(page.getByText(new RegExp({_js(pattern)}, 'i')).first())"
                 ".toBeVisible({ timeout: 15000 });"
             )
+        return (
+            f"await expect(page.getByText({_js(literals[0])}).first())"
+            ".toBeVisible({ timeout: 15000 });"
+        )
 
     return None
 
