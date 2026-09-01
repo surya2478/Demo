@@ -161,6 +161,13 @@ class Settings(BaseSettings):
     AUTOMATION_HEAL_TIMEOUT_SECONDS: int = Field(default=120)
     AUTOMATION_MAX_CONCURRENT_RUNS: int = Field(default=1)
     AUTOMATION_DEFAULT_SLOW_MO_MS: int = Field(default=1000)
+    # --- Automation Module: AI resolution of guessed locators ------------
+    # When the compiler cannot ground a step's locator it infers one from
+    # the step's prose and flags the guess. With this on, those flagged
+    # steps -- and only those -- are offered to a model before the script
+    # is written. Off by default: it adds a model call per generation, and
+    # a deployment should opt into that rather than discover it in a bill.
+    AUTOMATION_AI_LOCATORS: bool = Field(default=False)
 
     # Directory holding the Knowledge Base's "applications/" folder. Empty
     # means "use the copy baked into the image at /app/knowledge_base", which

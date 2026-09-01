@@ -179,6 +179,11 @@ class CompiledScript:
     # so a run can show "Step 0 of 6" the moment it starts rather than staying
     # blank until the first reporter event lands.
     step_count: int = 0
+    # Steps whose locator was inferred from the step's own prose because
+    # neither the Knowledge Base nor a discovery catalogue named the element.
+    # Populated so a caller can offer these -- and only these -- to the
+    # locator agent, then compile again with the answers.
+    unresolved: list[dict[str, Any]] = field(default_factory=list)
 
     def gate_result(self) -> dict[str, Any]:
         errors = [i for i in self.issues if i.level == "error"]
@@ -652,12 +657,18 @@ def expected_assertion(expected: Any, intent: str) -> Optional[str]:
 
 
 def compile_playwright(
-    case: Any, *, base_url: Optional[str] = None, catalog: Optional[list[dict]] = None
+    case: Any,
+    *,
+    base_url: Optional[str] = None,
+    catalog: Optional[list[dict]] = None,
+    locator_overrides: Optional[dict[int, dict[str, Any]]] = None,
 ) -> CompiledScript:
     """Render an optimized Playwright spec from a refined case.
     Supports both Web UI automation and REST API testing.
     """
     catalog = catalog or []
+    locator_overrides = locator_overrides or {}
+    unresolved: list[dict[str, Any]] = []
     try:
         from .knowledge_base import ground_case_structured_steps
         steps = ground_case_structured_steps(case)
@@ -1011,9 +1022,33 @@ def compile_playwright(
                 else:
                     locator, todo = build_locator(step, intent, catalog=catalog)
 
+                # An override applies only where the deterministic path admits
+                # it guessed. A locator the Knowledge Base or the catalogue
+                # resolved carries no todo and is never second-guessed -- those
+                # are verified facts, and a model has nothing to add to a fact.
                 if todo and "body" not in locator:
-                    issues.append(StaticGateIssue("warning", f"Step {number}: {todo}"))
-                    lines.append(f"  // TODO: {comment_text(todo)}")
+                    override = locator_overrides.get(number)
+                    if override and override.get("locator"):
+                        locator = override["locator"]
+                        why = (override.get("reasoning") or "").strip()
+                        lines.append(
+                            f"  // [AI-resolved locator, confidence "
+                            f"{override.get('confidence', '?')}] "
+                            f"{comment_text(why or todo)}"
+                        )
+                        todo = None
+                    else:
+                        unresolved.append(
+                            {
+                                "step_number": number,
+                                "action": action,
+                                "target": target,
+                                "intent": intent,
+                                "reason": todo,
+                            }
+                        )
+                        issues.append(StaticGateIssue("warning", f"Step {number}: {todo}"))
+                        lines.append(f"  // TODO: {comment_text(todo)}")
 
                 if intent == "fill":
                     value = (
@@ -1077,6 +1112,7 @@ def compile_playwright(
         ),
         issues=issues,
         step_count=emitted,
+        unresolved=unresolved,
     )
     script.issues.extend(run_static_gate(code, emitted, len(steps) if steps else 1))
     return script
@@ -1227,6 +1263,7 @@ def compile_for(
     *,
     base_url: Optional[str] = None,
     catalog: Optional[list[dict]] = None,
+    locator_overrides: Optional[dict[int, dict[str, Any]]] = None,
 ) -> CompiledScript:
     """`catalog` only reaches Playwright. Katalon and Appium are generate-only
     skeletons with no locators to ground -- see _generate_only."""
@@ -1235,5 +1272,10 @@ def compile_for(
             f"Unknown framework {framework!r}. Expected one of: {', '.join(FRAMEWORKS)}"
         )
     if framework == "playwright":
-        return compile_playwright(case, base_url=base_url, catalog=catalog)
+        return compile_playwright(
+            case,
+            base_url=base_url,
+            catalog=catalog,
+            locator_overrides=locator_overrides,
+        )
     return _generate_only(case, framework)

@@ -35,6 +35,7 @@ from ..database.connection import get_db
 from ..models.database import TestCaseDetail
 from ..models.automation import (
     AutomationApplication,
+    AutomationDeletedOrigin,
     AutomationDiscoveredElement,
     AutomationDiscoveryRun,
     AutomationIntakeBatch,
@@ -51,7 +52,7 @@ from ..services.automation.job_manager import job_manager, new_run_key
 from ..services.automation.llm import LLMError, provider_status
 from ..services.automation.preflight import is_ready, runtime_status
 from ..services.automation.refine import refine_case_content, refined_to_columns
-from ..services.automation import compiler
+from ..services.automation import compiler, locator_agent
 from ..services.automation import discovery
 from ..services.automation import grounding
 from ..services.automation import extraction
@@ -2004,6 +2005,21 @@ def delete_workbench_cases(
     )
     scripts_removed = 0
     for case in cases:
+        # Record the decision before acting on it. A case mirrored out of
+        # Review & Approval is re-created by sync_approved_test_cases from its
+        # still-APPROVED source row, and the Workbench listing runs that mirror
+        # on every load -- so without a tombstone the row was back before the
+        # response reached the browser, and the delete reported success on
+        # something that had not gone anywhere.
+        if case.origin_test_case_id:
+            db.merge(
+                AutomationDeletedOrigin(
+                    origin_test_case_id=case.origin_test_case_id,
+                    display_id=case.display_id,
+                    deleted_by=username,
+                    deleted_at=datetime.utcnow(),
+                )
+            )
         scripts_removed += len(case.scripts or [])
         for script in list(case.scripts or []):
             db.delete(script)
@@ -2094,6 +2110,11 @@ class GenerateScriptsRequest(BaseModel):
     # Regenerating replaces the current script for the pair rather than adding
     # a version nobody asked for.
     regenerate: bool = True
+    # Ask a model for the locators the compiler had to guess. None means
+    # "whatever the deployment is configured for"; true or false overrides
+    # it for this request, which is what makes the difference demonstrable
+    # side by side without a redeploy.
+    ai_locators: Optional[bool] = None
 
 
 class DryRunRequest(BaseModel):
@@ -2173,15 +2194,27 @@ def list_approved_automation_cases(
 ):
     """The Lab's working set: approved cases classified as Automation.
 
-    Anything still in draft, rejected, or classified Manual is deliberately
-    absent -- generating from an unapproved case produces a script nobody has
-    agreed should exist.
+    Anything still in draft, rejected, or not classified Automation is
+    deliberately absent -- generating from an unapproved case produces a script
+    nobody has agreed should exist.
+
+    The two conditions are separate decisions and both are required. Approval
+    is the reviewer accepting the test case; classification is the triage that
+    says it should be automated at all. A case mirrored out of Review &
+    Approval arrives already approved but classified "undecided", because
+    sync_approved_test_cases has no basis to triage it -- so "approved" alone
+    has never meant "belongs in the Lab".
+
+    This asked for `classification != MANUAL`, which is not the same question:
+    "undecided" is not "manual", so every freshly mirrored case appeared here
+    the moment it was approved, before anyone had decided it should be
+    automated. Asking what the case IS admits only the one value that means it.
     """
     cases = (
         db.query(AutomationTestCase)
         .filter(
             AutomationTestCase.approval_status == wb.APPROVAL_APPROVED,
-            AutomationTestCase.classification != wb.CLASSIFICATION_MANUAL,
+            AutomationTestCase.classification == wb.CLASSIFICATION_AUTOMATION,
         )
         .order_by(AutomationTestCase.display_id)
         .all()
@@ -2253,6 +2286,20 @@ def generate_scripts(
             skipped.append({"display_id": case.display_id, "reason": "Not approved."})
             continue
 
+        # The listing is a convenience, not the control. This endpoint takes
+        # case_ids from the caller, so a case the Lab would never show can still
+        # be named here -- and until now only approval was checked, which let a
+        # script be compiled for a case nobody had classified as automatable.
+        if case.classification != wb.CLASSIFICATION_AUTOMATION:
+            skipped.append({
+                "display_id": case.display_id,
+                "reason": (
+                    "Not classified for automation. Classify it as Automation in the "
+                    "Workbench first."
+                ),
+            })
+            continue
+
         # Ensure steps_structured is in sync with steps_raw
         if case.steps_raw:
             raw_list = split_steps(case.steps_raw)
@@ -2302,6 +2349,39 @@ def generate_scripts(
                 base_url=body.base_url or case.application_url,
                 catalog=catalog,
             )
+
+            # --- Automation Module: AI fills only what the compiler flagged ---
+            # The first compile is deterministic, offline and cheap, and it
+            # reports every locator it had to infer from the step's own prose.
+            # Those steps -- and no others -- go to the locator agent, and the
+            # script is compiled again with the answers. A locator the Knowledge
+            # Base or the discovery catalogue resolved is never sent, because it
+            # is already a fact.
+            #
+            # The second compile is deterministic too, so the script remains a
+            # pure function of (case, catalogue, resolved locators): the same
+            # inputs still produce the same file, and the model's contribution
+            # is visible in the diff rather than smeared through it.
+            want_ai = (
+                body.ai_locators
+                if body.ai_locators is not None
+                else bool(settings.AUTOMATION_AI_LOCATORS)
+            )
+            if want_ai and compiled.unresolved:
+                resolved = locator_agent.resolve_locators(
+                    compiled.unresolved,
+                    application_url=body.base_url or case.application_url,
+                    application_name=getattr(case, "category", None),
+                    candidates=catalog,
+                )
+                if resolved:
+                    compiled = compiler.compile_for(
+                        case,
+                        body.framework,
+                        base_url=body.base_url or case.application_url,
+                        catalog=catalog,
+                        locator_overrides=resolved,
+                    )
         except ValueError as exc:
             skipped.append({"display_id": case.display_id, "reason": str(exc)})
             continue
