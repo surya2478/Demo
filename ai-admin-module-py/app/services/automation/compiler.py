@@ -25,6 +25,9 @@ unresolvable locator is visible in review rather than discovered on a red run.
 
 Katalon and Appium are generate-only: the code is produced and downloadable,
 but no runner exists for them here or upstream, so nothing offers to execute it.
+Generate-only is a statement about running, not about compiling -- the Katalon
+path grounds and asserts the same way this one does, and only Appium is still a
+skeleton. See compile_katalon.
 """
 from __future__ import annotations
 
@@ -1156,11 +1159,581 @@ def compile_playwright(
     return script
 
 
-def _generate_only(case: Any, framework: str) -> CompiledScript:
-    """Katalon and Appium: emit a readable skeleton, never offer to run it.
+# --- Automation Module: Katalon ----------------------------------------------
+#
+# Katalon has no runner here, which is a reason not to EXECUTE it. It was being
+# treated as a reason not to COMPILE it: every step emitted two comment lines
+# and a "bind a Test Object" TODO, so a nine-step case produced eighteen
+# comments and no code, while the same case in Playwright produced a grounded,
+# asserted spec from exactly the same inputs.
+#
+# The inputs were always there. A step carries an intent, a target, a data
+# reference and a post-condition; the discovery catalogue carries a verified
+# locator for it. What was missing is the translation, and that is all this is.
+#
+# Two decisions worth defending:
+#
+#   Test Objects are built at run time. Katalon normally resolves objects out
+#   of an Object Repository, and this compiler cannot write one -- that is a
+#   .rs file per element in a project layout we do not own. A TestObject
+#   constructed in the script carries the same properties the repository entry
+#   would, so the file runs in Katalon Studio with nothing to import first.
+#
+#   Locators are translated, never invented. The catalogue and the locator
+#   agent both speak Playwright, so _katalon_selector parses that vocabulary
+#   and re-expresses it as XPath. Anything it cannot parse produces a
+#   text-contains fallback AND a TODO, exactly as the Playwright path does --
+#   the same rule that a visible gap beats a confident guess.
 
-    No runner exists for either here or upstream, so producing something that
-    looks executable would be the misleading option.
+
+def _xpath_literal(value: str) -> str:
+    """An XPath 1.0 string literal for `value`, apostrophes included.
+
+    XPath 1.0 has no escape character, so a name like "I'm hiring talent" -- a
+    real accessible name in the catalogue -- cannot be written as one quoted
+    literal at all. concat() is the only construction that works, and getting
+    this wrong produces a file that fails to parse in Katalon Studio rather
+    than one that merely fails to match.
+    """
+    if "'" not in value:
+        return "'" + value + "'"
+    parts: list[str] = []
+    for chunk in value.split("'"):
+        if chunk:
+            parts.append("'" + chunk + "'")
+        parts.append('"\'"')
+    parts.pop()  # split() leaves one separator more than there are gaps
+    # XPath 1.0's concat() takes two arguments or more, so a value that is
+    # nothing but an apostrophe has to be returned as the bare literal.
+    if len(parts) == 1:
+        return parts[0]
+    return "concat(" + ", ".join(parts) + ")"
+
+
+def _groovy(value: Any) -> str:
+    """A single-quoted Groovy string literal that cannot break out of itself."""
+    text = "" if value is None else str(value)
+    text = text.replace("\\", "\\\\").replace("'", "\\'")
+    text = text.replace("\r", " ").replace("\n", " ")
+    return "'" + text + "'"
+
+
+def _groovy_var(data_ref: Any) -> str:
+    return re.sub(r"[^A-Za-z0-9]+", "_", str(data_ref)).strip("_").lower() or "test_data"
+
+
+# The accessible names in a real catalogue run to whole paragraphs -- one is
+# 120 characters of marketing copy. An exact normalize-space() match on that is
+# a locator that cannot succeed, so a long name is matched on a distinctive
+# prefix instead and the step is reported as inferred, which puts the
+# truncation in front of a reviewer rather than leaving it for a run.
+_MAX_EXACT_NAME = 60
+
+_PW_ROLE = re.compile(r"\bgetByRole\(")
+_PW_NAMED = re.compile(r"\bgetBy(Label|Placeholder|Text|TestId|AltText|Title)\(")
+_PW_RAW = re.compile(r"\blocator\(")
+_PW_NAME_KEY = re.compile(r"\bname\s*:")
+
+
+def _quoted_after(text: str, index: int) -> tuple[Optional[str], int]:
+    """The first quoted literal at or after `index`, with escapes resolved.
+
+    A regex of the form ['"](.*?)['"] cannot read these, and the catalogue is
+    full of values that break it: getByRole('link', { name: 'I\\'m hiring
+    talent' }) truncates to "I", and locator('//div[@id="x"]') truncates at the
+    inner double quote. Both produce a locator that is syntactically fine and
+    matches nothing, which is the failure mode this module exists to avoid.
+    """
+    while index < len(text) and text[index] not in ("'", '"', "`"):
+        index += 1
+    if index >= len(text):
+        return None, index
+    quote = text[index]
+    index += 1
+    out: list[str] = []
+    while index < len(text):
+        char = text[index]
+        if char == "\\" and index + 1 < len(text):
+            out.append(text[index + 1])
+            index += 2
+            continue
+        if char == quote:
+            return "".join(out), index + 1
+        out.append(char)
+        index += 1
+    return None, index
+
+# role -> the tags that role is normally spelled with, so a translated locator
+# matches a native <button> as well as an ARIA-annotated <div>.
+_ROLE_TAGS: dict[str, tuple[str, ...]] = {
+    "button": ("button",),
+    "link": ("a",),
+    "textbox": ("input", "textarea"),
+    "checkbox": ("input",),
+    "radio": ("input",),
+    "heading": ("h1", "h2", "h3", "h4", "h5", "h6"),
+    "combobox": ("select",),
+    "option": ("option",),
+    "tab": (),
+    "menuitem": (),
+}
+
+_ATTRIBUTE_NAMED = ("input", "textarea", "select", "option")
+
+
+def _name_predicate(name: str) -> str:
+    """normalize-space() equality, or a contains() on a prefix when too long."""
+    if len(name) <= _MAX_EXACT_NAME:
+        return "normalize-space()=" + _xpath_literal(name)
+    return "contains(normalize-space(.), " + _xpath_literal(name[:40].strip()) + ")"
+
+
+def _xpath_for_role(role: str, name: Optional[str]) -> str:
+    """An XPath union covering the native tags and the ARIA spelling of `role`."""
+    role = (role or "").strip().lower()
+    tags = _ROLE_TAGS.get(role, ())
+    role_literal = _xpath_literal(role or "button")
+
+    if not name:
+        branches = ["//" + tag for tag in tags]
+        branches.append("//*[@role=" + role_literal + "]")
+        return " | ".join(branches)
+
+    predicate = _name_predicate(name)
+    literal = _xpath_literal(name)
+    branches: list[str] = []
+    for tag in tags:
+        if tag in _ATTRIBUTE_NAMED:
+            # A field has no text content; its name comes from an attribute.
+            branches.append(
+                "//" + tag + "[@aria-label=" + literal
+                + " or @placeholder=" + literal
+                + " or @name=" + literal + "]"
+            )
+        else:
+            branches.append("//" + tag + "[" + predicate + "]")
+    branches.append("//*[@role=" + role_literal + "][" + predicate + "]")
+    if role == "textbox":
+        # The label-for-input pairing, which no attribute on the input carries.
+        branches.append("//label[" + predicate + "]/following::input[1]")
+    return " | ".join(branches)
+
+
+def _katalon_selector(expression: Optional[str]) -> Optional[tuple[str, str]]:
+    """Translate one Playwright locator expression into (kind, selector).
+
+    Both the discovery catalogue and the locator agent store Playwright, so
+    this is the single point where that vocabulary becomes something Katalon
+    resolves. None means "not recognised": the caller then falls back and says
+    so, rather than pasting a page.getByRole(...) call into Groovy.
+    """
+    if not expression:
+        return None
+    text = expression.strip()
+
+    raw = _PW_RAW.search(text)
+    if raw:
+        selector, _ = _quoted_after(text, raw.end())
+        selector = (selector or "").strip()
+        if selector:
+            kind = "xpath" if selector.startswith(("//", "(/")) else "css"
+            return (kind, selector)
+
+    role_match = _PW_ROLE.search(text)
+    if role_match:
+        role, after = _quoted_after(text, role_match.end())
+        if role:
+            name = None
+            name_key = _PW_NAME_KEY.search(text, after)
+            if name_key:
+                name, _ = _quoted_after(text, name_key.end())
+            return ("xpath", _xpath_for_role(role, name or None))
+
+    named = _PW_NAMED.search(text)
+    if named:
+        kind = named.group(1)
+        value, _ = _quoted_after(text, named.end())
+        if not value:
+            return None
+        literal = _xpath_literal(value)
+        if kind == "Label":
+            return (
+                "xpath",
+                "//*[@aria-label=" + literal + "] | //label["
+                + _name_predicate(value) + "]/following::input[1]",
+            )
+        if kind == "Placeholder":
+            return ("xpath", "//*[@placeholder=" + literal + "]")
+        if kind == "TestId":
+            return ("xpath", "//*[@data-testid=" + literal + "]")
+        if kind == "AltText":
+            return ("xpath", "//*[@alt=" + literal + "]")
+        if kind == "Title":
+            return ("xpath", "//*[@title=" + literal + "]")
+        return ("xpath", "//*[" + _name_predicate(value) + "]")
+
+    return None
+
+
+def _katalon_locator(
+    step: dict,
+    intent: str,
+    *,
+    catalog: Optional[list[dict]] = None,
+    override: Optional[dict] = None,
+) -> tuple[str, str, Optional[str]]:
+    """(kind, selector, todo) for a step -- grounded first, inferred last.
+
+    Mirrors build_locator's order of preference so the two frameworks ground a
+    case identically: a catalogue match wins, then a locator the model resolved,
+    then a selector the step already carries, then the phrase heuristic.
+    """
+    target = str(step.get("target") or "").strip()
+
+    if catalog:
+        entry, _reason = grounding.match_step(step, catalog)
+        if entry is not None:
+            # The catalogue stores role and accessible name as their own
+            # fields, which translate more faithfully than re-parsing the
+            # Playwright string it also stores.
+            role = (entry.get("role") or "").strip()
+            name = (entry.get("accessible_name") or "").strip()
+            if role:
+                return ("xpath", _xpath_for_role(role, name or None), None)
+            translated = _katalon_selector(
+                sanitize_catalog_locator(entry.get("recommended_locator"))
+            )
+            if translated:
+                return (translated[0], translated[1], None)
+
+    if override and override.get("locator"):
+        translated = _katalon_selector(override["locator"])
+        if translated:
+            return (translated[0], translated[1], None)
+
+    if target.startswith(("//", "(/")):
+        return ("xpath", target, None)
+    if target.startswith(("#", ".", "[")) or re.match(r"^[a-z]+\[[^\]]+\]$", target):
+        return ("css", target, None)
+
+    # Phrase heuristic: the same role hints the Playwright path reads, so
+    # "the 'Submit' button" resolves to a button in both frameworks.
+    phrase = _clean_target(target) if target else ""
+    if phrase:
+        role: Optional[str] = None
+        lowered = target.lower()
+        for pattern, hint in _ROLE_HINTS:
+            if re.search(pattern, lowered):
+                role = hint
+                break
+        if role is None and re.search(r"\bdrop ?down\b|\bcombo ?box\b|\bselect(or)?\b|\bpicker\b", lowered):
+            role = "combobox"
+        if role is None and any(re.search(p, lowered) for p in _FIELD_HINTS):
+            role = "textbox"
+        if role is None:
+            role = "textbox" if intent == "fill" else "button"
+        # selectOptionByLabel only works on a real <select>, so a step that is
+        # going to compile to that keyword must resolve to one. Without this the
+        # phrase heuristic sent "Size dropdown" to a button and the two halves
+        # of the step disagreed about what the element even is.
+        if intent == "select" and step.get("test_data_ref"):
+            role = "combobox"
+        return ("xpath", _xpath_for_role(role, phrase), _unresolved_name(phrase))
+
+    # No target at all. The action itself usually quotes the thing it acts on
+    # -- "Click 'Buy Now' on the plan" -- and a literal the refiner actually
+    # wrote beats Playwright's page.locator('body') fallback, which for a click
+    # is not a guess so much as a certainty of hitting the wrong thing. Still
+    # reported as inferred, because it came from prose either way.
+    quoted = _EXPECTED_QUOTED_RE.search(str(step.get("action") or ""))
+    if quoted and quoted.group(1).strip():
+        term = quoted.group(1).strip()
+        return (
+            "xpath",
+            "//*[" + _name_predicate(term) + "]"
+            " | //*[contains(normalize-space(.), " + _xpath_literal(term) + ")]",
+            "No target on this step; matched on " + repr(term) + " quoted in the action.",
+        )
+
+    return (
+        "xpath",
+        "//body",
+        "The step names no element, so no locator could be built for it.",
+    )
+
+
+def _katalon_url_check(text: Any) -> Optional[str]:
+    """A URL verification built from a URL or path named in `text`, or None."""
+    match = _EXPECTED_URL_RE.search(str(text or ""))
+    if not match:
+        return None
+    raw = match.group(1).rstrip(".,;:)")
+    path = raw.split("://", 1)[-1]
+    if "/" in path:
+        path = path[path.find("/"):]
+    if len(path) <= 2:
+        return None
+    return "WebUI.verifyMatch(WebUI.getUrl(), " + _groovy(".*" + re.escape(path) + ".*") + ", true)"
+
+
+def _katalon_expected(expected: Any, intent: str) -> Optional[str]:
+    """A WebUI verification for a post-condition, or None to keep the comment.
+
+    Same precision rule as expected_assertion: assert only what the refiner
+    actually quoted or actually named. A fabricated assertion is a red run
+    against a working application, and that teaches people to ignore failures.
+    """
+    if intent == "assert":
+        return None
+    text = str(expected or "").strip()
+    if not text:
+        return None
+
+    url_check = _katalon_url_check(text)
+    if url_check:
+        return url_check
+
+    literals = [
+        q.strip()
+        for q in _EXPECTED_QUOTED_RE.findall(text)
+        if q.strip() and not q.strip().startswith(("http", "/", ".", "#", "["))
+    ]
+    if literals:
+        if len(literals) > 1 and re.search(r"\bor\b", text, re.IGNORECASE):
+            # Either satisfies the post-condition, so one object accepts both
+            # rather than the first being asserted and the alternative lost.
+            clauses = " or ".join(
+                "contains(normalize-space(.), " + _xpath_literal(item) + ")"
+                for item in dict.fromkeys(literals)
+            )
+            return (
+                "WebUI.verifyElementPresent(locator('expected', "
+                + _groovy("//*[" + clauses + "]")
+                + ", 'xpath'), 15, FailureHandling.CONTINUE_ON_FAILURE)"
+            )
+        return (
+            "WebUI.verifyTextPresent("
+            + _groovy(literals[0])
+            + ", false, FailureHandling.CONTINUE_ON_FAILURE)"
+        )
+
+    return None
+
+
+KATALON_HELPER = """/**
+ * A TestObject built at run time, so this script needs no Object Repository
+ * entry to run. `kind` is 'xpath' or 'css' -- both are properties Katalon
+ * resolves natively.
+ */
+def locator(String id, String selector, String kind) {
+    TestObject object = new TestObject(id)
+    object.addProperty(kind, ConditionType.EQUALS, selector)
+    return object
+}"""
+
+
+def compile_katalon(
+    case: Any,
+    *,
+    base_url: Optional[str] = None,
+    catalog: Optional[list[dict]] = None,
+    locator_overrides: Optional[dict[int, dict[str, Any]]] = None,
+) -> CompiledScript:
+    """A Katalon Studio test script: real WebUI calls, grounded locators.
+
+    Generate-only still -- nothing offers to run it, because no runner exists
+    in this deployment. What changed is that the file is now code.
+    """
+    overrides = locator_overrides or {}
+    display_id = case.display_id or "test-case"
+    slug = re.sub(r"[^A-Za-z0-9]+", "-", display_id).strip("-").lower() or "spec"
+    steps = list(case.steps_structured or [])
+    target_url = (base_url or getattr(case, "application_url", None) or "").strip()
+
+    issues: list[StaticGateIssue] = []
+    unresolved: list[dict[str, Any]] = []
+
+    lines: list[str] = [
+        "/**",
+        (" * " + comment_text(display_id) + " - " + comment_text(case.objective or "")).rstrip(),
+        " *",
+        " * Katalon Studio (Groovy), generated from the refined test case. Every",
+        " * locator below was either matched against the discovery catalogue or",
+        " * inferred from the step's own words, and an inferred one carries a TODO.",
+        " *",
+        " * Test Objects are built at run time by locator(), so no Object Repository",
+        " * entry is needed. Values come from environment variables, so no credential",
+        " * or record id is baked into this file.",
+        " */",
+        "import com.kms.katalon.core.model.FailureHandling",
+        "import com.kms.katalon.core.testobject.ConditionType",
+        "import com.kms.katalon.core.testobject.TestObject",
+        "import com.kms.katalon.core.webui.keyword.WebUiBuiltInKeywords as WebUI",
+        "",
+        KATALON_HELPER,
+        "",
+    ]
+
+    seen_refs: list[str] = []
+    for step in steps:
+        ref = step.get("test_data_ref")
+        if ref and str(ref) not in seen_refs:
+            seen_refs.append(str(ref))
+    if seen_refs:
+        for ref in seen_refs:
+            key = _env_key(ref)
+            lines.append(
+                "String " + _groovy_var(ref) + " = System.getenv(" + _groovy(key) + ") ?: "
+                + _groovy("<set " + key + ">")
+            )
+        lines.append("")
+
+    if case.preconditions:
+        lines.append("// Preconditions:")
+        for line in str(case.preconditions).splitlines():
+            if line.strip():
+                lines.append("//   - " + comment_text(line.strip()))
+        lines.append("")
+
+    lines.append("WebUI.openBrowser('')")
+    lines.append("WebUI.maximizeWindow()")
+    lines.append("")
+
+    emitted = 0
+    for index, step in enumerate(steps, start=1):
+        number = step.get("step_number") or index
+        action = str(step.get("action") or "").strip()
+        if not action:
+            continue
+        emitted += 1
+
+        intent = _intent(action, step.get("action_type"))
+        expected = step.get("expected_result")
+        data_ref = step.get("test_data_ref")
+
+        lines.append("// " + step_title(number, action))
+
+        if intent == "goto":
+            action_url = re.search(r"https?://[^\s'\"\)\>]+", action)
+            if _is_navigation_target(step.get("target")):
+                destination = str(step.get("target")).strip()
+            elif action_url:
+                destination = action_url.group(0).rstrip(".,)")
+            else:
+                destination = target_url
+            if not destination:
+                issues.append(
+                    StaticGateIssue(
+                        "error", "Step " + str(number) + " navigates but no application URL is set."
+                    )
+                )
+                lines.append("// TODO: no application URL configured for this navigation.")
+            else:
+                lines.append("WebUI.navigateToUrl(" + _groovy(destination) + ")")
+                lines.append("WebUI.waitForPageLoad(30)")
+        elif intent == "wait":
+            lines.append("WebUI.waitForPageLoad(30)")
+        else:
+            kind, selector, todo = _katalon_locator(
+                step, intent, catalog=catalog, override=overrides.get(number)
+            )
+
+            # A verification step whose element could not be resolved, but which
+            # names a URL, is really a navigation check. Asserting the URL is
+            # something that can actually pass; asserting a guessed element is a
+            # red run on a working application, which is the worse of the two.
+            url_check = (
+                (_katalon_url_check(action) or _katalon_url_check(expected))
+                if intent == "assert" and todo
+                else None
+            )
+            if url_check:
+                lines.append(url_check)
+                if expected:
+                    lines.append("// expected: " + comment_text(expected))
+                lines.append("")
+                continue
+
+            if todo:
+                unresolved.append(
+                    {
+                        "step_number": number,
+                        "action": action,
+                        "target": step.get("target"),
+                        "intent": intent,
+                        "reason": todo,
+                    }
+                )
+                issues.append(StaticGateIssue("warning", "Step " + str(number) + ": " + todo))
+                lines.append("// TODO: " + comment_text(todo))
+
+            obj = (
+                "locator(" + _groovy("step" + str(number)) + ", "
+                + _groovy(selector) + ", " + _groovy(kind) + ")"
+            )
+            if intent == "fill":
+                value = _groovy_var(data_ref) if data_ref else _groovy("Test Data")
+                lines.append("WebUI.setText(" + obj + ", " + value + ")")
+            elif intent == "select":
+                if data_ref:
+                    lines.append(
+                        "WebUI.selectOptionByLabel(" + obj + ", " + _groovy_var(data_ref) + ", false)"
+                    )
+                else:
+                    # A variant tile or a plan card is a click, not a <select>.
+                    lines.append("WebUI.click(" + obj + ")")
+            elif intent == "assert":
+                lines.append("WebUI.verifyElementPresent(" + obj + ", 15)")
+            else:
+                lines.append("WebUI.click(" + obj + ")")
+
+        if expected:
+            lines.append("// expected: " + comment_text(expected))
+            verification = _katalon_expected(expected, intent)
+            if verification:
+                lines.append(verification)
+        lines.append("")
+
+    lines.append("WebUI.closeBrowser()")
+
+    if emitted < len(steps):
+        issues.append(
+            StaticGateIssue(
+                "warning",
+                str(len(steps) - emitted) + " step(s) had no action text and were skipped.",
+            )
+        )
+    if emitted == 0:
+        issues.append(StaticGateIssue("error", "The script emitted no steps."))
+
+    notes = [
+        "Katalon is generate-only in this deployment - no runner exists, so this "
+        "file is for download and use in Katalon Studio."
+    ]
+    notes.extend("Set " + _env_key(ref) + " before running." for ref in seen_refs)
+
+    return CompiledScript(
+        framework="katalon",
+        language="groovy",
+        file_name=slug + ".groovy",
+        code="\n".join(lines) + "\n",
+        entry_path=slug + ".groovy",
+        execution_command="",
+        setup_notes=notes,
+        generation_mode="compiled",
+        issues=issues,
+        step_count=emitted,
+        unresolved=unresolved,
+    )
+
+
+def _generate_only(case: Any, framework: str) -> CompiledScript:
+    """Appium: emit a readable skeleton, never offer to run it.
+
+    No mobile runner exists here or upstream, and unlike the web frameworks
+    there is no discovery catalogue of mobile elements to ground against, so
+    every selector would be a guess. Katalon left this path when it gained a
+    real emitter -- see compile_katalon.
     """
     display_id = case.display_id or "test-case"
     slug = re.sub(r"[^A-Za-z0-9]+", "-", display_id).strip("-").lower() or "spec"
@@ -1303,14 +1876,22 @@ def compile_for(
     catalog: Optional[list[dict]] = None,
     locator_overrides: Optional[dict[int, dict[str, Any]]] = None,
 ) -> CompiledScript:
-    """`catalog` only reaches Playwright. Katalon and Appium are generate-only
-    skeletons with no locators to ground -- see _generate_only."""
+    """`catalog` and `locator_overrides` reach Playwright and Katalon, which
+    both compile grounded locators. Appium is still a generate-only skeleton --
+    see _generate_only."""
     if framework not in FRAMEWORKS:
         raise ValueError(
             f"Unknown framework {framework!r}. Expected one of: {', '.join(FRAMEWORKS)}"
         )
     if framework == "playwright":
         return compile_playwright(
+            case,
+            base_url=base_url,
+            catalog=catalog,
+            locator_overrides=locator_overrides,
+        )
+    if framework == "katalon":
+        return compile_katalon(
             case,
             base_url=base_url,
             catalog=catalog,
