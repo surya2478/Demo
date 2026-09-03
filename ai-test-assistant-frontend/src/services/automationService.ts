@@ -21,6 +21,7 @@ import type {
   Classification,
   DecideResult,
   GenerationJob,
+  RefinedStep,
   RunDetail,
   RuntimeStatusResponse,
   RunsResponse,
@@ -250,6 +251,12 @@ const automationService = {
       /** The approval gate — see TestDataStatus. Set by a person, not derived. */
       test_data_required: boolean
       test_data_status: TestDataStatus
+      /**
+       * The structured steps, replaced wholesale. The endpoint renumbers them
+       * and rewrites steps_raw from what lands here, so a partial list would
+       * delete the steps left out of it.
+       */
+      steps_structured: RefinedStep[]
     }>
   ): Promise<WorkbenchCase> =>
     call<WorkbenchCase>(() => api.patch(`${BASE}/workbench/test-cases/${caseId}`, body)),

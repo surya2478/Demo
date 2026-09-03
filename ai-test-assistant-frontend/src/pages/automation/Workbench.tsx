@@ -42,6 +42,7 @@ import { useConfirm } from '../../components/ui/ConfirmDialog'
 import MenuButton from '../../components/ui/MenuButton'
 import TestCaseEditor from '../../components/automation/TestCaseEditor'
 import ClassifyProgressModal from '../../components/automation/ClassifyProgressModal'
+import WorkbenchCaseDrawer from '../../components/automation/WorkbenchCaseDrawer'
 import type { ClassifyProgressStatus } from '../../components/automation/ClassifyProgressModal'
 // Hidden on request -- restore together with the element below.
 // import DocumentIntake from '../../components/automation/DocumentIntake'
@@ -170,6 +171,12 @@ const Workbench: React.FC = () => {
   // Which case's rule report is open. Held as the case rather than the report
   // so a reclassify while the panel is open replaces what it shows.
   const [reportCaseId, setReportCaseId] = useState<number | null>(null)
+
+  // The row drawer. An id, not the case, so a save or a reclassify behind it
+  // shows the new findings instead of the ones that were open when it opened.
+  const [drawerCaseId, setDrawerCaseId] = useState<number | null>(null)
+  const [drawerSaving, setDrawerSaving] = useState(false)
+  const [drawerError, setDrawerError] = useState<string | null>(null)
 
   /*
    * The rule pass runs behind one POST, so this is the only place a person can
@@ -697,6 +704,11 @@ const Workbench: React.FC = () => {
     [cases, reportCaseId]
   )
 
+  const drawerCase = useMemo(
+    () => (drawerCaseId === null ? null : cases.find(c => c.id === drawerCaseId) ?? null),
+    [cases, drawerCaseId]
+  )
+
   const allSourcesSelected =
     sources.length > 0 && sources.every(s => selectedSources.has(s.id))
   const someSourcesSelected = selectedSources.size > 0 && !allSourcesSelected
@@ -1037,7 +1049,24 @@ const Workbench: React.FC = () => {
               </thead>
               <tbody>
                 {visibleCases.map(testCase => (
-                  <tr key={testCase.id}>
+                  /*
+                   * The whole row opens the drawer. The guard is one line
+                   * rather than a stopPropagation on each of the dozen
+                   * controls inside a row -- a new button in a cell would
+                   * otherwise open the drawer as a side effect of being added.
+                   */
+                  <tr
+                    key={testCase.id}
+                    onClick={event => {
+                      if ((event.target as HTMLElement).closest('button, input, a, select, textarea')) {
+                        return
+                      }
+                      setDrawerError(null)
+                      setDrawerCaseId(testCase.id)
+                    }}
+                    className="cursor-pointer transition hover:bg-app-surface-muted/60"
+                    title={`Open ${testCase.tc_display_id}`}
+                  >
                     <td className="app-table-pin-start">
                       <div className="flex items-center gap-2.5">
                         <input
@@ -1697,6 +1726,30 @@ const Workbench: React.FC = () => {
           </div>
         </div>
       ) : null}
+
+      <WorkbenchCaseDrawer
+        testCase={drawerCase}
+        saving={drawerSaving}
+        error={drawerError}
+        canExecute={canExecute}
+        onClose={() => setDrawerCaseId(null)}
+        onSave={async steps => {
+          if (!drawerCase) return
+          setDrawerSaving(true)
+          setDrawerError(null)
+          try {
+            await automationService.editWorkbenchCase(drawerCase.id, {
+              steps_structured: steps
+            })
+            await load()
+            setNotice(`Saved steps on ${drawerCase.tc_display_id}`)
+          } catch (err: any) {
+            setDrawerError(err?.message ?? 'The step edits could not be saved.')
+          } finally {
+            setDrawerSaving(false)
+          }
+        }}
+      />
 
       {/* The rule pass, narrated. Rendered last so it sits over the grid. */}
       <ClassifyProgressModal
