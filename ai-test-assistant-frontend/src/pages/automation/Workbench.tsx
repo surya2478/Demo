@@ -94,7 +94,6 @@ const SHOW_STAT_TILES = false
 const BUSY_LABELS: Record<string, string> = {
   classify: 'Classifying',
   approve: 'Approving',
-  reject: 'Rejecting',
   delete: 'Deleting test cases',
   'delete-sources': 'Deleting test cases',
   generate: 'Generating',
@@ -667,12 +666,12 @@ const Workbench: React.FC = () => {
     })
   }
 
-  const handleDecide = (decision: 'approve' | 'reject') =>
-    runAction(decision, async () => {
+  const handleApprove = () =>
+    runAction('approve', async () => {
       const requested = selectedCases.size
-      const res = await automationService.decideCases(Array.from(selectedCases), decision)
+      const res = await automationService.decideCases(Array.from(selectedCases), 'approve')
       setSelectedCases(new Set())
-      const verb = decision === 'approve' ? 'Approved' : 'Rejected'
+      const verb = 'Approved'
       if (res.refused?.length) {
         // Named, not counted: "3 refused" leaves someone hunting for which.
         setWarning(
@@ -798,13 +797,13 @@ const Workbench: React.FC = () => {
               value={applicationUrl}
               onChange={e => setApplicationUrl(e.target.value)}
               placeholder="Target URL: https://..."
-              className="app-input h-8 w-48 py-0 text-xs"
+              className="app-input h-8 w-40 py-0 text-xs"
               title="Grounding application URL for test cases & refinement"
             />
             <select
               value={filter}
               onChange={e => setFilter(e.target.value as 'all' | Classification)}
-              className="app-input h-8 w-[176px] py-0 text-xs"
+              className="app-input h-8 w-[150px] py-0 text-xs"
               aria-label="Filter by classification"
             >
               <option value="all">All classifications</option>
@@ -829,7 +828,7 @@ const Workbench: React.FC = () => {
                   ? 'Classify the selected test cases by rule -- steps, channel, Knowledge Base and test data'
                   : 'Select test cases to classify them by rule'
               }
-              className="app-btn app-btn-secondary inline-flex items-center gap-1.5 border-app-brand-200 text-xs font-semibold text-app-brand-700 hover:bg-app-brand-75 hover:text-app-brand-800"
+              className="app-btn app-btn-secondary inline-flex items-center gap-1.5 !px-2.5 border-app-brand-200 text-xs font-semibold text-app-brand-700 hover:bg-app-brand-75 hover:text-app-brand-800"
             >
               <HiOutlineSparkles
                 className={`h-4 w-4 ${busy === 'classify' ? 'animate-spin' : ''}`}
@@ -850,7 +849,7 @@ const Workbench: React.FC = () => {
               onClick={handleRefineBulk}
               disabled={!anySelected || !canExecute || refining}
               title="Refine selected test cases with AI on-demand"
-              className="app-btn app-btn-primary inline-flex items-center gap-1.5 text-xs font-semibold"
+              className="app-btn app-btn-primary inline-flex items-center gap-1.5 !px-2.5 text-xs font-semibold"
             >
               <HiOutlineSparkles className={`h-4 w-4 ${refining ? 'animate-spin' : ''}`} />
               {refining ? 'Refining...' : 'AI Refine'}
@@ -861,7 +860,7 @@ const Workbench: React.FC = () => {
               onClick={handleRunReviewAll}
               disabled={!canExecute || reviewingAll || cases.length === 0}
               title="Evaluate quality across all test cases using the eSMART Review Agent"
-              className="app-btn app-btn-secondary inline-flex items-center gap-1.5 text-xs font-medium"
+              className="app-btn app-btn-secondary inline-flex items-center gap-1.5 !px-2.5 text-xs font-medium"
             >
               <HiOutlineShieldCheck className={`h-4 w-4 ${reviewingAll ? 'animate-spin' : ''}`} />
               {reviewingAll ? 'Reviewing...' : 'Review Quality'}
@@ -869,6 +868,7 @@ const Workbench: React.FC = () => {
 
             <MenuButton
               label="Manual Classify"
+              className="app-btn app-btn-secondary !px-2.5 text-xs font-medium"
               title="Override the classification of the selected test cases by hand"
               disabled={!anySelected || !canExecute || busy !== null}
               actions={[
@@ -892,10 +892,10 @@ const Workbench: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => handleDecide('approve')}
+              onClick={handleApprove}
               disabled={!anySelected || !canExecute || busy !== null}
               title="Approve the selected test cases for the Script Lab"
-              className="app-btn app-btn-secondary inline-flex items-center gap-1 text-xs font-medium"
+              className="app-btn app-btn-secondary inline-flex items-center gap-1 !px-2.5 text-xs font-medium"
             >
               {/* Tone on the glyph, not the whole button: a green fill here
                   read as a second primary and competed with AI Refine. */}
@@ -904,24 +904,15 @@ const Workbench: React.FC = () => {
             </button>
 
             {/* risk -- still set apart by a divider and danger-toned text, so
-                the two irreversible verbs do not read like the rest. */}
+                the irreversible verb does not read like the rest. Reject went
+                with the approval flow that used to send cases back from here. */}
             <div className="flex items-center gap-1 border-l border-app pl-2">
-              <button
-                type="button"
-                onClick={() => handleDecide('reject')}
-                disabled={!anySelected || !canExecute || busy !== null}
-                title="Send the selected test cases back as rejected"
-                className="app-btn app-btn-ghost inline-flex items-center gap-1 text-xs font-medium text-app-danger hover:bg-app-danger-bg hover:text-app-danger"
-              >
-                <HiOutlineX className="h-4 w-4" />
-                Reject
-              </button>
               <button
                 type="button"
                 onClick={() => void handleDeleteCases()}
                 disabled={!anySelected || !canExecute || busy !== null}
                 title="Delete the selected test cases and any scripts generated from them"
-                className="app-btn app-btn-ghost inline-flex items-center gap-1 text-xs font-medium text-app-danger hover:bg-app-danger-bg hover:text-app-danger"
+                className="app-btn app-btn-ghost inline-flex items-center gap-1 !px-2.5 text-xs font-medium text-app-danger hover:bg-app-danger-bg hover:text-app-danger"
               >
                 <HiOutlineTrash className="h-4 w-4" />
                 Delete
