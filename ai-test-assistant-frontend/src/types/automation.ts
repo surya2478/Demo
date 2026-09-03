@@ -524,6 +524,8 @@ export interface ScriptLabCase {
   steps: number
   test_data_status: TestDataStatus
   application_url: string | null
+  /** When the case landed in the automation module; the Lab is sorted on it. */
+  created_at: string | null
   scripts: ScriptAsset[]
 }
 

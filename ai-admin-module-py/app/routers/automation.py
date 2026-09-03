@@ -1391,6 +1391,10 @@ def _workbench_case(case: AutomationTestCase, source_missing: bool = False) -> d
             "approved_at": case.approved_at.isoformat() if case.approved_at else None,
             "version": case.version,
             "application_url": case.application_url,
+            # When the case landed in the automation module. For one mirrored
+            # out of Review & Approval that is the moment it arrived here, not
+            # when it was first authored upstream.
+            "created_at": case.created_at.isoformat() if case.created_at else None,
             "steps": steps,
             # The source it was refined from has been deleted, so regenerating
             # would build a second case rather than replacing this one.
@@ -1639,7 +1643,15 @@ def list_workbench_cases(
         logger.warning("Failed to auto-sync approved test cases: %s", e)
 
     # Fetch all studio test cases
-    cases = db.query(AutomationTestCase).order_by(AutomationTestCase.id.desc()).all()
+    # Newest arrival first. id.desc() happened to agree with this while ids
+    # were handed out in arrival order, but it is the timestamp the column
+    # shows, so it is the timestamp the sort should use. id breaks ties within
+    # a batch, which lands several cases on the same instant.
+    cases = (
+        db.query(AutomationTestCase)
+        .order_by(AutomationTestCase.created_at.desc(), AutomationTestCase.id.desc())
+        .all()
+    )
 
     known_sources = {
         str(row[0])
@@ -2284,7 +2296,7 @@ def list_approved_automation_cases(
             AutomationTestCase.approval_status == wb.APPROVAL_APPROVED,
             AutomationTestCase.classification.in_(wb.CLASSIFICATIONS_AUTOMATABLE),
         )
-        .order_by(AutomationTestCase.display_id)
+        .order_by(AutomationTestCase.created_at.desc(), AutomationTestCase.id.desc())
         .all()
     )
 
@@ -2307,6 +2319,7 @@ def list_approved_automation_cases(
                 "title": case.objective or case.description or case.display_id,
                 "priority": case.priority,
                 "steps": len(case.steps_structured or []),
+                "created_at": case.created_at.isoformat() if case.created_at else None,
                 "test_data_status": case.test_data_status,
                 "application_url": case.application_url,
                 "scripts": by_case.get(case.id, []),

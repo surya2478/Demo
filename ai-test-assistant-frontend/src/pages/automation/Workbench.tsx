@@ -47,14 +47,13 @@ import type { ClassifyProgressStatus } from '../../components/automation/Classif
 // Hidden on request -- restore together with the element below.
 // import DocumentIntake from '../../components/automation/DocumentIntake'
 import { GroundingBadge } from '../../components/automation/groundingPresentation'
+import { formatWhen } from '../../components/automation/runPresentation'
 import {
   ApprovalBadge,
   ClassificationBadge,
   ClassificationReportPanel,
   JobProgress,
-  OriginBadge,
-  StatTile,
-  TestDataBadge
+  StatTile
 } from '../../components/automation/workbenchPresentation'
 import { isJobSettled } from '../../types/automation'
 import type {
@@ -1019,7 +1018,7 @@ const Workbench: React.FC = () => {
                   {/* Checkbox and ID share one pinned cell: they are the same
                       question -- which row is this -- and merging them buys
                       back a column's worth of gutters. */}
-                  <th className="app-table-pin-start text-left">
+                  <th className="app-table-pin-start text-center">
                     <div className="flex items-center gap-2.5">
                       <input
                         type="checkbox"
@@ -1035,16 +1034,19 @@ const Workbench: React.FC = () => {
                         className="h-3.5 w-3.5"
                         aria-label="Select all test cases"
                       />
-                      TC ID
+                      <span className="flex-1 text-center">TC ID</span>
                     </div>
                   </th>
-                  <th className="text-left">Title</th>
-                  <th className="text-left">Origin</th>
-                  <th className="text-left">Steps</th>
-                  <th className="text-left">Classification</th>
-                  <th className="text-left">Test Data</th>
-                  <th className="text-left">Status</th>
-                  <th className="app-table-pin-end text-right">Actions</th>
+                  {/* Every heading is centred over its column. The two pinned
+                      columns centre their contents too, because their headings
+                      have to line up with a checkbox column and a button group
+                      rather than with text. */}
+                  <th className="text-center">Title</th>
+                  <th className="text-center">Steps</th>
+                  <th className="text-center">Classification</th>
+                  <th className="text-center">Status</th>
+                  <th className="text-center">Added</th>
+                  <th className="app-table-pin-end text-center">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1076,7 +1078,7 @@ const Workbench: React.FC = () => {
                           className="h-3.5 w-3.5 flex-shrink-0"
                           aria-label={`Select ${testCase.tc_display_id}`}
                         />
-                        <span className="whitespace-nowrap font-mono text-app-primary">
+                        <span className="flex-1 whitespace-nowrap text-center font-mono text-app-primary">
                           {testCase.tc_display_id}
                           {testCase.version > 1 ? (
                             <span className="ml-1 text-app-secondary">v{testCase.version}</span>
@@ -1105,6 +1107,18 @@ const Workbench: React.FC = () => {
                             Application URL required before script generation
                           </p>
                         )}
+                        {/* Rehomed when the Origin column went: this warns that
+                            regenerating would build a second case rather than
+                            replace this one, which is about the case, not about
+                            where it came from. */}
+                        {testCase.source_missing ? (
+                          <p
+                            className="mt-0.5 text-[12px] leading-4 text-app-warning"
+                            title="Generating again would build a second test case alongside this one unless you tick Regenerate existing."
+                          >
+                            Source deleted
+                          </p>
+                        ) : null}
                         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                           {testCase.review_score ? (
                             <button
@@ -1150,17 +1164,6 @@ const Workbench: React.FC = () => {
                         </div>
                       </div>
                     </td>
-                    <td>
-                      <OriginBadge origin={testCase.origin} />
-                      {testCase.source_missing ? (
-                        <p
-                          className="mt-0.5 max-w-[150px] text-[12px] leading-4 text-app-warning"
-                          title="Generating again would build a second test case alongside this one unless you tick Regenerate existing."
-                        >
-                          Source deleted
-                        </p>
-                      ) : null}
-                    </td>
                     <td className="text-app-secondary">{testCase.steps.length}</td>
                     <td>
                       <ClassificationBadge classification={testCase.classification} />
@@ -1194,20 +1197,14 @@ const Workbench: React.FC = () => {
                       ) : null}
                     </td>
                     <td>
-                      <TestDataBadge
-                        required={testCase.test_data_required}
-                        status={testCase.test_data_status}
-                      />
-                      {testCase.test_data_notes ? (
-                        <p className="mt-0.5 max-w-[170px] text-[12px] leading-4 text-app-warning">
-                          {testCase.test_data_notes}
-                        </p>
-                      ) : null}
-                    </td>
-                    <td>
                       <ApprovalBadge status={testCase.approval_status} />
                     </td>
-                    <td className="app-table-pin-end text-right">
+                    {/* When it landed here. The grid is sorted on this, so the
+                        column is what makes that order legible. */}
+                    <td className="whitespace-nowrap text-[12px] text-app-secondary">
+                      {formatWhen(testCase.created_at)}
+                    </td>
+                    <td className="app-table-pin-end text-center">
                       <div className="inline-flex items-center gap-0.5">
                         <button
                           type="button"

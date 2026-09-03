@@ -38,6 +38,7 @@ import { useConfirm } from '../../components/ui/ConfirmDialog'
 import StatusBadge from '../../components/ui/StatusBadge'
 import { CodeViewer } from '../../components/automation/CodeViewer'
 import { StatTile } from '../../components/automation/workbenchPresentation'
+import { formatWhen } from '../../components/automation/runPresentation'
 import { isDryRunSettled, readSelectedApplicationId } from '../../types/automation'
 import type {
   DryRunStatus,
@@ -67,6 +68,17 @@ function saveBlob(blob: Blob, filename: string) {
 }
 
 /** The static gate's verdict, with its reasons — never a bare tick. */
+/**
+ * Hidden on request: the per-script status cluster in the grid -- compile mode,
+ * the static gate verdict, the dry-run state and the evidence link.
+ *
+ * A flag rather than a deletion, because none of it is dead: GateBadge and the
+ * evidence link still render in the script viewer panel below, so opening a
+ * script still shows its gate result and still reaches its run. Flip this to
+ * true to put the row badges back.
+ */
+const SHOW_SCRIPT_STATUS_BADGES = false
+
 const GateBadge: React.FC<{ script: ScriptAsset }> = ({ script }) => {
   const gate = script.static_gate_result
   if (!gate) return <span className="text-[12px] text-app-secondary">—</span>
@@ -585,10 +597,15 @@ const ScriptLab: React.FC = () => {
                       aria-label="Select all test cases"
                     />
                   </th>
-                  <th className="text-left">TC ID</th>
-                  <th className="text-left">Title</th>
-                  <th className="text-left">Steps</th>
-                  <th className="text-left">Generated scripts</th>
+                  {/* Centred over the column rather than pinned to its left
+                      edge: TC ID, Title and Generated scripts are all wider
+                      than their labels, which left each heading floating away
+                      from the data under it. */}
+                  <th className="text-center">TC ID</th>
+                  <th className="text-center">Title</th>
+                  <th className="text-center">Steps</th>
+                  <th className="text-center">Added</th>
+                  <th className="text-center">Generated scripts</th>
                 </tr>
               </thead>
               <tbody>
@@ -625,6 +642,11 @@ const ScriptLab: React.FC = () => {
                         </p>
                       </td>
                       <td className="text-app-secondary">{testCase.steps}</td>
+                      {/* Same field and same order as the Workbench grid, so a
+                          case sits in the same place on both screens. */}
+                      <td className="whitespace-nowrap text-[12px] text-app-secondary">
+                        {formatWhen(testCase.created_at)}
+                      </td>
                       <td>
                         {scripts.length ? (
                           <div className="space-y-1">
@@ -639,38 +661,45 @@ const ScriptLab: React.FC = () => {
                                   <span className="text-app-secondary">v{script.version}</span>
                                 </span>
 
-                                <ModeBadge script={script} />
-                                <GateBadge script={script} />
+                                {SHOW_SCRIPT_STATUS_BADGES ? (
+                                  <>
+                                    <ModeBadge script={script} />
+                                    <GateBadge script={script} />
 
-                                <StatusBadge
-                                  tone={
-                                    script.dry_run_status && DRY_RUN_TONE[script.dry_run_status]
-                                      ? DRY_RUN_TONE[script.dry_run_status]
-                                      : 'neutral'
-                                  }
-                                  size="sm"
-                                  dot={script.dry_run_status === 'running'}
-                                >
-                                  {script.dry_run_status ? script.dry_run_status.replace('_', ' ') : 'not run'}
-                                </StatusBadge>
+                                    <StatusBadge
+                                      tone={
+                                        script.dry_run_status && DRY_RUN_TONE[script.dry_run_status]
+                                          ? DRY_RUN_TONE[script.dry_run_status]
+                                          : 'neutral'
+                                      }
+                                      size="sm"
+                                      dot={script.dry_run_status === 'running'}
+                                    >
+                                      {script.dry_run_status ? script.dry_run_status.replace('_', ' ') : 'not run'}
+                                    </StatusBadge>
 
+                                    {/* A dry run IS a run, so its evidence lives
+                                        on the Runs tab rather than in a panel. */}
+                                    {script.dry_run_key ? (
+                                      <Link
+                                        to={`/automation/runs/${script.dry_run_key}`}
+                                        className="inline-flex items-center gap-0.5 text-[12px] font-semibold text-app-brand-700 hover:underline"
+                                        title="Open the run, with its screenshot, video, trace and log"
+                                      >
+                                        evidence
+                                        <HiOutlineExternalLink className="h-3 w-3" />
+                                      </Link>
+                                    ) : null}
+                                  </>
+                                ) : null}
+
+                                {/* Kept: a hand-edited script is not a status,
+                                    it is a warning that the file no longer
+                                    matches what the compiler would produce. */}
                                 {script.edited_by_user ? (
                                   <StatusBadge tone="warning" size="sm">
                                     edited
                                   </StatusBadge>
-                                ) : null}
-
-                                {/* A dry run IS a run, so its evidence lives on
-                                    the Runs tab rather than in a panel here. */}
-                                {script.dry_run_key ? (
-                                  <Link
-                                    to={`/automation/runs/${script.dry_run_key}`}
-                                    className="inline-flex items-center gap-0.5 text-[12px] font-semibold text-app-brand-700 hover:underline"
-                                    title="Open the run, with its screenshot, video, trace and log"
-                                  >
-                                    evidence
-                                    <HiOutlineExternalLink className="h-3 w-3" />
-                                  </Link>
                                 ) : null}
 
                                 <button
