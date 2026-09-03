@@ -19,6 +19,7 @@ import Team from './pages/Team'
 import Unauthorized from './pages/Unauthorized'
 import UserTimeSlots from './pages/UserTimeSlots'
 import ReviewAndApproval from './pages/ReviewAndApproval'
+import ApprovedTestCases from './pages/ApprovedTestCases'
 
 // Test Assistant and tabs
 import RequestTrackerDashboard from './components/RequestTrackerDashboard';
@@ -60,6 +61,8 @@ const LayoutShell: React.FC = () => {
           showDateRange={meta.showDateRange}
           dateRangeLabel={meta.dateRangeLabel}
           onDateRangeClick={meta.onDateRangeClick}
+          onNotificationsClick={meta.onNotificationsClick}
+          onAssistantClick={meta.onAssistantClick}
           onMobileMenuOpen={() => setMobileNavOpen(true)}
         />
         <main className="flex-1 px-4 py-4 sm:px-6 lg:px-8 lg:py-5">
@@ -189,6 +192,15 @@ const AppRoutes: React.FC = () => {
           element={
             <ProtectedRoute allowedRoles={['admin', 'manager']}>
               <ReviewAndApproval />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="approved-test-cases"
+          element={
+            <ProtectedRoute allowedRoles={['admin', 'manager', 'user']}>
+              <ApprovedTestCases />
             </ProtectedRoute>
           }
         />

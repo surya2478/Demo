@@ -16,6 +16,8 @@ export interface TopHeaderProps {
   showDateRange?: boolean
   dateRangeLabel?: string
   onDateRangeClick?: () => void
+  onNotificationsClick?: () => void
+  onAssistantClick?: () => void
   actions?: React.ReactNode
   onMobileMenuOpen?: () => void
 }
@@ -33,6 +35,8 @@ const TopHeader: React.FC<TopHeaderProps> = ({
   showDateRange = true,
   dateRangeLabel = 'Last 24 hours',
   onDateRangeClick,
+  onNotificationsClick,
+  onAssistantClick,
   actions,
   onMobileMenuOpen
 }) => {
@@ -47,8 +51,39 @@ const TopHeader: React.FC<TopHeaderProps> = ({
 
   const hasTitle = !!(title || subtitle || welcomeText)
 
+  /*
+   * --- A control needs somewhere to go before it may appear ---------------
+   *
+   * All three of these used to render on a `show*` flag alone, and all three
+   * of those flags default to `true` -- so the bell, the AI Assistant button
+   * and the date-range picker appeared on any page that published no header
+   * meta, and not one of them had a handler anywhere in the app. Clicking
+   * them did nothing, which is how a user learns to distrust every other
+   * control on the screen.
+   *
+   * Requiring the handler makes that unshippable rather than merely fixed:
+   * there is no longer a way to render one of these without a destination.
+   * Pages that want them back supply an onClick and they return.
+   */
+  const canShowAssistant = showAssistant && !!onAssistantClick
+  const canShowNotifications = showNotifications && !!onNotificationsClick
+  const canShowDateRange = showDateRange && !!onDateRangeClick
+
+  /*
+   * With dead controls gone, a page that publishes no header meta (Automation
+   * is one) has nothing left to put in this band -- and an empty 58px sticky
+   * bar above the content is worse than no bar. The mobile menu button still
+   * lives here, so the band collapses on large screens only.
+   */
+  const hasContent =
+    hasTitle || !!actions || showSearch || canShowAssistant || canShowNotifications || canShowDateRange
+
   return (
-    <header className="sticky top-0 z-30 border-b border-app bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/85">
+    <header
+      className={`sticky top-0 z-30 border-b border-app bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/85 ${
+        hasContent ? '' : 'lg:hidden'
+      }`}
+    >
       <div className="flex flex-wrap items-center gap-2.5 px-4 py-3 sm:px-6 lg:px-8">
         {onMobileMenuOpen && <MobileMenuButton onClick={onMobileMenuOpen} />}
 
@@ -87,21 +122,27 @@ const TopHeader: React.FC<TopHeaderProps> = ({
             </div>
           )}
 
-          {showAssistant && (
+          {canShowAssistant && (
             <button
               type="button"
-              className="hidden items-center gap-2 rounded-app border border-app-brand-200 bg-app-brand-50 px-3 py-1.5 text-sm font-semibold text-app-brand-800 transition hover:bg-app-brand-100 sm:inline-flex"
+              onClick={onAssistantClick}
+              className="hidden items-center gap-2 rounded-app border border-app-brand-200 bg-app-brand-50 px-3 py-1.5 text-sm font-semibold text-app-brand-800 transition hover:bg-app-brand-100 active:bg-app-brand-200 sm:inline-flex"
             >
               <HiOutlineSparkles className="text-app-brand-700" size={15} />
               AI Assistant
             </button>
           )}
 
-          {showNotifications && (
+          {canShowNotifications && (
             <button
               type="button"
-              className="relative inline-flex h-[34px] w-[34px] items-center justify-center rounded-app border border-app bg-app-surface text-app-secondary transition hover:bg-app-surface-muted"
-              aria-label="Notifications"
+              onClick={onNotificationsClick}
+              className="relative inline-flex h-[34px] w-[34px] items-center justify-center rounded-app border border-app bg-app-surface text-app-secondary transition hover:bg-app-surface-muted active:bg-app-border"
+              aria-label={
+                notificationCount > 0
+                  ? `Notifications, ${notificationCount} unread`
+                  : 'Notifications'
+              }
             >
               <HiOutlineBell size={18} />
               {notificationCount > 0 && (
@@ -112,11 +153,11 @@ const TopHeader: React.FC<TopHeaderProps> = ({
             </button>
           )}
 
-          {showDateRange && (
+          {canShowDateRange && (
             <button
               type="button"
               onClick={onDateRangeClick}
-              className="hidden items-center gap-2 rounded-app border border-app bg-app-surface px-3 py-1.5 text-sm font-medium text-app-secondary transition hover:bg-app-surface-muted sm:inline-flex"
+              className="hidden items-center gap-2 rounded-app border border-app bg-app-surface px-3 py-1.5 text-sm font-medium text-app-secondary transition hover:bg-app-surface-muted active:bg-app-border sm:inline-flex"
             >
               <HiOutlineClock size={15} />
               {dateRangeLabel}

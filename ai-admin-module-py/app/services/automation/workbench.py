@@ -36,18 +36,29 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ...database.connection import SessionLocal
-from ..automation.eligibility import MANUAL_MARKERS, score_test_case, split_steps
+from ..automation import classification
+from ..automation.eligibility import score_test_case, split_steps
 from ..automation.llm import LLMError
 from ..automation.refine import refine_case_content, refined_to_columns
-from ...models.automation import AutomationTestCase
+from ...models.automation import AutomationDeletedOrigin, AutomationTestCase
 
 from . import knowledge_base as kb
 
 logger = logging.getLogger(__name__)
 
-CLASSIFICATION_AUTOMATION = "automation"
-CLASSIFICATION_MANUAL = "manual"
-CLASSIFICATION_UNDECIDED = "undecided"
+CLASSIFICATION_AUTOMATION = classification.CLASSIFICATION_AUTOMATION
+# Automatable once named, minor edits are made -- a locator the catalogue does
+# not have, a step with no verb, a value nobody supplied. Distinct from
+# Automation because compiling it now produces a script that fails on its first
+# run, and distinct from Manual because nothing about it needs a person.
+CLASSIFICATION_PARTIAL = classification.CLASSIFICATION_PARTIAL
+CLASSIFICATION_MANUAL = classification.CLASSIFICATION_MANUAL
+CLASSIFICATION_UNDECIDED = classification.CLASSIFICATION_UNDECIDED
+
+# The classifications that mean "a script may be built from this". Partial is
+# in: its findings are edits an author makes, and blocking generation on them
+# would make the new bucket a dead end rather than a queue.
+CLASSIFICATIONS_AUTOMATABLE = (CLASSIFICATION_AUTOMATION, CLASSIFICATION_PARTIAL)
 
 APPROVAL_DRAFT = "draft"
 APPROVAL_APPROVED = "approved"
@@ -56,65 +67,25 @@ APPROVAL_REJECTED = "rejected"
 
 # ── Classification ───────────────────────────────────────────────────────────
 
-def classify_case(case: AutomationTestCase) -> tuple[str, str, list[str]]:
+def classify_case(
+    case: AutomationTestCase,
+    context: Optional[classification.ClassificationContext] = None,
+) -> tuple[str, str, list[str]]:
     """Decide whether a case should be automated, and say why.
 
-    Returns (classification, reason, manual_only_reasons). The reason is shown
-    under the badge in the grid, so it is written to be read by a person
-    deciding whether to accept the call, not as a log line.
+    Returns (classification, reason, manual_only_reasons), which is what the
+    grid's badge and its subtitle need. The judgement itself lives in
+    classification.assess -- it checks every step, the channel the case runs
+    on, and whether the Knowledge Base knows the controls the steps name, and
+    it returns far more than three values. Callers wanting the whole report
+    should call assess directly; this signature is kept for the ones that only
+    ever wanted the verdict.
     """
-    blockers = list(case.automation_blockers or [])
-    if blockers:
-        return (
-            CLASSIFICATION_MANUAL,
-            "The refinement found something that cannot be automated: " + blockers[0],
-            blockers,
-        )
-
-    haystack = " ".join(
-        str(part or "")
-        for part in (
-            case.steps_raw,
-            case.expected_result,
-            case.preconditions,
-            case.description,
-            case.objective,
-        )
-    ).lower()
-
-    hits = []
-    for pattern in MANUAL_MARKERS:
-        match = re.search(pattern, haystack)
-        if match:
-            hits.append(match.group(0))
-    if hits:
-        joined = ", ".join(sorted(set(hits)))
-        return (
-            CLASSIFICATION_MANUAL,
-            f"Needs a human at run time ({joined}), so it cannot run unattended.",
-            [f"Step mentions {hit}" for hit in sorted(set(hits))],
-        )
-
-    steps = case.steps_structured or split_steps(case.steps_raw)
-    if not steps:
-        return (
-            CLASSIFICATION_UNDECIDED,
-            "No discrete steps to judge. Refine it first, then classify.",
-            [],
-        )
-
-    if (case.eligibility_verdict or "") == "needs_enhancement":
-        return (
-            CLASSIFICATION_UNDECIDED,
-            "Too thin to judge: "
-            + "; ".join(case.eligibility_reasons or ["the case is missing key content"]),
-            [],
-        )
-
+    report = classification.assess(case, context)
     return (
-        CLASSIFICATION_AUTOMATION,
-        f"{len(steps)} discrete step(s), an expected result, and nothing needing a human.",
-        [],
+        report["classification"],
+        report["reason"],
+        [finding["message"] for finding in report["blockers"]],
     )
 
 
@@ -123,23 +94,33 @@ def apply_classification(
     *,
     forced: Optional[str] = None,
     actor: Optional[str] = None,
+    context: Optional[classification.ClassificationContext] = None,
 ) -> AutomationTestCase:
     """Set a case's classification, either by rule or because a human said so.
 
     `classification_source` records which, so a later bulk re-classify can be
     made to leave human decisions alone rather than silently overwriting them.
+
+    A rule-based pass also stores the full report. The badge can only carry one
+    sentence, and the thing a reviewer actually needs -- which step, which
+    channel, which control the catalogue is missing -- is the rest of it. A
+    forced classification clears the report rather than keeping a stale one:
+    the findings described a verdict that no longer stands.
     """
     if forced:
         case.classification = forced
         case.classification_source = "user"
         case.classification_reason = f"Set to {forced} by {actor or 'a user'}."
         case.manual_only_reasons = []
+        case.classification_report = None
     else:
-        classification, reason, manual_reasons = classify_case(case)
-        case.classification = classification
+        report = classification.assess(case, context)
+        case.classification = report["classification"]
         case.classification_source = "policy"
-        case.classification_reason = reason
-        case.manual_only_reasons = manual_reasons
+        case.classification_reason = report["reason"]
+        case.manual_only_reasons = [f["message"] for f in report["blockers"]]
+        case.classification_report = report
+    case.classified_at = datetime.utcnow()
     return case
 
 
@@ -440,7 +421,7 @@ def can_approve(case: AutomationTestCase) -> tuple[bool, str]:
     first execution.
     """
     if case.classification == CLASSIFICATION_UNDECIDED:
-        return False, "Classify it as Automation or Manual first."
+        return False, "Classify it first — the rules could not judge it as it stands."
     if case.test_data_status == "pending":
         return False, (
             case.test_data_notes
@@ -467,6 +448,64 @@ def rescore(case: AutomationTestCase) -> AutomationTestCase:
     return case
 
 
+# --- Reading a source row whose column names are not ours ---------------------
+#
+# test_cases_details.test_case_details is whatever the browser spread into it:
+# `test_case_details: { ...row }` in TestCases.tsx copies the parsed generation
+# table verbatim, so its keys are the column headers the AI service happened to
+# emit. Those headers are not stable across deployments -- one environment
+# produced "Test Case ID" and "Test Case Description", another produced neither,
+# and because every read here named one exact spelling, the misses fell through
+# to origin_test_case_id and a whole workbench showed "REQ-...-TC-2" in both the
+# TC ID and the Title column.
+#
+# So keys are matched on shape rather than spelling: case, spaces, underscores
+# and punctuation are stripped before comparing, which makes "Test Case ID",
+# "test_case_id" and "TC_ID" the same key without listing each one.
+_DETAIL_ALIASES: dict[str, tuple[str, ...]] = {
+    # Deliberately NOT including a bare "id": local rows carry an `id` holding a
+    # row index, and using that as the visible identifier would be worse than
+    # the fallback it replaces.
+    "display_id": ("Test Case ID", "TC ID", "Test Case Id", "TestCaseID", "Case ID", "TC"),
+    "description": (
+        "Test Case Description", "Description", "Test Description", "Title",
+        "Test Case Title", "Scenario", "Test Scenario", "Summary", "Objective",
+        "Test Case Objective",
+    ),
+    "steps": ("Test Steps", "Steps", "Test Step", "Procedure", "Test Procedure", "Steps To Execute"),
+    "preconditions": ("Preconditions", "Precondition", "Pre-conditions", "Pre Requisites", "Prerequisites"),
+    "test_data": ("Test Data", "Data", "Test Data Required"),
+    "expected": ("Expected Result", "Expected Results", "Expected", "Expected Outcome"),
+    "category": ("Category", "Module", "Feature", "Functional Area"),
+    "priority": ("Priority", "Severity"),
+}
+
+
+def _normalise_key(name: Any) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(name).lower())
+
+
+def detail_value(details: dict[str, Any], field: str) -> str:
+    """The first non-empty value in `details` matching any alias for `field`.
+
+    Returns "" rather than None so every caller can treat the result the same
+    way; the callers that want a default apply `or <default>` as before.
+    """
+    if not isinstance(details, dict):
+        return ""
+    index = {}
+    for key, value in details.items():
+        index.setdefault(_normalise_key(key), value)
+    for alias in _DETAIL_ALIASES.get(field, ()):
+        value = index.get(_normalise_key(alias))
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return ""
+
+
 def sync_approved_test_cases(db: Session) -> int:
     """Mirrors approved test cases from test_cases_details into AutomationTestCase so they appear in Automation Studio Workbench."""
     sql = """
@@ -475,9 +514,20 @@ def sync_approved_test_cases(db: Session) -> int:
          WHERE d.status = 'APPROVED'
     """
     rows = db.execute(text(sql)).fetchall()
+
+    # Origins somebody deleted on purpose. Without this the mirror is not just
+    # self-healing but insistent: it re-creates every APPROVED row that has no
+    # case, and the Workbench listing runs it on every load, so a deleted case
+    # reappeared within the same request that deleted it.
+    deleted_origins = {
+        row[0] for row in db.query(AutomationDeletedOrigin.origin_test_case_id).all()
+    }
+
     synced = 0
     for row in rows:
         origin_id = str(row.test_case_id)
+        if origin_id in deleted_origins:
+            continue
         # Check if already mirrored by origin_test_case_id
         existing = db.query(AutomationTestCase).filter(
             (AutomationTestCase.origin_test_case_id == origin_id)
@@ -488,7 +538,7 @@ def sync_approved_test_cases(db: Session) -> int:
         except Exception:
             details = {}
 
-        raw_display = str(details.get("Test Case ID") or "").strip()
+        raw_display = detail_value(details, "display_id")
         if raw_display:
             collision = db.query(AutomationTestCase).filter(
                 AutomationTestCase.display_id == raw_display,
@@ -502,7 +552,7 @@ def sync_approved_test_cases(db: Session) -> int:
         else:
             display_id = origin_id
 
-        steps_raw = str(details.get("Test Steps") or "")
+        steps_raw = detail_value(details, "steps")
         split_s = split_steps(steps_raw)
         structured = [
             {
@@ -517,15 +567,34 @@ def sync_approved_test_cases(db: Session) -> int:
 
         # A URL written into the case wins; otherwise the registered
         # application's. This was a literal eand.ae URL, which stamped that
-        full_case_text = f"{details.get('Preconditions', '')} {steps_raw} {details.get('Test Case Description', '')} {details.get('Expected Result', '')} {details.get('Test Data', '')}"
+        full_case_text = " ".join((
+            detail_value(details, "preconditions"),
+            steps_raw,
+            detail_value(details, "description"),
+            detail_value(details, "expected"),
+            detail_value(details, "test_data"),
+        ))
         app_url_match = re.search(r"https?://[^\s'\"\)]+", full_case_text)
         if app_url_match:
             app_url = app_url_match.group(0).rstrip(".,)")
         else:
+            # identify_app_id, not resolve_app_id. Both resolve_app_id and
+            # load_app_profile end in a fallback that cannot answer "no
+            # application" -- one returns default_app_id(), the other
+            # profiles[0] -- so a case naming none was stamped with whichever
+            # profile the Knowledge Base directory listed first. A generic
+            # postpaid-plan case reached the Workbench pointing at an unrelated
+            # consumer portal, and it happened precisely BECAUSE nothing
+            # matched: a case the Knowledge Base does cover takes its URL from
+            # the matched flow on the line above.
+            #
+            # None is the honest answer. The case then carries no URL until
+            # someone supplies one, and compile_for refuses to build a script
+            # without it rather than driving a browser to a stranger's site.
             flow = kb.match_flow_blueprint(full_case_text)
-            matched_app = (flow.get("_app_id") if flow else None) or kb.resolve_app_id(full_case_text) or kb.default_app_id()
-            prof = kb.load_app_profile(matched_app) or {}
-            app_url = (prof.get("base_url") or kb.default_base_url() or "").strip() or None
+            matched_app = (flow.get("_app_id") if flow else None) or kb.identify_app_id(full_case_text)
+            prof = (kb.load_app_profile(matched_app) if matched_app else {}) or {}
+            app_url = (prof.get("base_url") or "").strip() or None
 
         created_at_dt = datetime.utcnow()
         if row.reviewed_datetime:
@@ -546,19 +615,35 @@ def sync_approved_test_cases(db: Session) -> int:
                 origin_test_case_id=origin_id,
                 origin_request_id=row.request_id,
                 display_id=display_id,
-                category=details.get("Category") or "General",
-                description=details.get("Test Case Description") or details.get("description") or display_id,
-                objective=details.get("Test Case Description") or details.get("objective"),
-                preconditions=details.get("Preconditions"),
+                category=detail_value(details, "category") or "General",
+                description=detail_value(details, "description") or display_id,
+                objective=detail_value(details, "description") or None,
+                preconditions=detail_value(details, "preconditions") or None,
                 steps_raw=steps_raw,
-                test_data=details.get("Test Data"),
-                expected_result=details.get("Expected Result"),
+                test_data=detail_value(details, "test_data") or None,
+                expected_result=detail_value(details, "expected") or None,
                 steps_structured=structured,
                 application_url=app_url,
-                priority=details.get("Priority") or "High",
+                priority=detail_value(details, "priority") or "High",
                 origin="imported",
-                classification="undecided",
-                approval_status="approved",
+                classification=CLASSIFICATION_UNDECIDED,
+                # Draft, not approved. Two different decisions share the word
+                # "approved" and this mirror used to collapse them: the source
+                # row is APPROVED because a manager accepted the test case in
+                # Review & Approval, which says nothing about whether it should
+                # be automated. Automation Studio's own approval is the second
+                # decision, it is what decide_cases() records with an
+                # approved_by and an approved_at, and it is gated by
+                # can_approve() -- which refuses an undecided case outright.
+                #
+                # Stamping "approved" here handed a case that gate's outcome
+                # without ever running it, so a freshly mirrored case arrived
+                # in Automation Studio pre-approved by nobody: approval_status
+                # said approved while approved_by and approved_at stayed NULL,
+                # and the only thing standing between it and Script Lab was its
+                # classification. Landing as draft makes the case travel the
+                # path everything else travels -- classify, then approve.
+                approval_status=APPROVAL_DRAFT,
                 created_by=row.reviewed_by or "manager",
                 created_at=created_at_dt,
             )
@@ -572,7 +657,37 @@ def sync_approved_test_cases(db: Session) -> int:
             if app_url and (not existing.application_url or "smb" in full_case_text.lower() and "smb" not in (existing.application_url or "")):
                 existing.application_url = app_url
 
-    if synced > 0:
-        db.commit()
+            # Repair a row that is still showing the fallback.
+            #
+            # This branch only ever topped up provenance, so a case mirrored
+            # while its column headers were unreadable kept "REQ-...-TC-2" in
+            # both the TC ID and the Title column for good: the mirror creates
+            # missing cases and never revisits the ones it already made. Making
+            # the reads tolerant therefore fixed nothing that already existed,
+            # which is most of what an affected deployment is looking at.
+            #
+            # The guard is the point. A repair happens only where the stored
+            # value IS the origin id -- the exact string the fallback produces
+            # and one nobody would type -- so a curated display_id or an edited
+            # description is never overwritten, and a row that has nothing
+            # better available is left exactly as it is.
+            # `display_id` above already applied the collision suffix, so the
+            # repair reuses it rather than the raw value: two cases sharing a
+            # "TC-001" would otherwise both repair to "TC-001" and the grid
+            # would key two rows on one identifier.
+            if existing.display_id == origin_id and display_id != origin_id:
+                existing.display_id = display_id
+
+            better_description = detail_value(details, "description")
+            if better_description:
+                if existing.description in (None, "", origin_id, existing.display_id):
+                    existing.description = better_description
+                if existing.objective in (None, "", origin_id, existing.display_id):
+                    existing.objective = better_description
+
+    # Commit unconditionally: the loop above also repairs existing rows, and
+    # gating on `synced` meant a pass that created nothing threw those repairs
+    # away when the session closed.
+    db.commit()
     return synced
 

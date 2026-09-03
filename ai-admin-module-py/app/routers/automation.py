@@ -55,6 +55,7 @@ from ..services.automation.refine import refine_case_content, refined_to_columns
 from ..services.automation import compiler, locator_agent
 from ..services.automation import discovery
 from ..services.automation import grounding
+from ..services.automation import classification
 from ..services.automation import extraction
 from ..services.automation import intake
 from ..services.automation import workbench as wb
@@ -1273,7 +1274,15 @@ class GenerateRequest(BaseModel):
 class ClassifyRequest(BaseModel):
     case_ids: list[int] = Field(min_length=1)
     # Omitted means "apply the rules"; supplied means a human decided.
-    classification: Optional[str] = Field(default=None, pattern="^(automation|manual|undecided)$")
+    classification: Optional[str] = Field(
+        default=None, pattern="^(automation|partial|manual|undecided)$"
+    )
+    # Which application's discovery catalogue the KB check judges against.
+    # Omitted resolves the way grounding does -- the single registered
+    # application, or each case's own -- and a deployment with no application
+    # at all classifies fine, reporting "nothing is known about this
+    # application" rather than refusing the whole batch.
+    application_id: Optional[int] = None
 
 
 class DecideRequest(BaseModel):
@@ -1367,6 +1376,12 @@ def _workbench_case(case: AutomationTestCase, source_missing: bool = False) -> d
             "classification_source": case.classification_source,
             "classification_reason": case.classification_reason,
             "manual_only_reasons": case.manual_only_reasons or [],
+            # The four checks behind the badge, each with its findings. Null
+            # until the case is classified by rule, and null again after a
+            # human overrides the verdict -- the findings described a decision
+            # that no longer stands.
+            "classification_report": case.classification_report,
+            "classified_at": case.classified_at.isoformat() if case.classified_at else None,
             "test_data_required": bool(case.test_data_required),
             "test_data_status": case.test_data_status,
             "test_data_notes": case.test_data_notes,
@@ -1610,7 +1625,9 @@ class RefineCasesInPlaceRequest(BaseModel):
 def list_workbench_cases(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission(PERM_VIEW)),
-    classification: str = Query(default="all", pattern="^(all|automation|manual|undecided)$"),
+    classification: str = Query(
+        default="all", pattern="^(all|automation|partial|manual|undecided)$"
+    ),
 ):
     """The refined grid, with the counts the stat tiles show."""
     from ..services.automation import workbench as wb
@@ -1644,6 +1661,7 @@ def list_workbench_cases(
     counts = {
         "total": len(rows),
         "automation": sum(1 for r in rows if r["classification"] == "automation"),
+        "partial": sum(1 for r in rows if r["classification"] == "partial"),
         "manual": sum(1 for r in rows if r["classification"] == "manual"),
         "undecided": sum(1 for r in rows if r["classification"] == "undecided"),
         "approved": sum(1 for r in rows if r["approval_status"] == "approved"),
@@ -1831,18 +1849,66 @@ def classify_cases(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission(PERM_EXECUTE)),
 ):
-    """Bulk classify -- by rule when no classification is supplied."""
+    """Bulk classify -- by rule when no classification is supplied.
+
+    The rules read every step, the channel the case runs on and the discovery
+    catalogue, so the catalogue is resolved once per application here rather
+    than once per case: a batch of thirty cases against one application is one
+    query, and a batch spanning two applications judges each against its own.
+
+    Resolving it is best-effort on purpose. A deployment with no registered
+    application, or one that has never been crawled, still gets a full
+    classification -- the Knowledge Base check reports what is missing and the
+    case lands in Partial. Raising the 409 that /workbench/ground raises would
+    make "we have not crawled yet" indistinguishable from "these cases cannot
+    be judged", which is the opposite of what this button is for.
+    """
     username = (current_user or {}).get("username")
     cases = (
         db.query(AutomationTestCase)
         .filter(AutomationTestCase.id.in_(body.case_ids))
         .all()
     )
+
+    contexts: dict[Optional[int], classification.ClassificationContext] = {}
+
+    def context_for(case: AutomationTestCase) -> classification.ClassificationContext:
+        app_id = body.application_id or case.application_id
+        if app_id not in contexts:
+            catalog: list[dict] = []
+            name = None
+            try:
+                application = _resolve_application(db, app_id)
+                name = application.name
+                catalog = _current_catalog(db, application.id)
+            except HTTPException:
+                # No application registered, or several with none named. The
+                # KB check says so in its own words; it is not this endpoint's
+                # place to refuse the batch over it.
+                pass
+            contexts[app_id] = classification.ClassificationContext(
+                catalog=catalog, application_name=name
+            )
+        return contexts[app_id]
+
     for case in cases:
-        wb.apply_classification(case, forced=body.classification, actor=username)
+        wb.apply_classification(
+            case,
+            forced=body.classification,
+            actor=username,
+            context=None if body.classification else context_for(case),
+        )
     db.commit()
+
+    counts: dict[str, int] = {}
+    for case in cases:
+        counts[case.classification] = counts.get(case.classification, 0) + 1
+
     return {
         "updated": len(cases),
+        # Named per outcome so the screen can say "18 Automation, 9 Partial,
+        # 3 Manual" instead of "30 classified", which told nobody anything.
+        "counts": counts,
         "test_cases": [_workbench_case(case) for case in cases],
     }
 
@@ -2047,7 +2113,7 @@ def delete_workbench_cases(
 def export_workbench_cases(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission(PERM_VIEW)),
-    classification: str = Query(default="all", pattern="^(all|automation|manual)$"),
+    classification: str = Query(default="all", pattern="^(all|automation|partial|manual)$"),
 ):
     """Download refined cases as CSV.
 
@@ -2208,13 +2274,15 @@ def list_approved_automation_cases(
     This asked for `classification != MANUAL`, which is not the same question:
     "undecided" is not "manual", so every freshly mirrored case appeared here
     the moment it was approved, before anyone had decided it should be
-    automated. Asking what the case IS admits only the one value that means it.
+    automated. Asking what the case IS admits only the values that mean it --
+    Automation, and Partial, whose findings are edits an author makes rather
+    than reasons the case cannot run.
     """
     cases = (
         db.query(AutomationTestCase)
         .filter(
             AutomationTestCase.approval_status == wb.APPROVAL_APPROVED,
-            AutomationTestCase.classification == wb.CLASSIFICATION_AUTOMATION,
+            AutomationTestCase.classification.in_(wb.CLASSIFICATIONS_AUTOMATABLE),
         )
         .order_by(AutomationTestCase.display_id)
         .all()
@@ -2290,7 +2358,7 @@ def generate_scripts(
         # case_ids from the caller, so a case the Lab would never show can still
         # be named here -- and until now only approval was checked, which let a
         # script be compiled for a case nobody had classified as automatable.
-        if case.classification != wb.CLASSIFICATION_AUTOMATION:
+        if case.classification not in wb.CLASSIFICATIONS_AUTOMATABLE:
             skipped.append({
                 "display_id": case.display_id,
                 "reason": (

@@ -34,6 +34,7 @@ import { useAutomationContext } from '../../components/automation/AutomationCont
 import SectionCard from '../../components/ui/SectionCard'
 import EmptyState from '../../components/ui/EmptyState'
 import LoadingSkeleton from '../../components/ui/LoadingSkeleton'
+import { useConfirm } from '../../components/ui/ConfirmDialog'
 import StatusBadge from '../../components/ui/StatusBadge'
 import { CodeViewer } from '../../components/automation/CodeViewer'
 import { StatTile } from '../../components/automation/workbenchPresentation'
@@ -68,7 +69,7 @@ function saveBlob(blob: Blob, filename: string) {
 /** The static gate's verdict, with its reasons — never a bare tick. */
 const GateBadge: React.FC<{ script: ScriptAsset }> = ({ script }) => {
   const gate = script.static_gate_result
-  if (!gate) return <span className="text-[11px] text-app-secondary">—</span>
+  if (!gate) return <span className="text-[12px] text-app-secondary">—</span>
   const errors = gate.errors ?? []
   const warnings = gate.warnings ?? []
   const title = [...errors, ...warnings].join(' · ')
@@ -94,8 +95,19 @@ const ModeBadge: React.FC<{ script: ScriptAsset }> = ({ script }) => (
   </StatusBadge>
 )
 
+
+/**
+ * Hidden for now, not deleted.
+ *
+ * The tiles still compute correctly and the data behind them is still fetched,
+ * so this is one line to put back when the row is wanted again -- which is why
+ * it is a flag rather than a commented-out block or a deletion.
+ */
+const SHOW_STAT_TILES = false
+
 const ScriptLab: React.FC = () => {
   const { canExecute, runtime } = useAutomationContext()
+  const confirm = useConfirm()
 
   const [cases, setCases] = useState<ScriptLabCase[]>([])
   const [counts, setCounts] = useState<{ approved_cases: number; by_framework: Record<string, number> }>({
@@ -221,6 +233,48 @@ const ScriptLab: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cases, selectedCases, framework])
 
+  /**
+   * Delete the selected test cases outright, scripts and all.
+   *
+   * Distinct from "Delete scripts", which only clears what was generated and
+   * leaves the case in the Lab to be generated again. This removes the entry,
+   * so it is the action for a case that should not be here at all -- and it is
+   * the one a case showing "Not generated" needs, since that case has no
+   * scripts for the other button to act on and leaves it disabled.
+   *
+   * Confirmed because the two buttons sit together and read alike, while only
+   * one of them is reversible by pressing Generate again.
+   */
+  const handleDeleteCases = async () => {
+    const chosen = cases.filter(c => selectedCases.has(c.id))
+    if (chosen.length === 0) return
+    const count = chosen.length
+    const ok = await confirm({
+      title: count === 1 ? `Delete ${chosen[0].tc_display_id}?` : `Delete ${count} test cases?`,
+      body:
+        count === 1
+          ? chosen[0].title
+          : `${count} selected test cases will be removed from the Script Lab.`,
+      consequences: [
+        `Every script generated from ${count === 1 ? 'it' : 'them'} is deleted too.`,
+        // The distinction the surrounding comment makes: the neighbouring
+        // button is the reversible one, and this is not it.
+        'Regenerating is not possible afterwards — the test case is gone, not just its scripts.',
+        'This cannot be undone.'
+      ],
+      confirmLabel: count === 1 ? 'Delete test case' : `Delete ${count} test cases`
+    })
+    if (!ok) return
+    void runAction('delete-cases', async () => {
+      const res = await automationService.deleteWorkbenchCases(Array.from(selectedCases))
+      setSelectedCases(new Set())
+      setNotice(
+        `${res.deleted} test case(s) deleted` +
+          (res.scripts_removed ? `, along with ${res.scripts_removed} script(s).` : '.')
+      )
+    })
+  }
+
   const runAction = async (label: string, fn: () => Promise<void>) => {
     setBusy(label)
     setError(null)
@@ -280,6 +334,7 @@ const ScriptLab: React.FC = () => {
 
   return (
     <div className="space-y-3">
+      {SHOW_STAT_TILES && (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile label="Approved automation TCs" value={loading ? '—' : counts.approved_cases} />
         {(frameworks.length ? frameworks : [{ name: 'playwright', label: 'Playwright', runnable: true }]).map(
@@ -292,6 +347,7 @@ const ScriptLab: React.FC = () => {
           )
         )}
       </div>
+      )}
 
       <SectionCard
         title="Approved automation test cases"
@@ -444,6 +500,18 @@ const ScriptLab: React.FC = () => {
 
               <button
                 type="button"
+                onClick={() => void handleDeleteCases()}
+                disabled={!anySelected || !canExecute || busy !== null}
+                title="Remove the selected test cases from Automation Studio entirely, including any scripts generated from them"
+                className="app-btn app-btn-secondary inline-flex items-center gap-1.5 text-app-danger disabled:opacity-50"
+              >
+                <HiOutlineTrash className="h-4 w-4" />
+                Delete test case
+                {selectedCases.size ? ` (${selectedCases.size})` : ''}
+              </button>
+
+              <button
+                type="button"
                 onClick={() => void load()}
                 className="app-btn app-btn-ghost inline-flex items-center gap-1.5"
                 title="Reload"
@@ -517,10 +585,10 @@ const ScriptLab: React.FC = () => {
                       aria-label="Select all test cases"
                     />
                   </th>
-                  <th className="text-left text-[11px]">TC ID</th>
-                  <th className="text-left text-[11px]">Title</th>
-                  <th className="text-left text-[11px]">Steps</th>
-                  <th className="text-left text-[11px]">Generated scripts</th>
+                  <th className="text-left">TC ID</th>
+                  <th className="text-left">Title</th>
+                  <th className="text-left">Steps</th>
+                  <th className="text-left">Generated scripts</th>
                 </tr>
               </thead>
               <tbody>
@@ -548,22 +616,22 @@ const ScriptLab: React.FC = () => {
                           aria-label={`Select ${testCase.tc_display_id}`}
                         />
                       </td>
-                      <td className="whitespace-nowrap font-mono text-[11px] text-app-primary">
+                      <td className="whitespace-nowrap font-mono text-app-primary">
                         {testCase.tc_display_id}
                       </td>
                       <td>
-                        <p className="max-w-sm truncate text-[12px] font-medium text-app-primary">
+                        <p className="max-w-sm truncate font-medium text-app-primary">
                           {testCase.title}
                         </p>
                       </td>
-                      <td className="text-[11px] text-app-secondary">{testCase.steps}</td>
+                      <td className="text-app-secondary">{testCase.steps}</td>
                       <td>
                         {scripts.length ? (
                           <div className="space-y-1">
                             {scripts.map(script => (
                               <div key={script.id} className="flex flex-wrap items-center gap-1.5">
                                 <span
-                                  className="inline-flex items-center gap-1 rounded-app border border-app px-1.5 py-0.5 text-[11px] text-app-primary"
+                                  className="inline-flex items-center gap-1 rounded-app border border-app px-1.5 py-0.5 text-[12px] text-app-primary"
                                   title={script.file_name}
                                 >
                                   <HiOutlineCode className="h-3 w-3 text-app-secondary" />
@@ -597,7 +665,7 @@ const ScriptLab: React.FC = () => {
                                 {script.dry_run_key ? (
                                   <Link
                                     to={`/automation/runs/${script.dry_run_key}`}
-                                    className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-app-brand-700 hover:underline"
+                                    className="inline-flex items-center gap-0.5 text-[12px] font-semibold text-app-brand-700 hover:underline"
                                     title="Open the run, with its screenshot, video, trace and log"
                                   >
                                     evidence
@@ -649,7 +717,7 @@ const ScriptLab: React.FC = () => {
                             ))}
                           </div>
                         ) : (
-                          <span className="text-[11px] text-app-secondary">Not generated</span>
+                          <span className="text-[12px] text-app-secondary">Not generated</span>
                         )}
                       </td>
                     </tr>

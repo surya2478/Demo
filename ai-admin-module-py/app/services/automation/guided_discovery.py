@@ -320,12 +320,14 @@ class GuidedDiscoveryManager:
             # The case's own URL, else the registered application's. Was a
             # literal eand.ae URL, which opened that site for a case belonging
             # to any other application.
-            url = (case.application_url or kb.default_base_url()).strip()
+            url = (case.application_url or "").strip()
             if not url:
                 raise ValueError(
-                    f"{case.display_id} has no application URL and no application is "
-                    f"registered, so there is nowhere to open a browser. Set the case's "
-                    f"application URL, or register an application on Application Discovery."
+                    f"{case.display_id} has no application URL, so there is nowhere to "
+                    f"open a browser. Set the case's application URL first. It is left "
+                    f"empty on purpose when the Knowledge Base does not cover the case: "
+                    f"the previous fallback opened whichever application the Knowledge "
+                    f"Base listed first."
                 )
             session = GuidedDiscoverySession(
                 test_case_id=case.id,

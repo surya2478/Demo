@@ -27,6 +27,8 @@ import MetricCard from '../../components/ui/MetricCard'
 import SectionCard from '../../components/ui/SectionCard'
 import EmptyState from '../../components/ui/EmptyState'
 import LoadingSkeleton from '../../components/ui/LoadingSkeleton'
+import StatusBadge from '../../components/ui/StatusBadge'
+import { useConfirm } from '../../components/ui/ConfirmDialog'
 import RunSpecModal from '../../components/automation/RunSpecModal'
 import {
   OutcomeBadge,
@@ -47,9 +49,20 @@ const EMPTY_SUMMARY: RunsSummary = {
   capacity: 0
 }
 
+
+/**
+ * Hidden for now, not deleted.
+ *
+ * The tiles still compute correctly and the data behind them is still fetched,
+ * so this is one line to put back when the row is wanted again -- which is why
+ * it is a flag rather than a commented-out block or a deletion.
+ */
+const SHOW_STAT_TILES = false
+
 const Runs: React.FC = () => {
   const navigate = useNavigate()
   const { runtime, canExecute } = useAutomationContext()
+  const confirm = useConfirm()
 
   const [runs, setRuns] = useState<RunSummary[]>([])
   const [summary, setSummary] = useState<RunsSummary>(EMPTY_SUMMARY)
@@ -144,15 +157,28 @@ const Runs: React.FC = () => {
     if (keysToDelete.length === 0) return
 
     const count = keysToDelete.length
-    if (
-      !window.confirm(
-        `Are you sure you want to delete ${
-          count === 1 ? `run "${keysToDelete[0]}"` : `${count} selected runs`
-        }?`
-      )
-    ) {
-      return
-    }
+    // A run still in flight is cancelled before it is removed -- worth saying,
+    // because cancelling is not what the button appears to offer.
+    const active = runs.filter(
+      run => keysToDelete.includes(run.run_key) && !isTerminal(run.status)
+    ).length
+    const ok = await confirm({
+      title: count === 1 ? 'Delete this run?' : `Delete ${count} runs?`,
+      body: count === 1 ? keysToDelete[0] : `${count} selected runs will be removed.`,
+      consequences: [
+        ...(active > 0
+          ? [
+              `${
+                active === 1 ? '1 of these is still running and is' : `${active} are still running and are`
+              } cancelled first.`
+            ]
+          : []),
+        'The run workspace is deleted from disk — traces, screenshots and every other artefact it captured.',
+        'This cannot be undone.'
+      ],
+      confirmLabel: count === 1 ? 'Delete run' : `Delete ${count} runs`
+    })
+    if (!ok) return
 
     setDeleting(true)
     setError(null)
@@ -228,6 +254,7 @@ const Runs: React.FC = () => {
 
   return (
     <div className="space-y-3">
+      {SHOW_STAT_TILES && (
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="Total runs"
@@ -256,6 +283,7 @@ const Runs: React.FC = () => {
           tooltip="Runs executing on this host right now, against the concurrency limit"
         />
       </div>
+      )}
 
       <SectionCard
         title="Run history"
@@ -409,13 +437,13 @@ const Runs: React.FC = () => {
                       <td>
                         <div className="min-w-0 max-w-[340px]">
                           <div
-                            className="truncate text-[13px] font-semibold text-app-primary"
+                            className="truncate font-semibold text-app-primary"
                             title={displayName}
                           >
                             {displayName}
                           </div>
                           <div
-                            className="truncate font-mono text-[11px] text-app-secondary"
+                            className="truncate font-mono text-[12px] text-app-secondary"
                             title={displaySubtitle}
                           >
                             {displaySubtitle}
@@ -429,16 +457,15 @@ const Runs: React.FC = () => {
                         <div className="flex items-center gap-1.5">
                           <OutcomeBadge outcome={run.outcome} status={run.status} />
                           {run.is_healed ? (
-                            <span
-                              className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 border border-emerald-200"
-                              title={run.healing_diagnosis || "Auto-repaired at runtime by Healer Agent"}
-                            >
-                              ✨ Healed
+                            <span title={run.healing_diagnosis || 'Auto-repaired at runtime by Healer Agent'}>
+                              <StatusBadge tone="success" size="sm">
+                                Healed
+                              </StatusBadge>
                             </span>
                           ) : null}
                         </div>
                       </td>
-                      <td className="text-[12px] text-app-secondary">
+                      <td className="text-app-secondary">
                         {run.total_tests > 0 ? (
                           <span>
                             <span className="font-semibold text-app-success">{run.passed}</span>
@@ -457,14 +484,14 @@ const Runs: React.FC = () => {
                           '—'
                         )}
                       </td>
-                      <td className="text-[13px] text-app-secondary">
+                      <td className="text-app-secondary">
                         {formatDuration(run.duration_seconds)}
                       </td>
-                      <td className="text-[13px] text-app-secondary">
+                      <td className="text-app-secondary">
                         {run.triggered_by ?? '—'}
                       </td>
                       <td
-                        className="whitespace-nowrap text-[13px] text-app-secondary"
+                        className="whitespace-nowrap text-app-secondary"
                         title={run.started_at ?? run.created_at ?? ''}
                       >
                         {formatAge(run.started_at ?? run.created_at)}
@@ -477,9 +504,9 @@ const Runs: React.FC = () => {
                               onClick={e => void handleHealClick(e, run.run_key)}
                               disabled={healLoadingKey === run.run_key}
                               title="Regenerate & Heal this failed spec with AI"
-                              className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition disabled:opacity-50"
+                              className="app-btn app-btn-secondary inline-flex items-center gap-1 px-2 py-1 text-[12px] font-medium"
                             >
-                              <HiOutlineSparkles className={`h-3.5 w-3.5 ${healLoadingKey === run.run_key ? 'animate-spin' : ''}`} />
+                              <HiOutlineSparkles className={`h-3.5 w-3.5 text-app-success ${healLoadingKey === run.run_key ? 'animate-spin' : ''}`} />
                               {healLoadingKey === run.run_key ? 'Healing…' : 'Heal'}
                             </button>
                           ) : null}

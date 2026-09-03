@@ -221,7 +221,88 @@ export interface StudioCase {
 
 // ── Automation TC Coverage Assessment ────────────────────────────────────────
 
-export type Classification = 'automation' | 'manual' | 'undecided'
+/**
+ * 'partial' is "automatable once these named edits are made" — a step with no
+ * verb, a control the catalogue does not have, a value nobody supplied. It
+ * exists because the two-way split forced those cases into one of two wrong
+ * answers: Automation, which compiles a script that fails on its first run, or
+ * Manual, which retires a case that only needed a sentence rewritten.
+ */
+export type Classification = 'automation' | 'partial' | 'manual' | 'undecided'
+
+/** How a single rule finding weighs on the verdict. */
+export type FindingSeverity = 'blocker' | 'fixable' | 'note'
+
+/** The state of one of the four checks behind the badge. */
+export type CheckStatus = 'pass' | 'attention' | 'blocked'
+
+/** One thing the rules noticed, and what to do about it. */
+export interface ClassificationFinding {
+  code: string
+  severity: FindingSeverity
+  scope: 'steps' | 'channel' | 'knowledge_base' | 'test_data'
+  message: string
+  step_number: number | null
+  /** Filled for fixables only — an instruction, not a description. */
+  remedy: string | null
+  evidence: string | null
+}
+
+interface ClassificationCheck {
+  status: CheckStatus
+  summary: string
+  findings: ClassificationFinding[]
+}
+
+export interface StepsCheck extends ClassificationCheck {
+  total: number
+  actionable: number
+}
+
+export interface ChannelCheck extends ClassificationCheck {
+  detected: string
+  label: string
+  support: 'supported' | 'needs_change' | 'unsupported'
+  evidence: string[]
+}
+
+export interface KnowledgeBaseCheck extends ClassificationCheck {
+  app_id: string | null
+  profile: boolean
+  application_name: string | null
+  catalog_size: number
+  matched: number
+  unresolved: { step_number: number; target: string | null; reason: string }[]
+  skipped: number
+  grounding_status: GroundingStatus
+}
+
+export interface TestDataCheck extends ClassificationCheck {
+  has_test_data: boolean
+  steps_needing_data: number[]
+}
+
+/**
+ * The whole rule report behind the badge. Null until the case is classified by
+ * rule, and null again after a human overrides the verdict — the findings
+ * described a decision that no longer stands.
+ */
+export interface ClassificationReport {
+  classification: Classification
+  reason: string
+  checks: {
+    steps: StepsCheck
+    channel: ChannelCheck
+    knowledge_base: KnowledgeBaseCheck
+    test_data: TestDataCheck
+  }
+  blockers: ClassificationFinding[]
+  fixables: ClassificationFinding[]
+  notes: ClassificationFinding[]
+  counts: { steps: number; blockers: number; fixables: number }
+  checked_at: string
+  engine: string
+}
 export type ApprovalStatus = 'draft' | 'approved' | 'rejected'
 /**
  * 'pending' is the only value that blocks approval.
@@ -267,6 +348,8 @@ export interface WorkbenchCase extends StudioCase {
   classification_source: string | null
   classification_reason: string | null
   manual_only_reasons: string[]
+  classification_report: ClassificationReport | null
+  classified_at: string | null
   test_data_required: boolean
   test_data_status: TestDataStatus
   test_data_notes: string | null
@@ -344,6 +427,8 @@ export interface RecordedFlowObject {
 export interface WorkbenchCounts {
   total: number
   automation: number
+  /** Automatable once the findings the rules named are addressed. */
+  partial: number
   manual: number
   undecided: number
   approved: number

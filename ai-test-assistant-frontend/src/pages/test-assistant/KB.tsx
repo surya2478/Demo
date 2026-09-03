@@ -9,7 +9,7 @@ import { formatToDubaiTime } from '../../utils/formatToDubaiTime'
 import ResetButton from '../../components/ResetButton' // new import
 import { logApiEvent } from '../../utils/auditApiHelper'
 import ChatWindow from '../../components/ChatWindow'
-import { trackedFetchWithTokens } from '../../utils/trackedFetchWithTokens'
+import { trackedFetchWithTokens, getAiAuthToken } from '../../utils/trackedFetchWithTokens'
 import userService from '../../services/userService'
 import RequestTrackerAPI from '../../utils/requestTrackerAPI'
 import { extractTokenCounts } from '../../utils/streamingFetchHelper'
@@ -191,7 +191,11 @@ const KB: React.FC = () => {
 
           const res = await fetch(`${cfg.BASE_URL}${cfg.ENDPOINTS.kbUploadZip}`, {
             method: 'POST',
-            body: formData
+            body: formData,
+            headers: (() => {
+              const token = getAiAuthToken()
+              return token ? { 'Authorization': `Bearer ${token}` } : undefined
+            })()
           })
 
           if (!res.ok) {
@@ -400,7 +404,7 @@ const KB: React.FC = () => {
         method: 'POST',
         body: form,
         // credentials: 'include',
-        headers: {accept: 'application/json'},
+        headers: {accept: 'application/json', ...(getAiAuthToken() ? { Authorization: `Bearer ${getAiAuthToken()}` } : {})},
       })
 
       if (!res.ok) {

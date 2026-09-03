@@ -113,13 +113,26 @@ class AutomationTestCase(Base):
     # derived   -- generated to fill a coverage gap, no prior case
     origin = Column(String(20), nullable=False, default="imported", index=True)
 
-    # automation | manual | undecided
+    # automation | partial | manual | undecided
+    #
+    # partial is "automatable once these named edits are made". It exists
+    # because the two-way split forced every case with a missing locator or an
+    # unwritten expected result into one of two wrong answers: Automation,
+    # which compiles a script that fails on its first run, or Manual, which
+    # retires a case that only needed a sentence rewritten.
     classification = Column(String(20), nullable=False, default="undecided", index=True)
     # policy | user | agent -- who decided, so a bulk re-run can leave a human
     # decision alone rather than silently overwriting it.
     classification_source = Column(String(30), nullable=True)
     classification_reason = Column(Text, nullable=True)
     manual_only_reasons = Column(JSON, nullable=True)
+    # The whole rule report behind the badge: every check (steps, channel,
+    # knowledge base, test data) with its findings, each naming its step and
+    # what to do about it. The badge carries one sentence; a reviewer approving
+    # thirty cases needs the rest, and recomputing it on read would make the
+    # grid disagree with the classification it is displaying.
+    classification_report = Column(JSON, nullable=True)
+    classified_at = Column(DateTime, nullable=True)
 
     test_data_required = Column(Boolean, nullable=False, default=False)
     # not_required | pending | ready -- pending blocks approval, which is the
@@ -643,3 +656,41 @@ class AutomationIntakeDocument(Base):
         ),
         Index("ix_intake_document_batch_role", "batch_id", "role"),
     )
+
+
+class AutomationDeletedOrigin(Base):
+    """A mirrored case someone deleted on purpose, so it is not mirrored again.
+
+    sync_approved_test_cases is self-healing by design: it re-reads every
+    APPROVED row in test_cases_details and re-creates any that has no case, so
+    an approval whose mirror failed is caught up on the next pass. The cost of
+    that design is that deleting a mirrored case could not stick -- the Workbench
+    listing runs the mirror on every load, so a case deleted at the top of the
+    request was back before the response was sent, and the UI truthfully
+    reported both "1 test case(s) deleted" and the row still sitting there.
+
+    A deletion is a decision, and this is where that decision is kept. The
+    mirror consults it and skips these origins, so self-healing still applies to
+    everything nobody has ruled on.
+
+    Keyed by value, not by foreign key, in line with rule 1 at the top of this
+    module: the review workflow's tables stay untouched and create_all() can add
+    this one on its own.
+
+    Re-approving the case in Review & Approval clears its row here, which is the
+    undo: the reviewer making that decision again is the one signal that
+    outranks the earlier delete.
+    """
+
+    __tablename__ = "automation_deleted_origins"
+
+    # test_cases_details.test_case_id, by value. Primary key because one origin
+    # can only be deleted once, and re-deleting must not error.
+    origin_test_case_id = Column(String(255), primary_key=True)
+
+    # Kept only so the audit trail and any support question can be read without
+    # joining back to a row that may itself be gone by then.
+    display_id = Column(String(255), nullable=True)
+
+    deleted_by = Column(String(255), nullable=True)
+    deleted_at = Column(DateTime, default=datetime.utcnow, index=True)

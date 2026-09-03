@@ -93,11 +93,17 @@ const ReviewAndApproval: React.FC = () => {
   const [selectedRequest, setSelectedRequest] = useState<ReviewRequestItem | null>(null)
   const [selectedTestCases, setSelectedTestCases] = useState<ReviewTestCaseItem[]>([])
   const [rowDecisions, setRowDecisions] = useState<Record<string, RowDecision>>({})
+  const [rejectReasons, setRejectReasons] = useState<Record<string, string>>({})
+  const [rejectReasonErrors, setRejectReasonErrors] = useState<Record<string, boolean>>({})
+  const [rejectionError, setRejectionError] = useState<string | null>(null)
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([])
   const [isSelectAllChecked, setIsSelectAllChecked] = useState(false)
   const [reviewNote, setReviewNote] = useState('')
   const [documentViewer, setDocumentViewer] = useState<{ name: string; content: string } | null>(null)
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false)
+  const [tableSearch, setTableSearch] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   const fetchRequests = async () => {
     setLoading(true)
@@ -123,6 +129,9 @@ const ReviewAndApproval: React.FC = () => {
       setSelectedRequest(detail)
       setSelectedTestCases(testCases)
       setReviewNote('')
+      setRejectReasons({})
+      setRejectReasonErrors({})
+      setRejectionError(null)
       setSelectedRowIds([])
       setIsSelectAllChecked(false)
 
@@ -165,11 +174,20 @@ const ReviewAndApproval: React.FC = () => {
     [selectedTestCases, rowDecisions]
   )
 
-  const handleRowDecision = async (decision: 'APPROVE' | 'REJECT', testCaseId: string) => {
+  const handleRowDecision = async (event: React.MouseEvent<HTMLButtonElement>, decision: 'APPROVE' | 'REJECT', testCaseId: string) => {
+    event.preventDefault()
+    event.stopPropagation()
     if (!selectedRequestId) return
 
     const row = selectedTestCases.find((item) => item.test_case_id === testCaseId)
     if (!row) return
+
+    const rejectReason = (rejectReasons[testCaseId] ?? '').trim()
+    if (decision === 'REJECT' && !rejectReason) {
+      setRejectReasonErrors((current) => ({ ...current, [testCaseId]: true }))
+      setRejectionError('Reject Reason is required before rejecting a test case.')
+      return
+    }
 
     try {
       await api.post(`/test-case-reviews/detail/${selectedRequestId}/decision`, {
@@ -177,9 +195,15 @@ const ReviewAndApproval: React.FC = () => {
         review_notes: reviewNote || undefined,
         rows: [{
           test_case_id: testCaseId,
-          rejection_reason: decision === 'REJECT' ? (reviewNote || 'Rejected by manager') : undefined
+          rejection_reason: decision === 'REJECT' ? rejectReason : undefined
         }]
       })
+
+      setRejectReasonErrors((current) => {
+        const { [testCaseId]: _removed, ...rest } = current
+        return rest
+      })
+      setRejectionError(null)
 
       const nextDecision: RowDecision = decision === 'APPROVE' ? 'approved' : 'rejected'
       const nextRowDecisions = {
@@ -194,7 +218,8 @@ const ReviewAndApproval: React.FC = () => {
         item.test_case_id === testCaseId
           ? {
               ...item,
-              status: nextDecision === 'approved' ? 'APPROVED' : 'REJECTED'
+              status: nextDecision === 'approved' ? 'APPROVED' : 'REJECTED',
+              rejection_reason: nextDecision === 'rejected' ? rejectReason : item.rejection_reason
             }
           : item
       )
@@ -222,8 +247,23 @@ const ReviewAndApproval: React.FC = () => {
     }
   }
 
-  const handleBulkDecision = async (decision: 'APPROVE' | 'REJECT') => {
+  const handleBulkDecision = async (event: React.MouseEvent<HTMLButtonElement>, decision: 'APPROVE' | 'REJECT') => {
+    event.preventDefault()
+    event.stopPropagation()
     if (!selectedRequestId || !isSelectAllChecked || selectedRowIds.length === 0) return
+
+    if (decision === 'REJECT') {
+      const missingReasonIds = selectedRowIds.filter((testCaseId) => !(rejectReasons[testCaseId] ?? '').trim())
+      if (missingReasonIds.length > 0) {
+        setRejectReasonErrors((current) => {
+          const next = { ...current }
+          missingReasonIds.forEach((testCaseId) => { next[testCaseId] = true })
+          return next
+        })
+        setRejectionError('Reject Reason is required for every selected test case before bulk rejection.')
+        return
+      }
+    }
 
     try {
       await api.post(`/test-case-reviews/detail/${selectedRequestId}/decision`, {
@@ -231,10 +271,11 @@ const ReviewAndApproval: React.FC = () => {
         review_notes: reviewNote || undefined,
         rows: selectedRowIds.map((testCaseId) => ({
           test_case_id: testCaseId,
-          rejection_reason: decision === 'REJECT' ? (reviewNote || 'Rejected by manager') : undefined
+          rejection_reason: decision === 'REJECT' ? rejectReasons[testCaseId].trim() : undefined
         }))
       })
 
+      setRejectionError(null)
       const nextMap: Record<string, RowDecision> = { ...rowDecisions }
       selectedRowIds.forEach((testCaseId) => {
         nextMap[testCaseId] = decision === 'APPROVE' ? 'approved' : 'rejected'
@@ -245,7 +286,8 @@ const ReviewAndApproval: React.FC = () => {
         selectedRowIds.includes(item.test_case_id)
           ? {
               ...item,
-              status: decision === 'APPROVE' ? 'APPROVED' : 'REJECTED'
+              status: decision === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+              rejection_reason: decision === 'REJECT' ? rejectReasons[item.test_case_id].trim() : item.rejection_reason
             }
           : item
       )
@@ -291,6 +333,17 @@ const ReviewAndApproval: React.FC = () => {
     )
   }
 
+  const handleRejectReasonChange = (testCaseId: string, value: string) => {
+    setRejectReasons((current) => ({ ...current, [testCaseId]: value }))
+    if (value.trim()) {
+      setRejectReasonErrors((current) => {
+        const { [testCaseId]: _removed, ...rest } = current
+        return rest
+      })
+      setRejectionError(null)
+    }
+  }
+
   const actionButtonClasses = 'rounded-[10px] border px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40'
   const canSubmitToKnowledgeBase =
     !!selectedRequest &&
@@ -298,6 +351,38 @@ const ReviewAndApproval: React.FC = () => {
     selectedRequest.approved_count === selectedTestCases.length &&
     String(selectedRequest.overall_status || '').toUpperCase() === 'APPROVED'
   const bulkActionsEnabled = isSelectAllChecked && pendingTestCaseIds.length > 0
+
+  const filteredRequests = useMemo(() => {
+    const term = tableSearch.trim().toLowerCase()
+    if (!term) return requests
+    return requests.filter((request) => {
+      const searchable = [
+        request.request_id,
+        request.request_by,
+        request.overall_status,
+        request.reviewed_by,
+        request.review_notes,
+        String(request.no_of_test_cases),
+        String(request.approved_count),
+        String(request.rejected_count),
+        request.request_date_time ? new Date(request.request_date_time).toLocaleString() : '',
+        buildDocumentText(request.brd_document)
+      ]
+      return searchable.some((value) => (value ?? '').toString().toLowerCase().includes(term))
+    })
+  }, [requests, tableSearch])
+
+  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize))
+  const safeCurrentPage = Math.min(currentPage, totalPages)
+  const paginatedRequests = useMemo(() => {
+    const start = (safeCurrentPage - 1) * pageSize
+    return filteredRequests.slice(start, start + pageSize)
+  }, [filteredRequests, safeCurrentPage, pageSize])
+
+  const handleTableSearchChange = (value: string) => {
+    setTableSearch(value)
+    setCurrentPage(1)
+  }
 
   return (
     <div className="space-y-6">
@@ -320,7 +405,19 @@ const ReviewAndApproval: React.FC = () => {
         ) : (
           <div className="space-y-6">
             <div className="overflow-hidden rounded-[14px] border border-slate-200">
-              <div className="max-h-[420px] overflow-auto">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+                  {filteredRequests.length} request{filteredRequests.length === 1 ? '' : 's'}
+                </div>
+                <input
+                  type="text"
+                  value={tableSearch}
+                  onChange={(event) => handleTableSearchChange(event.target.value)}
+                  placeholder="Search all fields..."
+                  className="w-64 rounded-[8px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 outline-none focus:border-slate-400"
+                />
+              </div>
+              <div className="max-h-[640px] overflow-auto">
                 <table className="min-w-full border-collapse text-left text-xs text-slate-700">
                   <thead className="sticky top-0 bg-slate-100">
                     <tr>
@@ -336,9 +433,9 @@ const ReviewAndApproval: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {requests.map((request, index) => (
+                    {paginatedRequests.map((request, index) => (
                       <tr key={request.request_id} className="odd:bg-white even:bg-slate-50">
-                        <td className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">{index + 1}</td>
+                        <td className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">{(safeCurrentPage - 1) * pageSize + index + 1}</td>
                         <td className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-800">{request.request_id}</td>
                         <td className="border-b border-slate-200 px-3 py-3">
                           {request.brd_document ? (
@@ -365,7 +462,7 @@ const ReviewAndApproval: React.FC = () => {
                             }}
                             className="font-semibold text-red-600 underline decoration-red-200 underline-offset-2 hover:text-red-700"
                           >
-                            Open Review
+                            Open Review ({request.no_of_test_cases})
                           </button>
                         </td>
                         <td className="border-b border-slate-200 px-3 py-3 text-slate-700">{request.approved_count}</td>
@@ -383,6 +480,39 @@ const ReviewAndApproval: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-3 py-2">
+                <div className="flex items-center gap-2 text-xs text-slate-600">
+                  <span>Rows per page:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(event) => { setPageSize(Number(event.target.value)); setCurrentPage(1) }}
+                    className="rounded-[6px] border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 outline-none focus:border-slate-400"
+                  >
+                    {[10, 25, 50, 100].map((size) => (
+                      <option key={size} value={size}>{size}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={safeCurrentPage <= 1}
+                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                    className="rounded-[6px] border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-xs text-slate-600">Page {safeCurrentPage} of {totalPages}</span>
+                  <button
+                    type="button"
+                    disabled={safeCurrentPage >= totalPages}
+                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                    className="rounded-[6px] border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -422,8 +552,8 @@ const ReviewAndApproval: React.FC = () => {
                           <table className="w-full table-fixed border-collapse text-left text-xs text-slate-700">
                             <thead className="sticky top-0 z-10 bg-slate-100">
                               <tr>
-                                <th className="w-[88px] min-w-[88px] border-b border-slate-200 px-2 py-2 font-semibold uppercase tracking-[0.12em] text-slate-700">
-                                  <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                                <th className="w-[56px] min-w-[56px] border-b border-slate-200 px-1 py-2 font-semibold uppercase tracking-[0.12em] text-slate-700">
+                                  <div className="flex items-center justify-center gap-0.5 whitespace-nowrap">
                                     <input
                                       type="checkbox"
                                       checked={isSelectAllChecked}
@@ -431,15 +561,16 @@ const ReviewAndApproval: React.FC = () => {
                                       disabled={pendingTestCaseIds.length === 0}
                                       className="h-4 w-4 shrink-0 rounded border-slate-300 text-red-600 focus:ring-red-500 disabled:cursor-not-allowed disabled:opacity-50"
                                     />
-                                    <span className="leading-none">Select #</span>
+                                    <span className="leading-none">Select</span>
                                   </div>
                                 </th>
-                                <th className="w-12 min-w-[48px] border-b border-slate-200 px-2 py-2 font-semibold uppercase tracking-[0.12em] text-slate-700">#</th>
+                                <th className="w-10 min-w-[40px] border-b border-slate-200 px-1 py-2 font-semibold uppercase tracking-[0.12em] text-slate-700">#</th>
                                 {requestColumns.map((column) => (
                                   <th key={column} className="border-b border-slate-200 px-3 py-2 font-semibold uppercase tracking-[0.12em] text-slate-700">
                                     {column}
                                   </th>
                                 ))}
+                                <th className="w-48 border-b border-slate-200 px-3 py-2 font-semibold uppercase tracking-[0.12em] text-slate-700">Reject Reason</th>
                                 <th className="w-32 border-b border-slate-200 px-3 py-2 font-semibold uppercase tracking-[0.12em] text-slate-700">Decision</th>
                               </tr>
                             </thead>
@@ -450,7 +581,7 @@ const ReviewAndApproval: React.FC = () => {
 
                                 return (
                                   <tr key={item.test_case_id} className="align-top odd:bg-white even:bg-slate-50">
-                                    <td className="w-[88px] min-w-[88px] border-b border-slate-200 px-2 py-2 align-middle">
+                                    <td className="w-[56px] min-w-[56px] border-b border-slate-200 px-1 py-2 align-middle">
                                       <div className="flex items-center justify-center">
                                         <input
                                           type="checkbox"
@@ -461,7 +592,7 @@ const ReviewAndApproval: React.FC = () => {
                                         />
                                       </div>
                                     </td>
-                                    <td className="border-b border-slate-200 px-3 py-2 font-semibold text-slate-600">{index + 1}</td>
+                                    <td className="w-10 min-w-[40px] border-b border-slate-200 px-1 py-2 font-semibold text-slate-600">{index + 1}</td>
                                     {requestColumns.map((column) => (
                                       <td key={`${item.test_case_id}-${column}`} className="border-b border-slate-200 px-3 py-2 align-top">
                                         <div className="whitespace-pre-wrap break-words leading-5 text-slate-700">
@@ -471,9 +602,27 @@ const ReviewAndApproval: React.FC = () => {
                                     ))}
                                     <td className="border-b border-slate-200 px-3 py-2 align-middle">
                                       {isPending ? (
+                                        <div>
+                                          <input
+                                            type="text"
+                                            value={rejectReasons[item.test_case_id] ?? ''}
+                                            onChange={(event) => handleRejectReasonChange(item.test_case_id, event.target.value)}
+                                            placeholder="Required to reject"
+                                            className={`w-full rounded-[8px] border px-2 py-1.5 text-[11px] text-slate-700 outline-none focus:border-slate-400 ${rejectReasonErrors[item.test_case_id] ? 'border-red-400 bg-red-50' : 'border-slate-200 bg-slate-50'}`}
+                                          />
+                                          {rejectReasonErrors[item.test_case_id] && (
+                                            <div className="mt-1 text-[10px] font-semibold text-red-600">Reject Reason is required.</div>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <span className="text-slate-500">{item.rejection_reason || '—'}</span>
+                                      )}
+                                    </td>
+                                    <td className="border-b border-slate-200 px-3 py-2 align-middle">
+                                      {isPending ? (
                                         <div className="flex flex-wrap gap-2">
-                                          <button type="button" onClick={() => handleRowDecision('REJECT', item.test_case_id)} className="rounded-[8px] border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-semibold text-red-700 hover:bg-red-100">Reject</button>
-                                          <button type="button" onClick={() => handleRowDecision('APPROVE', item.test_case_id)} className="rounded-[8px] bg-red-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-red-700">Approve</button>
+                                          <button type="button" onClick={(event) => handleRowDecision(event, 'REJECT', item.test_case_id)} className="rounded-[8px] border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-semibold text-red-700 hover:bg-red-100">Reject</button>
+                                          <button type="button" onClick={(event) => handleRowDecision(event, 'APPROVE', item.test_case_id)} className="rounded-[8px] bg-red-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-red-700">Approve</button>
                                         </div>
                                       ) : (
                                         <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${getStatusClasses(rowDecision === 'approved' ? 'Approved' : 'Rejected')}`}>
@@ -500,13 +649,16 @@ const ReviewAndApproval: React.FC = () => {
                           className="w-full resize-none rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none focus:border-slate-400"
                           placeholder="Add any approval or rejection notes..."
                         />
+                        {rejectionError && (
+                          <div className="mt-1 text-xs font-semibold text-red-600">{rejectionError}</div>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-3">
                         <button
                           type="button"
                           disabled={!bulkActionsEnabled}
-                          onClick={() => handleBulkDecision('REJECT')}
+                          onClick={(event) => handleBulkDecision(event, 'REJECT')}
                           className={`${actionButtonClasses} border-red-200 bg-red-50 text-red-700 hover:bg-red-100 disabled:hover:bg-red-50`}
                         >
                           Reject Selected
@@ -514,7 +666,7 @@ const ReviewAndApproval: React.FC = () => {
                         <button
                           type="button"
                           disabled={!bulkActionsEnabled}
-                          onClick={() => handleBulkDecision('APPROVE')}
+                          onClick={(event) => handleBulkDecision(event, 'APPROVE')}
                           className={`${actionButtonClasses} border-red-600 bg-red-600 text-white hover:bg-red-700 disabled:hover:bg-red-600`}
                         >
                           Approve Selected
@@ -522,10 +674,10 @@ const ReviewAndApproval: React.FC = () => {
                         <button
                           type="button"
                           disabled={!canSubmitToKnowledgeBase}
-                          onClick={() => console.log('[ReviewAndApproval] Submit to Knowledge Base:', selectedRequest.request_id)}
+                          onClick={() => console.log('[ReviewAndApproval] Transfer to KB:', selectedRequest.request_id)}
                           className={`rounded-[10px] px-4 py-2.5 text-sm font-semibold ${canSubmitToKnowledgeBase ? 'bg-red-600 text-white hover:bg-red-700' : 'cursor-not-allowed bg-slate-200 text-slate-500'}`}
                         >
-                          Submit to Knowledge Base
+                          Transfer to KB
                         </button>
                       </div>
                     </div>

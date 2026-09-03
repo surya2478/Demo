@@ -21,11 +21,13 @@ def main(case_id):
 
     # The case's own URL, else the registered application's -- never a literal
     # belonging to one particular customer.
-    url = (case.application_url or kb.default_base_url()).strip()
+    url = (case.application_url or "").strip()
     if not url:
         logger.error(
-            'Test case %s has no application URL and no application is registered; '
-            'there is nowhere to open a browser.', case.display_id
+            'Test case %s has no application URL; there is nowhere to open a browser. '
+            'Set one on the case -- it is left empty when the Knowledge Base does not '
+            'cover the case, rather than defaulting to the first registered application.',
+            case.display_id
         )
         db.close()
         return

@@ -52,5 +52,19 @@ def decode_token(token: str, verify_exp: bool = True, refresh: bool = False):
         return payload
     except jwt.ExpiredSignatureError:
         return None
-    except jwt.InvalidTokenError:
+    except jwt.JWTError:
+        # jose, not PyJWT. This module moved from `import jwt` to
+        # `from jose import jwt` (see the commented import above) without the
+        # exception names moving with it, and InvalidTokenError is PyJWT's --
+        # jose has no such attribute. Python evaluates an except clause's
+        # expression while it is handling the original error, so every
+        # malformed or wrongly-signed token raised AttributeError from inside
+        # this handler instead of returning None. The caller reported that
+        # AttributeError as the reason the token was rejected, which is how a
+        # bad token came back as "module 'jose.jwt' has no attribute
+        # 'InvalidTokenError'".
+        #
+        # JWTError is jose's base: JWTClaimsError and ExpiredSignatureError
+        # both derive from it, so this makes decode_token total -- a payload or
+        # None, never an exception.
         return None

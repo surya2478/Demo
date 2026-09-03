@@ -1,5 +1,7 @@
 from typing import Any, Dict, List, Optional
 from datetime import datetime
+from zoneinfo import ZoneInfo
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -8,7 +10,33 @@ from ..database.connection import get_db
 from ..models.database import TestCaseReview, TestCaseReviewDetail, TestCaseDetail
 from ..utils.security import get_current_user_strict
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
+
+DUBAI_TZ = ZoneInfo("Asia/Dubai")
+
+
+def _dubai_now() -> datetime:
+    """Current Dubai time as a naive datetime (matches naive DB columns)."""
+    return datetime.now(DUBAI_TZ).replace(tzinfo=None)
+
+
+def _to_dubai(value: Any) -> Optional[datetime]:
+    """Parse an ISO timestamp (UTC or naive) and convert to naive Dubai time."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        parsed = value
+    else:
+        try:
+            parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+        except ValueError:
+            return None
+    if parsed.tzinfo is not None:
+        return parsed.astimezone(DUBAI_TZ).replace(tzinfo=None)
+    # Naive input is assumed to already be Dubai-local
+    return parsed
 
 
 def _serialize_review(review: TestCaseReview) -> Dict[str, Any]:
@@ -46,6 +74,7 @@ def _serialize_test_case_detail(test_case_detail: TestCaseDetail) -> Dict[str, A
     return {
         'test_case_id': test_case_detail.test_case_id,
         'request_id': test_case_detail.request_id,
+        'document_id': test_case_detail.document_id,
         'test_case_details': test_case_detail.test_case_details,
         'status': test_case_detail.status,
         'rejection_reason': test_case_detail.rejection_reason,
@@ -53,6 +82,65 @@ def _serialize_test_case_detail(test_case_detail: TestCaseDetail) -> Dict[str, A
         'reviewed_datetime': test_case_detail.reviewed_datetime.isoformat() if test_case_detail.reviewed_datetime else None,
         'generated_by': test_case_detail.generated_by,
     }
+
+
+@router.get("/approved/documents")
+async def list_approved_document_ids(
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    """List distinct document IDs belonging to fully approved review requests."""
+    approved_request_ids = (
+        db.query(TestCaseReviewDetail.request_id)
+        .filter(TestCaseReviewDetail.overall_status == 'APPROVED')
+        .subquery()
+    )
+    rows = (
+        db.query(TestCaseDetail.document_id)
+        .filter(TestCaseDetail.request_id.in_(approved_request_ids), TestCaseDetail.document_id.isnot(None), TestCaseDetail.document_id != '')
+        .distinct()
+        .all()
+    )
+    return {'items': sorted([row[0] for row in rows if row[0]])}
+
+
+@router.get("/approved/request/{request_id}")
+async def get_approved_test_cases_by_request(
+    request_id: str,
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    """Retrieve test cases for a fully approved review request."""
+    if not request_id or not request_id.strip():
+        raise HTTPException(status_code=422, detail='request_id is required')
+
+    detail = db.query(TestCaseReviewDetail).filter(TestCaseReviewDetail.request_id == request_id).first()
+    if not detail:
+        raise HTTPException(status_code=404, detail='Review request not found')
+    if detail.overall_status != 'APPROVED':
+        raise HTTPException(status_code=409, detail='Review request is not fully approved')
+
+    test_cases = db.query(TestCaseDetail).filter(TestCaseDetail.request_id == request_id).all()
+    return {'items': [_serialize_test_case_detail(item) for item in test_cases]}
+
+
+@router.get("/approved/{document_id}")
+async def get_approved_test_cases_by_document(
+    document_id: str,
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    """Retrieve test cases for a document from fully approved review requests. document_id is mandatory."""
+    if not document_id or not document_id.strip():
+        raise HTTPException(status_code=422, detail='document_id is required')
+
+    test_cases = (
+        db.query(TestCaseDetail)
+        .join(TestCaseReviewDetail, TestCaseDetail.request_id == TestCaseReviewDetail.request_id)
+        .filter(TestCaseReviewDetail.overall_status == 'APPROVED', TestCaseDetail.document_id == document_id)
+        .all()
+    )
+    return {'items': [_serialize_test_case_detail(item) for item in test_cases]}
 
 
 @router.post("/submit")
@@ -63,17 +151,15 @@ async def submit_for_approval(
 ):
     username = (current_user or {}).get('username') or (current_user or {}).get('sub') or 'system'
 
-    request_id = str(payload.get('request_id') or payload.get('id') or f"REQ-{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}")
+    request_id = str(payload.get('request_id') or payload.get('id') or f"REQ-{_dubai_now().strftime('%Y%m%d%H%M%S%f')}")
     request_by = str(payload.get('request_by') or username)
-    request_date_time = payload.get('request_date_time') or datetime.utcnow()
-    if isinstance(request_date_time, str):
-        try:
-            request_date_time = datetime.fromisoformat(request_date_time)
-        except ValueError:
-            request_date_time = datetime.utcnow()
+    request_date_time = _to_dubai(payload.get('request_date_time')) or _dubai_now()
 
     rows_payload = payload.get('rows') or (payload.get('payload') or {}).get('rows') or []
     documents_payload = payload.get('brd_document') or payload.get('documents') or []
+
+    # One document_id shared by every test case in this request
+    document_id = str(payload.get('document_id') or f'DOC-{request_id}')
 
     detail = TestCaseReviewDetail(
         request_id=request_id,
@@ -102,6 +188,7 @@ async def submit_for_approval(
         test_case = TestCaseDetail(
             test_case_id=test_case_id,
             request_id=request_id,
+            document_id=document_id,
             test_case_details=test_case_payload,
             status='PENDING',
             rejection_reason=None,
@@ -129,7 +216,7 @@ async def create_review_detail(
     detail = TestCaseReviewDetail(
         request_id=request_id,
         request_by=str(payload.get('request_by') or (current_user or {}).get('username') or 'system'),
-        request_date_time=payload.get('request_date_time') or datetime.utcnow(),
+        request_date_time=_to_dubai(payload.get('request_date_time')) or _dubai_now(),
         brd_document=payload.get('brd_document'),
         no_of_test_cases=int(payload.get('no_of_test_cases') or 0),
         approved_count=int(payload.get('approved_count') or 0),
@@ -191,6 +278,7 @@ async def create_test_case_detail(
     item = TestCaseDetail(
         test_case_id=str(test_case_id),
         request_id=str(request_id),
+        document_id=str(payload.get('document_id') or f'DOC-{request_id}'),
         test_case_details=payload.get('test_case_details') or {},
         status=str(payload.get('status') or 'PENDING').upper(),
         rejection_reason=payload.get('rejection_reason'),
@@ -234,7 +322,7 @@ async def update_review_detail_decision(
                 continue
             item.status = 'APPROVED' if decision == 'APPROVE' else 'REJECTED'
             item.reviewed_by = (current_user or {}).get('username') or (current_user or {}).get('sub') or 'manager'
-            item.reviewed_datetime = datetime.utcnow()
+            item.reviewed_datetime = _dubai_now()
             if decision == 'REJECT':
                 item.rejection_reason = row.get('rejection_reason') or payload.get('review_notes') or 'Rejected by manager'
     else:
@@ -242,7 +330,7 @@ async def update_review_detail_decision(
         for item in test_cases:
             item.status = 'APPROVED' if decision == 'APPROVE' else 'REJECTED'
             item.reviewed_by = (current_user or {}).get('username') or (current_user or {}).get('sub') or 'manager'
-            item.reviewed_datetime = datetime.utcnow()
+            item.reviewed_datetime = _dubai_now()
             if decision == 'REJECT':
                 item.rejection_reason = payload.get('review_notes') or 'Rejected by manager'
 
@@ -252,21 +340,19 @@ async def update_review_detail_decision(
     pending_count = sum(1 for row in all_case_rows if str(row.status).upper() == 'PENDING')
 
     if pending_count > 0:
-        detail.overall_status = 'PARTIALLY_APPROVED' if approved_count or rejected_count else 'PENDING_REVIEW'
-    elif approved_count and rejected_count:
+        # Any pending test case keeps the request partially approved
         detail.overall_status = 'PARTIALLY_APPROVED'
-    elif approved_count and not rejected_count:
+    elif approved_count >= rejected_count:
+        # Fully decided: majority wins, ties default to APPROVED
         detail.overall_status = 'APPROVED'
-    elif rejected_count and not approved_count:
-        detail.overall_status = 'REJECTED'
     else:
-        detail.overall_status = 'PENDING_REVIEW'
+        detail.overall_status = 'REJECTED'
 
     detail.approved_count = approved_count
     detail.rejected_count = rejected_count
     detail.review_notes = payload.get('review_notes') or detail.review_notes
     detail.reviewed_by = (current_user or {}).get('username') or (current_user or {}).get('sub') or 'manager'
-    detail.reviewed_date_time = datetime.utcnow()
+    detail.reviewed_date_time = _dubai_now()
 
     db.commit()
     db.refresh(detail)
@@ -274,9 +360,41 @@ async def update_review_detail_decision(
     if decision == 'APPROVE':
         try:
             from ..services.automation import workbench as wb
+            from ..models.automation import AutomationDeletedOrigin
+
+            # Approving again outranks an earlier delete, and is the undo for
+            # it. A case removed from Automation Studio leaves a tombstone so
+            # the mirror stops re-creating it; a reviewer deciding APPROVE on
+            # that same case is saying it belongs there after all, so the
+            # tombstone goes and the mirror below picks it up on this pass.
+            decided_ids = [
+                str(r.test_case_id)
+                for r in all_case_rows
+                if str(r.status).upper() == 'APPROVED'
+            ]
+            if decided_ids:
+                (
+                    db.query(AutomationDeletedOrigin)
+                    .filter(AutomationDeletedOrigin.origin_test_case_id.in_(decided_ids))
+                    .delete(synchronize_session=False)
+                )
+                db.commit()
+
             wb.sync_approved_test_cases(db)
         except Exception:
-            pass
+            # The approval above is committed and stands on its own; mirroring
+            # into Automation Studio is best-effort, so it must not fail the
+            # request. Swallowing it in silence was the problem: a failed mirror
+            # was indistinguishable from a successful one to both the API (which
+            # still answers success) and the reviewer, and an ENAMETOOLONG out
+            # of the Knowledge Base lookup went unseen for as long as it did
+            # precisely because nothing recorded it. sync_approved_test_cases
+            # re-reads every APPROVED row, so a later approval -- or the call
+            # run by hand -- mirrors whatever this one missed.
+            logger.exception(
+                "Failed to mirror approved test cases into the Workbench "
+                "for review request %s", request_id
+            )
 
     return {'success': True, 'data': _serialize_review_detail(detail)}
 
@@ -324,7 +442,7 @@ async def review_decision(
     review.status = decision
     review.review_notes = payload.get('review_notes') or review.review_notes
     review.reviewed_by = (current_user or {}).get('username') or (current_user or {}).get('sub') or 'manager'
-    review.reviewed_at = datetime.utcnow()
+    review.reviewed_at = _dubai_now()
     db.commit()
     db.refresh(review)
     return {'success': True, 'data': _serialize_review(review)}

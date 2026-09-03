@@ -25,6 +25,22 @@ interface TrackedFetchOptions {
   externalStream?: boolean;
 }
 
+// Resolve the auth token: runtime session token first, then the .env-configured key
+export function getAiAuthToken(): string {
+  // try {
+  //   const runtimeToken =
+  //     localStorage.getItem('api_token') ||
+  //     localStorage.getItem('authToken') ||
+  //     localStorage.getItem('auth_token') ||
+  //     sessionStorage.getItem('authToken') ||
+  //     '';
+  //   if (runtimeToken) return runtimeToken;
+  // } catch {
+  //   // storage unavailable — fall through to env token
+  // }
+  return (import.meta as any).env?.VITE_AI_API_TOKEN || '';
+}
+
 // Capture the native fetch before any interceptor modifies it
 const nativeFetch = (() => {
   if (typeof window !== 'undefined' && (window as any).fetch) {
@@ -62,19 +78,20 @@ function ownBackendPrefix(): string | null {
  * checked so that a backend at "/admin" does not match a path like
  * "/administration".
  */
-export function authHeaderForOwnBackend(targetUrl: string): Record<string, string> {
+function isOwnBackend(targetUrl: string): boolean {
   const base = ownBackendPrefix();
-  if (!base) return {};
-
-  let target: string;
+  if (!base) return false;
   try {
     const url = new URL(targetUrl, window.location.href);
-    target = url.origin + url.pathname;
+    const target = url.origin + url.pathname;
+    return target === base || target.startsWith(base + '/');
   } catch {
-    return {};
+    return false;
   }
+}
 
-  if (target !== base && !target.startsWith(base + '/')) return {};
+export function authHeaderForOwnBackend(targetUrl: string): Record<string, string> {
+  if (!isOwnBackend(targetUrl)) return {};
 
   // AuthContext writes 'authToken'; authService writes 'api_token'. Both are
   // the same access token, and which one is present depends on the login path
@@ -86,6 +103,31 @@ export function authHeaderForOwnBackend(targetUrl: string): Record<string, strin
     '';
 
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/**
+ * The Authorization header a destination is allowed to see, and no other.
+ *
+ * Two credentials exist and they are not interchangeable. The session JWT
+ * belongs to our own admin backend; the AI API key belongs to the external AI
+ * service. Sending either to the other's host is the leak this function exists
+ * to prevent, which is why the choice is made here once rather than at each
+ * call site.
+ *
+ * The DESTINATION decides, never which credential happens to be available.
+ * This first branched on whether authHeaderForOwnBackend returned anything,
+ * which conflated its two empty results: "not our backend" and "our backend
+ * but nobody is signed in". The second case then fell through and sent the AI
+ * service's API key to our own backend, which is not a JWT -- so the backend
+ * rejected it as "Invalid or expired token", and the key was handed to a host
+ * with no business seeing it. Asking isOwnBackend() separates the two, and an
+ * unauthenticated call to our own backend now correctly sends no header at all
+ * and gets an honest 401.
+ */
+export function authHeaderFor(targetUrl: string): Record<string, string> {
+  if (isOwnBackend(targetUrl)) return authHeaderForOwnBackend(targetUrl);
+  const aiToken = getAiAuthToken();
+  return aiToken ? { Authorization: `Bearer ${aiToken}` } : {};
 }
 
 /**
@@ -216,7 +258,7 @@ export async function trackedFetchWithTokens(
       fetchOptions = {
         method: options.method || 'POST',
         body: options.body,
-        headers: authHeaderForOwnBackend(fullUrl)
+        headers: authHeaderFor(fullUrl)
       };
       console.log("[TrackedFetch] FormData detected - no Content-Type set (browser supplies the boundary)");
     } else {
@@ -224,7 +266,7 @@ export async function trackedFetchWithTokens(
       fetchOptions = {
         method: options.method || 'POST',
         body: options.body,
-        headers: { 'Accept': 'application/json' }
+        headers: { 'Accept': 'application/json', ...authHeaderFor(fullUrl) }
       };
       // Merge custom headers for non-FormData
       if (options.headers) {

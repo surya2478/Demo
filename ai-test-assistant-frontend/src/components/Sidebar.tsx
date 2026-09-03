@@ -21,7 +21,6 @@ const menuGroups: MenuGroup[] = [
     heading: 'Main Workspace',
     items: [
       { path: '/dashboard', label: 'Dashboard', permission: 'dashboard.view' },
-      { path: '/manager-review', label: 'Review & Approve', permission: 'dashboard.view' },
       { path: '/users', label: 'Users', permission: 'user.manage' },
       { path: '/user-time-slots', label: 'User Time Slots', permission: 'user.manage' }
     ]
@@ -35,10 +34,12 @@ const menuGroups: MenuGroup[] = [
     ]
   },
   {
-    heading: 'AI Test Genaration',
+    heading: 'AI Test Generation',
     items: [
       //{ path: '/settings', label: 'Settings', permission: 'settings.manage' },
-      { path: '/test-assistant', label: 'Test Assistant', permission: 'testassistant.view' }
+      { path: '/test-assistant', label: 'Test Assistant', permission: 'testassistant.view' },
+      { path: '/manager-review', label: 'Review & Approve', permission: 'dashboard.view' },
+      { path: '/approved-test-cases', label: 'Approved Test Cases', permission: 'testassistant.view' }
     ]
   },
   {
@@ -115,7 +116,7 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileClose }) 
       {/* Logo header */}
       <div className="flex items-center gap-3 px-5 pt-5 pb-4">
         <div className="flex h-11 w-11 items-center justify-center rounded-app bg-white/10 backdrop-blur">
-          <img src="/app-logo.svg" alt="Logo" className="h-7 w-7 object-contain" />
+          <img src="/etisalat-logo.svg" alt="Logo" className="h-7 w-7 object-contain" />
         </div>
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold leading-tight text-white">

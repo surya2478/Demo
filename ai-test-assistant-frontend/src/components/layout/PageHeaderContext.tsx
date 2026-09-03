@@ -20,7 +20,15 @@ export interface PageMeta {
   notificationCount?: number
   showDateRange?: boolean
   dateRangeLabel?: string
+  /*
+   * The three header controls each need a handler to appear at all -- see the
+   * note in TopHeader. Pass stable references (useCallback): meta republishes
+   * only when a primitive field changes, so a handler that closes over
+   * changing state will otherwise go stale.
+   */
   onDateRangeClick?: () => void
+  onNotificationsClick?: () => void
+  onAssistantClick?: () => void
 }
 
 // Two separate contexts: a value context (changes when meta changes) and

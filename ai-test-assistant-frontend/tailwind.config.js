@@ -39,14 +39,21 @@ export default {
           primary: '#1F2937',
           secondary: '#6B7280',
           muted: '#9CA3AF',
-          success: '#15803D',
+          // Status foregrounds are darkened to clear WCAG AA (4.5:1) against
+          // their own tinted background at badge size. The previous warning
+          // pair measured 2.93:1 -- on the one badge that blocks approval.
+          success: '#136B34',
           'success-bg': '#EAF7EF',
-          warning: '#D97706',
+          'success-border': '#BBDFC8',
+          warning: '#8A5000',
           'warning-bg': '#FFF4E5',
-          danger: '#DC2626',
+          'warning-border': '#EBCFA4',
+          danger: '#A3231C',
           'danger-bg': '#FEEBEC',
-          info: '#2563EB',
-          'info-bg': '#EFF6FF'
+          'danger-border': '#F0C2C0',
+          info: '#1D4ED8',
+          'info-bg': '#EFF6FF',
+          'info-border': '#C2D5F5'
         }
       },
       boxShadow: {

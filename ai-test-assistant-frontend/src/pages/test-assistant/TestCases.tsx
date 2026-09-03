@@ -21,8 +21,9 @@ import userService from '../../services/userService'
 import RequestTrackerAPI from '../../utils/requestTrackerAPI'
 import { theme } from '../../styles/theme'
 import { useAIAction } from '../../hooks/useAIAction'
-import ReviewApproveModal, { type ReviewDocumentItem } from '../../components/ReviewApproveModal'
+import ReviewAndSendModal, { type ReviewDocumentItem } from '../../components/ReviewAndSendModal'
 import Notification from '../../components/Notification'
+import { authHeaderFor, getAiAuthToken } from '../../utils/trackedFetchWithTokens'
 
 
 
@@ -492,7 +493,7 @@ const TestCases: React.FC = () => {
       }
 
       console.log('[TestCases] Send for approval payload:', payload)
-      const responseData = await fetch(`${(import.meta as any).env?.VITE_API_URL || 'http://localhost:8002'}/test-case-reviews/submit`, {
+      const responseData = await fetch(`${(import.meta as any).env?.VITE_API_URL || (import.meta as any).env?.VITE_API_LOCAL_URL}/test-case-reviews/submit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -807,6 +808,7 @@ const TestCases: React.FC = () => {
 
       setLoading(true)
       const config = getConfig()
+      // console.log('================= config :', config)
       const formData = new FormData()
 
       let combinedFilesText = ''
@@ -827,14 +829,28 @@ const TestCases: React.FC = () => {
 
       // const contents = await docxFilesToPlainText(Array.from(fileInputs));
       // setTexts(contents);
+      const token1 = getAiAuthToken()
+      console.log('==================== auth api key token ',token1)
 
-
-      const res = await fetch(`${config.BASE_URL}${config.ENDPOINTS.generateTestCases}`, {
+      // Whose credential this endpoint gets depends on who serves it, which is
+      // a per-environment fact: BASE_URL points at the external AI service in
+      // one deployment and at our own backend in another. Hardcoding the AI key
+      // here sent it to whichever host BASE_URL named -- and when that is our
+      // own backend, the key is not a JWT, so the request came back 401
+      // "Invalid or expired token" while the AI key leaked to a host with no
+      // business seeing it. authHeaderFor answers the same question every other
+      // call asks: our backend gets the session JWT, anything else gets the key.
+      const generateUrlPd = `${config.BASE_URL}${config.ENDPOINTS.generateTestCases}`
+      const res = await fetch(generateUrlPd, {
             method: 'POST',
-            body: formData
+            body: formData,
+            headers: authHeaderFor(generateUrlPd)
           })
           reader = (res.body as ReadableStream<Uint8Array>).getReader()
-          // console.log('Processing documents response reader:', reader)
+          // console.log('BASE URL :', `${config.BASE_URL}`)
+          //  console.log('ENDPOINTS URL :', `${config.ENDPOINTS.generateTestCases}`)
+          
+          console.log('Complete URL and api key :', `${config.BASE_URL}${config.ENDPOINTS.generateTestCases}` + token1)
           const decoder = new TextDecoder()
       while (true) {
           const { done, value } = await reader.read()
@@ -1022,6 +1038,7 @@ const TestCases: React.FC = () => {
 
         try {
           const config = getConfig();
+          console.log('================ config ',config);
           const formData = new FormData();
           formData.append('provider', config.PARAMETERS.provider);
           formData.append('model_name', String(config.PARAMETERS.model));
@@ -1071,6 +1088,7 @@ const TestCases: React.FC = () => {
 
       // Start timer for duration calculation
       const startedAt = Date.now();
+      console.log("================ inside test case config BASE and ENDPOINTs ",config.BASE_URL +" and "+config.ENDPOINTS.generateTestCases)
 
       // Generation is the one capability served by our own backend, so it may
       // carry an absolute override. Everything else on this page -- Process
@@ -1090,6 +1108,7 @@ const TestCases: React.FC = () => {
           externalStream: true
         }
       );
+       console.log("Full URL : ", generateUrl);
       console.log("res === : ",res);
       // Stream and accumulate response here
       if (!res.body) {
@@ -1195,10 +1214,11 @@ const TestCases: React.FC = () => {
     let auditStatus: 'success' | 'failure' = 'success'
 
     try {
-      const res = await fetch(`${config.BASE_URL}${config.ENDPOINTS.exportExcel}`, {
+      const exportUrl = `${config.BASE_URL}${config.ENDPOINTS.exportExcel}`
+      const res = await fetch(exportUrl, {
         method: 'POST',
         body: formData,
-        headers: { accept: 'application/json' }
+        headers: { accept: 'application/json', ...authHeaderFor(exportUrl) }
       })
       const data = await res.blob()
       if (data.size === 0) return
@@ -1295,106 +1315,53 @@ const TestCases: React.FC = () => {
     { value: 'e2e-spark', label: 'From e2e Spark', description: 'Import SSD content using a PPM identifier.' }
   ]
 
-  const assistantTips = [
-    {
-      title: 'Be specific with requirements',
-      description: 'More context produces better coverage and stronger test cases.'
-    },
-    {
-      title: 'Upload supporting documents',
-      description: 'BRD, SRS, and reference files help the generator stay aligned.'
-    },
-    {
-      title: 'Review and refine output',
-      description: 'Iterate safely without changing the underlying workflow or APIs.'
-    }
-  ]
 
 
-
-  const assistantTipsPanel = (
-    <aside className="flex flex-col gap-4">
-      {/* Token Usage */}
-      <section className="relative overflow-hidden rounded-[22px] border border-app bg-app-surface p-4 shadow-app-card">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-app-secondary">Token Usage</div>
-        {!tokenCheckLoading ? (
-          <>
-            {isAdminUser ? (
-              <>
-                <div className="mt-2 text-[26px] font-bold tracking-[-0.03em] text-app-primary leading-tight">
-                  <span className="text-app-primary">
-                    {userTokensUsed.toLocaleString()}
-                  </span>
-                </div>
-                <div className="mt-2 text-sm text-app-secondary">
-                  Total tokens used
-                </div>
-              </>
-            ) : userTokenAllocation > 0 ? (
-              <>
-                <div className="mt-2 text-[26px] font-bold tracking-[-0.03em] text-app-primary leading-tight">
-                  <span className={userTokensUsed >= userTokenAllocation ? 'text-app-brand-700' : 'text-app-primary'}>
-                    {userTokensUsed.toLocaleString()}
-                  </span>
-                  <span className="mx-1.5 text-app-muted text-[18px]">/</span>
-                  <span className="text-[18px] text-app-secondary">{userTokenAllocation.toLocaleString()}</span>
-                </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-app-surface-muted">
-                  <div className={`h-full transition-all duration-500 ${tokenUsageBarClass}`} style={{ width: `${tokenUsagePercent}%` }} />
-                </div>
-                <div className="mt-2 text-sm font-semibold text-app-success">
-                  {tokenUsagePercent.toFixed(2)}%
-                </div>
-              </>
-            ) : (
-              <div className="mt-3 text-sm text-app-secondary">
-                Token allocation data is not available.
+  const tokenUsagePanel = (
+    <section className="relative overflow-hidden rounded-[22px] border border-app bg-app-surface p-4 shadow-app-card">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-app-secondary">Token Usage</div>
+      {!tokenCheckLoading ? (
+        <>
+          {isAdminUser ? (
+            <>
+              <div className="mt-2 text-[26px] font-bold tracking-[-0.03em] text-app-primary leading-tight">
+                <span className="text-app-primary">
+                  {userTokensUsed.toLocaleString()}
+                </span>
               </div>
-            )}
-          </>
-        ) : (
-          <div className="mt-3 text-sm text-app-secondary">
-            Loading…
-          </div>
-        )}
-        <div className="pointer-events-none absolute -bottom-8 right-0 h-28 w-36 rounded-full bg-[radial-gradient(circle_at_top_left,rgba(253,235,236,0.9),transparent_70%)]" />
-      </section>
-
-      {/* Smart Assistant Tips */}
-      <section className="rounded-[22px] border border-app bg-app-surface p-4 shadow-app-card">
-        <div className="flex items-center gap-2.5 mb-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-app-brand-50 text-app-brand-700">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-            </svg>
-          </div>
-          <div className="text-base font-semibold text-app-primary">Smart Assistant</div>
-        </div>
-
-        <div className="space-y-3">
-          {assistantTips.map((tip) => (
-            <div key={tip.title} className="flex items-start gap-3 rounded-[14px] border border-app bg-app-surface-muted/40 px-3 py-3">
-              <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-app-brand-50 text-app-brand-700">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
+              <div className="mt-2 text-sm text-app-secondary">
+                Total tokens used
               </div>
-              <div className="min-w-0">
-                <div className="text-[13px] font-semibold text-app-primary leading-tight">{tip.title}</div>
-                <div className="mt-0.5 text-[12px] leading-5 text-app-secondary">{tip.description}</div>
+            </>
+          ) : userTokenAllocation > 0 ? (
+            <>
+              <div className="mt-2 text-[26px] font-bold tracking-[-0.03em] text-app-primary leading-tight">
+                <span className={userTokensUsed >= userTokenAllocation ? 'text-app-brand-700' : 'text-app-primary'}>
+                  {userTokensUsed.toLocaleString()}
+                </span>
+                <span className="mx-1.5 text-app-muted text-[18px]">/</span>
+                <span className="text-[18px] text-app-secondary">{userTokenAllocation.toLocaleString()}</span>
               </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-app-surface-muted">
+                <div className={`h-full transition-all duration-500 ${tokenUsageBarClass}`} style={{ width: `${tokenUsagePercent}%` }} />
+              </div>
+              <div className="mt-2 text-sm font-semibold text-app-success">
+                {tokenUsagePercent.toFixed(2)}%
+              </div>
+            </>
+          ) : (
+            <div className="mt-3 text-sm text-app-secondary">
+              Token allocation data is not available.
             </div>
-          ))}
+          )}
+        </>
+      ) : (
+        <div className="mt-3 text-sm text-app-secondary">
+          Loading…
         </div>
-
-        <button className="mt-4 flex w-full items-center justify-between rounded-[14px] border border-app-brand-100 bg-app-brand-50 px-3 py-2.5 text-sm font-semibold text-app-brand-800 transition hover:bg-app-brand-100">
-          <span>View Assistant Guide</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
-      </section>
-    </aside>
+      )}
+      <div className="pointer-events-none absolute -bottom-8 right-0 h-28 w-36 rounded-full bg-[radial-gradient(circle_at_top_left,rgba(253,235,236,0.9),transparent_70%)]" />
+    </section>
   )
 
   return (
@@ -1443,9 +1410,11 @@ const TestCases: React.FC = () => {
         </div>
       )}
 
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start">
-        {/* Left column — input + actions + output */}
-        <div className="space-y-3">
+      <div className="relative">
+        <div className="absolute right-0 top-0 z-10 w-[300px] hidden xl:block">
+          {tokenUsagePanel}
+        </div>
+        <div className="space-y-3 xl:pr-[316px]">
         {/* Solutions card — header + input type pills + textarea all in one */}
         <div className="relative overflow-hidden rounded-[20px] border border-app bg-app-surface p-4 shadow-app-card">
           {/* Paper airplane decorative trail (right side, behind content) */}
@@ -1743,12 +1712,12 @@ const TestCases: React.FC = () => {
               Use for Test Data
             </button>
 
-            <button onClick={exportToExcel} disabled={!response} data-audit-name="Export to Excel" className={`inline-flex items-center gap-2 rounded-[12px] border px-3.5 py-2.5 text-[13px] font-semibold transition ${response ? 'border-app bg-white text-app-primary hover:border-app-brand-100 hover:bg-app-brand-50' : 'cursor-not-allowed border-app bg-white text-app-muted opacity-60'}`}>
+            {/* <button onClick={exportToExcel} disabled={!response} data-audit-name="Export to Excel" className={`inline-flex items-center gap-2 rounded-[12px] border px-3.5 py-2.5 text-[13px] font-semibold transition ${response ? 'border-app bg-white text-app-primary hover:border-app-brand-100 hover:bg-app-brand-50' : 'cursor-not-allowed border-app bg-white text-app-muted opacity-60'}`}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10 14L21 3m0 0h-6m6 0v6M21 14v5a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h5"/>
               </svg>
               Export to Excel
-            </button>
+            </button> */}
 
             <ResetButton data-audit-name="Reset" onClick={handleResetAll} disabled={!textValue && fileInputs.length === 0 && !ppmId && !combinedContent && !response && !output && !loading && !sparkImportLoading} className="rounded-[12px] px-3.5 py-2.5 text-[13px]" />
           </div>
@@ -1781,12 +1750,9 @@ const TestCases: React.FC = () => {
           )}
         </div>
 
-        </div>{/* closes left column */}
+        </div>{/* closes solutions column */}
 
-        {/* Right column — Token Usage + Smart Assistant */}
-        {assistantTipsPanel}
-
-      </div>{/* closes outer grid */}
+      </div>{/* closes workspace wrapper */}
 
       {/* Expanded combined preview modal */}
       {expandedPreview && (
@@ -1814,7 +1780,7 @@ const TestCases: React.FC = () => {
         </div>
       )}
 
-      <ReviewApproveModal
+      <ReviewAndSendModal
         isOpen={isReviewOpen}
         documents={reviewDocuments}
         tableData={reviewTableData}

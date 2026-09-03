@@ -13,16 +13,46 @@ import StatusBadge from '../ui/StatusBadge'
 import type {
   ApprovalStatus,
   CaseOrigin,
+  CheckStatus,
   Classification,
+  ClassificationFinding,
+  ClassificationReport,
+  FindingSeverity,
   TestDataStatus
 } from '../../types/automation'
 
 type Tone = 'brand' | 'success' | 'warning' | 'danger' | 'info' | 'neutral'
 
-const CLASSIFICATION: Record<Classification, { tone: Tone; label: string }> = {
-  automation: { tone: 'success', label: 'Automation' },
-  manual: { tone: 'warning', label: 'Manual' },
-  undecided: { tone: 'neutral', label: 'Unclassified' }
+/**
+ * Four outcomes, and the tones say which way each one points. Partial is
+ * `info` rather than `warning`: it is not a problem with the case, it is a
+ * short list of edits, and giving it Manual's colour would send reviewers
+ * hunting for something wrong.
+ */
+const CLASSIFICATION: Record<
+  Classification,
+  { tone: Tone; label: string; title: string }
+> = {
+  automation: {
+    tone: 'success',
+    label: 'Automation',
+    title: 'Every step is executable, the channel is drivable, and the controls were found.'
+  },
+  partial: {
+    tone: 'info',
+    label: 'Needs minor changes',
+    title: 'Automatable once the listed edits are made — no part of it needs a person.'
+  },
+  manual: {
+    tone: 'warning',
+    label: 'Manual',
+    title: 'Something in it cannot run unattended.'
+  },
+  undecided: {
+    tone: 'neutral',
+    label: 'Unclassified',
+    title: 'There is not enough here to judge yet.'
+  }
 }
 
 export const ClassificationBadge: React.FC<{ classification: Classification }> = ({
@@ -30,9 +60,11 @@ export const ClassificationBadge: React.FC<{ classification: Classification }> =
 }) => {
   const meta = CLASSIFICATION[classification] ?? CLASSIFICATION.undecided
   return (
-    <StatusBadge tone={meta.tone} size="sm" dot>
-      {meta.label}
-    </StatusBadge>
+    <span title={meta.title}>
+      <StatusBadge tone={meta.tone} size="sm" dot>
+        {meta.label}
+      </StatusBadge>
+    </span>
   )
 }
 
@@ -173,3 +205,146 @@ export const StatTile: React.FC<{
     {hint ? <div className="mt-1 text-[11px] text-app-warning">{hint}</div> : null}
   </div>
 )
+
+/**
+ * --- The rules, shown ----------------------------------------------------
+ *
+ * A verdict a person is about to accept for thirty test cases at once has to
+ * be checkable, and one sentence under a badge is not enough to check. This
+ * lays out the four questions the rules asked -- every step, the channel, the
+ * knowledge base, the test data -- with their answers and, for anything that
+ * needs work, the step it happened on and what to do about it.
+ *
+ * Findings are grouped by what they cost: blockers first, because they are the
+ * reason a case is Manual and no amount of editing changes them, then the
+ * fixables, which are the work. Notes come last and are muted -- they explain
+ * a verdict rather than qualify it.
+ */
+const CHECK_LABELS: Record<string, { title: string; blurb: string }> = {
+  steps: {
+    title: 'Steps',
+    blurb: 'Is every step an instruction a runner could execute?'
+  },
+  channel: {
+    title: 'Channel',
+    blurb: 'Does this case happen somewhere the runner can reach?'
+  },
+  knowledge_base: {
+    title: 'Knowledge base',
+    blurb: 'Do the controls these steps name exist in what we discovered?'
+  },
+  test_data: {
+    title: 'Test data',
+    blurb: 'Do the steps ask for data the case does not carry?'
+  }
+}
+
+const CHECK_TONE: Record<CheckStatus, { dot: string; text: string }> = {
+  pass: { dot: 'bg-app-success', text: 'text-app-success' },
+  attention: { dot: 'bg-app-warning', text: 'text-app-warning' },
+  blocked: { dot: 'bg-app-danger', text: 'text-app-danger' }
+}
+
+const SEVERITY_STYLE: Record<FindingSeverity, string> = {
+  blocker: 'border-l-2 border-app-danger bg-red-500/[0.04]',
+  fixable: 'border-l-2 border-app-warning bg-amber-500/[0.04]',
+  note: 'border-l-2 border-app bg-app-surface-muted/40'
+}
+
+const FindingRow: React.FC<{ finding: ClassificationFinding }> = ({ finding }) => (
+  <li className={`rounded-r-md px-3 py-2 ${SEVERITY_STYLE[finding.severity]}`}>
+    <p className="text-[12px] leading-5 text-app-primary">
+      {finding.step_number ? (
+        <span className="mr-1.5 rounded bg-app-surface px-1.5 py-0.5 text-[11px] font-semibold text-app-secondary">
+          Step {finding.step_number}
+        </span>
+      ) : null}
+      {finding.message}
+    </p>
+    {finding.remedy ? (
+      <p className="mt-1 text-[11px] leading-4 text-app-secondary">→ {finding.remedy}</p>
+    ) : null}
+    {finding.evidence ? (
+      <p className="mt-1 truncate text-[11px] italic leading-4 text-app-secondary/80">
+        “{finding.evidence}”
+      </p>
+    ) : null}
+  </li>
+)
+
+export const ClassificationReportPanel: React.FC<{ report: ClassificationReport }> = ({
+  report
+}) => {
+  const ordered: FindingSeverity[] = ['blocker', 'fixable', 'note']
+  const grouped = {
+    blocker: report.blockers,
+    fixable: report.fixables,
+    note: report.notes
+  }
+  const heading: Record<FindingSeverity, string> = {
+    blocker: 'Cannot be automated',
+    fixable: 'Needs a change first',
+    note: 'Worth knowing'
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-app-lg border border-app bg-app-surface-muted/50 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <ClassificationBadge classification={report.classification} />
+          <span className="text-[12px] text-app-secondary">
+            {report.counts.steps} step(s) · {report.counts.blockers} blocker(s) ·{' '}
+            {report.counts.fixables} change(s) needed
+          </span>
+        </div>
+        <p className="mt-1.5 text-[13px] leading-5 text-app-primary">{report.reason}</p>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        {(Object.keys(CHECK_LABELS) as (keyof typeof report.checks)[]).map(key => {
+          const check = report.checks[key]
+          if (!check) return null
+          const tone = CHECK_TONE[check.status] ?? CHECK_TONE.pass
+          return (
+            <div key={key} className="rounded-app border border-app bg-app-surface px-3 py-2.5">
+              <div className="flex items-center gap-2">
+                <span className={`h-2 w-2 flex-shrink-0 rounded-full ${tone.dot}`} />
+                <span className="text-[12px] font-semibold text-app-primary">
+                  {CHECK_LABELS[key].title}
+                </span>
+                <span className={`ml-auto text-[11px] font-medium capitalize ${tone.text}`}>
+                  {check.status}
+                </span>
+              </div>
+              <p className="mt-1 text-[12px] leading-4 text-app-secondary">{check.summary}</p>
+              <p className="mt-1 text-[11px] leading-4 text-app-secondary/70">
+                {CHECK_LABELS[key].blurb}
+              </p>
+            </div>
+          )
+        })}
+      </div>
+
+      {ordered.map(severity =>
+        grouped[severity].length ? (
+          <div key={severity}>
+            <h4 className="mb-1.5 text-[12px] font-semibold uppercase tracking-wide text-app-secondary">
+              {heading[severity]} ({grouped[severity].length})
+            </h4>
+            <ul className="space-y-1.5">
+              {grouped[severity].map((finding, index) => (
+                <FindingRow key={`${finding.code}-${finding.step_number}-${index}`} finding={finding} />
+              ))}
+            </ul>
+          </div>
+        ) : null
+      )}
+
+      {report.checked_at ? (
+        <p className="text-[11px] text-app-secondary">
+          Checked {new Date(report.checked_at + 'Z').toLocaleString()} · rules only, no model call.
+        </p>
+      ) : null}
+    </div>
+  )
+}

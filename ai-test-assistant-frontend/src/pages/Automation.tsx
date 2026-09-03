@@ -179,12 +179,22 @@ const Automation: React.FC = () => {
               <NavLink
                 key={t.to}
                 to={t.to}
+                /*
+                 * Active and inactive used to share `bg-white` on a white card,
+                 * separated by a border of #F6D4D5 against #E8EAEE -- 1.14:1,
+                 * i.e. nothing. Three signals now carry it: the selected tab is
+                 * raised (white on recessed siblings), it is the only one with a
+                 * solid brand rail, and it keeps the shadow. The rail is a hard
+                 * 6.6:1 edge, which is what actually reads at a glance; the fill
+                 * and elevation only support it. Both states declare the same
+                 * 3px left border so selecting one shifts nothing.
+                 */
                 className={({ isActive }) =>
                   [
-                    'group flex items-center gap-3 rounded-[14px] border px-3 py-2.5 transition-all duration-200',
+                    'group flex items-center gap-3 rounded-[14px] border border-l-[3px] px-3 py-2.5 transition-all duration-200',
                     isActive
-                      ? 'border-app-brand-200 bg-white shadow-[0_4px_12px_rgba(183,25,32,0.08)]'
-                      : 'border-app bg-white hover:border-app-brand-100 hover:bg-app-brand-50/30'
+                      ? 'border-app-brand-200 border-l-app-brand-600 bg-white shadow-[0_4px_12px_rgba(183,25,32,0.10)]'
+                      : 'border-app border-l-transparent bg-app-surface-muted hover:border-app-brand-100 hover:border-l-app-brand-200 hover:bg-app-brand-50 active:bg-app-brand-100'
                   ].join(' ')
                 }
               >
@@ -195,7 +205,7 @@ const Automation: React.FC = () => {
                         'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] transition-all',
                         isActive
                           ? 'bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white shadow-[0_6px_14px_rgba(183,25,32,0.22)]'
-                          : 'border border-app bg-app-surface-muted text-app-secondary group-hover:border-app-brand-100 group-hover:text-app-brand-700'
+                          : 'border border-app bg-app-surface text-app-secondary group-hover:border-app-brand-100 group-hover:text-app-brand-700'
                       ].join(' ')}
                     >
                       <TabIcon className="h-4 w-4" />

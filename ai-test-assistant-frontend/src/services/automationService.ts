@@ -199,10 +199,19 @@ const automationService = {
     call<GenerationJob>(() => api.get(`${BASE}/workbench/jobs/${encodeURIComponent(jobId)}`)),
 
   /** Omit `classification` to classify by rule; pass one to override by hand. */
+  /**
+   * Omit `classification` to run the rules; pass one to override by hand.
+   * `counts` comes back keyed by outcome, so a bulk run can report "18
+   * Automation, 9 needing changes, 3 Manual" rather than "30 classified".
+   */
   classifyCases: (
     caseIds: number[],
     classification?: Classification
-  ): Promise<{ updated: number; test_cases: WorkbenchCase[] }> =>
+  ): Promise<{
+    updated: number
+    counts: Partial<Record<Classification, number>>
+    test_cases: WorkbenchCase[]
+  }> =>
     call(() =>
       api.post(`${BASE}/workbench/classify`, {
         case_ids: caseIds,

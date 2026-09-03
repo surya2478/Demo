@@ -28,7 +28,8 @@ import {
   HiOutlineCursorClick,
   HiOutlineEye,
   HiOutlineStar,
-  HiOutlineShieldCheck
+  HiOutlineShieldCheck,
+  HiOutlineClipboardCheck
 } from 'react-icons/hi'
 import automationService from '../../services/automationService'
 import { useAutomationContext } from '../../components/automation/AutomationContext'
@@ -36,13 +37,19 @@ import SectionCard from '../../components/ui/SectionCard'
 import EmptyState from '../../components/ui/EmptyState'
 import LoadingSkeleton from '../../components/ui/LoadingSkeleton'
 import StatusBadge from '../../components/ui/StatusBadge'
+import { useToast } from '../../components/ui/Toast'
+import { useConfirm } from '../../components/ui/ConfirmDialog'
+import MenuButton from '../../components/ui/MenuButton'
 import TestCaseEditor from '../../components/automation/TestCaseEditor'
+import ClassifyProgressModal from '../../components/automation/ClassifyProgressModal'
+import type { ClassifyProgressStatus } from '../../components/automation/ClassifyProgressModal'
 // Hidden on request -- restore together with the element below.
 // import DocumentIntake from '../../components/automation/DocumentIntake'
 import { GroundingBadge } from '../../components/automation/groundingPresentation'
 import {
   ApprovalBadge,
   ClassificationBadge,
+  ClassificationReportPanel,
   JobProgress,
   OriginBadge,
   StatTile,
@@ -51,6 +58,7 @@ import {
 import { isJobSettled } from '../../types/automation'
 import type {
   Classification,
+  ClassificationReport,
   GenerationJob,
   RecordedFlowObject,
   WorkbenchCase,
@@ -61,6 +69,7 @@ import type {
 const EMPTY_COUNTS: WorkbenchCounts = {
   total: 0,
   automation: 0,
+  partial: 0,
   manual: 0,
   undecided: 0,
   approved: 0,
@@ -81,6 +90,25 @@ const ENVIRONMENTS = ['SIT', 'UAT', 'QA', 'DEV']
  */
 const SHOW_STAT_TILES = false
 
+/** `busy` holds the runAction label; these are what a person should read. */
+const BUSY_LABELS: Record<string, string> = {
+  classify: 'Classifying',
+  approve: 'Approving',
+  reject: 'Rejecting',
+  delete: 'Deleting test cases',
+  'delete-sources': 'Deleting test cases',
+  generate: 'Generating',
+  reopen: 'Reopening'
+}
+
+/** How each outcome is named in a notice — the same words as the badge. */
+const CLASSIFICATION_NOUNS: Record<Classification, string> = {
+  automation: 'Automation',
+  partial: 'needing minor changes',
+  manual: 'Manual',
+  undecided: 'still unclassified'
+}
+
 const Workbench: React.FC = () => {
   const { canExecute } = useAutomationContext()
 
@@ -88,8 +116,35 @@ const Workbench: React.FC = () => {
   const [cases, setCases] = useState<WorkbenchCase[]>([])
   const [counts, setCounts] = useState<WorkbenchCounts>(EMPTY_COUNTS)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  /*
+   * `notice` and `error` used to render as banners nailed inside this card,
+   * below a toolbar the user has usually scrolled past by the time a job
+   * finishes -- and the success banner rendered in warning orange, so a good
+   * result and a problem looked alike. Both now surface as toasts.
+   *
+   * Keeping the setter names means the ~25 existing call sites report to the
+   * right place without being rewritten, and `setError(null)` stays the no-op
+   * clear it always was.
+   */
+  const toast = useToast()
+  const confirm = useConfirm()
+  const setNotice = useCallback(
+    (message: string | null, detail?: string) => {
+      if (message) toast.success(message, detail)
+    },
+    [toast]
+  )
+  const setError = useCallback(
+    (message: string | null, detail?: string) => {
+      if (message) toast.error(message, detail)
+    },
+    [toast]
+  )
+  /** Partial success: the batch ran, but not every case came through it. */
+  const setWarning = useCallback(
+    (message: string, detail?: string) => toast.warning(message, detail),
+    [toast]
+  )
 
   const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set())
   const [selectedCases, setSelectedCases] = useState<Set<number>>(new Set())
@@ -112,6 +167,27 @@ const Workbench: React.FC = () => {
   const [flowObjects, setFlowObjects] = useState<RecordedFlowObject[]>([])
   const [loadingObjects, setLoadingObjects] = useState<boolean>(false)
   const [objectsNotice, setObjectsNotice] = useState<string | null>(null)
+
+  // Which case's rule report is open. Held as the case rather than the report
+  // so a reclassify while the panel is open replaces what it shows.
+  const [reportCaseId, setReportCaseId] = useState<number | null>(null)
+
+  /*
+   * The rule pass runs behind one POST, so this is the only place a person can
+   * see it happening. Held as one object rather than five useStates because
+   * every field changes together, at exactly two moments: the click, and the
+   * response.
+   */
+  const [classifyProgress, setClassifyProgress] = useState<{
+    open: boolean
+    status: ClassifyProgressStatus
+    total: number
+    startedAt: number | null
+    updated?: number
+    counts?: Partial<Record<Classification, number>>
+    reports?: ClassificationReport[]
+    error?: string | null
+  }>({ open: false, status: 'running', total: 0, startedAt: null })
 
   const [reviewModalCase, setReviewModalCase] = useState<WorkbenchCase | null>(null)
   const [reviewingCaseId, setReviewingCaseId] = useState<number | null>(null)
@@ -301,12 +377,23 @@ const Workbench: React.FC = () => {
     setError(null)
     setNotice(null)
     try {
+      const requested = selectedCases.size
       const res = await automationService.refineBulkTestCases(
         Array.from(selectedCases),
         applicationUrl.trim() || undefined
       )
       await load()
-      setNotice(`AI Refinement complete: ${res.refined_count} test case(s) updated with high fidelity.`)
+      const missed = requested - res.refined_count
+      if (missed > 0) {
+        setWarning(
+          `Refined ${res.refined_count} of ${requested} test cases`,
+          `${missed} came back unchanged. Open one to see what the refiner could not resolve.`
+        )
+      } else {
+        setNotice(
+          `Refined ${res.refined_count} test case${res.refined_count === 1 ? '' : 's'}`
+        )
+      }
     } catch (err: any) {
       setError(err?.message ?? 'AI Refinement failed.')
     } finally {
@@ -408,24 +495,29 @@ const Workbench: React.FC = () => {
    * this removes the case from Automation Studio and every script generated
    * from it, and nothing brings either back.
    */
-  const handleDeleteCases = (caseToDelete?: WorkbenchCase) => {
+  const handleDeleteCases = async (caseToDelete?: WorkbenchCase) => {
     const toDelete = caseToDelete
       ? [caseToDelete]
       : cases.filter(testCase => selectedCases.has(testCase.id))
     if (toDelete.length === 0) return
 
     const count = toDelete.length
-    if (
-      !window.confirm(
-        `Delete ${
-          count === 1
-            ? `test case "${toDelete[0].tc_display_id}"`
-            : `${count} selected test cases`
-        } and every script generated from ${count === 1 ? 'it' : 'them'}? This cannot be undone.`
-      )
-    ) {
-      return
-    }
+    const ok = await confirm({
+      title: count === 1 ? `Delete ${toDelete[0].tc_display_id}?` : `Delete ${count} test cases?`,
+      body:
+        count === 1
+          ? toDelete[0].title
+          : `${count} selected test cases will be removed from Automation Studio.`,
+      consequences: [
+        `Every script generated from ${count === 1 ? 'it' : 'them'} is deleted too.`,
+        // The tombstone is the surprising half: without saying so, people
+        // expect a re-sync from Review & Approval to bring the case back.
+        `${count === 1 ? 'It' : 'They'} will not reappear when the workbench next syncs from Review & Approval.`,
+        'This cannot be undone.'
+      ],
+      confirmLabel: count === 1 ? 'Delete test case' : `Delete ${count} test cases`
+    })
+    if (!ok) return
 
     void runAction('delete', async () => {
       const res = await automationService.deleteWorkbenchCases(
@@ -433,30 +525,61 @@ const Workbench: React.FC = () => {
       )
       if (!caseToDelete) setSelectedCases(new Set())
       setNotice(
-        `${res.deleted} test case(s) deleted` +
-          (res.scripts_removed ? `, along with ${res.scripts_removed} script(s).` : '.')
+        `Deleted ${res.deleted} test case${res.deleted === 1 ? '' : 's'}`,
+        res.scripts_removed
+          ? `${res.scripts_removed} generated script${
+              res.scripts_removed === 1 ? '' : 's'
+            } removed with them.`
+          : undefined
       )
     })
   }
 
-  const handleDeleteSources = (sourceToDelete?: WorkbenchSource) => {
+  const handleDeleteSources = async (sourceToDelete?: WorkbenchSource) => {
     const toDelete = sourceToDelete
       ? [sourceToDelete]
       : sources.filter(source => selectedSources.has(source.id))
     if (toDelete.length === 0) return
 
     const count = toDelete.length
-    if (
-      !window.confirm(
-        `Are you sure you want to delete ${
-          count === 1
-            ? `test case "${toDelete[0].tc_display_id}"`
-            : `${count} selected test cases`
-        }?`
-      )
-    ) {
-      return
-    }
+    const refined = toDelete.filter(source => source.refined_test_case_id).length
+
+    /*
+     * This prompt used to read "Are you sure you want to delete N test
+     * cases?" -- in front of a call that deletes the approved test case rows
+     * themselves, then cascades to every refined case linked to them and
+     * every script generated from those. The quietest dialog in the app was
+     * guarding its most destructive action; all of it is named now.
+     */
+    const ok = await confirm({
+      title:
+        count === 1
+          ? `Delete approved test case ${toDelete[0].tc_display_id}?`
+          : `Delete ${count} approved test cases?`,
+      body:
+        count === 1
+          ? toDelete[0].title
+          : `${count} selected test cases will be deleted.`,
+      consequences: [
+        `This deletes the approved test ${
+          count === 1 ? 'case itself' : 'cases themselves'
+        }, not just ${count === 1 ? 'its' : 'their'} entry in Automation Studio.`,
+        ...(refined > 0
+          ? [
+              `${
+                refined === 1
+                  ? '1 of these has already been refined — that refined case'
+                  : `${refined} of these have already been refined — those refined cases`
+              } and every script generated from ${
+                refined === 1 ? 'it' : 'them'
+              } are deleted too.`
+            ]
+          : []),
+        'This cannot be undone.'
+      ],
+      confirmLabel: count === 1 ? 'Delete test case' : `Delete ${count} test cases`
+    })
+    if (!ok) return
 
     runAction('delete-sources', async () => {
       await automationService.deleteWorkbenchSources({
@@ -479,22 +602,100 @@ const Workbench: React.FC = () => {
     })
   }
 
+  /**
+   * Omit `classification` to classify by the automation rules; pass one to
+   * override by hand. Both report the same way -- a bulk classification that
+   * silently changed nothing used to look exactly like one that worked.
+   */
+  const handleClassify = (classification?: Classification) => {
+    // Only the rule pass gets the window: a hand override is one field write
+    // that has already happened by the time a modal could finish opening.
+    const byRule = !classification
+    if (byRule) {
+      setClassifyProgress({
+        open: true,
+        status: 'running',
+        total: selectedCases.size,
+        startedAt: Date.now(),
+        error: null
+      })
+    }
+    return runAction('classify', async () => {
+      let res: Awaited<ReturnType<typeof automationService.classifyCases>>
+      try {
+        res = await automationService.classifyCases(Array.from(selectedCases), classification)
+      } catch (err: any) {
+        if (byRule) {
+          setClassifyProgress(prev => ({
+            ...prev,
+            status: 'error',
+            error: err?.message ?? 'The classification pass could not be completed.'
+          }))
+        }
+        throw err
+      }
+      const noun = res.updated === 1 ? 'test case' : 'test cases'
+      if (byRule) {
+        setClassifyProgress(prev => ({
+          ...prev,
+          status: 'done',
+          updated: res.updated,
+          counts: res.counts,
+          // A case whose verdict was overridden by hand carries no report, so
+          // confidence is averaged over the ones the rules actually wrote.
+          reports: (res.test_cases ?? [])
+            .map(testCase => testCase.classification_report)
+            .filter((report): report is ClassificationReport => report !== null)
+        }))
+      }
+      if (classification) {
+        setNotice(`Set ${res.updated} ${noun} to ${CLASSIFICATION_NOUNS[classification]}`)
+        return
+      }
+      // A rule pass now has three possible outcomes, so the count alone hides
+      // the answer someone ran it for. Broken out per outcome, in the order
+      // they matter to whoever is about to approve them.
+      const breakdown = (['automation', 'partial', 'manual', 'undecided'] as Classification[])
+        .filter(key => res.counts?.[key])
+        .map(key => `${res.counts?.[key]} ${CLASSIFICATION_NOUNS[key]}`)
+        .join(' · ')
+      setNotice(
+        breakdown
+          ? `Checked ${res.updated} ${noun}: ${breakdown}`
+          : `Classified ${res.updated} ${noun} by rule`
+      )
+    })
+  }
+
   const handleDecide = (decision: 'approve' | 'reject') =>
     runAction(decision, async () => {
+      const requested = selectedCases.size
       const res = await automationService.decideCases(Array.from(selectedCases), decision)
       setSelectedCases(new Set())
+      const verb = decision === 'approve' ? 'Approved' : 'Rejected'
       if (res.refused?.length) {
         // Named, not counted: "3 refused" leaves someone hunting for which.
-        setNotice(
-          `${res.updated} ${decision}d. ${res.refused.length} refused — ` +
-            res.refused.map(r => `${r.display_id}: ${r.reason}`).join(' · ')
+        setWarning(
+          `${verb} ${res.updated} of ${requested} — ${res.refused.length} refused`,
+          res.refused.map(r => `${r.display_id}: ${r.reason}`).join(' · ')
         )
+      } else {
+        // A silent success is why people used to reload the page to check.
+        setNotice(`${verb} ${res.updated} test case${res.updated === 1 ? '' : 's'}`)
       }
     })
 
   const visibleCases = useMemo(
     () => (filter === 'all' ? cases : cases.filter(c => c.classification === filter)),
     [cases, filter]
+  )
+
+  // Looked up from the list rather than held in state, so a reclassify while
+  // the dialog is open shows the new findings instead of the ones that led
+  // someone to reclassify.
+  const reportCase = useMemo(
+    () => (reportCaseId === null ? null : cases.find(c => c.id === reportCaseId) ?? null),
+    [cases, reportCaseId]
   )
 
   const allSourcesSelected =
@@ -515,12 +716,49 @@ const Workbench: React.FC = () => {
 
   const anySelected = selectedCases.size > 0
 
+  /*
+   * --- Why the toolbar is grey ------------------------------------------
+   *
+   * Nine controls in the card header disable together, on three different
+   * conditions, and none of them said which. People found the rule by ticking
+   * a checkbox to see what would happen. This names the blocker in the same
+   * order the buttons test it: permission first, then a run in flight, then
+   * an empty selection. Null means nothing is blocking, and the bar shows the
+   * selection count instead.
+   */
+  const busyLabel = refining
+    ? 'Refining test cases'
+    : reviewingAll
+      ? 'Reviewing quality'
+      : busy
+        ? BUSY_LABELS[busy] ?? 'Working'
+        : null
+
+  /*
+   * The idle "Select test cases to..." line is gone by request: with the
+   * toolbar directly above it, it restated what the greyed-out buttons
+   * already imply, on every visit. What is left is the two things a person
+   * cannot work out by looking -- that their role forbids the action, or that
+   * a batch is still running -- plus the selection count once there is one.
+   * When there is none of that to say, the bar does not render at all.
+   */
+  const toolbarBlocker = !canExecute
+    ? 'Your role can review these test cases but not change them, so the actions above stay disabled.'
+    : busyLabel
+      ? `${busyLabel}… the actions above unlock when it finishes.`
+      : null
+
   return (
     <div className="space-y-3">
       {SHOW_STAT_TILES && (
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <StatTile label="Test cases" value={loading ? '—' : counts.total} />
         <StatTile label="Automation" value={loading ? '—' : counts.automation} />
+        <StatTile
+          label="Needs minor changes"
+          value={loading ? '—' : counts.partial ?? 0}
+          hint={counts.partial ? 'Automatable after the listed edits' : undefined}
+        />
         <StatTile label="Manual" value={loading ? '—' : counts.manual} />
         <StatTile label="Approved" value={loading ? '—' : counts.approved} tone="success" />
         <StatTile
@@ -542,130 +780,190 @@ const Workbench: React.FC = () => {
       {/* <DocumentIntake onCasesHarvested={() => void load()} /> */}
 
       {/* ── Test Cases Workbench ────────────────────────────────────────── */}
-      <SectionCard
-        title="Test Cases Workbench"
-        noPadding
-        actions={
+      {/*
+       * No card title: the hero already says "AI Test Automation Studio" and
+       * the active tab says "Automation Workspace", so a third name for the
+       * same screen was costing a band of vertical space to repeat itself.
+       *
+       * The toolbar is one left-aligned row rather than scope-left /
+       * actions-right -- `justify-between` opened a wide void in the middle at
+       * laptop width, which read as a missing control rather than as spacing.
+       * A divider separates scope from actions instead.
+       */}
+      <SectionCard noPadding>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-app px-5 py-3">
+          {/* scope -- what the batch is aimed at */}
           <div className="flex flex-wrap items-center gap-2">
             <input
               value={applicationUrl}
               onChange={e => setApplicationUrl(e.target.value)}
               placeholder="Target URL: https://..."
-              className="app-input h-8 text-xs w-48"
+              className="app-input h-8 w-48 py-0 text-xs"
               title="Grounding application URL for test cases & refinement"
             />
+            <select
+              value={filter}
+              onChange={e => setFilter(e.target.value as 'all' | Classification)}
+              className="app-input h-8 w-[176px] py-0 text-xs"
+              aria-label="Filter by classification"
+            >
+              <option value="all">All classifications</option>
+              <option value="automation">Automation</option>
+              <option value="partial">Needs minor changes</option>
+              <option value="manual">Manual</option>
+              <option value="undecided">Unclassified</option>
+            </select>
+
+            {/*
+              The rule pass sits beside the filter rather than in the Manual
+              Classify menu: it is the one classification action a person runs
+              on purpose, and burying the automatic verdict inside a menu of
+              hand overrides made it look like a fourth override.
+            */}
+            <button
+              type="button"
+              onClick={() => void handleClassify()}
+              disabled={!anySelected || !canExecute || busy !== null}
+              title={
+                anySelected
+                  ? 'Classify the selected test cases by rule -- steps, channel, Knowledge Base and test data'
+                  : 'Select test cases to classify them by rule'
+              }
+              className="app-btn app-btn-secondary inline-flex items-center gap-1.5 border-app-brand-200 text-xs font-semibold text-app-brand-700 hover:bg-app-brand-75 hover:text-app-brand-800"
+            >
+              <HiOutlineSparkles
+                className={`h-4 w-4 ${busy === 'classify' ? 'animate-spin' : ''}`}
+              />
+              AI Classify
+            </button>
+          </div>
+
+          {/*
+           * Reject and Delete are back as their own buttons, by request. Only
+           * the three classification verbs stay collapsed -- they are one
+           * choice, so one control -- which is what keeps the row on a single
+           * line at laptop width with the destructive pair visible.
+           */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 border-l border-app pl-2">
             <button
               type="button"
               onClick={handleRefineBulk}
               disabled={!anySelected || !canExecute || refining}
               title="Refine selected test cases with AI on-demand"
-              className="app-btn bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 inline-flex items-center gap-1.5 disabled:opacity-50 text-xs font-semibold"
+              className="app-btn app-btn-primary inline-flex items-center gap-1.5 text-xs font-semibold"
             >
-              <HiOutlineSparkles className={`h-4 w-4 text-purple-600 ${refining ? 'animate-spin' : ''}`} />
+              <HiOutlineSparkles className={`h-4 w-4 ${refining ? 'animate-spin' : ''}`} />
               {refining ? 'Refining...' : 'AI Refine'}
             </button>
+
             <button
               type="button"
               onClick={handleRunReviewAll}
               disabled={!canExecute || reviewingAll || cases.length === 0}
               title="Evaluate quality across all test cases using the eSMART Review Agent"
-              className="app-btn bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 inline-flex items-center gap-1.5 disabled:opacity-50 text-xs font-semibold"
+              className="app-btn app-btn-secondary inline-flex items-center gap-1.5 text-xs font-medium"
             >
-              <HiOutlineShieldCheck className={`h-4 w-4 text-indigo-600 ${reviewingAll ? 'animate-spin' : ''}`} />
+              <HiOutlineShieldCheck className={`h-4 w-4 ${reviewingAll ? 'animate-spin' : ''}`} />
               {reviewingAll ? 'Reviewing...' : 'Review Quality'}
             </button>
-            <button
-              type="button"
-              onClick={() =>
-                runAction('classify', () =>
-                  automationService.classifyCases(Array.from(selectedCases))
-                )
-              }
+
+            <MenuButton
+              label="Manual Classify"
+              title="Override the classification of the selected test cases by hand"
               disabled={!anySelected || !canExecute || busy !== null}
-              title="Classify by the automation rules: blockers and steps needing a human go to Manual"
-              className="app-btn app-btn-secondary inline-flex items-center gap-1.5 disabled:opacity-50 text-xs font-medium"
-            >
-              Bulk classify
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                runAction('classify', () =>
-                  automationService.classifyCases(Array.from(selectedCases), 'automation')
-                )
-              }
-              disabled={!anySelected || !canExecute || busy !== null}
-              className="app-btn app-btn-secondary disabled:opacity-50 text-xs font-medium"
-            >
-              Set Automation
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                runAction('classify', () =>
-                  automationService.classifyCases(Array.from(selectedCases), 'manual')
-                )
-              }
-              disabled={!anySelected || !canExecute || busy !== null}
-              className="app-btn app-btn-secondary disabled:opacity-50 text-xs font-medium"
-            >
-              Set Manual
-            </button>
+              actions={[
+                {
+                  label: 'Set Automation',
+                  detail: 'Override the rules by hand',
+                  onSelect: () => void handleClassify('automation')
+                },
+                {
+                  label: 'Set Needs minor changes',
+                  detail: 'Override the rules by hand',
+                  onSelect: () => void handleClassify('partial')
+                },
+                {
+                  label: 'Set Manual',
+                  detail: 'Override the rules by hand',
+                  onSelect: () => void handleClassify('manual')
+                }
+              ]}
+            />
+
             <button
               type="button"
               onClick={() => handleDecide('approve')}
               disabled={!anySelected || !canExecute || busy !== null}
-              className="app-btn bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 inline-flex items-center gap-1 text-xs font-semibold disabled:opacity-50"
+              title="Approve the selected test cases for the Script Lab"
+              className="app-btn app-btn-secondary inline-flex items-center gap-1 text-xs font-medium"
             >
-              <HiOutlineCheck className="h-4 w-4" />
+              {/* Tone on the glyph, not the whole button: a green fill here
+                  read as a second primary and competed with AI Refine. */}
+              <HiOutlineCheck className="h-4 w-4 text-app-success" />
               Approve
             </button>
-            <button
-              type="button"
-              onClick={() => handleDecide('reject')}
-              disabled={!anySelected || !canExecute || busy !== null}
-              className="app-btn app-btn-secondary inline-flex items-center gap-1 text-app-danger disabled:opacity-50 text-xs font-medium"
-            >
-              <HiOutlineX className="h-4 w-4" />
-              Reject
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDeleteCases()}
-              disabled={!anySelected || !canExecute || busy !== null}
-              title="Delete the selected test cases and any scripts generated from them"
-              className="app-btn app-btn-secondary inline-flex items-center gap-1 text-app-danger disabled:opacity-50 text-xs font-medium"
-            >
-              <HiOutlineTrash className="h-4 w-4" />
-              Delete
-            </button>
-            <button
-              type="button"
-              onClick={() => void load()}
-              className="app-btn app-btn-secondary inline-flex items-center gap-1.5 text-xs font-medium"
-              title="Reload"
-            >
-              <HiOutlineRefresh className="h-4 w-4" />
-            </button>
-            <div className="ml-1 flex items-center gap-2 border-l border-app pl-3">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-app-secondary">
-                Filter:
-              </span>
-              <select
-                value={filter}
-                onChange={e => setFilter(e.target.value as 'all' | Classification)}
-                className="app-input h-8 text-xs min-w-[130px]"
-                aria-label="Filter by classification"
+
+            {/* risk -- still set apart by a divider and danger-toned text, so
+                the two irreversible verbs do not read like the rest. */}
+            <div className="flex items-center gap-1 border-l border-app pl-2">
+              <button
+                type="button"
+                onClick={() => handleDecide('reject')}
+                disabled={!anySelected || !canExecute || busy !== null}
+                title="Send the selected test cases back as rejected"
+                className="app-btn app-btn-ghost inline-flex items-center gap-1 text-xs font-medium text-app-danger hover:bg-app-danger-bg hover:text-app-danger"
               >
-                <option value="all">All</option>
-                <option value="automation">Automation</option>
-                <option value="manual">Manual</option>
-                <option value="undecided">Unclassified</option>
-              </select>
+                <HiOutlineX className="h-4 w-4" />
+                Reject
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDeleteCases()}
+                disabled={!anySelected || !canExecute || busy !== null}
+                title="Delete the selected test cases and any scripts generated from them"
+                className="app-btn app-btn-ghost inline-flex items-center gap-1 text-xs font-medium text-app-danger hover:bg-app-danger-bg hover:text-app-danger"
+              >
+                <HiOutlineTrash className="h-4 w-4" />
+                Delete
+              </button>
+              <button
+                type="button"
+                onClick={() => void load()}
+                className="app-btn app-btn-ghost"
+                title="Reload the workbench"
+                aria-label="Reload the workbench"
+              >
+                <HiOutlineRefresh className="h-4 w-4" />
+              </button>
             </div>
           </div>
-        }
-      >
+        </div>
+        {toolbarBlocker || anySelected ? (
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-app bg-app-surface-subtle px-5 py-2.5">
+            {toolbarBlocker ? (
+              <p
+                className={`text-[12px] ${
+                  !canExecute ? 'text-app-warning' : 'text-app-secondary'
+                }`}
+              >
+                {toolbarBlocker}
+              </p>
+            ) : (
+              <p className="text-[12px] font-medium text-app-primary">
+                {selectedCases.size} test case{selectedCases.size === 1 ? '' : 's'} selected
+              </p>
+            )}
+            {anySelected ? (
+              <button
+                type="button"
+                onClick={() => setSelectedCases(new Set())}
+                className="app-btn app-btn-ghost !py-1 text-[12px] font-medium"
+              >
+                Clear selection
+              </button>
+            ) : null}
+          </div>
+        ) : null}
 
         {activeDiscoveryCase ? (
           <div className="mx-5 mt-4 flex items-center justify-between rounded-xl border border-amber-300 bg-amber-50/95 p-4 text-amber-950 shadow-md">
@@ -697,20 +995,6 @@ const Workbench: React.FC = () => {
           </div>
         ) : null}
 
-        {notice ? (
-          <div className="mx-5 mt-4 flex items-start gap-2 rounded-app border border-orange-200 bg-app-warning-bg px-3 py-3 text-[12px] text-app-warning">
-            <HiOutlineExclamationCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <span>{notice}</span>
-          </div>
-        ) : null}
-
-        {error ? (
-          <div className="mx-5 mt-4 flex items-start gap-2 rounded-app border border-red-200 bg-app-danger-bg px-3 py-3 text-[13px] text-app-danger">
-            <HiOutlineExclamationCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <span>{error}</span>
-          </div>
-        ) : null}
-
         {loading ? (
           <div className="space-y-2 p-5">
             {Array.from({ length: 4 }, (_, i) => (
@@ -729,63 +1013,78 @@ const Workbench: React.FC = () => {
             <table className="app-table">
               <thead>
                 <tr>
-                  <th className="text-left">
-                    <input
-                      type="checkbox"
-                      checked={
-                        visibleCases.length > 0 &&
-                        visibleCases.every(c => selectedCases.has(c.id))
-                      }
-                      onChange={e =>
-                        setSelectedCases(
-                          e.target.checked ? new Set(visibleCases.map(c => c.id)) : new Set()
-                        )
-                      }
-                      className="h-3.5 w-3.5"
-                      aria-label="Select all test cases"
-                    />
+                  {/* Checkbox and ID share one pinned cell: they are the same
+                      question -- which row is this -- and merging them buys
+                      back a column's worth of gutters. */}
+                  <th className="app-table-pin-start text-left">
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={
+                          visibleCases.length > 0 &&
+                          visibleCases.every(c => selectedCases.has(c.id))
+                        }
+                        onChange={e =>
+                          setSelectedCases(
+                            e.target.checked ? new Set(visibleCases.map(c => c.id)) : new Set()
+                          )
+                        }
+                        className="h-3.5 w-3.5"
+                        aria-label="Select all test cases"
+                      />
+                      TC ID
+                    </div>
                   </th>
-                  <th className="text-left">TC ID</th>
                   <th className="text-left">Title</th>
                   <th className="text-left">Origin</th>
                   <th className="text-left">Steps</th>
                   <th className="text-left">Classification</th>
-                  <th className="text-left">Test Data Required</th>
+                  <th className="text-left">Test Data</th>
                   <th className="text-left">Status</th>
-                  <th className="text-right"></th>
+                  <th className="app-table-pin-end text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {visibleCases.map(testCase => (
                   <tr key={testCase.id}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={selectedCases.has(testCase.id)}
-                        onChange={() => setSelectedCases(prev => toggle(prev, testCase.id))}
-                        className="h-3.5 w-3.5"
-                        aria-label={`Select ${testCase.tc_display_id}`}
-                      />
+                    <td className="app-table-pin-start">
+                      <div className="flex items-center gap-2.5">
+                        <input
+                          type="checkbox"
+                          checked={selectedCases.has(testCase.id)}
+                          onChange={() => setSelectedCases(prev => toggle(prev, testCase.id))}
+                          className="h-3.5 w-3.5 flex-shrink-0"
+                          aria-label={`Select ${testCase.tc_display_id}`}
+                        />
+                        <span className="whitespace-nowrap font-mono text-app-primary">
+                          {testCase.tc_display_id}
+                          {testCase.version > 1 ? (
+                            <span className="ml-1 text-app-secondary">v{testCase.version}</span>
+                          ) : null}
+                        </span>
+                      </div>
                     </td>
-                    <td className="whitespace-nowrap font-mono text-[12px] text-app-primary">
-                      {testCase.tc_display_id}
-                      {testCase.version > 1 ? (
-                        <span className="ml-1 text-app-secondary">v{testCase.version}</span>
-                      ) : null}
-                    </td>
                     <td>
-                      <div className="max-w-sm">
+                      <div className="min-w-[240px] max-w-[340px]">
                         <p className="font-medium text-app-primary">{testCase.title}</p>
                         {testCase.objective && testCase.objective !== testCase.title ? (
-                          <p className="mt-0.5 truncate text-[11px] text-app-secondary">
+                          <p className="mt-0.5 truncate text-[12px] text-app-secondary">
                             {testCase.objective}
                           </p>
                         ) : null}
                         {testCase.application_url ? (
-                          <p className="mt-0.5 truncate text-[11px] text-app-secondary/70">
+                          <p className="mt-0.5 truncate text-[12px] text-app-secondary/70">
                             {testCase.application_url}
                           </p>
-                        ) : null}
+                        ) : (
+                          /* Blank is a real state, not a rendering gap: a case the
+                             Knowledge Base does not cover carries no URL, and script
+                             generation refuses it. Say so here rather than at the
+                             point of failure. */
+                          <p className="mt-0.5 truncate text-[12px] font-medium text-amber-600">
+                            Application URL required before script generation
+                          </p>
+                        )}
                         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                           {testCase.review_score ? (
                             <button
@@ -802,7 +1101,7 @@ const Workbench: React.FC = () => {
                             >
                               <HiOutlineStar className="h-3 w-3 text-amber-500 fill-amber-400" />
                               Quality: ★ {testCase.review_score.toFixed(1)} / 5.0
-                              <span className="opacity-75 uppercase text-[9px] font-bold ml-0.5">
+                              <span className="ml-0.5 uppercase opacity-75">
                                 ({testCase.review_verdict || 'Reviewed'})
                               </span>
                             </button>
@@ -835,20 +1134,43 @@ const Workbench: React.FC = () => {
                       <OriginBadge origin={testCase.origin} />
                       {testCase.source_missing ? (
                         <p
-                          className="mt-0.5 max-w-[150px] text-[10px] text-app-warning"
+                          className="mt-0.5 max-w-[150px] text-[12px] leading-4 text-app-warning"
                           title="Generating again would build a second test case alongside this one unless you tick Regenerate existing."
                         >
                           Source deleted
                         </p>
                       ) : null}
                     </td>
-                    <td className="text-[12px] text-app-secondary">{testCase.steps.length}</td>
+                    <td className="text-app-secondary">{testCase.steps.length}</td>
                     <td>
                       <ClassificationBadge classification={testCase.classification} />
                       {testCase.classification_reason ? (
-                        <p className="mt-0.5 max-w-[220px] text-[10px] leading-4 text-app-secondary">
+                        <p className="mt-0.5 max-w-[170px] text-[12px] leading-4 text-app-secondary">
                           {testCase.classification_reason}
                         </p>
+                      ) : null}
+                      {/*
+                        * The badge carries one sentence; the report carries the
+                        * step, the channel and the missing locator behind it.
+                        * Only offered where there is one -- a hand-set
+                        * classification has no findings to show.
+                        */}
+                      {testCase.classification_report ? (
+                        <button
+                          type="button"
+                          onClick={() => setReportCaseId(testCase.id)}
+                          className="mt-1 inline-flex items-center gap-1 rounded-full border border-app px-2 py-0.5 text-[11px] font-medium text-app-secondary transition hover:border-app-brand-600 hover:text-app-brand-600"
+                          title="What the rules checked, and what they found"
+                        >
+                          <HiOutlineClipboardCheck className="h-3 w-3" />
+                          {(testCase.classification_report.counts.blockers +
+                            testCase.classification_report.counts.fixables) > 0
+                            ? `${
+                                testCase.classification_report.counts.blockers +
+                                testCase.classification_report.counts.fixables
+                              } finding(s)`
+                            : 'Why?'}
+                        </button>
                       ) : null}
                     </td>
                     <td>
@@ -857,7 +1179,7 @@ const Workbench: React.FC = () => {
                         status={testCase.test_data_status}
                       />
                       {testCase.test_data_notes ? (
-                        <p className="mt-0.5 max-w-[220px] text-[10px] leading-4 text-app-warning">
+                        <p className="mt-0.5 max-w-[170px] text-[12px] leading-4 text-app-warning">
                           {testCase.test_data_notes}
                         </p>
                       ) : null}
@@ -865,7 +1187,7 @@ const Workbench: React.FC = () => {
                     <td>
                       <ApprovalBadge status={testCase.approval_status} />
                     </td>
-                    <td className="text-right">
+                    <td className="app-table-pin-end text-right">
                       <div className="inline-flex items-center gap-0.5">
                         <button
                           type="button"
@@ -928,7 +1250,7 @@ const Workbench: React.FC = () => {
                         )}
                         <button
                           type="button"
-                          onClick={() => handleDeleteCases(testCase)}
+                          onClick={() => void handleDeleteCases(testCase)}
                           disabled={!canExecute || busy !== null}
                           className="rounded-md p-1.5 text-app-secondary transition hover:bg-app-danger-bg hover:text-app-danger disabled:opacity-40"
                           title={`Delete ${testCase.tc_display_id}`}
@@ -1110,6 +1432,60 @@ const Workbench: React.FC = () => {
                   Done
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/*
+        * The rule report. A dialog rather than an expanding row: the findings
+        * run to a paragraph each, and pushing the grid apart by that much made
+        * the batch under review impossible to scan.
+        */}
+      {reportCase ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+          onClick={e => {
+            if (e.target === e.currentTarget) setReportCaseId(null)
+          }}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="flex max-h-[88vh] w-full max-w-[820px] flex-col overflow-hidden rounded-[24px] border border-app bg-app-surface shadow-[0_28px_70px_rgba(15,23,42,0.22)]">
+            <div className="flex items-start justify-between gap-3 border-b border-app bg-app-surface-muted px-6 py-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-app-brand-600/10 text-app-brand-600">
+                    <HiOutlineClipboardCheck className="h-5 w-5" />
+                  </span>
+                  <h2 className="truncate text-[16px] font-bold text-app-primary">
+                    Automation assessment · {reportCase.tc_display_id}
+                  </h2>
+                </div>
+                <p className="mt-1 text-xs text-app-secondary">
+                  Rules only — every step, the channel it runs on, what the knowledge base
+                  knows about its controls, and whether its test data exists.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReportCaseId(null)}
+                className="rounded-md p-1.5 text-app-secondary transition hover:bg-app-surface hover:text-app-primary"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="app-scroll flex-1 overflow-y-auto px-6 py-5">
+              {reportCase.classification_report ? (
+                <ClassificationReportPanel report={reportCase.classification_report} />
+              ) : (
+                <p className="text-[13px] text-app-secondary">
+                  This case has no rule report — its classification was set by hand.
+                  Classify it by rule to see the findings.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -1330,6 +1706,19 @@ const Workbench: React.FC = () => {
           </div>
         </div>
       ) : null}
+
+      {/* The rule pass, narrated. Rendered last so it sits over the grid. */}
+      <ClassifyProgressModal
+        open={classifyProgress.open}
+        status={classifyProgress.status}
+        total={classifyProgress.total}
+        startedAt={classifyProgress.startedAt}
+        updated={classifyProgress.updated}
+        counts={classifyProgress.counts}
+        reports={classifyProgress.reports}
+        error={classifyProgress.error}
+        onClose={() => setClassifyProgress(prev => ({ ...prev, open: false }))}
+      />
     </div>
   )
 }

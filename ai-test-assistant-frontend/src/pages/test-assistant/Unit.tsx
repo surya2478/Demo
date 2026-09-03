@@ -6,7 +6,7 @@ import { getTimestampedFilename } from '../../utils/DynamicFileName-DateTime'
 import { buildDetailedFieldAudit } from '../../utils/auditDetailsHelper'
 import useAuth from '../../hooks/useAuth'
 import { logApiEvent } from '../../utils/auditApiHelper'
-import { trackedFetchWithTokens } from '../../utils/trackedFetchWithTokens'
+import { trackedFetchWithTokens, getAiAuthToken } from '../../utils/trackedFetchWithTokens'
 import userService from '../../services/userService'
 import RequestTrackerAPI from '../../utils/requestTrackerAPI'
 import { extractTokenCounts } from '../../utils/streamingFetchHelper'
@@ -257,7 +257,11 @@ const Unit: React.FC = () => {
       form.append('test_cases_text', response)
       const res = await fetch(`${cfg.BASE_URL}${cfg.ENDPOINTS.exportText}`, {
           method: 'POST',
-          body: form
+          body: form,
+          headers: (() => {
+            const token = getAiAuthToken()
+            return token ? { 'Authorization': `Bearer ${token}` } : undefined
+          })()
         })
 
       // if (!res.ok) {

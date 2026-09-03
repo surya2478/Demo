@@ -164,6 +164,23 @@ def main() -> int:
         print("\n=== POST /workbench/classify (by rule) ===")
         res = requests.post(f"{BASE}/workbench/classify", json={"case_ids": [case_id]}, timeout=20).json()
         check("re-classified by policy", res["test_cases"][0]["classification_source"] == "policy")
+        row = res["test_cases"][0]
+        check("outcome is one of the four", row["classification"] in
+              ("automation", "partial", "manual", "undecided"))
+        check("counts are broken out per outcome", isinstance(res.get("counts"), dict))
+        # The report is the point of the rule pass: the badge carries one
+        # sentence, and a verdict nobody can check is a verdict nobody should
+        # accept for thirty cases at once.
+        report = row.get("classification_report") or {}
+        check("report came back", bool(report))
+        check("all four checks ran",
+              set((report.get("checks") or {}).keys()) ==
+              {"steps", "channel", "knowledge_base", "test_data"})
+        check("channel was named",
+              bool((report.get("checks", {}).get("channel") or {}).get("label")))
+        for finding in report.get("blockers", []) + report.get("fixables", []):
+            check(f"finding {finding['code']} says something", bool(finding["message"]))
+        print(f"        {row['classification']}: {row['classification_reason'][:80]}")
 
         print("\n=== PATCH /workbench/test-cases/{id} ===")
         res = requests.patch(f"{BASE}/workbench/test-cases/{case_id}",

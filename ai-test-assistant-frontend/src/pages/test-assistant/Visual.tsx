@@ -9,7 +9,7 @@ import { buildDetailedFieldAudit } from '../../utils/auditDetailsHelper'
 import useAuth from '../../hooks/useAuth'
 import { logApiEvent } from '../../utils/auditApiHelper'
 import { useTestDataContext } from '../../context/TestDataContext'
-import { trackedFetchWithTokens } from '../../utils/trackedFetchWithTokens'
+import { trackedFetchWithTokens, getAiAuthToken } from '../../utils/trackedFetchWithTokens'
 import userService from '../../services/userService'
 import RequestTrackerAPI from '../../utils/requestTrackerAPI'
 import { extractTokenCounts } from '../../utils/streamingFetchHelper'
@@ -297,7 +297,7 @@ const Visual: React.FC = () => {
       const res = await fetch(`${config.BASE_URL}${config.ENDPOINTS.exportExcel}`, {
         method: "POST",
         body: formData,
-        headers: { 'accept': "application/json" },
+        headers: { 'accept': "application/json", ...(getAiAuthToken() ? { Authorization: `Bearer ${getAiAuthToken()}` } : {}) },
       })
 
       const data = await res.blob()

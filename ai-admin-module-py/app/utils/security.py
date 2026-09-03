@@ -42,13 +42,19 @@ async def get_current_user_strict(
             status_code=401,
             detail="Invalid Authorization header format. Use 'Bearer <token>' or provide raw token."
         )
-    try:
-        payload = decode_token(token, verify_exp=True)
-        username = payload.get("sub")
-        if not username:
-            raise HTTPException(status_code=401, detail="Invalid token payload")
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Invalid or expired token: {e}")
+    # decode_token returns a payload or None and raises nothing, so there is
+    # nothing here to catch. The `except Exception` that used to wrap this did
+    # three unhelpful things: it turned an expired token (None payload) into
+    # "'NoneType' object has no attribute 'get'", it caught the deliberate
+    # HTTPException two lines above and re-raised it as "Invalid or expired
+    # token: 401: Invalid token payload", and it put whatever went wrong inside
+    # this backend into a response body the client can read.
+    payload = decode_token(token, verify_exp=True)
+    if payload is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    username = payload.get("sub")
+    if not username:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
     user = get_user(db, username)
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
@@ -74,13 +80,19 @@ async def get_current_user_strict_token(
     if not token:
         raise HTTPException(status_code=401, detail="Missing token (Authorization header or access_token cookie)")
 
-    try:
-        payload = decode_token(token, verify_exp=True)
-        username = payload.get("sub")
-        if not username:
-            raise HTTPException(status_code=401, detail="Invalid token payload")
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Invalid or expired token: {e}")
+    # decode_token returns a payload or None and raises nothing, so there is
+    # nothing here to catch. The `except Exception` that used to wrap this did
+    # three unhelpful things: it turned an expired token (None payload) into
+    # "'NoneType' object has no attribute 'get'", it caught the deliberate
+    # HTTPException two lines above and re-raised it as "Invalid or expired
+    # token: 401: Invalid token payload", and it put whatever went wrong inside
+    # this backend into a response body the client can read.
+    payload = decode_token(token, verify_exp=True)
+    if payload is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    username = payload.get("sub")
+    if not username:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
 
     user = get_user(db, username)
     print("user object return from db :: ", user)

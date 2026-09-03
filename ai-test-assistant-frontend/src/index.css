@@ -25,15 +25,19 @@
   --text-muted: #9CA3AF;
   --border-default: #E8EAEE;
 
-  /* Status */
-  --success: #15803D;
+  /* Status -- foregrounds darkened to clear AA against their own tint */
+  --success: #136B34;
   --success-bg: #EAF7EF;
-  --warning: #D97706;
+  --success-border: #BBDFC8;
+  --warning: #8A5000;
   --warning-bg: #FFF4E5;
-  --danger: #DC2626;
+  --warning-border: #EBCFA4;
+  --danger: #A3231C;
   --danger-bg: #FEEBEC;
-  --info: #2563EB;
+  --danger-border: #F0C2C0;
+  --info: #1D4ED8;
   --info-bg: #EFF6FF;
+  --info-border: #C2D5F5;
 }
 
 @layer base {
@@ -103,17 +107,77 @@
     @apply min-w-full divide-y divide-app;
   }
 
+  /*
+   * --- One grid style, borrowed from Review & Approve --------------------
+   *
+   * That screen's table is the one people read without complaining, so its
+   * treatment is the house style now: a neutral grey header band with wide
+   * uppercase tracking, zebra rows, and an even 12px gutter on every cell.
+   * The automation grids all render through `.app-table`, so they inherit it
+   * here rather than each restating it.
+   *
+   * Row backgrounds are opaque rather than tinted-transparent, because a
+   * pinned column inherits them -- a translucent cell would let the columns
+   * scrolling underneath show straight through it.
+   */
   .app-table thead tr {
-    background-color: rgba(253, 235, 236, 0.35);
+    background-color: var(--surface-muted);
+  }
+
+  .app-table th {
+    @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-app-primary;
+    background-color: var(--surface-muted);
   }
 
   .app-table th,
   .app-table td {
-    @apply px-4 py-3 align-middle sm:px-5;
+    @apply border-b border-app px-3 py-3 align-middle;
   }
 
+  /* No size override here on purpose: the base `td` rule supplies 14px, which
+     is what Review & Approve's grid actually renders at -- its `text-xs` on
+     the table element loses to that same base rule. Restating 12px here made
+     these grids smaller than the one they are meant to match. */
+
+  /* Zebra, so a wide row stays readable across its full width. */
   .app-table tbody tr {
-    @apply border-b border-app transition hover:bg-app-surface-muted/60;
+    @apply transition;
+    background-color: var(--surface-card);
+  }
+
+  .app-table tbody tr:nth-child(even) {
+    background-color: #f8fafc;
+  }
+
+  .app-table tbody tr:hover,
+  .app-table tbody tr:nth-child(even):hover {
+    background-color: #eef1f5;
+  }
+
+  /*
+   * --- Pinned edges ------------------------------------------------------
+   *
+   * The workbench grid carries nine columns of real content and will not fit a
+   * laptop viewport however tight the gutters get, so it scrolls. The two
+   * columns you need in order to act on a scrolled row -- which test case this
+   * is, and what you can do to it -- are pinned to the edges instead of
+   * disappearing off them.
+   */
+  .app-table-pin-start,
+  .app-table-pin-end {
+    position: sticky;
+    z-index: 2;
+    background-color: inherit;
+  }
+
+  .app-table-pin-start {
+    left: 0;
+    box-shadow: 6px 0 7px -7px rgba(16, 24, 40, 0.35);
+  }
+
+  .app-table-pin-end {
+    right: 0;
+    box-shadow: -6px 0 7px -7px rgba(16, 24, 40, 0.35);
   }
 
   .app-pill {
@@ -122,18 +186,22 @@
 
   .app-btn {
     @apply inline-flex items-center justify-center gap-2 rounded-app px-3.5 py-2 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-app-brand-600 disabled:opacity-50 disabled:cursor-not-allowed;
+    /* A disabled button must not look pressable. */
+    @apply disabled:active:bg-inherit;
   }
 
+  /* A pressed state on the shared button classes: the app had 347 hover
+     rules against 8 active ones, so nothing depressed when you clicked it. */
   .app-btn-primary {
-    @apply app-btn bg-app-brand-700 text-white hover:bg-app-brand-800 shadow-app-card;
+    @apply app-btn bg-app-brand-700 text-white shadow-app-card hover:bg-app-brand-800 active:bg-app-brand-900 active:shadow-none;
   }
 
   .app-btn-secondary {
-    @apply app-btn border border-app bg-app-surface text-app-primary hover:bg-app-surface-muted;
+    @apply app-btn border border-app bg-app-surface text-app-primary hover:bg-app-surface-muted active:bg-app-border;
   }
 
   .app-btn-ghost {
-    @apply app-btn text-app-secondary hover:bg-app-surface-muted hover:text-app-primary;
+    @apply app-btn text-app-secondary hover:bg-app-surface-muted hover:text-app-primary active:bg-app-border;
   }
 
   /* Scrollable area used inside sidebar / drawers */
@@ -151,4 +219,26 @@
 .logo {
   height: 100%;
   width: auto;
+}
+
+/* Toast entrance -- see components/ui/Toast.tsx */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.toast-enter {
+  animation: toast-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast-enter {
+    animation: none;
+  }
 }

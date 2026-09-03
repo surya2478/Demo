@@ -32,8 +32,23 @@ import json
 import re
 from dataclasses import dataclass, field
 from typing import Any, Optional
+from urllib.parse import urlsplit
 
 from . import grounding
+
+
+def _url_host(url: str) -> str:
+    """The host of `url`, lower-cased, or "" when it has none.
+
+    Used to decide whether a matched flow's base URL and the case's own URL
+    describe the same site, so the more specific of the two can win without
+    hard-coding either one's path.
+    """
+    try:
+        return (urlsplit((url or "").strip()).hostname or "").lower()
+    except ValueError:
+        return ""
+
 
 # --- Automation Module: navigate the application, do not deep-link into it ---
 #
@@ -680,17 +695,40 @@ def compile_playwright(
     full_case_text = f"{getattr(case, 'description', '')} {getattr(case, 'objective', '')} {getattr(case, 'preconditions', '')} {getattr(case, 'steps_raw', '')} {getattr(case, 'test_data', '')}"
     from . import knowledge_base as kb
     flow = kb.match_flow_blueprint(full_case_text)
-    matched_app_id = (flow.get("_app_id") if flow else None) or kb.resolve_app_id(full_case_text) or kb.default_app_id()
-    prof = kb.load_app_profile(matched_app_id) or {}
+    # identify_app_id for the same reason as workbench.sync_approved_test_cases:
+    # the falling-back helpers always name an application, so an unmatched case
+    # was compiled against whichever profile sorted first.
+    matched_app_id = (flow.get("_app_id") if flow else None) or kb.identify_app_id(full_case_text)
+    prof = (kb.load_app_profile(matched_app_id) if matched_app_id else {}) or {}
     flow_base_url = prof.get("base_url", "").strip()
 
     case_app_url = (getattr(case, "application_url", "") or "").strip()
     if base_url:
         target_url = base_url.strip()
-    elif flow_base_url and ("smb" in full_case_text.lower() or not case_app_url or ("smb" in flow_base_url and "smb" not in case_app_url)):
+    elif flow_base_url and (
+        not case_app_url
+        or (_url_host(flow_base_url) == _url_host(case_app_url)
+            and len(flow_base_url) > len(case_app_url))
+    ):
+        # The matched flow wins over the case's own URL only when it describes
+        # the same host more specifically -- an SMB catalogue inside a consumer
+        # domain, say. This read "smb" out of the case text before, which was
+        # one customer's site map compiled into the generator.
         target_url = flow_base_url
     else:
-        target_url = case_app_url or flow_base_url or kb.default_base_url()
+        target_url = case_app_url or flow_base_url
+
+    if not target_url:
+        # No URL anywhere: not on the case, not from a matched flow, not passed
+        # in. Refusing is the point -- the alternative that used to stand here
+        # was kb.default_base_url(), which silently pointed the run at the first
+        # application in the Knowledge Base. The caller turns this into a skip
+        # with this reason attached, so the Workbench can show what is missing.
+        raise ValueError(
+            f"{display_id} has no application URL. The Knowledge Base does not "
+            f"cover this test case, so no URL could be derived from it. Set the "
+            f"application URL on the case before generating a script."
+        )
 
     is_api = _is_api_case(case, steps)
 

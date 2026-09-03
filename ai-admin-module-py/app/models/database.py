@@ -131,6 +131,7 @@ class TestCaseDetail(Base):
 
     test_case_id = Column(String(255), primary_key=True, index=True)
     request_id = Column(String(255), ForeignKey('test_case_review_details.request_id'), nullable=False, index=True)
+    document_id = Column(String(255), nullable=True, index=True)
     test_case_details = Column(JSON, nullable=False, default=dict)
     status = Column(String(32), nullable=False, default='PENDING', server_default='PENDING')
     rejection_reason = Column(Text, nullable=True)
