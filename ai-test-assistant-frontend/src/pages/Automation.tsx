@@ -12,6 +12,7 @@
  */
 import React, { useCallback, useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
+import { HiOutlineSparkles } from 'react-icons/hi'
 import { useAuth } from '../hooks/useAuth'
 import { usePageHeader } from '../components/layout/PageHeaderContext'
 import automationService from '../services/automationService'
@@ -88,11 +89,106 @@ const tabs = [
   { to: 'runs', label: 'Runs', detail: 'Execution history and evidence', Icon: RunsGlyph }
 ]
 
+/*
+ * --- The order the Studio actually works in ------------------------------
+ *
+ * A case reaches the Script Lab only when it is BOTH classified as automatable
+ * AND approved, and neither half is obvious from the screen: someone who
+ * refines a batch and goes straight to the Lab finds it empty with nothing
+ * saying why. This says it once, on the way in.
+ *
+ * Dismissal is remembered for the browser session rather than forever. Forever
+ * means a new starter who dismissed it on day one never sees it again, and
+ * per-visit means it interrupts every tab switch -- a session is the span over
+ * which someone is actually working, which is the span this needs to cover.
+ */
+const GUIDE_DISMISSED_KEY = 'automation-studio-guide-dismissed'
+
+const StudioGuide: React.FC<{ onClose: () => void }> = ({ onClose }) => (
+  <div
+    className="fixed inset-0 z-[75] flex items-center justify-center bg-slate-900/40 px-4 backdrop-blur-[1px]"
+    role="presentation"
+    onMouseDown={event => {
+      if (event.target === event.currentTarget) onClose()
+    }}
+  >
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="studio-guide-title"
+      className="w-full max-w-[440px] overflow-hidden rounded-app-xl border border-app bg-app-surface shadow-app-card-lg"
+    >
+      <div className="flex items-start gap-3 border-b border-app bg-gradient-to-r from-app-brand-75 to-app-surface px-5 py-4">
+        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-app bg-app-brand-100 text-app-brand-700">
+          <HiOutlineSparkles className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p id="studio-guide-title" className="text-sm font-semibold text-app-primary">
+            Before the Script Lab can generate
+          </p>
+          <p className="text-xs text-app-brand-700">Classify, then approve.</p>
+        </div>
+      </div>
+
+      <div className="px-5 py-4">
+        <ol className="space-y-2.5">
+          {[
+            ['Classify', 'AI Classify judges each case against the rules and says what needs an edit.'],
+            ['Approve', 'Approve the ones that came back automatable.'],
+            ['Generate', 'Approved and automatable cases appear in the Script Lab, ready to generate.']
+          ].map(([step, detail], index) => (
+            <li key={step} className="flex gap-2.5">
+              <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-app-brand-100 text-[11px] font-semibold text-app-brand-700">
+                {index + 1}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[13px] font-semibold text-app-primary">{step}</span>
+                <span className="block text-[12px] leading-snug text-app-secondary">{detail}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+        <p className="mt-3 text-[11px] leading-snug text-app-secondary">
+          A case that is approved but not classified as automatable stays out of the Lab, and so
+          does one classified but not approved.
+        </p>
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="app-btn app-btn-primary !px-3 text-xs font-semibold"
+          >
+            Got it
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)
+
 const Automation: React.FC = () => {
   const { user } = useAuth()
   const [runtime, setRuntime] = useState<RuntimeStatusResponse | null>(null)
   const [runtimeLoading, setRuntimeLoading] = useState(true)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
+  const [showGuide, setShowGuide] = useState(() => {
+    try {
+      return window.sessionStorage.getItem(GUIDE_DISMISSED_KEY) !== '1'
+    } catch {
+      // Private mode and blocked site data both throw here; showing the guide
+      // is the harmless side of that failure.
+      return true
+    }
+  })
+
+  const dismissGuide = useCallback(() => {
+    setShowGuide(false)
+    try {
+      window.sessionStorage.setItem(GUIDE_DISMISSED_KEY, '1')
+    } catch {
+      /* Nothing to do: it simply shows again next time. */
+    }
+  }, [])
 
   usePageHeader({
     showSearch: false,
@@ -231,6 +327,8 @@ const Automation: React.FC = () => {
       </section>
 
       <Outlet context={context} />
+
+      {showGuide ? <StudioGuide onClose={dismissGuide} /> : null}
     </div>
   )
 }

@@ -232,6 +232,38 @@ const ScriptLab: React.FC = () => {
       (a, b) => a.framework.localeCompare(b.framework) || a.version - b.version
     )
 
+  /*
+   * --- One table, two groups ---------------------------------------------
+   *
+   * Cases still waiting for a script on top, cases that already have one
+   * underneath. Ordered rather than split into two <table>s: a second table
+   * carries its own column widths and would drift out of alignment with the
+   * first as soon as their content differed.
+   *
+   * "Has a script" counts every framework, matching what the row reports --
+   * a case with a Katalon script but no Playwright one has been generated for,
+   * and belongs below.
+   */
+  const hasScript = (testCase: ScriptLabCase) => testCase.scripts.length > 0
+
+  /** The group a band heads -- what its checkbox selects. */
+  const groupOf = (generated: boolean) =>
+    generated ? groupedCases.generated : groupedCases.pending
+
+  /* One group at a time, so selecting all of one leaves the other alone. */
+  const toggleGroup = (group: ScriptLabCase[], checked: boolean) =>
+    setSelectedCases(prev => {
+      const next = new Set(prev)
+      group.forEach(testCase => (checked ? next.add(testCase.id) : next.delete(testCase.id)))
+      return next
+    })
+
+  const groupedCases = useMemo(() => {
+    const pending = cases.filter(testCase => !hasScript(testCase))
+    const generated = cases.filter(hasScript)
+    return { pending, generated, rows: [...pending, ...generated] }
+  }, [cases])
+
   const frameworkLabel = (name: string) =>
     frameworks.find(f => f.name === name)?.label ??
     name.charAt(0).toUpperCase() + name.slice(1)
@@ -586,17 +618,9 @@ const ScriptLab: React.FC = () => {
             <table className="app-table">
               <thead>
                 <tr>
-                  <th className="text-left">
-                    <input
-                      type="checkbox"
-                      checked={cases.length > 0 && cases.every(c => selectedCases.has(c.id))}
-                      onChange={e =>
-                        setSelectedCases(e.target.checked ? new Set(cases.map(c => c.id)) : new Set())
-                      }
-                      className="h-3.5 w-3.5"
-                      aria-label="Select all test cases"
-                    />
-                  </th>
+                  {/* No select-all here: it selected across both groups at
+                      once. Each band carries its own instead. */}
+                  <th className="text-left" />
                   {/* Centred over the column rather than pinned to its left
                       edge: TC ID, Title and Generated scripts are all wider
                       than their labels, which left each heading floating away
@@ -609,13 +633,51 @@ const ScriptLab: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {cases.map(testCase => {
+                {groupedCases.rows.map((testCase, index) => {
                   // Every framework, not just the selected one. The dropdown
                   // chooses what Generate produces; the row reports what
                   // exists, so a case carrying both Playwright and Katalon
                   // shows both instead of hiding one behind the selector.
                   const scripts = allScriptsOf(testCase)
+                  const generated = scripts.length > 0
+                  const startsGroup =
+                    index === 0 || hasScript(groupedCases.rows[index - 1]) !== generated
                   return (
+                  <React.Fragment key={testCase.id}>
+                    {/* A band only where the group changes, so a lab that is
+                        entirely one or the other shows one heading. */}
+                    {startsGroup ? (
+                      /* Checkbox and heading in one cell, so the heading is not
+                         stranded at the start of the Title column. A plain
+                         block comment, not {\/* *\/}: this is a ternary's
+                         expression slot, not JSX children. */
+                      <tr className="bg-app-surface-muted">
+                        <td colSpan={6} className="border-b border-app bg-app-surface-muted px-3 py-2">
+                          <div className="flex items-center gap-2.5">
+                            <input
+                              type="checkbox"
+                              checked={groupOf(generated).length > 0 && groupOf(generated).every(c => selectedCases.has(c.id))}
+                              onChange={event => toggleGroup(groupOf(generated), event.target.checked)}
+                              className="h-3.5 w-3.5 flex-shrink-0"
+                              aria-label={
+                                generated
+                                  ? 'Select every case that already has a script'
+                                  : 'Select every case awaiting script generation'
+                              }
+                            />
+                            <span
+                              className={`text-[13px] font-bold uppercase tracking-[0.08em] ${
+                                generated ? 'text-emerald-600' : 'text-app-brand-600'
+                              }`}
+                            >
+                          {generated
+                                ? `Script generated (${groupedCases.generated.length})`
+                                : `Awaiting script generation (${groupedCases.pending.length})`}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
                     <tr key={testCase.id}>
                       <td>
                         <input
@@ -750,6 +812,7 @@ const ScriptLab: React.FC = () => {
                         )}
                       </td>
                     </tr>
+                  </React.Fragment>
                   )
                 })}
               </tbody>

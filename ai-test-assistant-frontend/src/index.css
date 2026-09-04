@@ -129,6 +129,13 @@
     background-color: var(--surface-muted);
   }
 
+  /* The header band is underlined in brand red, the way Review & Approve
+     outlines its grid. Header only -- the row rules underneath stay neutral,
+     or a long grid turns into a stack of red lines. */
+  .app-table thead th {
+    border-bottom-color: var(--brand-border);
+  }
+
   .app-table th,
   .app-table td {
     @apply border-b border-app px-3 py-3 align-middle;

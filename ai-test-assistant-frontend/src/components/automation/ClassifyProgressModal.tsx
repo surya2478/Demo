@@ -44,6 +44,14 @@ export interface ClassifyProgressModalProps {
   reports?: ClassificationReport[]
   error?: string | null
   onClose: () => void
+  /**
+   * Approve the same cases the pass just classified. Optional: without it the
+   * footer is the Close button it always was.
+   */
+  onApprove?: () => void
+  /** False greys the approve action rather than hiding it, so the next step is
+   *  still visible to someone whose role cannot take it. */
+  canApprove?: boolean
 }
 
 /*
@@ -221,7 +229,9 @@ const ClassifyProgressModal: React.FC<ClassifyProgressModalProps> = ({
   counts,
   reports,
   error,
-  onClose
+  onClose,
+  onApprove,
+  canApprove = true
 }) => {
   const [elapsed, setElapsed] = useState(0)
   const [minimised, setMinimised] = useState(false)
@@ -261,6 +271,14 @@ const ClassifyProgressModal: React.FC<ClassifyProgressModalProps> = ({
   }, [open, status, onClose])
 
   if (!open) return null
+
+  /*
+   * The next step is only ever "approve" when the pass actually produced
+   * something automatable. Offering it on a batch that came back Manual or
+   * Unclassified would be pointing at a door that is not there -- those cases
+   * need editing and reclassifying, not a decision.
+   */
+  const hasAutomation = (counts?.automation ?? 0) > 0
 
   const settled = status !== 'running'
   /*
@@ -537,14 +555,45 @@ const ClassifyProgressModal: React.FC<ClassifyProgressModalProps> = ({
               You can hide this window - the pass keeps running and reports when it finishes.
             </p>
           ) : (
-            <div className="mt-4 flex justify-end">
-              <button
-                type="button"
-                onClick={onClose}
-                className="app-btn app-btn-primary text-xs font-semibold"
-              >
-                {status === 'error' ? 'Close' : 'View results'}
-              </button>
+            <div className="mt-4 flex items-center justify-between gap-3">
+              {/*
+                * Classifying is half the gate -- a case still needs approving
+                * before the Script Lab will touch it. Saying so here, with the
+                * action attached, is what stops someone classifying a batch and
+                * then wondering why the Lab is empty.
+                */}
+              {status === 'done' && onApprove && hasAutomation ? (
+                <p className="text-[11px] leading-snug text-app-secondary">
+                  Next: approve them, and the Script Lab can generate.
+                </p>
+              ) : (
+                <span />
+              )}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="app-btn app-btn-secondary !px-2.5 text-xs font-medium"
+                >
+                  {status === 'error' ? 'Close' : 'View results'}
+                </button>
+                {status === 'done' && onApprove && hasAutomation ? (
+                  <button
+                    type="button"
+                    onClick={onApprove}
+                    disabled={!canApprove}
+                    title={
+                      canApprove
+                        ? 'Approve these test cases for the Script Lab'
+                        : 'Your role can review these test cases but not approve them'
+                    }
+                    className="inline-flex items-center gap-1.5 rounded-app bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-3.5 py-2 text-xs font-bold text-white shadow-[0_8px_20px_rgba(183,25,32,0.28)] transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <HiOutlineSparkles className="h-4 w-4" />
+                    Approve
+                  </button>
+                ) : null}
+              </div>
             </div>
           )}
         </div>

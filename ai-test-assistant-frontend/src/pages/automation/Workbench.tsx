@@ -690,10 +690,49 @@ const Workbench: React.FC = () => {
       }
     })
 
+  /*
+   * --- One table, two groups ---------------------------------------------
+   *
+   * What still needs a decision on top, what is settled underneath. Done by
+   * ordering the rows and emitting a band where the group changes, rather than
+   * rendering two <table>s: a second table has its own column widths, so the
+   * two would drift out of alignment the moment their content differed, and
+   * the pinned first and last columns would have to be solved twice.
+   *
+   * Settled means no decision is outstanding. Rejection is a decision, so a
+   * rejected case belongs below whatever its classification says -- nobody is
+   * going to classify a case that has already been turned down, and leaving it
+   * in the top group would make the work queue read longer than it is.
+   */
+  const isSettled = (testCase: WorkbenchCase) =>
+    testCase.approval_status === 'rejected' ||
+    (testCase.classification !== 'undecided' && testCase.approval_status === 'approved')
+
   const visibleCases = useMemo(
     () => (filter === 'all' ? cases : cases.filter(c => c.classification === filter)),
     [cases, filter]
   )
+
+  /** The group a row belongs to -- what its band's checkbox selects. */
+  const groupOf = (testCase: WorkbenchCase) =>
+    isSettled(testCase) ? groupedCases.settled : groupedCases.pending
+
+  /*
+   * Adds or removes one group without touching the other, so a selection made
+   * in the pending band survives a select-all in the settled one.
+   */
+  const toggleGroup = (group: WorkbenchCase[], checked: boolean) =>
+    setSelectedCases(prev => {
+      const next = new Set(prev)
+      group.forEach(testCase => (checked ? next.add(testCase.id) : next.delete(testCase.id)))
+      return next
+    })
+
+  const groupedCases = useMemo(() => {
+    const pending = visibleCases.filter(testCase => !isSettled(testCase))
+    const settled = visibleCases.filter(isSettled)
+    return { pending, settled, rows: [...pending, ...settled] }
+  }, [visibleCases])
 
   // Looked up from the list rather than held in state, so a reclassify while
   // the dialog is open shows the new findings instead of the ones that led
@@ -1018,25 +1057,10 @@ const Workbench: React.FC = () => {
                   {/* Checkbox and ID share one pinned cell: they are the same
                       question -- which row is this -- and merging them buys
                       back a column's worth of gutters. */}
-                  <th className="app-table-pin-start text-center">
-                    <div className="flex items-center gap-2.5">
-                      <input
-                        type="checkbox"
-                        checked={
-                          visibleCases.length > 0 &&
-                          visibleCases.every(c => selectedCases.has(c.id))
-                        }
-                        onChange={e =>
-                          setSelectedCases(
-                            e.target.checked ? new Set(visibleCases.map(c => c.id)) : new Set()
-                          )
-                        }
-                        className="h-3.5 w-3.5"
-                        aria-label="Select all test cases"
-                      />
-                      <span className="flex-1 text-center">TC ID</span>
-                    </div>
-                  </th>
+                  {/* No select-all here: it selected across both groups at
+                      once, which is never what someone acting on one of them
+                      wants. Each band carries its own instead. */}
+                  <th className="app-table-pin-start text-center">TC ID</th>
                   {/* Every heading is centred over its column. The two pinned
                       columns centre their contents too, because their headings
                       have to line up with a checkbox column and a button group
@@ -1050,14 +1074,60 @@ const Workbench: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {visibleCases.map(testCase => (
-                  /*
-                   * The whole row opens the drawer. The guard is one line
-                   * rather than a stopPropagation on each of the dozen
-                   * controls inside a row -- a new button in a cell would
-                   * otherwise open the drawer as a side effect of being added.
-                   */
-                  <tr
+                {groupedCases.rows.map((testCase, index) => (
+                  <React.Fragment key={testCase.id}>
+                    {/* A band only where the group actually changes, so a grid
+                        that is entirely one or the other shows one heading and
+                        not an empty section. */}
+                    {index === 0 || isSettled(groupedCases.rows[index - 1]) !== isSettled(testCase) ? (
+                      /*
+                       * One cell across the whole row, with the checkbox and
+                       * the heading in a flex. Splitting them into two cells
+                       * put the heading at the start of the Title column,
+                       * leaving a column's width of dead space after the
+                       * checkbox it belongs to.
+                       *
+                       * A plain block comment: this is the ternary's expression
+                       * slot, where a JSX container would be a syntax error.
+                       */
+                      <tr className="bg-app-surface-muted">
+                        <td colSpan={7} className="border-b border-app bg-app-surface-muted px-3 py-2">
+                          <div className="flex items-center gap-2.5">
+                            <input
+                              type="checkbox"
+                              checked={groupOf(testCase).length > 0 && groupOf(testCase).every(c => selectedCases.has(c.id))}
+                              onChange={event => toggleGroup(groupOf(testCase), event.target.checked)}
+                              className="h-3.5 w-3.5 flex-shrink-0"
+                              aria-label={
+                                isSettled(testCase)
+                                  ? 'Select every approved or rejected test case'
+                                  : 'Select every test case awaiting classification or approval'
+                              }
+                            />
+                            <span
+                              className={`text-[13px] font-bold uppercase tracking-[0.08em] ${
+                                isSettled(testCase) ? 'text-emerald-600' : 'text-app-brand-600'
+                              }`}
+                            >
+                              {isSettled(testCase)
+                                ? `Approved or rejected (${groupedCases.settled.length})`
+                                : `Awaiting classification or approval (${groupedCases.pending.length})`}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : null}
+                    {/*
+                      * The whole row opens the drawer. The guard is one line
+                      * rather than a stopPropagation on each of the dozen
+                      * controls inside a row -- a new button in a cell would
+                      * otherwise open the drawer as a side effect of being added.
+                      *
+                      * In an expression slot, not a bare /* *\/ block: inside
+                      * the Fragment this is JSX children, where a bare comment
+                      * renders as literal text on every row.
+                      */}
+                    <tr
                     key={testCase.id}
                     onClick={event => {
                       if ((event.target as HTMLElement).closest('button, input, a, select, textarea')) {
@@ -1277,6 +1347,7 @@ const Workbench: React.FC = () => {
                       </div>
                     </td>
                   </tr>
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
@@ -1758,6 +1829,11 @@ const Workbench: React.FC = () => {
         counts={classifyProgress.counts}
         reports={classifyProgress.reports}
         error={classifyProgress.error}
+        canApprove={canExecute && busy === null && selectedCases.size > 0}
+        onApprove={() => {
+          setClassifyProgress(prev => ({ ...prev, open: false }))
+          void handleApprove()
+        }}
         onClose={() => setClassifyProgress(prev => ({ ...prev, open: false }))}
       />
     </div>
