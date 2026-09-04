@@ -1,10 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { HiOutlineChevronDown, HiOutlineChevronRight } from 'react-icons/hi'
 import MarkdownViewer from '../components/MarkdownViewer'
 import api from '../services/api'
 import { useAuth } from '../hooks/useAuth'
+import { usePageHeader } from '../components/layout/PageHeaderContext'
 
 interface ReviewRequestItem {
   request_id: string
+  document_id?: string | null
+  source?: string | null
   request_by: string
   request_date_time?: string | null
   brd_document?: any
@@ -29,6 +33,8 @@ interface ReviewTestCaseItem {
 }
 
 type RowDecision = 'pending' | 'approved' | 'rejected'
+
+const ADO_PAGE_SIZE = 5
 
 const getStatusClasses = (status?: string) => {
   const normalized = (status ?? '').toLowerCase()
@@ -85,9 +91,60 @@ const buildDocumentText = (value: any): string => {
   return uniqueParts.length > 0 ? uniqueParts.join('\n\n---\n\n') : 'No content available.'
 }
 
+interface ReviewRecordsTableProps {
+  title: string
+  records: ReviewRequestItem[]
+  loading: boolean
+  onOpenReview: (requestId: string) => void
+  showCount?: boolean
+  showHeader?: boolean
+}
+
+const ReviewRecordsTable: React.FC<ReviewRecordsTableProps> = ({ title, records, loading, onOpenReview, showCount = false, showHeader = true }) => (
+  <section className="overflow-hidden rounded-[14px] border border-slate-200">
+    {showHeader && <div className="flex items-center justify-between gap-3 border-b border-red-200 bg-white px-3 py-2">
+      <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-red-700">{title}</h2>
+      {showCount && <span className="text-[11px] font-semibold text-slate-500">{records.length} record{records.length === 1 ? '' : 's'}</span>}
+    </div>}
+    <div className="max-h-[420px] overflow-auto">
+      <table className="min-w-full border-collapse text-left text-xs text-slate-700">
+        <thead className="sticky top-0 bg-white">
+          <tr>
+            {['S. No', 'Document ID', 'Request ID', 'Test Cases', 'Approved', 'Rejected', 'Status', 'Requested By', 'Requested At', 'Review'].map((column) => (
+              <th key={column} className="border-b border-red-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-red-700">{column}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {loading ? (
+            <tr><td colSpan={10} className="px-3 py-6 text-center text-slate-500">Loading records...</td></tr>
+          ) : records.length === 0 ? (
+            <tr><td colSpan={10} className="px-3 py-6 text-center text-slate-500">No records available.</td></tr>
+          ) : records.map((record, index) => (
+            <tr key={record.request_id} className="odd:bg-white even:bg-slate-50">
+              <td className="border-b border-slate-200 px-3 py-3 font-semibold">{index + 1}</td>
+              <td className="border-b border-slate-200 px-3 py-3">{record.document_id || '—'}</td>
+              <td className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-800">{record.request_id}</td>
+              <td className="border-b border-slate-200 px-3 py-3">{record.no_of_test_cases}</td>
+              <td className="border-b border-slate-200 px-3 py-3">{record.approved_count}</td>
+              <td className="border-b border-slate-200 px-3 py-3">{record.rejected_count}</td>
+              <td className="border-b border-slate-200 px-3 py-3"><span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${getStatusClasses(record.overall_status)}`}>{record.overall_status || 'PENDING_REVIEW'}</span></td>
+              <td className="border-b border-slate-200 px-3 py-3">{record.request_by}</td>
+              <td className="border-b border-slate-200 px-3 py-3">{record.request_date_time ? new Date(record.request_date_time).toLocaleString() : '—'}</td>
+              <td className="border-b border-slate-200 px-3 py-3"><button type="button" onClick={() => onOpenReview(record.request_id)} className="font-semibold text-red-600 underline decoration-red-200 underline-offset-2 hover:text-red-700">Open</button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+)
+
 const ReviewAndApproval: React.FC = () => {
   const { user } = useAuth()
   const [requests, setRequests] = useState<ReviewRequestItem[]>([])
+  const [adoRequests, setAdoRequests] = useState<ReviewRequestItem[]>([])
+  const [historyRequests, setHistoryRequests] = useState<ReviewRequestItem[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null)
   const [selectedRequest, setSelectedRequest] = useState<ReviewRequestItem | null>(null)
@@ -103,22 +160,64 @@ const ReviewAndApproval: React.FC = () => {
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false)
   const [tableSearch, setTableSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+  const [pageSize, setPageSize] = useState(5)
+  const [adoCurrentPage, setAdoCurrentPage] = useState(1)
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(false)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [successMessageDetail, setSuccessMessageDetail] = useState<string | null>(null)
+  const [isSuccessMessageVisible, setIsSuccessMessageVisible] = useState(false)
+  const [decisionInProgress, setDecisionInProgress] = useState<string | null>(null)
+  const successMessageTimeouts = useRef<number[]>([])
 
-  const fetchRequests = async () => {
-    setLoading(true)
+  usePageHeader({
+    title: 'Review & Approval',
+    subtitle: 'Review submitted test case requests and approve or reject them before knowledge base sync.'
+  })
+
+  const fetchRequests = async (showLoading = true) => {
+    if (showLoading) setLoading(true)
     try {
-      const response = await api.get('/test-case-reviews/details')
-      const items = response.data?.items ?? []
-      setRequests(items)
-      if (items.length > 0 && !selectedRequestId) {
-        setSelectedRequestId(items[0].request_id)
+      const [currentResponse, adoResponse, historyResponse] = await Promise.all([
+        api.get('/test-case-reviews/details/current'),
+        api.get('/test-case-reviews/details/ado'),
+        api.get('/test-case-reviews/details/history')
+      ])
+      const currentItems = currentResponse.data?.items ?? []
+      setRequests(currentItems)
+      const adoItems = adoResponse.data?.items ?? []
+      setAdoRequests(adoItems)
+      setHistoryRequests(historyResponse.data?.items ?? [])
+      setAdoCurrentPage((page) => Math.min(page, Math.max(1, Math.ceil(adoItems.length / ADO_PAGE_SIZE))))
+      if (currentItems.length > 0 && !selectedRequestId) {
+        setSelectedRequestId(currentItems[0].request_id)
       }
     } catch (error) {
       console.error('Failed to load review requests', error)
     } finally {
-      setLoading(false)
+      if (showLoading) setLoading(false)
     }
+  }
+
+  const fetchAdoRequests = async () => {
+    try {
+      const response = await api.get('/test-case-reviews/details/ado')
+      const items = response.data?.items ?? []
+      setAdoRequests(items)
+      setAdoCurrentPage((page) => Math.min(page, Math.max(1, Math.ceil(items.length / ADO_PAGE_SIZE))))
+    } catch (error) {
+      console.error('Failed to refresh ADO review requests', error)
+    }
+  }
+
+  const showSuccessMessage = (message: string, detail?: string) => {
+    successMessageTimeouts.current.forEach((timeout) => window.clearTimeout(timeout))
+    setSuccessMessage(message)
+    setSuccessMessageDetail(detail ?? null)
+    setIsSuccessMessageVisible(true)
+    successMessageTimeouts.current = [
+      window.setTimeout(() => setIsSuccessMessageVisible(false), 1700),
+      window.setTimeout(() => { setSuccessMessage(null); setSuccessMessageDetail(null) }, 2000)
+    ]
   }
 
   const fetchRequestDetail = async (requestId: string) => {
@@ -149,6 +248,17 @@ const ReviewAndApproval: React.FC = () => {
 
   useEffect(() => {
     fetchRequests()
+    const refreshRequests = () => { fetchAdoRequests() }
+    window.addEventListener('test-case-review-updated', refreshRequests)
+    const adoRefreshInterval = window.setInterval(fetchAdoRequests, 5000)
+    return () => {
+      window.removeEventListener('test-case-review-updated', refreshRequests)
+      window.clearInterval(adoRefreshInterval)
+    }
+  }, [])
+
+  useEffect(() => () => {
+    successMessageTimeouts.current.forEach((timeout) => window.clearTimeout(timeout))
   }, [])
 
   useEffect(() => {
@@ -190,6 +300,7 @@ const ReviewAndApproval: React.FC = () => {
     }
 
     try {
+      setDecisionInProgress(testCaseId)
       await api.post(`/test-case-reviews/detail/${selectedRequestId}/decision`, {
         decision,
         review_notes: reviewNote || undefined,
@@ -241,9 +352,13 @@ const ReviewAndApproval: React.FC = () => {
         overall_status: nextOverallStatus
       } : current)
 
-      await fetchRequests()
+      await fetchRequests(false)
+      showSuccessMessage(`1 TC ${decision === 'APPROVE' ? 'Approved' : 'Rejected'} successfully`)
+      window.dispatchEvent(new Event('test-case-review-updated'))
     } catch (error) {
       console.error('Failed to update row decision', error)
+    } finally {
+      setDecisionInProgress(null)
     }
   }
 
@@ -266,6 +381,8 @@ const ReviewAndApproval: React.FC = () => {
     }
 
     try {
+      const selectedCount = selectedRowIds.length
+      setDecisionInProgress('bulk')
       await api.post(`/test-case-reviews/detail/${selectedRequestId}/decision`, {
         decision,
         review_notes: reviewNote || undefined,
@@ -311,9 +428,16 @@ const ReviewAndApproval: React.FC = () => {
         overall_status: nextOverallStatus
       } : current)
 
-      await fetchRequests()
+      await fetchRequests(false)
+      showSuccessMessage(
+        `${selectedCount} TCs ${decision === 'APPROVE' ? 'Approved' : 'Rejected'} successfully`,
+        decision === 'APPROVE' ? 'You can close this window or proceed to Transfer to KB.' : undefined
+      )
+      window.dispatchEvent(new Event('test-case-review-updated'))
     } catch (error) {
       console.error('Failed to update bulk decision', error)
+    } finally {
+      setDecisionInProgress(null)
     }
   }
 
@@ -350,12 +474,12 @@ const ReviewAndApproval: React.FC = () => {
     selectedTestCases.length > 0 &&
     selectedRequest.approved_count === selectedTestCases.length &&
     String(selectedRequest.overall_status || '').toUpperCase() === 'APPROVED'
-  const bulkActionsEnabled = isSelectAllChecked && pendingTestCaseIds.length > 0
+  const bulkActionsEnabled = isSelectAllChecked && pendingTestCaseIds.length > 0 && !decisionInProgress
 
   const filteredRequests = useMemo(() => {
     const term = tableSearch.trim().toLowerCase()
-    if (!term) return requests
-    return requests.filter((request) => {
+    if (!term) return historyRequests
+    return historyRequests.filter((request) => {
       const searchable = [
         request.request_id,
         request.request_by,
@@ -370,14 +494,21 @@ const ReviewAndApproval: React.FC = () => {
       ]
       return searchable.some((value) => (value ?? '').toString().toLowerCase().includes(term))
     })
-  }, [requests, tableSearch])
+  }, [historyRequests, tableSearch])
 
   const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize))
   const safeCurrentPage = Math.min(currentPage, totalPages)
-  const paginatedRequests = useMemo(() => {
+  const paginatedHistoryRequests = useMemo(() => {
     const start = (safeCurrentPage - 1) * pageSize
     return filteredRequests.slice(start, start + pageSize)
   }, [filteredRequests, safeCurrentPage, pageSize])
+
+  const adoTotalPages = Math.max(1, Math.ceil(adoRequests.length / ADO_PAGE_SIZE))
+  const safeAdoCurrentPage = Math.min(adoCurrentPage, adoTotalPages)
+  const paginatedAdoRequests = useMemo(() => {
+    const start = (safeAdoCurrentPage - 1) * ADO_PAGE_SIZE
+    return adoRequests.slice(start, start + ADO_PAGE_SIZE)
+  }, [adoRequests, safeAdoCurrentPage])
 
   const handleTableSearchChange = (value: string) => {
     setTableSearch(value)
@@ -387,55 +518,43 @@ const ReviewAndApproval: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="rounded-[20px] border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-4 rounded-[16px] border border-red-200 bg-gradient-to-r from-red-600 to-red-700 p-4 text-white shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-[20px] font-bold text-white">Review & Approval</div>
-              <div className="mt-1 text-sm text-red-50">Review submitted test case requests and approve or reject them before knowledge base sync.</div>
-            </div>
-          </div>
-        </div>
-
         {loading ? (
           <div className="text-sm text-slate-600">Loading review queue...</div>
-        ) : requests.length === 0 ? (
+        ) : requests.length === 0 && adoRequests.length === 0 && historyRequests.length === 0 ? (
           <div className="rounded-[14px] border border-dashed border-slate-200 bg-slate-50 p-8 text-sm text-slate-600">
             No review requests pending.
           </div>
         ) : (
           <div className="space-y-6">
             <div className="overflow-hidden rounded-[14px] border border-slate-200">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
-                  {filteredRequests.length} request{filteredRequests.length === 1 ? '' : 's'}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-red-200 bg-white px-3 py-2">
+                <div className="text-xs font-bold uppercase tracking-[0.14em] text-red-700">
+                  Recent / Current Records
                 </div>
-                <input
-                  type="text"
-                  value={tableSearch}
-                  onChange={(event) => handleTableSearchChange(event.target.value)}
-                  placeholder="Search all fields..."
-                  className="w-64 rounded-[8px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 outline-none focus:border-slate-400"
-                />
               </div>
               <div className="max-h-[640px] overflow-auto">
                 <table className="min-w-full border-collapse text-left text-xs text-slate-700">
-                  <thead className="sticky top-0 bg-slate-100">
+                  <thead className="sticky top-0 bg-white">
                     <tr>
-                      <th className="border-b border-slate-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-slate-700">S. No</th>
-                      <th className="border-b border-slate-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-slate-700">Request ID</th>
-                      <th className="border-b border-slate-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-slate-700">BRD Document</th>
-                      <th className="border-b border-slate-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-slate-700">TestCase</th>
-                      <th className="border-b border-slate-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-slate-700">Approved</th>
-                      <th className="border-b border-slate-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-slate-700">Rejected</th>
-                      <th className="border-b border-slate-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-slate-700">Overall Status</th>
-                      <th className="border-b border-slate-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-slate-700">Requested By</th>
-                      <th className="border-b border-slate-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-slate-700">Requested Date &amp; Time</th>
+                      <th className="border-b border-red-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-red-700">S. No</th>
+                      <th className="border-b border-red-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-red-700">Document ID</th>
+                      <th className="border-b border-red-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-red-700">Request ID</th>
+                      <th className="border-b border-red-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-red-700">BRD Document</th>
+                      <th className="border-b border-red-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-red-700">TestCase</th>
+                      <th className="border-b border-red-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-red-700">Approved</th>
+                      <th className="border-b border-red-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-red-700">Rejected</th>
+                      <th className="border-b border-red-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-red-700">Overall Status</th>
+                      <th className="border-b border-red-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-red-700">Requested By</th>
+                      <th className="border-b border-red-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-red-700">Requested Date &amp; Time</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {paginatedRequests.map((request, index) => (
+                    {requests.length === 0 ? (
+                      <tr><td colSpan={10} className="px-3 py-6 text-center text-slate-500">No records available.</td></tr>
+                    ) : requests.map((request, index) => (
                       <tr key={request.request_id} className="odd:bg-white even:bg-slate-50">
-                        <td className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">{(safeCurrentPage - 1) * pageSize + index + 1}</td>
+                        <td className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">{index + 1}</td>
+                        <td className="border-b border-slate-200 px-3 py-3 text-slate-700">{request.document_id || '—'}</td>
                         <td className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-800">{request.request_id}</td>
                         <td className="border-b border-slate-200 px-3 py-3">
                           {request.brd_document ? (
@@ -481,40 +600,36 @@ const ReviewAndApproval: React.FC = () => {
                   </tbody>
                 </table>
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-3 py-2">
-                <div className="flex items-center gap-2 text-xs text-slate-600">
-                  <span>Rows per page:</span>
-                  <select
-                    value={pageSize}
-                    onChange={(event) => { setPageSize(Number(event.target.value)); setCurrentPage(1) }}
-                    className="rounded-[6px] border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 outline-none focus:border-slate-400"
-                  >
-                    {[10, 25, 50, 100].map((size) => (
-                      <option key={size} value={size}>{size}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    disabled={safeCurrentPage <= 1}
-                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                    className="rounded-[6px] border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    Previous
-                  </button>
-                  <span className="text-xs text-slate-600">Page {safeCurrentPage} of {totalPages}</span>
-                  <button
-                    type="button"
-                    disabled={safeCurrentPage >= totalPages}
-                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                    className="rounded-[6px] border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
             </div>
+
+            <ReviewRecordsTable
+              title="ADO Repository Records"
+              records={paginatedAdoRequests}
+              loading={loading}
+              onOpenReview={(requestId) => {
+                setSelectedRequestId(requestId)
+                setIsReviewModalOpen(true)
+              }}
+            />
+            {adoRequests.length > ADO_PAGE_SIZE && (
+              <div className="-mt-6 flex items-center justify-end gap-2 rounded-b-[14px] border border-t-0 border-slate-200 bg-slate-50 px-3 py-2">
+                <button type="button" disabled={safeAdoCurrentPage <= 1} onClick={() => setAdoCurrentPage((page) => Math.max(1, page - 1))} className="rounded-[6px] border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
+                <span className="text-xs text-slate-600">Page {safeAdoCurrentPage} of {adoTotalPages}</span>
+                <button type="button" disabled={safeAdoCurrentPage >= adoTotalPages} onClick={() => setAdoCurrentPage((page) => Math.min(adoTotalPages, page + 1))} className="rounded-[6px] border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Next</button>
+              </div>
+            )}
+
+            <section className="overflow-hidden rounded-[14px] border border-slate-200">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-red-200 bg-white px-3 py-2">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-red-700"><span>All History Records: {filteredRequests.length}</span><button type="button" onClick={() => setIsHistoryExpanded((expanded) => !expanded)} aria-label={isHistoryExpanded ? 'Collapse history records' : 'Expand history records'} title={isHistoryExpanded ? 'Collapse history records' : 'Expand history records'} className="flex h-7 w-7 items-center justify-center rounded-[6px] border border-red-200 text-red-700 hover:bg-red-50">{isHistoryExpanded ? <HiOutlineChevronDown className="h-4 w-4" /> : <HiOutlineChevronRight className="h-4 w-4" />}</button></div>
+                {isHistoryExpanded && <input type="text" value={tableSearch} onChange={(event) => handleTableSearchChange(event.target.value)} placeholder="Search all fields..." className="w-64 rounded-[8px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 outline-none focus:border-slate-400" />}
+              </div>
+              {isHistoryExpanded && <><ReviewRecordsTable title="All History Records" records={paginatedHistoryRequests} loading={loading} showHeader={false} onOpenReview={(requestId) => { setSelectedRequestId(requestId); setIsReviewModalOpen(true) }} />
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-3 py-2">
+                <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setCurrentPage(1) }} className="rounded-[6px] border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"><option value={5}>5</option><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select>
+                <div className="flex items-center gap-2"><button type="button" disabled={safeCurrentPage <= 1} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} className="rounded-[6px] border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 disabled:opacity-40">Previous</button><span className="text-xs text-slate-600">Page {safeCurrentPage} of {totalPages}</span><button type="button" disabled={safeCurrentPage >= totalPages} onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} className="rounded-[6px] border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 disabled:opacity-40">Next</button></div>
+              </div></>}
+            </section>
 
             {isReviewModalOpen && selectedRequest && (
               <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={(event) => { if (event.target === event.currentTarget) { setIsReviewModalOpen(false) } }}>
@@ -552,7 +667,7 @@ const ReviewAndApproval: React.FC = () => {
                           <table className="w-full table-fixed border-collapse text-left text-xs text-slate-700">
                             <thead className="sticky top-0 z-10 bg-slate-100">
                               <tr>
-                                <th className="w-[56px] min-w-[56px] border-b border-slate-200 px-1 py-2 font-semibold uppercase tracking-[0.12em] text-slate-700">
+                                <th className="w-[100px] min-w-[56px] border-b border-slate-200 px-1 py-2 font-semibold uppercase tracking-[0.12em] text-slate-700">
                                   <div className="flex items-center justify-center gap-0.5 whitespace-nowrap">
                                     <input
                                       type="checkbox"
@@ -581,7 +696,7 @@ const ReviewAndApproval: React.FC = () => {
 
                                 return (
                                   <tr key={item.test_case_id} className="align-top odd:bg-white even:bg-slate-50">
-                                    <td className="w-[56px] min-w-[56px] border-b border-slate-200 px-1 py-2 align-middle">
+                                    <td className="w-[56px] min-w-[56px] border-b border-slate-200 px-1 py-2 align-top">
                                       <div className="flex items-center justify-center">
                                         <input
                                           type="checkbox"
@@ -621,8 +736,8 @@ const ReviewAndApproval: React.FC = () => {
                                     <td className="border-b border-slate-200 px-3 py-2 align-middle">
                                       {isPending ? (
                                         <div className="flex flex-wrap gap-2">
-                                          <button type="button" onClick={(event) => handleRowDecision(event, 'REJECT', item.test_case_id)} className="rounded-[8px] border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-semibold text-red-700 hover:bg-red-100">Reject</button>
-                                          <button type="button" onClick={(event) => handleRowDecision(event, 'APPROVE', item.test_case_id)} className="rounded-[8px] bg-red-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-red-700">Approve</button>
+                                          <button type="button" disabled={Boolean(decisionInProgress)} onClick={(event) => handleRowDecision(event, 'REJECT', item.test_case_id)} className="rounded-[8px] border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-semibold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40">{decisionInProgress === item.test_case_id ? 'Saving...' : 'Reject'}</button>
+                                          <button type="button" disabled={Boolean(decisionInProgress)} onClick={(event) => handleRowDecision(event, 'APPROVE', item.test_case_id)} className="rounded-[8px] bg-red-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40">{decisionInProgress === item.test_case_id ? 'Approving...' : 'Approve'}</button>
                                         </div>
                                       ) : (
                                         <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${getStatusClasses(rowDecision === 'approved' ? 'Approved' : 'Rejected')}`}>
@@ -669,7 +784,7 @@ const ReviewAndApproval: React.FC = () => {
                           onClick={(event) => handleBulkDecision(event, 'APPROVE')}
                           className={`${actionButtonClasses} border-red-600 bg-red-600 text-white hover:bg-red-700 disabled:hover:bg-red-600`}
                         >
-                          Approve Selected
+                          {decisionInProgress === 'bulk' ? 'Approving...' : 'Approve Selected'}
                         </button>
                         <button
                           type="button"
@@ -688,6 +803,13 @@ const ReviewAndApproval: React.FC = () => {
           </div>
         )}
       </div>
+
+      {successMessage && (
+        <div className={`pointer-events-none fixed left-1/2 top-1/2 z-[80] flex -translate-x-1/2 -translate-y-1/2 items-start gap-3 rounded-[10px] border border-red-200 bg-white px-4 py-3 text-sm font-semibold text-red-700 shadow-[0_12px_30px_rgba(15,23,42,0.14)] transition-all duration-300 ${isSuccessMessageVisible ? 'opacity-100' : 'translate-y-[calc(-50%+8px)] opacity-0'}`}>
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-700">OK</span>
+          <div><div>{successMessage}</div>{successMessageDetail && <div className="mt-1 text-xs font-medium text-slate-600">{successMessageDetail}</div>}</div>
+        </div>
+      )}
 
       {documentViewer && (
         <div

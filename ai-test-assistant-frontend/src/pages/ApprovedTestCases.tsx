@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { HiOutlineChevronDown, HiOutlineChevronRight } from 'react-icons/hi'
 import api from '../services/api'
 import { getTimestampedFilename } from '../utils/DynamicFileName-DateTime'
+import { usePageHeader } from '../components/layout/PageHeaderContext'
 
 interface ApprovedTestCaseItem {
   test_case_id: string
@@ -19,10 +21,9 @@ interface ApprovedRequestGroup {
   document_id: string
   reviewed_by: string
   reviewed_datetime: string | null
+  test_case_count: number
   test_cases: ApprovedTestCaseItem[]
 }
-
-const PAGE_SIZE = 25
 
 const collectDetailColumns = (records: ApprovedTestCaseItem[]): string[] => {
   const keys = new Set<string>()
@@ -92,47 +93,90 @@ const exportRecordsAsExcel = async (records: ApprovedTestCaseItem[], columns: st
   XLSX.writeFile(workbook, getTimestampedFilename(baseName))
 }
 
+interface ApprovedGroupsTableProps {
+  title: string
+  groups: ApprovedRequestGroup[]
+  loading: boolean
+  downloadingRequestId: string | null
+  onView: (group: ApprovedRequestGroup) => void
+  onDownload: (requestId: string) => void
+  showCount?: boolean
+  showHeader?: boolean
+}
+
+const ApprovedGroupsTable: React.FC<ApprovedGroupsTableProps> = ({ title, groups, loading, downloadingRequestId, onView, onDownload, showCount = false, showHeader = true }) => (
+  <section className="overflow-hidden rounded-[14px] border border-slate-200">
+    {showHeader && <div className="flex items-center justify-between gap-3 border-b border-red-200 bg-white px-3 py-2">
+      <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-red-700">{title}</h2>
+      {showCount && <span className="text-[11px] font-semibold text-slate-500">{groups.length} approved request{groups.length === 1 ? '' : 's'}</span>}
+    </div>}
+    <div className="max-h-[420px] overflow-auto">
+      <table className="min-w-full border-collapse text-left text-xs text-slate-700">
+        <thead className="sticky top-0 z-10 bg-white"><tr>
+          {['Seq. No', 'Document ID', 'Request ID', 'Test Cases', 'Approved By', 'Approved Date', 'Download'].map((column) => (
+            <th key={column} className="border-b border-red-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-red-700">{column}</th>
+          ))}
+        </tr></thead>
+        <tbody>
+          {loading ? (
+            <tr><td colSpan={7} className="px-3 py-6 text-center text-slate-500">Loading approved test cases...</td></tr>
+          ) : groups.length === 0 ? (
+            <tr><td colSpan={7} className="px-3 py-6 text-center text-slate-500">No records available.</td></tr>
+          ) : groups.map((group, index) => (
+            <tr key={group.request_id} className="odd:bg-white even:bg-slate-50">
+              <td className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">{index + 1}</td>
+              <td className="border-b border-slate-200 px-3 py-3 text-slate-700">{group.document_id || '—'}</td>
+              <td className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-800">{group.request_id}</td>
+              <td className="border-b border-slate-200 px-3 py-3"><button type="button" onClick={() => onView(group)} className="font-semibold text-red-600 underline decoration-red-200 underline-offset-2 hover:text-red-700">View ({group.test_case_count})</button></td>
+              <td className="border-b border-slate-200 px-3 py-3 text-slate-700">{group.reviewed_by || '—'}</td>
+              <td className="border-b border-slate-200 px-3 py-3 text-slate-700">{group.reviewed_datetime ? new Date(group.reviewed_datetime).toLocaleString() : '—'}</td>
+              <td className="border-b border-slate-200 px-3 py-3"><button type="button" disabled={downloadingRequestId === group.request_id} onClick={() => onDownload(group.request_id)} className="font-semibold text-red-600 underline decoration-red-200 underline-offset-2 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40">Excel</button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+)
+
 const ApprovedTestCases: React.FC = () => {
   const [groups, setGroups] = useState<ApprovedRequestGroup[]>([])
+  const [adoGroups, setAdoGroups] = useState<ApprovedRequestGroup[]>([])
+  const [historyGroups, setHistoryGroups] = useState<ApprovedRequestGroup[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [downloadingRequestId, setDownloadingRequestId] = useState<string | null>(null)
   const [viewingGroup, setViewingGroup] = useState<ApprovedRequestGroup | null>(null)
   const [tableSearch, setTableSearch] = useState('')
+  const [pageSize, setPageSize] = useState(5)
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(false)
+
+  usePageHeader({
+    title: 'Approved Test Cases',
+    subtitle: 'Browse manager-approved test case requests and export them for execution.'
+  })
 
   const fetchApprovedData = async () => {
     setLoading(true)
     setError(null)
     try {
-      const docsResponse = await api.get('/test-case-reviews/approved/documents')
-      const ids: string[] = docsResponse.data?.items ?? []
-
-      const responses = await Promise.all(
-        ids.map((documentId) => api.get(`/test-case-reviews/approved/${encodeURIComponent(documentId)}`))
-      )
-
-      const byRequest = new Map<string, ApprovedRequestGroup>()
-      responses.forEach((response) => {
-        const records: ApprovedTestCaseItem[] = response.data?.items ?? []
-        records.forEach((record) => {
-          const existing = byRequest.get(record.request_id)
-          if (existing) {
-            existing.test_cases.push(record)
-            if (!existing.reviewed_by && record.reviewed_by) existing.reviewed_by = record.reviewed_by
-            if (!existing.reviewed_datetime && record.reviewed_datetime) existing.reviewed_datetime = record.reviewed_datetime
-          } else {
-            byRequest.set(record.request_id, {
-              request_id: record.request_id,
-              document_id: record.document_id ?? '',
-              reviewed_by: record.reviewed_by ?? '',
-              reviewed_datetime: record.reviewed_datetime ?? null,
-              test_cases: [record]
-            })
-          }
-        })
-      })
-      setGroups(Array.from(byRequest.values()))
+      const [currentResponse, adoResponse, historyResponse] = await Promise.all([
+        api.get('/test-case-reviews/approved/details/current'),
+        api.get('/test-case-reviews/approved/details/ado'),
+        api.get('/test-case-reviews/approved/details/history')
+      ])
+      const toGroups = (items: any[]): ApprovedRequestGroup[] => items.map((item) => ({
+        request_id: item.request_id,
+        document_id: item.document_id ?? '',
+        reviewed_by: item.reviewed_by ?? '',
+        reviewed_datetime: item.reviewed_date_time ?? null,
+        test_case_count: item.no_of_test_cases ?? 0,
+        test_cases: []
+      }))
+      setGroups(toGroups(currentResponse.data?.items ?? []))
+      setAdoGroups(toGroups(adoResponse.data?.items ?? []))
+      setHistoryGroups(toGroups(historyResponse.data?.items ?? []))
       setCurrentPage(1)
     } catch (err) {
       console.error('Failed to load approved test cases', err)
@@ -144,28 +188,44 @@ const ApprovedTestCases: React.FC = () => {
 
   useEffect(() => {
     fetchApprovedData()
+    const refreshApprovedData = () => { fetchApprovedData() }
+    window.addEventListener('test-case-review-updated', refreshApprovedData)
+    return () => {
+      window.removeEventListener('test-case-review-updated', refreshApprovedData)
+    }
   }, [])
 
   const filteredGroups = useMemo(() => {
     const term = tableSearch.trim().toLowerCase()
-    if (!term) return groups
-    return groups.filter((group) =>
-      [group.request_id, group.document_id, group.reviewed_by, String(group.test_cases.length)]
+    if (!term) return historyGroups
+    return historyGroups.filter((group) =>
+      [group.request_id, group.document_id, group.reviewed_by, String(group.test_case_count)]
         .some((value) => (value ?? '').toString().toLowerCase().includes(term))
     )
-  }, [groups, tableSearch])
+  }, [historyGroups, tableSearch])
 
-  const totalPages = Math.max(1, Math.ceil(filteredGroups.length / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(filteredGroups.length / pageSize))
   const safeCurrentPage = Math.min(currentPage, totalPages)
   const paginatedGroups = useMemo(() => {
-    const start = (safeCurrentPage - 1) * PAGE_SIZE
-    return filteredGroups.slice(start, start + PAGE_SIZE)
-  }, [filteredGroups, safeCurrentPage])
+    const start = (safeCurrentPage - 1) * pageSize
+    return filteredGroups.slice(start, start + pageSize)
+  }, [filteredGroups, safeCurrentPage, pageSize])
 
   const viewingColumns = useMemo(
     () => (viewingGroup ? collectDetailColumns(viewingGroup.test_cases) : []),
     [viewingGroup]
   )
+
+  const handleViewGroup = async (group: ApprovedRequestGroup) => {
+    setError(null)
+    try {
+      const response = await api.get(`/test-case-reviews/approved/request/${encodeURIComponent(group.request_id)}`)
+      setViewingGroup({ ...group, test_cases: response.data?.items ?? [] })
+    } catch (err: any) {
+      console.error('Failed to load approved test cases for request', group.request_id, err)
+      setError(err?.response?.data?.detail || `Failed to load test cases for request ${group.request_id}.`)
+    }
+  }
 
   const handleDownloadRequest = async (requestId: string, format: 'xlsx' | 'csv') => {
     if (!requestId || downloadingRequestId) return
@@ -196,66 +256,43 @@ const ApprovedTestCases: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="rounded-[20px] border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-4 rounded-[16px] border border-red-200 bg-gradient-to-r from-red-600 to-red-700 p-4 text-white shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-[20px] font-bold text-white">Approved Test Cases</div>
-              <div className="mt-1 text-sm text-red-50">Browse manager-approved test case requests and export them for execution.</div>
-            </div>
-          </div>
-        </div>
-
         {error && (
           <div className="mb-4 rounded-[10px] border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</div>
         )}
 
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-            {filteredGroups.length} approved request{filteredGroups.length === 1 ? '' : 's'}
-          </div>
-          <input
-            type="text"
-            value={tableSearch}
-            onChange={(event) => { setTableSearch(event.target.value); setCurrentPage(1) }}
-            placeholder="Search requests..."
-            className="w-64 rounded-[8px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 outline-none focus:border-slate-400"
-          />
-        </div>
-
         {loading ? (
           <div className="text-sm text-slate-600">Loading approved test cases...</div>
-        ) : groups.length === 0 ? (
-          <div className="rounded-[14px] border border-dashed border-slate-200 bg-slate-50 p-8 text-sm text-slate-600">
-            No approved test case requests found.
-          </div>
         ) : (
           <div className="overflow-hidden rounded-[14px] border border-slate-200">
+            <div className="border-b border-red-200 bg-white px-3 py-2"><h2 className="text-xs font-bold uppercase tracking-[0.14em] text-red-700">Recent / Current Records</h2></div>
             <div className="max-h-[60vh] overflow-auto">
               <table className="min-w-full border-collapse text-left text-xs text-slate-700">
-                <thead className="sticky top-0 z-10 bg-slate-100">
+                <thead className="sticky top-0 z-10 bg-white">
                   <tr>
-                    <th className="border-b border-slate-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-slate-700">Seq. No</th>
-                    <th className="border-b border-slate-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-slate-700">Document ID</th>
-                    <th className="border-b border-slate-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-slate-700">Request ID</th>
-                    <th className="border-b border-slate-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-slate-700">View Test Cases</th>
-                    <th className="border-b border-slate-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-slate-700">Approved By</th>
-                    <th className="border-b border-slate-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-slate-700">Approved Date</th>
-                    <th className="border-b border-slate-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-slate-700">Download</th>
+                    <th className="border-b border-red-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-red-700">Seq. No</th>
+                    <th className="border-b border-red-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-red-700">Document ID</th>
+                    <th className="border-b border-red-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-red-700">Request ID</th>
+                    <th className="border-b border-red-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-red-700">View Test Cases</th>
+                    <th className="border-b border-red-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-red-700">Approved By</th>
+                    <th className="border-b border-red-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-red-700">Approved Date</th>
+                    <th className="border-b border-red-200 px-3 py-3 font-semibold uppercase tracking-[0.12em] text-red-700">Download</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedGroups.map((group, index) => (
+                  {groups.length === 0 ? (
+                    <tr><td colSpan={7} className="px-3 py-6 text-center text-slate-500">No records available.</td></tr>
+                  ) : groups.map((group, index) => (
                     <tr key={group.request_id} className="odd:bg-white even:bg-slate-50">
-                      <td className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">{(safeCurrentPage - 1) * PAGE_SIZE + index + 1}</td>
+                      <td className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">{index + 1}</td>
                       <td className="border-b border-slate-200 px-3 py-3 text-slate-700">{group.document_id || '—'}</td>
                       <td className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-800">{group.request_id}</td>
                       <td className="border-b border-slate-200 px-3 py-3">
                         <button
                           type="button"
-                          onClick={() => setViewingGroup(group)}
+                          onClick={() => handleViewGroup(group)}
                           className="font-semibold text-red-600 underline decoration-red-200 underline-offset-2 hover:text-red-700"
                         >
-                          View ({group.test_cases.length})
+                          View ({group.test_case_count})
                         </button>
                       </td>
                       <td className="border-b border-slate-200 px-3 py-3 text-slate-700">{group.reviewed_by || '—'}</td>
@@ -263,25 +300,14 @@ const ApprovedTestCases: React.FC = () => {
                         {group.reviewed_datetime ? new Date(group.reviewed_datetime).toLocaleString() : '—'}
                       </td>
                       <td className="border-b border-slate-200 px-3 py-3">
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            disabled={downloadingRequestId === group.request_id}
-                            onClick={() => handleDownloadRequest(group.request_id, 'xlsx')}
-                            className="font-semibold text-red-600 underline decoration-red-200 underline-offset-2 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
-                          >
-                            Excel
-                          </button>
-                          <span className="text-slate-300">|</span>
-                          <button
-                            type="button"
-                            disabled={downloadingRequestId === group.request_id}
-                            onClick={() => handleDownloadRequest(group.request_id, 'csv')}
-                            className="font-semibold text-red-600 underline decoration-red-200 underline-offset-2 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
-                          >
-                            CSV
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          disabled={downloadingRequestId === group.request_id}
+                          onClick={() => handleDownloadRequest(group.request_id, 'xlsx')}
+                          className="font-semibold text-red-600 underline decoration-red-200 underline-offset-2 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Excel
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -289,32 +315,20 @@ const ApprovedTestCases: React.FC = () => {
               </table>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-3 py-2">
-              <div className="text-xs text-slate-600">
-                {groups.length} approved request{groups.length === 1 ? '' : 's'}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={safeCurrentPage <= 1}
-                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                  className="rounded-[6px] border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Previous
-                </button>
-                <span className="text-xs text-slate-600">Page {safeCurrentPage} of {totalPages}</span>
-                <button
-                  type="button"
-                  disabled={safeCurrentPage >= totalPages}
-                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                  className="rounded-[6px] border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
           </div>
         )}
+
+        <div className="mt-6 space-y-6">
+          <ApprovedGroupsTable title="ADO Repository Records" groups={adoGroups} loading={loading} downloadingRequestId={downloadingRequestId} onView={handleViewGroup} onDownload={(requestId) => handleDownloadRequest(requestId, 'xlsx')} />
+          <section className="overflow-hidden rounded-[14px] border border-slate-200">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-red-200 bg-white px-3 py-2">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-red-700"><span>All History Records: {filteredGroups.length}</span><button type="button" onClick={() => setIsHistoryExpanded((expanded) => !expanded)} aria-label={isHistoryExpanded ? 'Collapse history records' : 'Expand history records'} title={isHistoryExpanded ? 'Collapse history records' : 'Expand history records'} className="flex h-7 w-7 items-center justify-center rounded-[6px] border border-red-200 text-red-700 hover:bg-red-50">{isHistoryExpanded ? <HiOutlineChevronDown className="h-4 w-4" /> : <HiOutlineChevronRight className="h-4 w-4" />}</button></div>
+              {isHistoryExpanded && <input type="text" value={tableSearch} onChange={(event) => { setTableSearch(event.target.value); setCurrentPage(1) }} placeholder="Search requests..." className="w-64 rounded-[8px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 outline-none focus:border-slate-400" />}
+            </div>
+            {isHistoryExpanded && <><ApprovedGroupsTable title="All History Records" groups={paginatedGroups} loading={loading} downloadingRequestId={downloadingRequestId} showHeader={false} onView={handleViewGroup} onDownload={(requestId) => handleDownloadRequest(requestId, 'xlsx')} />
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-3 py-2"><select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setCurrentPage(1) }} className="rounded-[6px] border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select><div className="flex items-center gap-2"><button type="button" disabled={safeCurrentPage <= 1} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} className="rounded-[6px] border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 disabled:opacity-40">Previous</button><span className="text-xs text-slate-600">Page {safeCurrentPage} of {totalPages}</span><button type="button" disabled={safeCurrentPage >= totalPages} onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} className="rounded-[6px] border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 disabled:opacity-40">Next</button></div></div></>}
+          </section>
+        </div>
       </div>
 
       {viewingGroup && (
