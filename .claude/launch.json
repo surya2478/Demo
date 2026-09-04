@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "backend",
-      "runtimeExecutable": "C:/Program Files/Python314/python.exe",
+      "runtimeExecutable": ".venv312/Scripts/python.exe",
       "runtimeArgs": [
         "-m",
         "uvicorn",
