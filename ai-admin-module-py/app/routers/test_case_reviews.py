@@ -1,5 +1,5 @@
 from typing import Any, Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import logging
 
@@ -39,6 +39,22 @@ def _to_dubai(value: Any) -> Optional[datetime]:
     return parsed
 
 
+def _get_document_id(payload: Dict[str, Any], request_id: str) -> str:
+    document_id = str(payload.get('document_id') or '').strip()
+    if document_id:
+        return document_id
+
+    input_type = str((payload.get('payload') or {}).get('inputType') or '').lower()
+    if input_type == 'text':
+        return f'input_text_{_dubai_now().strftime("%Y%m%d%H%M%S")}'
+    if input_type == 'e2e-spark':
+        return 'e2e_spark'
+
+    documents = payload.get('brd_document') or payload.get('documents') or []
+    names = [str(item.get('name')).strip() for item in documents if isinstance(item, dict) and item.get('name')]
+    return ' | '.join(names) or f'DOC-{request_id}'
+
+
 def _serialize_review(review: TestCaseReview) -> Dict[str, Any]:
     return {
         'id': review.id,
@@ -55,8 +71,14 @@ def _serialize_review(review: TestCaseReview) -> Dict[str, Any]:
 
 
 def _serialize_review_detail(review_detail: TestCaseReviewDetail) -> Dict[str, Any]:
+    document_id = next(
+        (test_case.document_id for test_case in review_detail.test_cases if test_case.document_id),
+        None,
+    )
     return {
         'request_id': review_detail.request_id,
+        'document_id': document_id,
+        'source': review_detail.source,
         'request_by': review_detail.request_by,
         'request_date_time': review_detail.request_date_time.isoformat() if review_detail.request_date_time else None,
         'brd_document': review_detail.brd_document,
@@ -142,13 +164,12 @@ async def get_approved_test_cases_by_document(
     )
     return {'items': [_serialize_test_case_detail(item) for item in test_cases]}
 
-
-@router.post("/submit")
-async def submit_for_approval(
+# Function to create a review submission in the database
+def create_review_submission(
     payload: Dict[str, Any],
-    current_user=Depends(get_current_user_strict),
-    db: Session = Depends(get_db),
-):
+    current_user: Dict[str, Any],
+    db: Session,
+) -> Dict[str, Any]:
     username = (current_user or {}).get('username') or (current_user or {}).get('sub') or 'system'
 
     request_id = str(payload.get('request_id') or payload.get('id') or f"REQ-{_dubai_now().strftime('%Y%m%d%H%M%S%f')}")
@@ -159,10 +180,11 @@ async def submit_for_approval(
     documents_payload = payload.get('brd_document') or payload.get('documents') or []
 
     # One document_id shared by every test case in this request
-    document_id = str(payload.get('document_id') or f'DOC-{request_id}')
+    document_id = _get_document_id(payload, request_id)
 
     detail = TestCaseReviewDetail(
         request_id=request_id,
+        source=str(payload.get('source') or (payload.get('payload') or {}).get('source_type') or '').strip() or None,
         request_by=request_by,
         request_date_time=request_date_time,
         brd_document=documents_payload,
@@ -202,7 +224,16 @@ async def submit_for_approval(
     db.refresh(detail)
     return {'success': True, 'data': _serialize_review_detail(detail), 'request_id': request_id}
 
+# Endpoint to submit a review for approval
+@router.post("/submit")
+async def submit_for_approval(
+    payload: Dict[str, Any],
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    return create_review_submission(payload, current_user, db)
 
+# Endpoint to create a review detail
 @router.post("/detail")
 async def create_review_detail(
     payload: Dict[str, Any],
@@ -215,6 +246,7 @@ async def create_review_detail(
 
     detail = TestCaseReviewDetail(
         request_id=request_id,
+        source=str(payload.get('source') or (payload.get('payload') or {}).get('source_type') or '').strip() or None,
         request_by=str(payload.get('request_by') or (current_user or {}).get('username') or 'system'),
         request_date_time=_to_dubai(payload.get('request_date_time')) or _dubai_now(),
         brd_document=payload.get('brd_document'),
@@ -231,22 +263,142 @@ async def create_review_detail(
     db.refresh(detail)
     return {'success': True, 'data': _serialize_review_detail(detail)}
 
-
-@router.get("/details")
-async def list_review_details(
-    current_user=Depends(get_current_user_strict),
-    db: Session = Depends(get_db),
-):
+# Helper function to enforce that the current user has manager access
+def _require_review_manager(current_user: Dict[str, Any]) -> None:
     user_roles = (current_user or {}).get('roles') or []
     if isinstance(user_roles, str):
         user_roles = [user_roles]
     if 'admin' not in user_roles and 'manager' not in user_roles:
         raise HTTPException(status_code=403, detail='Manager access required')
 
-    details = db.query(TestCaseReviewDetail).order_by(TestCaseReviewDetail.request_date_time.desc()).all()
+# Helper function to determine the cutoff datetime for recent reviews
+def _recent_cutoff() -> datetime:
+    return _dubai_now() - timedelta(minutes=5)
+
+# Helper function to serialize approved review details into a dictionary
+def _serialize_approved_review_details(details: List[TestCaseReviewDetail]) -> Dict[str, Any]:
+    return {'items': [_serialize_review_detail(detail) for detail in details]}
+
+# Endpoint to list current review details
+@router.get("/details/current")
+async def list_current_review_details(
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    _require_review_manager(current_user)
+    details = (
+        db.query(TestCaseReviewDetail)
+        .filter(
+            TestCaseReviewDetail.request_date_time >= _recent_cutoff(),
+            ~TestCaseReviewDetail.request_id.like('ADO-%'),
+        )
+        .order_by(TestCaseReviewDetail.request_date_time.desc())
+        .all()
+    )
+    return {'items': [_serialize_review_detail(detail) for detail in details]}
+
+# Endpoint to list ADO review details
+@router.get("/details/ado")
+async def list_ado_review_details(
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    _require_review_manager(current_user)
+    local_details = (
+        db.query(TestCaseReviewDetail)
+        .filter(TestCaseReviewDetail.request_id.like('ADO-%'))
+        .order_by(TestCaseReviewDetail.request_date_time.desc())
+        .all()
+    )
+    return {'items': [_serialize_review_detail(detail) for detail in local_details]}
+
+
+# Endpoint to list historical review details
+@router.get("/details/history")
+async def list_review_history(
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    _require_review_manager(current_user)
+    details = (
+        db.query(TestCaseReviewDetail)
+        .filter(
+            TestCaseReviewDetail.request_date_time < _recent_cutoff(),
+            ~TestCaseReviewDetail.request_id.like('ADO-%'),
+        )
+        .order_by(TestCaseReviewDetail.request_date_time.desc())
+        .all()
+    )
     return {'items': [_serialize_review_detail(detail) for detail in details]}
 
 
+# Endpoint to list recent approved review details
+@router.get("/approved/details/current")
+async def list_recent_approved_review_details(
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    _require_review_manager(current_user)
+    details = (
+        db.query(TestCaseReviewDetail)
+        .filter(
+            TestCaseReviewDetail.overall_status == 'APPROVED',
+            TestCaseReviewDetail.reviewed_date_time >= _recent_cutoff(),
+            ~TestCaseReviewDetail.request_id.like('ADO-%'),
+        )
+        .order_by(TestCaseReviewDetail.reviewed_date_time.desc())
+        .all()
+    )
+    return _serialize_approved_review_details(details)
+
+
+# Endpoint to list ADO approved review details
+@router.get("/approved/details/ado")
+async def list_ado_approved_review_details(
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    _require_review_manager(current_user)
+    details = (
+        db.query(TestCaseReviewDetail)
+        .filter(TestCaseReviewDetail.overall_status == 'APPROVED', TestCaseReviewDetail.source.in_(['ADO', 'AZURE_DEVOPS']))
+        .order_by(TestCaseReviewDetail.request_date_time.desc())
+        .all()
+    )
+    return _serialize_approved_review_details(details)
+
+
+# Endpoint to list historical approved review details
+@router.get("/approved/details/history")
+async def list_approved_review_history(
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    _require_review_manager(current_user)
+    details = (
+        db.query(TestCaseReviewDetail)
+        .filter(
+            TestCaseReviewDetail.overall_status == 'APPROVED',
+            TestCaseReviewDetail.reviewed_date_time < _recent_cutoff(),
+            ~TestCaseReviewDetail.request_id.like('ADO-%'),
+        )
+        .order_by(TestCaseReviewDetail.reviewed_date_time.desc())
+        .all()
+    )
+    return _serialize_approved_review_details(details)
+
+## Endpoint to list all review details
+@router.get("/details")
+async def list_review_details(
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    _require_review_manager(current_user)
+
+    details = db.query(TestCaseReviewDetail).order_by(TestCaseReviewDetail.request_date_time.desc()).all()
+    return {'items': [_serialize_review_detail(detail) for detail in details]}
+
+# Endpoint to get review detail by request ID
 @router.get("/detail/{request_id}")
 async def get_review_detail_by_request_id(
     request_id: str,
@@ -263,7 +415,7 @@ async def get_review_detail_by_request_id(
         'test_cases': [_serialize_test_case_detail(item) for item in test_cases],
     }
 
-
+# Endpoint to create a new test case detail
 @router.post("/detail/test-case")
 async def create_test_case_detail(
     payload: Dict[str, Any],
@@ -291,7 +443,7 @@ async def create_test_case_detail(
     db.refresh(item)
     return {'success': True, 'data': _serialize_test_case_detail(item)}
 
-
+## Endpoint to update the decision for a review detail
 @router.post("/detail/{request_id}/decision")
 async def update_review_detail_decision(
     request_id: str,

@@ -123,6 +123,17 @@ class Settings(BaseSettings):
     SOLUTIONS_API_BASE_URL: str = Field(default="https://solutions.example.com")
     SOLUTIONS_API_TIMEOUT_SECONDS: int = Field(default=60)
     SOLUTIONS_API_AUTH_TOKEN: str = Field(default="")
+    ADO_RECORDS_API_URL: str = Field(default="")
+    ADO_RECORDS_API_TIMEOUT_SECONDS: int = Field(default=30)
+    ADO_RECORDS_API_TOKEN: str = Field(default="")
+
+    # PEM bundle for the AI service's certificate chain, when it is signed by a
+    # private/corporate CA the system trust store does not carry.
+    AI_SERVICE_CA_BUNDLE_PATH: Optional[str] = Field(default=None)
+    # Last resort for a local machine only: skips certificate verification,
+    # which removes protection against interception.
+    AI_SERVICE_VERIFY_SSL: bool = Field(default=True)
+    AI_SERVICE_AUTH_TOKEN: str = Field(default="")
 
     ROLES: List[str] = Field(default=["Admin", "Manager", "QA", "Tester"])
 
@@ -165,9 +176,10 @@ class Settings(BaseSettings):
     # When the compiler cannot ground a step's locator it infers one from
     # the step's prose and flags the guess. With this on, those flagged
     # steps -- and only those -- are offered to a model before the script
-    # is written. Off by default: it adds a model call per generation, and
-    # a deployment should opt into that rather than discover it in a bill.
-    AUTOMATION_AI_LOCATORS: bool = Field(default=False)
+    # is written. ON by default as of this change: it adds a model call per
+    # generation, so a deployment that does not want that cost sets it to
+    # false in .env rather than discovering it in a bill.
+    AUTOMATION_AI_LOCATORS: bool = Field(default=True)
 
     # Directory holding the Knowledge Base's "applications/" folder. Empty
     # means "use the copy baked into the image at /app/knowledge_base", which

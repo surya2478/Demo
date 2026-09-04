@@ -21,9 +21,10 @@ import userService from '../../services/userService'
 import RequestTrackerAPI from '../../utils/requestTrackerAPI'
 import { theme } from '../../styles/theme'
 import { useAIAction } from '../../hooks/useAIAction'
+import { useAIProcessing } from '../../context/AIProcessingContext'
 import ReviewAndSendModal, { type ReviewDocumentItem } from '../../components/ReviewAndSendModal'
 import Notification from '../../components/Notification'
-import { authHeaderFor, getAiAuthToken } from '../../utils/trackedFetchWithTokens'
+import { getAiAuthToken } from '../../utils/trackedFetchWithTokens'
 
 
 
@@ -65,6 +66,7 @@ const TestCases: React.FC = () => {
   const [reviewTableData, setReviewTableData] = useState<Record<string, string>[]>([])
   const [reviewDocuments, setReviewDocuments] = useState<ReviewDocumentItem[]>([])
   const [approvalNotification, setApprovalNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [submittedTestCaseCount, setSubmittedTestCaseCount] = useState<number | null>(null)
   const environmentOptions = [
     { label: 'Select', value: '' },
     { label: 'SIT', value: 'SIT' },
@@ -100,6 +102,7 @@ const TestCases: React.FC = () => {
   const [sparkImportLoading, setSparkImportLoading] = useState(false)
   const [sparkImportError, setSparkImportError] = useState('')
   const { runAIAction } = useAIAction()
+  const { setStreamPreview } = useAIProcessing()
   const isAdminUser = (() => {
     const role = String((authUser.user as any)?.role || '').toLowerCase()
     const roles = (authUser.user as any)?.roles
@@ -449,10 +452,27 @@ const TestCases: React.FC = () => {
     setReviewTableData(nextRows)
   }
 
+  const getApprovalDocumentId = (documents: ReviewDocumentItem[]) => {
+    if (inputType === 'text') {
+      return `input_text_${new Date().toISOString().replace(/[-:.TZ]/g, '')}`
+    }
+
+    if (inputType === 'e2e-spark') {
+      return ppmId.trim() || sparkStorageKey || 'e2e_spark'
+    }
+
+    const ppmIds = documents
+      .map((document) => document.name.match(/\bPPM[-_ ]?[A-Za-z0-9-]+\b/i)?.[0])
+      .filter((ppmId): ppmId is string => Boolean(ppmId))
+    const documentIds = ppmIds.length > 0 ? ppmIds : documents.map((document) => document.name).filter(Boolean)
+    return Array.from(new Set(documentIds)).join(' | ') || `input_text_${new Date().toISOString().replace(/[-:.TZ]/g, '')}`
+  }
+
   const handleSendForApproval = async (rows: Record<string, string>[], documents: ReviewDocumentItem[] = getReviewDocuments()) => {
     try {
       const requestId = `REQ-${Date.now()}`
       const requestBy = (authUser.user as any)?.username || (authUser.user as any)?.email || 'system'
+      const documentId = getApprovalDocumentId(documents)
       const uniqueRows = deduplicateTestCases(rows).map((row, index) => {
         const baseId = typeof row.id === 'string' && row.id.trim() ? row.id.trim() : `TC-${index + 1}`
         return {
@@ -465,8 +485,10 @@ const TestCases: React.FC = () => {
 
       const payload = {
         request_id: requestId,
+        source: inputType === 'e2e-spark' ? 'AZURE_DEVOPS' : inputType.toUpperCase(),
         request_by: requestBy,
         request_date_time: new Date().toISOString(),
+        document_id: documentId,
         brd_document: documents,
         no_of_test_cases: uniqueRows.length,
         approved_count: 0,
@@ -508,13 +530,14 @@ const TestCases: React.FC = () => {
 
       const data = await responseData.json().catch(() => ({ success: true }))
       console.log('[TestCases] Approval submission succeeded:', data)
-      setApprovalNotification({ message: 'Successfully sent for Approval', type: 'success' })
-      setTimeout(() => setApprovalNotification(null), 3500)
-      setIsReviewOpen(false)
+      window.dispatchEvent(new Event('test-case-review-updated'))
+      setSubmittedTestCaseCount(uniqueRows.length)
+      setApprovalNotification({ message: `${uniqueRows.length} test case${uniqueRows.length === 1 ? '' : 's'} sent for approval`, type: 'success' })
+      return true
     } catch (error) {
       console.error('[TestCases] Failed to submit for approval:', error)
       setApprovalNotification({ message: 'Failed to send for approval', type: 'error' })
-      setTimeout(() => setApprovalNotification(null), 3500)
+      return false
     }
   }
   
@@ -808,7 +831,6 @@ const TestCases: React.FC = () => {
 
       setLoading(true)
       const config = getConfig()
-      // console.log('================= config :', config)
       const formData = new FormData()
 
       let combinedFilesText = ''
@@ -829,28 +851,18 @@ const TestCases: React.FC = () => {
 
       // const contents = await docxFilesToPlainText(Array.from(fileInputs));
       // setTexts(contents);
-      const token1 = getAiAuthToken()
-      console.log('==================== auth api key token ',token1)
 
-      // Whose credential this endpoint gets depends on who serves it, which is
-      // a per-environment fact: BASE_URL points at the external AI service in
-      // one deployment and at our own backend in another. Hardcoding the AI key
-      // here sent it to whichever host BASE_URL named -- and when that is our
-      // own backend, the key is not a JWT, so the request came back 401
-      // "Invalid or expired token" while the AI key leaked to a host with no
-      // business seeing it. authHeaderFor answers the same question every other
-      // call asks: our backend gets the session JWT, anything else gets the key.
-      const generateUrlPd = `${config.BASE_URL}${config.ENDPOINTS.generateTestCases}`
-      const res = await fetch(generateUrlPd, {
+
+      const res = await fetch(`${config.BASE_URL}${config.ENDPOINTS.generateTestCases}`, {
             method: 'POST',
             body: formData,
-            headers: authHeaderFor(generateUrlPd)
+            headers: (() => {
+              const token = getAiAuthToken()
+              return token ? { 'Authorization': `Bearer ${token}` } : undefined
+            })()
           })
           reader = (res.body as ReadableStream<Uint8Array>).getReader()
-          // console.log('BASE URL :', `${config.BASE_URL}`)
-          //  console.log('ENDPOINTS URL :', `${config.ENDPOINTS.generateTestCases}`)
-          
-          console.log('Complete URL and api key :', `${config.BASE_URL}${config.ENDPOINTS.generateTestCases}` + token1)
+          // console.log('Processing documents response reader:', reader)
           const decoder = new TextDecoder()
       while (true) {
           const { done, value } = await reader.read()
@@ -982,6 +994,7 @@ const TestCases: React.FC = () => {
 
   let fullText = ''
   const handleGenerate = async () => {
+    setSubmittedTestCaseCount(null)
     // Check token allocation before making request
     if (!isAdminUser && userTokenAllocation > 0 && userTokensUsed >= userTokenAllocation) {
       setShowTokenWarning(true)
@@ -1038,7 +1051,6 @@ const TestCases: React.FC = () => {
 
         try {
           const config = getConfig();
-          console.log('================ config ',config);
           const formData = new FormData();
           formData.append('provider', config.PARAMETERS.provider);
           formData.append('model_name', String(config.PARAMETERS.model));
@@ -1088,17 +1100,10 @@ const TestCases: React.FC = () => {
 
       // Start timer for duration calculation
       const startedAt = Date.now();
-      console.log("================ inside test case config BASE and ENDPOINTs ",config.BASE_URL +" and "+config.ENDPOINTS.generateTestCases)
-
-      // Generation is the one capability served by our own backend, so it may
-      // carry an absolute override. Everything else on this page -- Process
-      // Documents included -- still resolves through the shared BASE_URL.
-      const generateUrl = config.ENDPOINTS.generateTestCasesUrl
-        || `${config.BASE_URL}${config.ENDPOINTS.generateTestCases}`
 
       // Call tracked fetch but handle streaming locally
       const { response: res, status, logId } = await trackedFetchWithTokens(
-        generateUrl,
+        `${config.BASE_URL}${config.ENDPOINTS.generateTestCases}`,
         {
           tab: 'testcases',
           method: 'POST',
@@ -1108,7 +1113,6 @@ const TestCases: React.FC = () => {
           externalStream: true
         }
       );
-       console.log("Full URL : ", generateUrl);
       console.log("res === : ",res);
       // Stream and accumulate response here
       if (!res.body) {
@@ -1122,9 +1126,10 @@ const TestCases: React.FC = () => {
           if (done) break;
           
           const chunk = decoder.decode(value);
-          setResponse(prev => prev + chunk.replace('data: ', ''))
-          // fullText += chunk.replace(/^data: /, '');
-          fullText += decoder.decode(value, { stream: true });
+          const streamedChunk = chunk.replace(/^data: /, '');
+          setResponse(prev => prev + streamedChunk)
+          fullText += streamedChunk;
+          setStreamPreview(fullText);
         }
       }
 
@@ -1214,11 +1219,10 @@ const TestCases: React.FC = () => {
     let auditStatus: 'success' | 'failure' = 'success'
 
     try {
-      const exportUrl = `${config.BASE_URL}${config.ENDPOINTS.exportExcel}`
-      const res = await fetch(exportUrl, {
+      const res = await fetch(`${config.BASE_URL}${config.ENDPOINTS.exportExcel}`, {
         method: 'POST',
         body: formData,
-        headers: { accept: 'application/json', ...authHeaderFor(exportUrl) }
+        headers: { accept: 'application/json', ...(getAiAuthToken() ? { Authorization: `Bearer ${getAiAuthToken()}` } : {}) }
       })
       const data = await res.blob()
       if (data.size === 0) return
@@ -1294,17 +1298,6 @@ const TestCases: React.FC = () => {
     }
   };
 
-  const tokenUsagePercent = userTokenAllocation > 0
-    ? Math.min(100, (userTokensUsed / userTokenAllocation) * 100)
-    : 0
-
-  const tokenUsageBarClass =
-    userTokensUsed >= userTokenAllocation && userTokenAllocation > 0
-      ? 'bg-app-brand-700'
-      : userTokensUsed >= userTokenAllocation * 0.9 && userTokenAllocation > 0
-      ? 'bg-yellow-500'
-      : 'bg-green-500'
-
   const inputOptions: Array<{
     value: 'text' | 'file' | 'e2e-spark'
     label: string
@@ -1316,53 +1309,6 @@ const TestCases: React.FC = () => {
   ]
 
 
-
-  const tokenUsagePanel = (
-    <section className="relative overflow-hidden rounded-[22px] border border-app bg-app-surface p-4 shadow-app-card">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-app-secondary">Token Usage</div>
-      {!tokenCheckLoading ? (
-        <>
-          {isAdminUser ? (
-            <>
-              <div className="mt-2 text-[26px] font-bold tracking-[-0.03em] text-app-primary leading-tight">
-                <span className="text-app-primary">
-                  {userTokensUsed.toLocaleString()}
-                </span>
-              </div>
-              <div className="mt-2 text-sm text-app-secondary">
-                Total tokens used
-              </div>
-            </>
-          ) : userTokenAllocation > 0 ? (
-            <>
-              <div className="mt-2 text-[26px] font-bold tracking-[-0.03em] text-app-primary leading-tight">
-                <span className={userTokensUsed >= userTokenAllocation ? 'text-app-brand-700' : 'text-app-primary'}>
-                  {userTokensUsed.toLocaleString()}
-                </span>
-                <span className="mx-1.5 text-app-muted text-[18px]">/</span>
-                <span className="text-[18px] text-app-secondary">{userTokenAllocation.toLocaleString()}</span>
-              </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-app-surface-muted">
-                <div className={`h-full transition-all duration-500 ${tokenUsageBarClass}`} style={{ width: `${tokenUsagePercent}%` }} />
-              </div>
-              <div className="mt-2 text-sm font-semibold text-app-success">
-                {tokenUsagePercent.toFixed(2)}%
-              </div>
-            </>
-          ) : (
-            <div className="mt-3 text-sm text-app-secondary">
-              Token allocation data is not available.
-            </div>
-          )}
-        </>
-      ) : (
-        <div className="mt-3 text-sm text-app-secondary">
-          Loading…
-        </div>
-      )}
-      <div className="pointer-events-none absolute -bottom-8 right-0 h-28 w-36 rounded-full bg-[radial-gradient(circle_at_top_left,rgba(253,235,236,0.9),transparent_70%)]" />
-    </section>
-  )
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-4">
@@ -1410,11 +1356,7 @@ const TestCases: React.FC = () => {
         </div>
       )}
 
-      <div className="relative">
-        <div className="absolute right-0 top-0 z-10 w-[300px] hidden xl:block">
-          {tokenUsagePanel}
-        </div>
-        <div className="space-y-3 xl:pr-[316px]">
+      <div className="space-y-3">
         {/* Solutions card — header + input type pills + textarea all in one */}
         <div className="relative overflow-hidden rounded-[20px] border border-app bg-app-surface p-4 shadow-app-card">
           {/* Paper airplane decorative trail (right side, behind content) */}
@@ -1426,18 +1368,38 @@ const TestCases: React.FC = () => {
           </svg>
 
           {/* Solutions header */}
-          <div className="relative flex items-start gap-2.5 mb-3">
-            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white shadow-[0_8px_20px_rgba(183,25,32,0.18)]">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15M4.5 12h15" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7 7l10 10M17 7L7 17" />
-              </svg>
+          <div className="relative mb-3 flex w-full flex-wrap items-start justify-between gap-3">
+            <div className="flex min-w-0 flex-1 items-start gap-2.5">
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white shadow-[0_8px_20px_rgba(183,25,32,0.18)]">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15M4.5 12h15" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 7l10 10M17 7L7 17" />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-[16px] font-bold tracking-[-0.01em] text-app-primary leading-tight">Solutions</h2>
+                <p className="text-[12px] leading-5 text-app-secondary">
+                  Generate test cases and test data from your solutions text or uploaded files.
+                </p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <h2 className="text-[16px] font-bold tracking-[-0.01em] text-app-primary leading-tight">Solutions</h2>
-              <p className="text-[12px] leading-5 text-app-secondary">
-                Generate test cases and test data from your solutions text or uploaded files.
-              </p>
+
+            <div className="flex min-w-[210px] items-center justify-end gap-3 rounded-[12px] border border-app bg-white px-3 py-2 shadow-sm">
+              <div className="text-right">
+                <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-app-secondary">Token Usage</div>
+                {!tokenCheckLoading ? (
+                  isAdminUser ? (
+                    <div className="mt-0.5 text-[12px] text-app-secondary">Total tokens used</div>
+                  ) : (
+                    <div className="mt-0.5 text-[12px] text-app-secondary">of {userTokenAllocation.toLocaleString()} allocated</div>
+                  )
+                ) : (
+                  <div className="mt-0.5 text-[12px] text-app-secondary">Loading...</div>
+                )}
+              </div>
+              <div className={`text-[22px] font-bold leading-none ${!isAdminUser && userTokenAllocation > 0 && userTokensUsed >= userTokenAllocation ? 'text-app-brand-700' : 'text-app-primary'}`}>
+                {tokenCheckLoading ? '...' : userTokensUsed.toLocaleString()}
+              </div>
             </div>
           </div>
 
@@ -1594,57 +1556,31 @@ const TestCases: React.FC = () => {
 
               {/* Combined editable textarea */}
               <div className="mt-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-app-secondary">Combined Editable Content</div>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-app-secondary">Combined Editable Content</div>
+                  {documentsProcessed && (
+                    <button
+                      type="button"
+                      onClick={() => setExpandedPreview(true)}
+                      aria-label="Open document preview"
+                      title="Open document preview"
+                      className="inline-flex items-center gap-2 rounded-md border-2 border-red-600 bg-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-red-600 transition hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-app-brand-200 focus:ring-offset-2"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 3h7l5 5v13a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2zm7 1v5h5" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 14s1.2-2.5 3-2.5 3 2.5 3 2.5-1.2 2.5-3 2.5-3-2.5-3-2.5z" />
+                        <circle cx="12" cy="14" r="0.75" fill="currentColor" stroke="none" />
+                      </svg>
+                      <span>Document Preview</span>
+                    </button>
+                  )}
+                </div>
                 <textarea
                   value={combinedContent}
                   onChange={(e) => handleCombinedChange(e.target.value)}
                   placeholder={inputType === 'e2e-spark' ? "Imported SSD content will appear here after clicking 'Import SSD'..." : "Combined content from all uploaded files will appear here (edit and click 'Process Documents' to refresh preview)..."}
                   className="min-h-[176px] w-full resize-y rounded-[20px] border border-app bg-white px-4 py-3.5 text-sm text-app-primary outline-none transition placeholder:text-app-muted focus:border-app-brand-600 focus:ring-2 focus:ring-app-brand-100"
                 />
-                {/* <textarea
-                  value={texts}
-                  onChange={(e) => handleCombinedChange(e.target.value)}
-                  placeholder="Combined content from all uploaded files will appear here (edit and click 'Process Documents' to refresh preview)..."
-                  className="w-full h-48 p-3 border border-gray-300 rounded-lg text-sm bg-white text-gray-700 resize-y focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none"
-                /> */}
-              </div>
-
-              {/* Single combined preview area (renders HTML produced by DOCX convertToHtml or text->HTML) */}
-              <div className="mt-4">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-app-secondary">Document Preview</div>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => setExpandedPreview(true)}
-                      title="Open full preview"
-                      className="rounded-full p-1 text-app-secondary transition hover:bg-app-surface-muted hover:text-app-primary"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M3 3a1 1 0 011-1h4a1 1 0 110 2H5v3a1 1 0 11-2 0V4zM17 3a1 1 0 00-1-1h-4a1 1 0 100 2h3v3a1 1 0 102 0V3zM3 17a1 1 0 011 1h4a1 1 0 110-2H5v-3a1 1 0 10-2 0v4zM17 17a1 1 0 00-1 1h-4a1 1 0 100 2h4a1 1 0 001-1v-4a1 1 0 10-2 0v3z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-2 max-h-60 overflow-y-auto rounded-[20px] border border-app bg-white p-3.5">
-                  {previewContent ? (
-                    <MarkdownViewer content={previewContent} className="min-h-[200px]" />
-                  ) : (
-                    <div className="text-sm text-app-muted">{inputType === 'e2e-spark' ? "Preview available after clicking 'Import SSD'" : 'Preview available after clicking Process Documents'}</div>
-                  )}
-                </div>
-
-                {/* <div className="border border-gray-300 rounded-lg p-3 bg-white max-h-72 overflow-y-auto mt-2">
-                  {contents.length > 0 ? (contents.map((html, idx) => (                   
-                    <MarkdownViewer key={idx} content={html || 'Generation output will appear here....'} className="min-h-[200px]" />
-                  ))) : (
-                     <div className="text-xs text-gray-400">Preview available after clicking Process Documents</div>
-                  )}
-                  <MarkdownViewer content={combinedContent || 'Generation output will appear here....'} className="min-h-[200px]" />
-                  
-                  
-                </div> */}
-
               </div>
             </>
           )}
@@ -1738,10 +1674,10 @@ const TestCases: React.FC = () => {
             <button
               type="button"
               onClick={openReviewWindow}
-              disabled={!(response || output)}
-              className={`inline-flex items-center gap-2 rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-3.5 py-2 text-[12px] font-semibold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] transition ${response || output ? 'hover:opacity-95' : 'cursor-not-allowed opacity-60'}`}
+              disabled={!(response || output) || submittedTestCaseCount !== null}
+              className={`inline-flex items-center gap-2 rounded-[12px] px-3.5 py-2 text-[12px] font-semibold transition ${submittedTestCaseCount !== null ? 'cursor-not-allowed border-2 border-red-600 bg-white text-red-600 opacity-75' : response || output ? 'bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] hover:opacity-95' : 'cursor-not-allowed bg-gray-300 text-gray-500 opacity-60'}`}
             >
-              Review & Send
+              {submittedTestCaseCount !== null ? `${submittedTestCaseCount} TCs Pending Approval` : 'Review & Send'}
             </button>
           </div>
           <div className="relative mb-3 text-[12px] text-app-secondary">{documentsProcessed && !response ? `Files processed - click "${inputType === 'e2e-spark' ? 'E2E Spark Generate' : 'Generate Test Cases'}" to continue` : 'Generation output will appear here....'}</div>
@@ -1751,8 +1687,6 @@ const TestCases: React.FC = () => {
         </div>
 
         </div>{/* closes solutions column */}
-
-      </div>{/* closes workspace wrapper */}
 
       {/* Expanded combined preview modal */}
       {expandedPreview && (
@@ -1788,6 +1722,14 @@ const TestCases: React.FC = () => {
         onTableDataChange={handleReviewTableChange}
         onSendForApproval={handleSendForApproval}
       />
+      {approvalNotification && (
+        <Notification
+          message={approvalNotification.message}
+          type={approvalNotification.type}
+          duration={2000}
+          onClose={() => setApprovalNotification(null)}
+        />
+      )}
       <ChatWindow
         isOpen={isChatOpen}
         onToggle={() => setIsChatOpen(!isChatOpen)}

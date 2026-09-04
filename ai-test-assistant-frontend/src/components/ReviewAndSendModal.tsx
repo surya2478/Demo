@@ -14,7 +14,7 @@ interface ReviewAndSendModalProps {
   tableData: Record<string, string>[]
   onClose: () => void
   onTableDataChange: (nextRows: Record<string, string>[]) => void
-  onSendForApproval: (rows: Record<string, string>[], documents: ReviewDocumentItem[]) => void
+  onSendForApproval: (rows: Record<string, string>[], documents: ReviewDocumentItem[]) => Promise<boolean>
 }
 
 const ReviewAndSendModal: React.FC<ReviewAndSendModalProps> = ({
@@ -32,6 +32,7 @@ const ReviewAndSendModal: React.FC<ReviewAndSendModalProps> = ({
   const [documentViewer, setDocumentViewer] = useState<{ name: string; content: string } | null>(null)
   const [viewerZoom, setViewerZoom] = useState(1)
   const [isReferenceDrawerOpen, setIsReferenceDrawerOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (!isOpen) return
@@ -83,9 +84,15 @@ const ReviewAndSendModal: React.FC<ReviewAndSendModalProps> = ({
     if (selectedCell?.rowId === rowId) setSelectedCell(null)
   }
 
-  const handleSubmit = () => {
-    onSendForApproval(rows, documents)
-    onClose()
+  const handleSubmit = async () => {
+    if (isSubmitting) return
+    setIsSubmitting(true)
+    try {
+      const submitted = await onSendForApproval(rows, documents)
+      if (submitted) onClose()
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   if (!isOpen) return null
@@ -115,6 +122,7 @@ const ReviewAndSendModal: React.FC<ReviewAndSendModalProps> = ({
             <button
               type="button"
               onClick={onClose}
+              disabled={isSubmitting}
               aria-label="Close review modal"
               className="rounded-full p-2 text-slate-500 transition hover:bg-white hover:text-slate-900"
             >
@@ -313,9 +321,10 @@ const ReviewAndSendModal: React.FC<ReviewAndSendModalProps> = ({
             <button
               type="button"
               onClick={handleSubmit}
-              className="rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-4 py-2.5 text-[13px] font-semibold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] transition hover:opacity-95"
+              disabled={isSubmitting || rows.length === 0}
+              className="rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-4 py-2.5 text-[13px] font-semibold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Send for Approval
+              {isSubmitting ? 'Sending...' : 'Send for Approval'}
             </button>
           </div>
         </div>

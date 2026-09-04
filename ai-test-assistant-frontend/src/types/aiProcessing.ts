@@ -16,6 +16,12 @@ export interface AIProcessingRequest {
 export interface AIProcessingState extends AIProcessingRequest {
   isOpen: boolean;
   status: AIProcessingStatus;
+  /**
+   * The generated text as it streams in, shown in place of the timed stage
+   * line. Undefined until a caller pushes some: an action that does not stream
+   * keeps the stage narration it always had.
+   */
+  streamPreview?: string;
   startedAt?: number;
   completedAt?: number;
   errorReason?: string;

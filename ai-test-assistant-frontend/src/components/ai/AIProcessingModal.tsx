@@ -67,7 +67,7 @@ const AIProcessingModal: React.FC<AIProcessingModalProps> = ({ state, onClose, o
 
   return (
     <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-[1px]"
+      className={`fixed inset-0 z-[1000] flex items-center justify-center px-4 py-6 ${isSuccess ? 'bg-transparent pointer-events-none' : 'bg-black/35 backdrop-blur-[1px]'}`}
       aria-labelledby="ai-processing-title"
       aria-describedby="ai-processing-description"
       role="presentation"
@@ -77,67 +77,62 @@ const AIProcessingModal: React.FC<AIProcessingModalProps> = ({ state, onClose, o
         role="dialog"
         aria-modal="true"
         tabIndex={-1}
-        className="w-full max-w-[520px] rounded-[22px] border border-app bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.22)] outline-none"
+        className={`w-full border border-app bg-white outline-none ${isSuccess ? 'max-w-[360px] rounded-[20px] px-4 py-3 shadow-[0_16px_40px_rgba(15,23,42,0.16)]' : 'max-w-[390px] rounded-[16px] p-4 shadow-[0_20px_55px_rgba(15,23,42,0.2)]'}`}
       >
-        <div className="flex flex-col items-center text-center">
+        <div className="flex flex-col">
           {isProcessing && (
-            <div className="relative mb-5 flex h-16 w-16 items-center justify-center rounded-[20px] bg-app-brand-50 text-app-brand-700">
-              <div className="absolute h-16 w-16 rounded-full border-2 border-app-brand-100 border-t-app-brand-700 motion-safe:animate-spin" />
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-7 w-7">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v3M12 18v3M3 12h3M18 12h3M7.8 7.8l2.1 2.1M14.1 14.1l2.1 2.1M16.2 7.8l-2.1 2.1M9.9 14.1l-2.1 2.1" />
-              </svg>
+            <div className="flex items-center gap-3">
+              <div className="relative flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[16px] bg-app-brand-50 text-app-brand-700">
+                <div className="absolute h-10 w-10 rounded-full border-[3px] border-app-brand-100 border-t-app-brand-700 motion-safe:animate-spin" />
+                <img src="/etisalat-logo.svg" alt="" aria-hidden="true" className="h-6 w-6" />
+              </div>
+              <div className="min-w-0 text-left">
+                <div id="ai-processing-title" className="text-sm font-bold text-app-primary" aria-live="polite">
+                  {state.actionLabel || state.title || 'Processing'}
+                </div>
+                <div id="ai-processing-description" className="mt-0.5 truncate text-xs text-app-secondary" aria-live="polite">
+                  {state.streamPreview || currentStage}
+                </div>
+              </div>
             </div>
           )}
 
           {isSuccess && (
-            <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-green-50 text-green-600">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-8 w-8">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M20 6L9 17l-5-5" />
-              </svg>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-green-50 text-green-600 shadow-sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" className="h-5 w-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M20 6L9 17l-5-5" />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <div id="ai-processing-title" className="text-sm font-bold text-app-primary" aria-live="polite">Complete</div>
+                <p id="ai-processing-description" className="mt-0.5 truncate text-xs text-app-secondary">{state.successMessage}</p>
+              </div>
             </div>
           )}
 
           {isError && (
-            <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-app-brand-50 text-app-brand-700">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-app-brand-50 text-app-brand-700">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-8 w-8">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
               </svg>
             </div>
           )}
 
-          <div id="ai-processing-title" className="text-xl font-bold text-app-primary" aria-live="polite">
-            {isSuccess ? 'Done' : isError ? 'Unable to Complete AI Processing' : state.title || 'AI is Working'}
-          </div>
-
-          {isProcessing && (
-            <div className="mt-2 text-base font-semibold text-app-brand-800">{state.actionLabel}</div>
+          {!isProcessing && !isSuccess && (
+            <>
+              <div id="ai-processing-title" className="text-base font-bold text-app-primary" aria-live="polite">
+                Unable to Complete AI Processing
+              </div>
+              <p id="ai-processing-description" className="mt-2 text-sm leading-5 text-app-secondary">
+                {state.errorMessage || 'The AI service could not complete this request. Please retry or review your input.'}
+              </p>
+            </>
           )}
-
-          <p id="ai-processing-description" className="mt-3 max-w-[420px] text-sm leading-6 text-app-secondary">
-            {isSuccess
-              ? state.successMessage
-              : isError
-                ? state.errorMessage || 'The AI service could not complete this request. Please retry or review your input.'
-                : 'AI is analyzing your input and preparing the requested artifacts. Please do not refresh or close this page.'}
-          </p>
 
           {isError && state.errorReason && (
             <div className="mt-3 rounded-[12px] bg-app-brand-50 px-3 py-2 text-sm font-medium text-app-brand-800">
               Reason: {state.errorReason}
-            </div>
-          )}
-
-          {isProcessing && (
-            <div className="mt-6 w-full rounded-[18px] border border-app bg-app-surface-muted/40 p-4 text-left">
-              <div className="text-xs font-semibold uppercase text-app-secondary">Current Stage</div>
-              <div className="mt-1 text-sm font-semibold text-app-primary" aria-live="polite">{currentStage}</div>
-              <div className="mt-4 flex items-center justify-between text-xs font-semibold uppercase text-app-secondary">
-                <span>Elapsed Time</span>
-                <span>{formatElapsed(elapsed)}</span>
-              </div>
-              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-app-brand-50">
-                <div className="h-full w-1/3 rounded-full bg-[linear-gradient(90deg,#ff191f,#b91017)] motion-safe:animate-[pulse_1.4s_ease-in-out_infinite]" />
-              </div>
             </div>
           )}
 

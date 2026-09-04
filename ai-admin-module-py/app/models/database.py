@@ -104,6 +104,7 @@ class TestCaseReviewDetail(Base):
     __tablename__ = "test_case_review_details"
 
     request_id = Column(String(255), primary_key=True, index=True)
+    source = Column(String(64), nullable=True, index=True)
     request_by = Column(String(255), nullable=False, index=True)
     request_date_time = Column(DateTime, nullable=False, default=datetime.utcnow)
     brd_document = Column(JSON, nullable=True)

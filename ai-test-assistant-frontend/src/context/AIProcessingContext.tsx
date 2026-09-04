@@ -7,6 +7,8 @@ interface AIProcessingContextValue {
   runAIAction: <T>(options: RunAIActionOptions<T>) => Promise<T | undefined>;
   close: () => void;
   retry: () => void;
+  /** Push the streamed text the modal should show instead of a stage line. */
+  setStreamPreview: (text: string) => void;
 }
 
 const DEFAULT_STAGES = [
@@ -49,6 +51,17 @@ export const AIProcessingProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setState(prev => ({ ...prev, isOpen: false, status: 'idle' }));
   }, []);
 
+  /*
+   * Only the tail is kept. A generation streams tens of kilobytes, and this
+   * lands in React state on every chunk -- holding all of it would re-render
+   * the modal against an ever-growing string for the whole call, and the line
+   * it feeds is one row of truncated text either way.
+   */
+  const setStreamPreview = useCallback((text: string) => {
+    const tail = (text || '').replace(/\s+/g, ' ').trim().slice(-160);
+    setState(prev => (prev.streamPreview === tail ? prev : { ...prev, streamPreview: tail }));
+  }, []);
+
   const runAIAction = useCallback(async <T,>(options: RunAIActionOptions<T>): Promise<T | undefined> => {
     if (activeRef.current) return undefined;
 
@@ -69,6 +82,7 @@ export const AIProcessingProvider: React.FC<{ children: React.ReactNode }> = ({ 
       retryAction,
       isOpen: true,
       status: 'processing',
+      streamPreview: undefined,
       startedAt
     });
 
@@ -109,7 +123,10 @@ export const AIProcessingProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }, 0);
   }, [close, state.retryAction]);
 
-  const value = useMemo(() => ({ state, runAIAction, close, retry }), [state, runAIAction, close, retry]);
+  const value = useMemo(
+    () => ({ state, runAIAction, close, retry, setStreamPreview }),
+    [state, runAIAction, close, retry, setStreamPreview]
+  );
 
   return (
     <AIProcessingContext.Provider value={value}>
