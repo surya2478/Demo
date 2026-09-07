@@ -16,7 +16,12 @@ interface MenuGroup {
   items: MenuItem[]
 }
 
-const menuGroups: MenuGroup[] = [
+interface SubMenuDef {
+  parentPath: string
+  items: MenuItem[]
+}
+
+const adminMenuGroups: MenuGroup[] = [
   {
     heading: 'Main Workspace',
     items: [
@@ -32,24 +37,27 @@ const menuGroups: MenuGroup[] = [
       { path: '/sessions', label: 'Sessions', permission: 'sessions.manage' },
       { path: '/request-tracker-report', label: 'Assistant Report', permission: 'dashboard.view' }
     ]
-  },
-  {
-    heading: 'AI Test Generation',
-    items: [
-      //{ path: '/settings', label: 'Settings', permission: 'settings.manage' },
-      { path: '/test-assistant', label: 'Test Assistant', permission: 'testassistant.view' },
-      { path: '/manager-review', label: 'Review & Approve', permission: 'dashboard.view' },
-      { path: '/approved-test-cases', label: 'Approved Test Cases', permission: 'testassistant.view' }
-    ]
-  },
-  {
-    heading: 'Test Automation',
-    items: [
-      { path: '/automation', label: 'Automation Studio', permission: 'automation.view' },
-      { path: '/automation/discovery', label: 'Application Discovery', permission: 'automation.view' }
-    ]
   }
 ]
+
+const aiTestGenerationItems: MenuItem[] = [
+  { path: '/test-assistant', label: 'Test Assistant', permission: 'testassistant.view' },
+  { path: '/manager-review', label: 'Review & Approve', permission: 'dashboard.view' },
+  { path: '/approved-test-cases', label: 'Approved Test Cases', permission: 'testassistant.view' }
+
+     
+    ]
+  
+const aiTestAutomationtems: MenuItem[] = [
+    { path: '/automation', label: 'Automation Studio', permission: 'automation.view' },
+    { path: '/automation/discovery', label: 'Application Discovery', permission: 'automation.view' }
+     
+    ]
+    
+ 
+
+
+const subMenus: SubMenuDef[] = []
 
 const initials = (name?: string) => {
   if (!name || typeof name !== 'string' || name.trim() === '') return 'U'
@@ -69,6 +77,9 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileClose }) 
   const location = useLocation()
   const perms = (user as any)?.permissions ?? []
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [isAdminModuleOpen, setIsAdminModuleOpen] = useState(false)
+  const [isAiTestGenerationOpen, setIsAiTestGenerationOpen] = useState(true)
+  const [isAiTestAutomationOpen, setIsAiTestAutomationOpen] = useState(true)
 
   // Close user menu on outside click
   useEffect(() => {
@@ -80,31 +91,15 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileClose }) 
 
   const canSee = (item: MenuItem) => !item.permission || perms.includes(item.permission)
 
-  const isItemActive = (path: string) => {
-    if (path === '/dashboard') {
-      return location.pathname === '/dashboard'
-    }
-    if (path === '/automation/discovery') {
-      return location.pathname.startsWith('/automation/discovery')
-    }
-    if (path === '/automation') {
-      return (
-        location.pathname.startsWith('/automation') &&
-        !location.pathname.startsWith('/automation/discovery')
-      )
-    }
-    return location.pathname.startsWith(path)
-  }
-
-  const getItemLinkClass = (path: string) => {
-    const active = isItemActive(path)
-    return [
+  const linkClass = ({ isActive }: { isActive: boolean }) =>
+    [
       'group relative flex items-center gap-3 rounded-app px-3 py-2.5 text-sm font-semibold transition',
-      active
+      isActive
         ? 'bg-app-sidebar-active text-white shadow-sm'
         : 'text-white hover:bg-app-sidebar-hover hover:text-white'
     ].join(' ')
-  }
+
+  const sectionButtonClass = 'flex w-full items-center justify-between rounded-app px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-white/75 transition hover:bg-white/[0.08] hover:text-white focus:outline-none focus:ring-2 focus:ring-white/30'
 
   const userRole =
     (user as any)?.roles?.[0] ??
@@ -147,45 +142,82 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileClose }) 
             </div>
             <div className="truncate text-sm font-semibold text-white">Enterprise QA</div>
           </div>
-          <HiOutlineChevronDown className="text-white/60" />
+          {/* <HiOutlineChevronDown className="text-white/60" /> */}
         </button>
       </div>
 
       {/* Nav */}
       <nav className="app-scroll flex-1 overflow-y-auto px-3 pb-4">
-        {menuGroups.map(group => {
-          const visible = group.items.filter(canSee)
-          if (visible.length === 0) return null
-          return (
-            <div key={group.heading} className="mb-5">
-              <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">
-                {group.heading}
-              </div>
-              <div className="space-y-0.5">
-                {visible.map(item => {
-                  const key = item.path.slice(1)
-                  const IconComponent = (menuIcons as any)[key]
-                  return (
-                    <NavLink
-                      key={item.path}
-                      to={item.path}
-                      className={() => getItemLinkClass(item.path)}
-                      onClick={onMobileClose}
-                    >
-                      {IconComponent && <IconComponent className="h-[18px] w-[18px] flex-shrink-0" />}
-                      <span className="truncate">{item.label}</span>
-                      {item.badge != null && (
-                        <span className="ml-auto inline-flex h-5 min-w-[22px] items-center justify-center rounded-full bg-white/10 px-1.5 text-[11px] font-semibold text-white">
-                          {item.badge}
-                        </span>
-                      )}
-                    </NavLink>
-                  )
-                })}
-              </div>
+        <div className="mb-4">
+          <button type="button" onClick={() => setIsAdminModuleOpen((open) => !open)} aria-expanded={isAdminModuleOpen} className={sectionButtonClass}>
+            <span>Admin Module</span>
+            <HiOutlineChevronDown className={`h-4 w-4 transition-transform ${isAdminModuleOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {isAdminModuleOpen && (
+            <div className="mt-1 border-l border-white/10 pl-3">
+              {adminMenuGroups.map((group) => {
+                const visible = group.items.filter(canSee)
+                if (visible.length === 0) return null
+                return (
+                  <div key={group.heading} className="mb-3">
+                    <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">{group.heading}</div>
+                    <div className="space-y-0.5">
+                      {visible.map((item) => {
+                        const IconComponent = (menuIcons as any)[item.path.slice(1)]
+                        return (
+                          <NavLink key={item.path} to={item.path} className={linkClass} onClick={onMobileClose} end={item.path === '/dashboard'}>
+                            {IconComponent && <IconComponent className="h-[18px] w-[18px] flex-shrink-0" />}
+                            <span className="truncate">{item.label}</span>
+                          </NavLink>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-          )
-        })}
+          )}
+        </div>
+
+        <div className="mb-4">
+          <button type="button" onClick={() => setIsAiTestGenerationOpen((open) => !open)} aria-expanded={isAiTestGenerationOpen} className={sectionButtonClass}>
+            <span>AI Test Generation</span>
+            <HiOutlineChevronDown className={`h-4 w-4 transition-transform ${isAiTestGenerationOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {isAiTestGenerationOpen && (
+            <div className="mt-1 space-y-0.5">
+              {aiTestGenerationItems.filter(canSee).map((item) => {
+                const IconComponent = (menuIcons as any)[item.path.slice(1)]
+                return (
+                  <NavLink key={item.path} to={item.path} className={linkClass} onClick={onMobileClose}>
+                    {IconComponent && <IconComponent className="h-[18px] w-[18px] flex-shrink-0" />}
+                    <span className="truncate">{item.label}</span>
+                  </NavLink>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="mb-4">
+          <button type="button" onClick={() => setIsAiTestAutomationOpen((open) => !open)} aria-expanded={isAiTestAutomationOpen} className={sectionButtonClass}>
+            <span>AI Test Automation</span>
+            <HiOutlineChevronDown className={`h-4 w-4 transition-transform ${isAiTestAutomationOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {isAiTestAutomationOpen && (
+            <div className="mt-1 space-y-0.5">
+              {aiTestAutomationtems.filter(canSee).map((item) => {
+                const IconComponent = (menuIcons as any)[item.path.slice(1)]
+                return (
+                  <NavLink key={item.path} to={item.path} className={linkClass} onClick={onMobileClose}>
+                    {IconComponent && <IconComponent className="h-[18px] w-[18px] flex-shrink-0" />}
+                    <span className="truncate">{item.label}</span>
+                  </NavLink>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </nav>
 
       {/* User card */}

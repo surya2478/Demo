@@ -25,6 +25,8 @@ interface ApprovedRequestGroup {
   test_cases: ApprovedTestCaseItem[]
 }
 
+const ADO_PAGE_SIZE = 5
+
 const collectDetailColumns = (records: ApprovedTestCaseItem[]): string[] => {
   const keys = new Set<string>()
   records.forEach((item) => {
@@ -102,12 +104,13 @@ interface ApprovedGroupsTableProps {
   onDownload: (requestId: string) => void
   showCount?: boolean
   showHeader?: boolean
+  startIndex?: number
 }
 
-const ApprovedGroupsTable: React.FC<ApprovedGroupsTableProps> = ({ title, groups, loading, downloadingRequestId, onView, onDownload, showCount = false, showHeader = true }) => (
+const ApprovedGroupsTable: React.FC<ApprovedGroupsTableProps> = ({ title, groups, loading, downloadingRequestId, onView, onDownload, showCount = false, showHeader = true, startIndex = 0 }) => (
   <section className="overflow-hidden rounded-[14px] border border-slate-200">
-    {showHeader && <div className="flex items-center justify-between gap-3 border-b border-red-200 bg-white px-3 py-2">
-      <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-red-700">{title}</h2>
+    {showHeader && <div className="flex items-center justify-between gap-3 border-b border-red-200 bg-red-700 px-3 py-2">
+      <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-white">{title}</h2>
       {showCount && <span className="text-[11px] font-semibold text-slate-500">{groups.length} approved request{groups.length === 1 ? '' : 's'}</span>}
     </div>}
     <div className="max-h-[420px] overflow-auto">
@@ -124,7 +127,7 @@ const ApprovedGroupsTable: React.FC<ApprovedGroupsTableProps> = ({ title, groups
             <tr><td colSpan={7} className="px-3 py-6 text-center text-slate-500">No records available.</td></tr>
           ) : groups.map((group, index) => (
             <tr key={group.request_id} className="odd:bg-white even:bg-slate-50">
-              <td className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">{index + 1}</td>
+              <td className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">{startIndex + index + 1}</td>
               <td className="border-b border-slate-200 px-3 py-3 text-slate-700">{group.document_id || '—'}</td>
               <td className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-800">{group.request_id}</td>
               <td className="border-b border-slate-200 px-3 py-3"><button type="button" onClick={() => onView(group)} className="font-semibold text-red-600 underline decoration-red-200 underline-offset-2 hover:text-red-700">View ({group.test_case_count})</button></td>
@@ -146,6 +149,7 @@ const ApprovedTestCases: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
+  const [adoCurrentPage, setAdoCurrentPage] = useState(1)
   const [downloadingRequestId, setDownloadingRequestId] = useState<string | null>(null)
   const [viewingGroup, setViewingGroup] = useState<ApprovedRequestGroup | null>(null)
   const [tableSearch, setTableSearch] = useState('')
@@ -175,9 +179,11 @@ const ApprovedTestCases: React.FC = () => {
         test_cases: []
       }))
       setGroups(toGroups(currentResponse.data?.items ?? []))
-      setAdoGroups(toGroups(adoResponse.data?.items ?? []))
+      const adoItems = toGroups(adoResponse.data?.items ?? [])
+      setAdoGroups(adoItems)
       setHistoryGroups(toGroups(historyResponse.data?.items ?? []))
       setCurrentPage(1)
+      setAdoCurrentPage((page) => Math.min(page, Math.max(1, Math.ceil(adoItems.length / ADO_PAGE_SIZE))))
     } catch (err) {
       console.error('Failed to load approved test cases', err)
       setError('Failed to load approved test cases.')
@@ -215,6 +221,13 @@ const ApprovedTestCases: React.FC = () => {
     () => (viewingGroup ? collectDetailColumns(viewingGroup.test_cases) : []),
     [viewingGroup]
   )
+
+  const adoTotalPages = Math.max(1, Math.ceil(adoGroups.length / ADO_PAGE_SIZE))
+  const safeAdoCurrentPage = Math.min(adoCurrentPage, adoTotalPages)
+  const paginatedAdoGroups = useMemo(() => {
+    const start = (safeAdoCurrentPage - 1) * ADO_PAGE_SIZE
+    return adoGroups.slice(start, start + ADO_PAGE_SIZE)
+  }, [adoGroups, safeAdoCurrentPage])
 
   const handleViewGroup = async (group: ApprovedRequestGroup) => {
     setError(null)
@@ -264,7 +277,8 @@ const ApprovedTestCases: React.FC = () => {
           <div className="text-sm text-slate-600">Loading approved test cases...</div>
         ) : (
           <div className="overflow-hidden rounded-[14px] border border-slate-200">
-            <div className="border-b border-red-200 bg-white px-3 py-2"><h2 className="text-xs font-bold uppercase tracking-[0.14em] text-red-700">Recent / Current Records</h2></div>
+            <div className="border-b border-red-200 bg-red-700 px-3 py-2">
+              <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-white">Recent / Current Records</h2></div>
             <div className="max-h-[60vh] overflow-auto">
               <table className="min-w-full border-collapse text-left text-xs text-slate-700">
                 <thead className="sticky top-0 z-10 bg-white">
@@ -319,13 +333,22 @@ const ApprovedTestCases: React.FC = () => {
         )}
 
         <div className="mt-6 space-y-6">
-          <ApprovedGroupsTable title="ADO Repository Records" groups={adoGroups} loading={loading} downloadingRequestId={downloadingRequestId} onView={handleViewGroup} onDownload={(requestId) => handleDownloadRequest(requestId, 'xlsx')} />
+          <div>
+            <ApprovedGroupsTable title="ADO Repository Records" groups={paginatedAdoGroups} loading={loading} downloadingRequestId={downloadingRequestId} startIndex={(safeAdoCurrentPage - 1) * ADO_PAGE_SIZE} onView={handleViewGroup} onDownload={(requestId) => handleDownloadRequest(requestId, 'xlsx')} />
+            {adoGroups.length > ADO_PAGE_SIZE && (
+              <div className="flex items-center justify-end gap-2 rounded-b-[14px] border border-t-0 border-slate-200 bg-slate-50 px-3 py-2">
+                <button type="button" disabled={safeAdoCurrentPage <= 1} onClick={() => setAdoCurrentPage((page) => Math.max(1, page - 1))} className="rounded-[6px] border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
+                <span className="text-xs text-slate-600">Page {safeAdoCurrentPage} of {adoTotalPages}</span>
+                <button type="button" disabled={safeAdoCurrentPage >= adoTotalPages} onClick={() => setAdoCurrentPage((page) => Math.min(adoTotalPages, page + 1))} className="rounded-[6px] border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Next</button>
+              </div>
+            )}
+          </div>
           <section className="overflow-hidden rounded-[14px] border border-slate-200">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-red-200 bg-white px-3 py-2">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-red-700"><span>All History Records: {filteredGroups.length}</span><button type="button" onClick={() => setIsHistoryExpanded((expanded) => !expanded)} aria-label={isHistoryExpanded ? 'Collapse history records' : 'Expand history records'} title={isHistoryExpanded ? 'Collapse history records' : 'Expand history records'} className="flex h-7 w-7 items-center justify-center rounded-[6px] border border-red-200 text-red-700 hover:bg-red-50">{isHistoryExpanded ? <HiOutlineChevronDown className="h-4 w-4" /> : <HiOutlineChevronRight className="h-4 w-4" />}</button></div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-red-200 bg-red-700 px-3 py-2">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-white"><span>All History Records: {filteredGroups.length}</span><button type="button" onClick={() => setIsHistoryExpanded((expanded) => !expanded)} aria-label={isHistoryExpanded ? 'Collapse history records' : 'Expand history records'} title={isHistoryExpanded ? 'Collapse history records' : 'Expand history records'} className="flex h-7 w-7 items-center justify-center rounded-[6px] border border-red-200 text-white hover:bg-red-900">{isHistoryExpanded ? <HiOutlineChevronDown className="h-4 w-4" /> : <HiOutlineChevronRight className="h-4 w-4" />}</button></div>
               {isHistoryExpanded && <input type="text" value={tableSearch} onChange={(event) => { setTableSearch(event.target.value); setCurrentPage(1) }} placeholder="Search requests..." className="w-64 rounded-[8px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 outline-none focus:border-slate-400" />}
             </div>
-            {isHistoryExpanded && <><ApprovedGroupsTable title="All History Records" groups={paginatedGroups} loading={loading} downloadingRequestId={downloadingRequestId} showHeader={false} onView={handleViewGroup} onDownload={(requestId) => handleDownloadRequest(requestId, 'xlsx')} />
+            {isHistoryExpanded && <><ApprovedGroupsTable title="All History Records" groups={paginatedGroups} loading={loading} downloadingRequestId={downloadingRequestId} showHeader={false} startIndex={(safeCurrentPage - 1) * pageSize} onView={handleViewGroup} onDownload={(requestId) => handleDownloadRequest(requestId, 'xlsx')} />
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-3 py-2"><select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setCurrentPage(1) }} className="rounded-[6px] border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select><div className="flex items-center gap-2"><button type="button" disabled={safeCurrentPage <= 1} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} className="rounded-[6px] border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 disabled:opacity-40">Previous</button><span className="text-xs text-slate-600">Page {safeCurrentPage} of {totalPages}</span><button type="button" disabled={safeCurrentPage >= totalPages} onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} className="rounded-[6px] border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 disabled:opacity-40">Next</button></div></div></>}
           </section>
         </div>

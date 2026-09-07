@@ -98,12 +98,13 @@ interface ReviewRecordsTableProps {
   onOpenReview: (requestId: string) => void
   showCount?: boolean
   showHeader?: boolean
+  startIndex?: number
 }
 
-const ReviewRecordsTable: React.FC<ReviewRecordsTableProps> = ({ title, records, loading, onOpenReview, showCount = false, showHeader = true }) => (
+const ReviewRecordsTable: React.FC<ReviewRecordsTableProps> = ({ title, records, loading, onOpenReview, showCount = false, showHeader = true, startIndex = 0 }) => (
   <section className="overflow-hidden rounded-[14px] border border-slate-200">
-    {showHeader && <div className="flex items-center justify-between gap-3 border-b border-red-200 bg-white px-3 py-2">
-      <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-red-700">{title}</h2>
+    {showHeader && <div className="flex items-center justify-between gap-3 border-b border-red-800 bg-red-700 px-3 py-2">
+      <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-white">{title}</h2>
       {showCount && <span className="text-[11px] font-semibold text-slate-500">{records.length} record{records.length === 1 ? '' : 's'}</span>}
     </div>}
     <div className="max-h-[420px] overflow-auto">
@@ -122,7 +123,7 @@ const ReviewRecordsTable: React.FC<ReviewRecordsTableProps> = ({ title, records,
             <tr><td colSpan={10} className="px-3 py-6 text-center text-slate-500">No records available.</td></tr>
           ) : records.map((record, index) => (
             <tr key={record.request_id} className="odd:bg-white even:bg-slate-50">
-              <td className="border-b border-slate-200 px-3 py-3 font-semibold">{index + 1}</td>
+              <td className="border-b border-slate-200 px-3 py-3 font-semibold">{startIndex + index + 1}</td>
               <td className="border-b border-slate-200 px-3 py-3">{record.document_id || '—'}</td>
               <td className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-800">{record.request_id}</td>
               <td className="border-b border-slate-200 px-3 py-3">{record.no_of_test_cases}</td>
@@ -527,8 +528,8 @@ const ReviewAndApproval: React.FC = () => {
         ) : (
           <div className="space-y-6">
             <div className="overflow-hidden rounded-[14px] border border-slate-200">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-red-200 bg-white px-3 py-2">
-                <div className="text-xs font-bold uppercase tracking-[0.14em] text-red-700">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-red-800 bg-red-700 px-3 py-2">
+                <div className="text-xs font-bold uppercase tracking-[0.14em] text-white">
                   Recent / Current Records
                 </div>
               </div>
@@ -606,6 +607,7 @@ const ReviewAndApproval: React.FC = () => {
               title="ADO Repository Records"
               records={paginatedAdoRequests}
               loading={loading}
+              startIndex={(safeAdoCurrentPage - 1) * ADO_PAGE_SIZE}
               onOpenReview={(requestId) => {
                 setSelectedRequestId(requestId)
                 setIsReviewModalOpen(true)
@@ -620,11 +622,11 @@ const ReviewAndApproval: React.FC = () => {
             )}
 
             <section className="overflow-hidden rounded-[14px] border border-slate-200">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-red-200 bg-white px-3 py-2">
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-red-700"><span>All History Records: {filteredRequests.length}</span><button type="button" onClick={() => setIsHistoryExpanded((expanded) => !expanded)} aria-label={isHistoryExpanded ? 'Collapse history records' : 'Expand history records'} title={isHistoryExpanded ? 'Collapse history records' : 'Expand history records'} className="flex h-7 w-7 items-center justify-center rounded-[6px] border border-red-200 text-red-700 hover:bg-red-50">{isHistoryExpanded ? <HiOutlineChevronDown className="h-4 w-4" /> : <HiOutlineChevronRight className="h-4 w-4" />}</button></div>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-red-800 bg-red-700 px-3 py-2">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-white"><span>All History Records: {filteredRequests.length}</span><button type="button" onClick={() => setIsHistoryExpanded((expanded) => !expanded)} aria-label={isHistoryExpanded ? 'Collapse history records' : 'Expand history records'} title={isHistoryExpanded ? 'Collapse history records' : 'Expand history records'} className="flex h-7 w-7 items-center justify-center rounded-[6px] border border-red-200 text-white hover:bg-red-900">{isHistoryExpanded ? <HiOutlineChevronDown className="h-4 w-4" /> : <HiOutlineChevronRight className="h-4 w-4" />}</button></div>
                 {isHistoryExpanded && <input type="text" value={tableSearch} onChange={(event) => handleTableSearchChange(event.target.value)} placeholder="Search all fields..." className="w-64 rounded-[8px] border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 outline-none focus:border-slate-400" />}
               </div>
-              {isHistoryExpanded && <><ReviewRecordsTable title="All History Records" records={paginatedHistoryRequests} loading={loading} showHeader={false} onOpenReview={(requestId) => { setSelectedRequestId(requestId); setIsReviewModalOpen(true) }} />
+              {isHistoryExpanded && <><ReviewRecordsTable title="All History Records" records={paginatedHistoryRequests} loading={loading} showHeader={false} startIndex={(safeCurrentPage - 1) * pageSize} onOpenReview={(requestId) => { setSelectedRequestId(requestId); setIsReviewModalOpen(true) }} />
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-3 py-2">
                 <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setCurrentPage(1) }} className="rounded-[6px] border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"><option value={5}>5</option><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select>
                 <div className="flex items-center gap-2"><button type="button" disabled={safeCurrentPage <= 1} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} className="rounded-[6px] border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 disabled:opacity-40">Previous</button><span className="text-xs text-slate-600">Page {safeCurrentPage} of {totalPages}</span><button type="button" disabled={safeCurrentPage >= totalPages} onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} className="rounded-[6px] border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 disabled:opacity-40">Next</button></div>
