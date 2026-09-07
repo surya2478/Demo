@@ -9,7 +9,7 @@ import { formatToDubaiTime } from '../../utils/formatToDubaiTime'
 import ResetButton from '../../components/ResetButton' // new import
 import { logApiEvent } from '../../utils/auditApiHelper'
 import ChatWindow from '../../components/ChatWindow'
-import { trackedFetchWithTokens, getAiAuthToken } from '../../utils/trackedFetchWithTokens'
+import { trackedFetchWithTokens, authHeaderFor } from '../../utils/trackedFetchWithTokens'
 import userService from '../../services/userService'
 import RequestTrackerAPI from '../../utils/requestTrackerAPI'
 import { extractTokenCounts } from '../../utils/streamingFetchHelper'
@@ -189,13 +189,18 @@ const KB: React.FC = () => {
           const formData = new FormData()
           formData.append('file', zipFile)
 
-          const res = await fetch(`${cfg.BASE_URL}${cfg.ENDPOINTS.kbUploadZip}`, {
+          // The destination picks the credential, not "whichever token exists".
+          // cfg.BASE_URL is a runtime setting: it names the external AI service
+          // in the deployed environment and this admin backend once the
+          // generation endpoints are migrated. The AI key is right for the
+          // former and is not a JWT, so it 401s against the latter --
+          // authHeaderFor decides per URL and keeps sending the AI key while
+          // BASE_URL still points off-host.
+          const uploadUrl = `${cfg.BASE_URL}${cfg.ENDPOINTS.kbUploadZip}`
+          const res = await fetch(uploadUrl, {
             method: 'POST',
             body: formData,
-            headers: (() => {
-              const token = getAiAuthToken()
-              return token ? { 'Authorization': `Bearer ${token}` } : undefined
-            })()
+            headers: authHeaderFor(uploadUrl)
           })
 
           if (!res.ok) {
@@ -400,11 +405,12 @@ const KB: React.FC = () => {
         endpoint: cfg.ENDPOINTS.exportExcel,
         test_cases_text: response
       }
-      const res = await fetch(`${cfg.BASE_URL}${cfg.ENDPOINTS.exportExcel}`, {
+      const exportUrl = `${cfg.BASE_URL}${cfg.ENDPOINTS.exportExcel}`
+      const res = await fetch(exportUrl, {
         method: 'POST',
         body: form,
         // credentials: 'include',
-        headers: {accept: 'application/json', ...(getAiAuthToken() ? { Authorization: `Bearer ${getAiAuthToken()}` } : {})},
+        headers: { accept: 'application/json', ...authHeaderFor(exportUrl) },
       })
 
       if (!res.ok) {

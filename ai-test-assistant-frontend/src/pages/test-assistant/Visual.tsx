@@ -9,7 +9,7 @@ import { buildDetailedFieldAudit } from '../../utils/auditDetailsHelper'
 import useAuth from '../../hooks/useAuth'
 import { logApiEvent } from '../../utils/auditApiHelper'
 import { useTestDataContext } from '../../context/TestDataContext'
-import { trackedFetchWithTokens, getAiAuthToken } from '../../utils/trackedFetchWithTokens'
+import { trackedFetchWithTokens, authHeaderFor } from '../../utils/trackedFetchWithTokens'
 import userService from '../../services/userService'
 import RequestTrackerAPI from '../../utils/requestTrackerAPI'
 import { extractTokenCounts } from '../../utils/streamingFetchHelper'
@@ -294,10 +294,14 @@ const Visual: React.FC = () => {
     let responsePayload: any = null
 
     try {
-      const res = await fetch(`${config.BASE_URL}${config.ENDPOINTS.exportExcel}`, {
+      // Credential chosen by destination, not by availability -- the AI key is
+      // not a JWT and 401s if config.BASE_URL has been repointed at the admin
+      // backend. See authHeaderFor.
+      const exportUrl = `${config.BASE_URL}${config.ENDPOINTS.exportExcel}`
+      const res = await fetch(exportUrl, {
         method: "POST",
         body: formData,
-        headers: { 'accept': "application/json", ...(getAiAuthToken() ? { Authorization: `Bearer ${getAiAuthToken()}` } : {}) },
+        headers: { 'accept': "application/json", ...authHeaderFor(exportUrl) },
       })
 
       const data = await res.blob()

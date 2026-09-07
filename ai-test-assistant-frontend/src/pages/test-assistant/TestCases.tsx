@@ -24,7 +24,7 @@ import { useAIAction } from '../../hooks/useAIAction'
 import { useAIProcessing } from '../../context/AIProcessingContext'
 import ReviewAndSendModal, { type ReviewDocumentItem } from '../../components/ReviewAndSendModal'
 import Notification from '../../components/Notification'
-import { getAiAuthToken } from '../../utils/trackedFetchWithTokens'
+import { authHeaderFor, isOwnBackend } from '../../utils/trackedFetchWithTokens'
 
 
 
@@ -265,6 +265,23 @@ const TestCases: React.FC = () => {
   }, [inputType, textValue, fileInputs, combinedContent, sparkStorageKey])
 
   // Normalize text: collapse excessive whitespace, trim lines, collapse multiple blank lines
+  // --- Where generation goes ------------------------------------------------
+  //
+  // ENDPOINTS.generateTestCasesUrl is an absolute override for THIS BUTTON
+  // ONLY. It has existed in the config type and in config.json since the
+  // migration but nothing ever read it, so the only way to move generation
+  // onto the admin backend was to move BASE_URL -- which moves all eight AI
+  // endpoints at once, and only /generate/brd-testcases has been ported. The
+  // other seven (visual, test-data, kb/*, code/*, export/*) would 404.
+  //
+  // Reading it here is what makes the deployed environment able to route just
+  // this call to the backend that holds the Knowledge Base, while every other
+  // tab keeps talking to the AI service exactly as it does today.
+  const resolveGenerateUrl = (cfg: ReturnType<typeof getConfig>) => {
+    const override = String((cfg.ENDPOINTS as any).generateTestCasesUrl || '').trim()
+    return override || `${cfg.BASE_URL}${cfg.ENDPOINTS.generateTestCases}`
+  }
+
   const normalizeText = (s: string) => {
     if (!s || typeof s !== 'string') return ''
     const lf = s.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
@@ -831,138 +848,175 @@ const TestCases: React.FC = () => {
 
       setLoading(true)
       const config = getConfig()
-      const formData = new FormData()
 
-      let combinedFilesText = ''
+      // --- Where documents get extracted --------------------------------
+      //
+      // Deliberately NOT resolveGenerateUrl(). Generation and extraction are
+      // two different jobs with two different best homes, and the whole point
+      // of the generateTestCasesUrl override is that they can now diverge:
+      //
+      //   generation  -> the admin backend, which holds the Knowledge Base and
+      //                  is the only thing that can ground a prompt.
+      //   extraction  -> BASE_URL, the AI service, which has always done this
+      //                  and reads formats nothing in this repo can, PDF
+      //                  included. Confirmed working in the deployed
+      //                  environment.
+      //
+      // So this keeps posting files exactly where it always has. Pointing it
+      // at the admin backend instead would be a regression: that backend has
+      // no document parser, and the Test Assistant's own client-side parser
+      // (mammoth) reads .docx and text formats only.
+      //
+      // The client-side path below is the FALLBACK for when BASE_URL is the
+      // admin backend -- local development, or any environment mid-migration.
+      // There the AI service is not reachable at all, and a request for
+      // extraction returns 501 or, before this was checked,
+      // {"detail":"Invalid or expired token"} pasted into the editable box as
+      // if it were the document's text.
+      const extractUrl = `${config.BASE_URL}${config.ENDPOINTS.generateTestCases}`
+      const extractOnServer = !isOwnBackend(extractUrl)
 
-      formData.append('provider', config.PARAMETERS.provider)
-      formData.append('model_name', String(config.PARAMETERS.model))
-      formData.append('temperature', String(config.PARAMETERS.temperature))
-      formData.append('max_tokens', String(config.PARAMETERS.maxTokens))
-      formData.append('response_format', 'text')
-      let reader: any = null
+      if (extractOnServer && !(needsReprocess && combinedContent && combinedContent.trim().length > 0)) {
+        const formData = new FormData()
+        formData.append('provider', config.PARAMETERS.provider)
+        formData.append('model_name', String(config.PARAMETERS.model))
+        formData.append('temperature', String(config.PARAMETERS.temperature))
+        formData.append('max_tokens', String(config.PARAMETERS.maxTokens))
+        formData.append('response_format', 'text')
+        fileInputs.forEach(f => formData.append('files', f as Blob))
 
-      // fallback: append original files
-      fileInputs.forEach(f => formData.append('files', f as Blob))
+        const res = await fetch(extractUrl, {
+          method: 'POST',
+          body: formData,
+          headers: authHeaderFor(extractUrl)
+        })
 
-      // Convert DOCX files to HTML now
-      // const htmlContents = await docxFilesToHtml(Array.from(fileInputs));
-      // setContents(htmlContents);
-
-      // const contents = await docxFilesToPlainText(Array.from(fileInputs));
-      // setTexts(contents);
-
-
-      const res = await fetch(`${config.BASE_URL}${config.ENDPOINTS.generateTestCases}`, {
-            method: 'POST',
-            body: formData,
-            headers: (() => {
-              const token = getAiAuthToken()
-              return token ? { 'Authorization': `Bearer ${token}` } : undefined
-            })()
-          })
-          reader = (res.body as ReadableStream<Uint8Array>).getReader()
-          // console.log('Processing documents response reader:', reader)
-          const decoder = new TextDecoder()
-      while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          const chunk = decoder.decode(value)
-          // setResponse(prev => prev + chunk.replace('data: ', ''))
-          combinedFilesText += decoder.decode(value, { stream: true })
+        // Without this, an error body becomes the "requirements" that the
+        // Generate button then sends to the model.
+        if (!res.ok) {
+          const raw = await res.text().catch(() => '')
+          let detail = raw
+          try {
+            const parsed = JSON.parse(raw)
+            if (parsed?.detail) detail = String(parsed.detail)
+          } catch {
+            // not JSON; the raw body is the best message available
+          }
+          throw new Error(
+            res.status === 401
+              ? 'Your session has expired. Sign in again and re-run Process Documents.'
+              : `Could not process the uploaded document(s): ${detail}`
+          )
         }
-        // console.log('Combined text from Process Documents:', combinedFilesText) 
-      // Build combined content and preview
-        if(combinedFilesText && combinedFilesText.trim().length > 0){
-          const normalizedCombined = normalizeText(combinedFilesText)
-          setCombinedContent(normalizedCombined)  
-          // setCombinedPreviewHtml(textToHtml(normalizedCombined))
+
+        let extracted = ''
+        if (res.body) {
+          const reader = (res.body as ReadableStream<Uint8Array>).getReader()
+          const decoder = new TextDecoder()
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            extracted += decoder.decode(value, { stream: true })
+          }
+        } else {
+          extracted = await res.text()
+        }
+
+        if (extracted && extracted.trim().length > 0) {
+          const normalizedCombined = normalizeText(extracted)
+          setCombinedContent(normalizedCombined)
+          setCombinedPreviewHtml(textToHtml(normalizedCombined))
           setDocumentsProcessed(true)
           setNeedsReprocess(false)
-          setLoading(false)
           setResponse('')
+          responsePayload = normalizedCombined
           return
-        } 
+        }
+        throw new Error('No readable text was returned for the uploaded document(s).')
+      }
 
+      // If the user has edited combinedContent, prefer that as the source
+      if (needsReprocess && combinedContent && combinedContent.trim().length > 0) {
+        const normalizedCombined = normalizeText(combinedContent)
+        setCombinedContent(normalizedCombined)
+        setCombinedPreviewHtml(textToHtml(normalizedCombined))
+        setDocumentsProcessed(true)
+        setNeedsReprocess(false)
+        setResponse('')
+        responsePayload = normalizedCombined
+        return
+      }
 
+      // Otherwise build combined content from the files themselves
+      const combinedTextParts: string[] = []
+      const htmlParts: string[] = []
+      const unreadable: string[] = []
 
+      for (let i = 0; i < fileInputs.length; i++) {
+        const file = fileInputs[i]
+        const name = file.name.toLowerCase()
 
+        // If the user had provided editable content for this file, use it
+        if (editableContents[i] !== undefined && editableContents[i] !== null && editableContents[i] !== '') {
+          const normalized = normalizeText(editableContents[i])
+          combinedTextParts.push(normalized)
+          htmlParts.push(textToHtml(normalized))
+          continue
+        }
 
+        try {
+          if (name.endsWith('.docx')) {
+            const arrayBuffer = await file.arrayBuffer()
+            const htmlResult = await mammoth.convertToHtml({ arrayBuffer })
+            const textResult = await mammoth.extractRawText({ arrayBuffer })
+            const normalizedText = normalizeText(textResult?.value || '')
+            combinedTextParts.push(normalizedText)
+            // Keep the converted HTML for fidelity in the preview
+            htmlParts.push(htmlResult?.value || textToHtml(normalizedText))
+          } else if (name.endsWith('.txt') || name.endsWith('.csv') || name.endsWith('.md')) {
+            const txt = await file.text()
+            const normalized = normalizeText(txt)
+            combinedTextParts.push(normalized)
+            htmlParts.push(textToHtml(normalized))
+          } else {
+            // Named, not silently swallowed. A placeholder pushed into
+            // combinedTextParts would become the "requirements" the Generate
+            // button then sends to the model, so unreadable files are reported
+            // and contribute nothing to the text.
+            unreadable.push(file.name)
+            htmlParts.push(
+              `<div class="text-xs text-gray-400">${escapeHtml(`Preview not available for binary file type: ${file.name}`)}</div>`
+            )
+          }
+        } catch (err) {
+          console.error('Error processing file during Process Documents:', file.name, err)
+          unreadable.push(file.name)
+          htmlParts.push(
+            `<div class="text-xs text-gray-400">${escapeHtml(`Error processing file: ${file.name}`)}</div>`
+          )
+        }
+      }
 
+      if (combinedTextParts.length === 0) {
+        throw new Error(
+          unreadable.length > 0
+            ? `No readable text could be extracted. This tab reads .docx, .txt, .csv and .md files; could not read: ${unreadable.join(', ')}.`
+            : 'No readable text was found in the uploaded document(s).'
+        )
+      }
 
+      const combinedText = normalizeText(combinedTextParts.join('\n\n'))
+      setCombinedContent(combinedText)
+      setCombinedPreviewHtml(htmlParts.join('<hr class="my-4"/>'))
+      setDocumentsProcessed(true)
+      setNeedsReprocess(false)
+      setResponse('')
 
+      if (unreadable.length > 0) {
+        console.warn('Process Documents skipped unreadable file(s):', unreadable.join(', '))
+      }
 
-
-
-    // // If the user has edited combinedContent, prefer that as the source to render preview
-    // if (needsReprocess && combinedContent && combinedContent.trim().length > 0) {
-    //   const normalizedCombined = normalizeText(combinedContent)
-    //   setCombinedContent(normalizedCombined)
-    //   setCombinedPreviewHtml(textToHtml(normalizedCombined))
-    //   // also sync editableContents per-file: set first file to entire combined? We'll leave editableContents per-file as-is
-    //   setDocumentsProcessed(true)
-    //   setNeedsReprocess(false)
-    //   setLoading(false)
-    //   setResponse('')
-    //   return
-    // }
-
-    // // Otherwise build combined from files (processing DOCX now)
-    // const combinedTextParts: string[] = []
-    // const htmlParts: string[] = []
-
-    // for (let i = 0; i < fileInputs.length; i++) {
-    //   const file = fileInputs[i]
-    //   const name = file.name.toLowerCase()
-
-    //   // If user had provided editable content for this file, use it
-    //   if (editableContents[i] !== undefined && editableContents[i] !== null && editableContents[i] !== '') {
-    //     const normalized = normalizeText(editableContents[i])
-    //     combinedTextParts.push(normalized)
-    //     htmlParts.push(textToHtml(normalized))
-    //     continue
-    //   }
-
-    //   // No user edit: extract from files
-    //   try {
-    //     if (name.endsWith('.docx')) {
-    //       const arrayBuffer = await file.arrayBuffer()
-    //       const htmlResult = await mammoth.convertToHtml({ arrayBuffer })
-    //       const textResult = await mammoth.extractRawText({ arrayBuffer })
-    //       const normalizedText = normalizeText(textResult?.value || '')
-    //       combinedTextParts.push(normalizedText)
-    //       // Use original converted HTML for fidelity (this preserves current markdown/HTML approach)
-    //       htmlParts.push(htmlResult?.value || textToHtml(normalizedText))
-    //     } else if (name.endsWith('.txt') || name.endsWith('.csv') || name.endsWith('.md')) {
-    //       const txt = await file.text()
-    //       const normalized = normalizeText(txt)
-    //       combinedTextParts.push(normalized)
-    //       htmlParts.push(textToHtml(normalized))
-    //     } else {
-    //       const placeholder = `Preview not available for binary file type: ${file.name}`
-    //       combinedTextParts.push(placeholder)
-    //       htmlParts.push(`<div class="text-xs text-gray-400">${escapeHtml(placeholder)}</div>`)
-    //     }
-    //   } catch (err) {
-    //     console.error('Error processing file during Process Documents:', file.name, err)
-    //     const errMsg = `Error processing file: ${file.name}`
-    //     combinedTextParts.push(errMsg)
-    //     htmlParts.push(`<div class="text-xs text-gray-400">${escapeHtml(errMsg)}</div>`)
-    //   }
-    // }
-
-    // const combinedText = combinedTextParts.join('\n\n')
-    // const combinedHtml = htmlParts.join('<hr class="my-4"/>')
-
-    // // set normalized combined content and preview
-    // setCombinedContent(normalizeText(combinedText))
-    // setCombinedPreviewHtml(combinedHtml)
-    // setDocumentsProcessed(true)
-    // setNeedsReprocess(false)
-    // setLoading(false)
-    // setResponse('')
-
-      responsePayload = combinedFilesText
+      responsePayload = combinedText
 
     } catch (err) {
       console.error('Error in Process Documents:', err)
@@ -1103,7 +1157,7 @@ const TestCases: React.FC = () => {
 
       // Call tracked fetch but handle streaming locally
       const { response: res, status, logId } = await trackedFetchWithTokens(
-        `${config.BASE_URL}${config.ENDPOINTS.generateTestCases}`,
+        resolveGenerateUrl(config),
         {
           tab: 'testcases',
           method: 'POST',
@@ -1219,10 +1273,11 @@ const TestCases: React.FC = () => {
     let auditStatus: 'success' | 'failure' = 'success'
 
     try {
-      const res = await fetch(`${config.BASE_URL}${config.ENDPOINTS.exportExcel}`, {
+      const exportUrl = `${config.BASE_URL}${config.ENDPOINTS.exportExcel}`
+      const res = await fetch(exportUrl, {
         method: 'POST',
         body: formData,
-        headers: { accept: 'application/json', ...(getAiAuthToken() ? { Authorization: `Bearer ${getAiAuthToken()}` } : {}) }
+        headers: { accept: 'application/json', ...authHeaderFor(exportUrl) }
       })
       const data = await res.blob()
       if (data.size === 0) return

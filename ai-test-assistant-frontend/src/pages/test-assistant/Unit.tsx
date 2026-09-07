@@ -6,7 +6,7 @@ import { getTimestampedFilename } from '../../utils/DynamicFileName-DateTime'
 import { buildDetailedFieldAudit } from '../../utils/auditDetailsHelper'
 import useAuth from '../../hooks/useAuth'
 import { logApiEvent } from '../../utils/auditApiHelper'
-import { trackedFetchWithTokens, getAiAuthToken } from '../../utils/trackedFetchWithTokens'
+import { trackedFetchWithTokens, authHeaderFor } from '../../utils/trackedFetchWithTokens'
 import userService from '../../services/userService'
 import RequestTrackerAPI from '../../utils/requestTrackerAPI'
 import { extractTokenCounts } from '../../utils/streamingFetchHelper'
@@ -255,13 +255,14 @@ const Unit: React.FC = () => {
     try{
       const form = new FormData()
       form.append('test_cases_text', response)
-      const res = await fetch(`${cfg.BASE_URL}${cfg.ENDPOINTS.exportText}`, {
+      // Credential chosen by destination, not by availability -- the AI key is
+      // not a JWT and 401s if cfg.BASE_URL has been repointed at the admin
+      // backend. See authHeaderFor.
+      const exportUrl = `${cfg.BASE_URL}${cfg.ENDPOINTS.exportText}`
+      const res = await fetch(exportUrl, {
           method: 'POST',
           body: form,
-          headers: (() => {
-            const token = getAiAuthToken()
-            return token ? { 'Authorization': `Bearer ${token}` } : undefined
-          })()
+          headers: authHeaderFor(exportUrl)
         })
 
       // if (!res.ok) {

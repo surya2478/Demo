@@ -78,7 +78,7 @@ function ownBackendPrefix(): string | null {
  * checked so that a backend at "/admin" does not match a path like
  * "/administration".
  */
-function isOwnBackend(targetUrl: string): boolean {
+export function isOwnBackend(targetUrl: string): boolean {
   const base = ownBackendPrefix();
   if (!base) return false;
   try {
