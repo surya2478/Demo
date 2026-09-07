@@ -24,7 +24,8 @@ string, which is what lets a table cell carry a multi-step procedure at all.
 from __future__ import annotations
 
 import logging
-from typing import Iterator
+import re
+from typing import Any, Dict, Iterator
 
 from . import stream
 
@@ -169,29 +170,130 @@ def wrap_user_content(text: str) -> str:
     return f"<user_content>\n{text}\n</user_content>"
 
 
-def stream_test_cases(
-    *,
-    requirements: str,
-    temperature: float | None = None,
-    max_tokens: int | None = None,
-) -> Iterator[str]:
-    """Stream a markdown table of test cases derived from `requirements`.
+def describe_grounding(requirements: str) -> Dict[str, Any]:
+    """What the Knowledge Base knows about this requirement, as data.
 
-    Raises GenerationUnavailable before yielding anything if OpenRouter is not
-    configured or cannot be reached, so the caller can still answer with a
-    proper status code.
+    ONE function decides, and both consumers read it: the prompt built below
+    and the badge the Test Assistant shows. Computing the two separately is the
+    bug this shape prevents -- a UI that says "grounded against Business First
+    Plus" while the prompt went out ungrounded is worse than no badge at all,
+    because it is the one claim a demo cannot survive being wrong about.
+
+    `reason` distinguishes outcomes that look identical from the outside and
+    are not:
+
+      matched         -- a flow matched; `context` holds the grounding.
+      no_flow_matched -- ordinary. The KB covers specific purchase journeys and
+                         a requirement outside them is expected to be ungrounded.
+      kb_missing      -- a deployment fault. The data never reached this
+                         process, so nothing will ever match.
+      error           -- the KB raised; the message is logged.
+
+    Reporting `matched_keywords` re-checks the WINNING flow's own keywords
+    against the text rather than reproducing the scoring in
+    match_flow_blueprint. Selecting the flow stays that function's job -- a
+    second copy of the scoring here would be free to disagree with the copy
+    that actually chose, and services/automation is another team's module.
     """
-    # Ungrounded is the default here, not the failure case. Every path that
-    # produces no flow context -- no match, no Knowledge Base, an outright
-    # error -- lands on the same disciplined prompt rather than on the bare
-    # format rules.
-    system_prompt = f"{SYSTEM_PROMPT}\n\n{UNGROUNDED_GUIDANCE}"
+    info: Dict[str, Any] = {
+        "grounded": False,
+        "reason": "error",
+        "app_id": None,
+        "app_name": None,
+        "flow_id": None,
+        "flow_name": None,
+        "category": None,
+        "matched_keywords": [],
+        "catalog_url": None,
+        "cart_url": None,
+        "context_chars": 0,
+        "context": "",
+    }
+
     try:
         from ..automation import knowledge_base as kb
+
         flow_context = kb.build_flow_context_prompt(requirements)
         if flow_context:
-            system_prompt = f"{SYSTEM_PROMPT}\n\n{flow_context}"
-            logger.info("Enhanced test case generation prompt with Knowledge Base flow context")
+            flow = kb.match_flow_blueprint(requirements) or {}
+            app_id = flow.get("_app_id")
+            profile = (kb.load_app_profile(app_id) or {}) if app_id else {}
+            text_lower = (requirements or "").lower()
+            hits = [
+                str(k)
+                for k in (flow.get("target_match_keywords") or [])
+                if str(k).strip()
+                and re.search(
+                    r"\b" + re.escape(str(k).lower().strip()) + r"\b", text_lower
+                )
+            ]
+            # A whole product name in the text is evidence. A single word out
+            # of one is not.
+            product_hits = [
+                str(p)
+                for p in (flow.get("known_products") or {})
+                if str(p).strip() and str(p).lower().strip() in text_lower
+            ]
+
+            # --- Refuse to ground on no evidence -----------------------------
+            # match_flow_blueprint scores a single word from a product name at
+            # +6, so "Business First Plus Local 110/150/200" scores 18 for any
+            # document containing the word "business" -- which every Business
+            # Requirements Document contains, in its title. With nothing else
+            # scoring, 18 beats 0 and that flow wins outright.
+            #
+            # The result is a Trade License BRD grounded against a mobile plan
+            # purchase journey and handed real eand.ae mobile URLs, ProductIds
+            # and prices to write test cases from. That is worse than no
+            # grounding: an ungrounded generation reads the requirement on its
+            # own terms, while this one is told with full confidence that it is
+            # looking at a catalogue it has nothing to do with.
+            #
+            # The bar set here is deliberately simple and is about EVIDENCE,
+            # not score: a flow is only allowed into the prompt if the text
+            # contains one of its match keywords or one of its product names in
+            # full. The scoring itself, and the app_profile's empty
+            # product_name_stopwords that lets a generic word count at all,
+            # belong to services/automation and are left alone.
+            if not hits and not product_hits:
+                info.update(
+                    reason="weak_match",
+                    flow_id=flow.get("flow_id"),
+                    flow_name=flow.get("flow_name"),
+                    app_id=app_id,
+                    app_name=profile.get("app_name") or app_id,
+                )
+                logger.warning(
+                    "Declining to ground on flow %r for this requirement: it "
+                    "matched no keyword and no product name, so the match rests "
+                    "only on incidental word overlap. Generating without flow "
+                    "grounding.",
+                    flow.get("flow_id"),
+                )
+                return info
+
+            info.update(
+                grounded=True,
+                reason="matched",
+                app_id=app_id,
+                app_name=profile.get("app_name") or app_id,
+                flow_id=flow.get("flow_id"),
+                flow_name=flow.get("flow_name"),
+                category=flow.get("category"),
+                matched_keywords=hits,
+                catalog_url=flow.get("catalog_entrypoint") or profile.get("base_url"),
+                cart_url=flow.get("cart_endpoint"),
+                context_chars=len(flow_context),
+                context=flow_context,
+            )
+            logger.info(
+                "Knowledge Base grounded this generation: app=%s flow=%s "
+                "(%d chars, keywords: %s)",
+                info["app_id"],
+                info["flow_id"],
+                info["context_chars"],
+                ", ".join(hits) or "none matched literally",
+            )
         # --- Automation Module: say why the context is missing ---------------
         # Without this branch an absent Knowledge Base produced no log line at
         # all. Generation still succeeded, just ungrounded -- test cases with
@@ -207,6 +309,7 @@ def stream_test_cases(
         # journeys, and a requirement outside them is expected to generate
         # without grounding.
         elif not kb.get_kb_root().exists():
+            info["reason"] = "kb_missing"
             logger.warning(
                 "Knowledge Base not found at %s -- generating WITHOUT flow "
                 "grounding. Test cases will lack real URLs, product identifiers "
@@ -217,12 +320,39 @@ def stream_test_cases(
                 kb.get_kb_root(),
             )
         else:
+            info["reason"] = "no_flow_matched"
             logger.info(
                 "No Knowledge Base flow matched this requirement; generating "
                 "without flow grounding."
             )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - the KB must never break generation
         logger.warning("Failed to enhance prompt with Knowledge Base: %s", exc)
+
+    return info
+
+
+def stream_test_cases(
+    *,
+    requirements: str,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+) -> Iterator[str]:
+    """Stream a markdown table of test cases derived from `requirements`.
+
+    Raises GenerationUnavailable before yielding anything if OpenRouter is not
+    configured or cannot be reached, so the caller can still answer with a
+    proper status code.
+    """
+    grounding = describe_grounding(requirements)
+
+    # Ungrounded is the default here, not the failure case. Every path that
+    # produces no flow context -- no match, no Knowledge Base, an outright
+    # error -- lands on the same disciplined prompt rather than on the bare
+    # format rules.
+    if grounding["grounded"]:
+        system_prompt = f"{SYSTEM_PROMPT}\n\n{grounding['context']}"
+    else:
+        system_prompt = f"{SYSTEM_PROMPT}\n\n{UNGROUNDED_GUIDANCE}"
 
     return stream.stream_chat(
         system_prompt=system_prompt,

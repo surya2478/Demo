@@ -31,6 +31,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 # Point the transport at the local stub before app.config is imported.
+#
+# LLM_PROVIDER is named explicitly for the same reason the three OpenRouter
+# values are: this file exercises the OpenRouter SSE path against an SSE stub,
+# and stream.py now chooses between two transports. Left implicit it would
+# inherit whatever the checkout's .env happens to say -- passing on a developer
+# machine set to openrouter and failing on one set to ai_service, which is the
+# deployed default.
+os.environ.setdefault("LLM_PROVIDER", "openrouter")
 os.environ.setdefault("OPENROUTER_BASE_URL", "http://127.0.0.1:8098/v1")
 os.environ.setdefault("OPENROUTER_MODEL", "stub/local")
 os.environ.setdefault("OPENROUTER_API_KEY", "stub-key-not-real")
