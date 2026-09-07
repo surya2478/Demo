@@ -1,0 +1,203 @@
+{
+  "app_id": "eand_b2b_portal",
+  "app_name": "e& UAE B2B Portal (Business Online)",
+  "base_url": "https://devnew-sas.etisalat.ae/b2bportal/login.html?rdr=home&locale=en",
+  "domain": "devnew-sas.etisalat.ae",
+  "framework": "Angular SPA",
+  "default_viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "default_flow_id": "flow_b2b_manage_trade_license",
+  "_provenance": {
+    "verified_selectors": "Supplied by the QA team as XPath. They were recorded against the B2B Portal when it was reached at qanew.eand.ae; the application has since been repointed to devnew-sas.etisalat.ae, which is what base_url now says. The selectors are DOM expressions and do not depend on the host, but nobody has re-confirmed them on the new environment -- if one stops resolving, that is the first thing to check. These are ground truth: authentication, Manage navigation, Organizational Details, the Trade Licence document viewer and logout.",
+    "brd_declared_only": "BRD_B2B_Portal_Trade_License_Automation_v2 (v2.0, 04 Sep 2026) publishes a data-testid table -- login-email, login-password, login-submit-btn, manage-users-table, tl-number-link-{userId}, tl-details-modal and the rest. NOT ONE of those hooks has been confirmed in the running application, and the two accounts disagree on the login mechanism itself: the BRD describes an email+password submit, the live portal authenticates with a 6-digit OTP. They are therefore recorded in brd_declared_selectors below and deliberately kept OUT of the flows, so grounding never hands the model an unverified hook as if it were verified.",
+    "route_confidence": "Only the login route is confirmed. /b2bportal/manage/users and the modal-based Trade Licence journey come from the BRD and are unverified; the verified journey reaches the licence through Manage -> view & update details."
+  },
+  "endpoints": {
+    "login": "/b2bportal/login.html?rdr=home&locale=en",
+    "home": "/b2bportal/home.html?locale=en",
+    "manage_users_brd_declared": "/b2bportal/manage/users"
+  },
+  "selectors": {
+    "authentication": {
+      "username_field": "//input[@id ='userEmailField']",
+      "receive_otp_button": "//button[contains(.,'RECEIVE OTP')]",
+      "otp_digit_field_indexed": "(//input[contains(@name,'opt-field')])[N]",
+      "otp_digit_field_all": "//input[contains(@name,'opt-field')]",
+      "error_dialog_ok_button": "//button[contains(.,'OKAY')]"
+    },
+    "navigation_header": "//a[text()='Manage']",
+    "navigation": {
+      "manage_link": "//a[text()='Manage']",
+      "organizational_details_link": "//a[text()=' view & update details ']"
+    },
+    "trade_license": {
+      "close_document_viewer": "//button[@aria-label='Close']"
+    },
+    "session": {
+      "profile_menu": "//a[@class='company-info font-light']",
+      "sign_out_button": "//a[text()='Sign Out' and not (contains(@class,'px-10 py-0'))]"
+    }
+  },
+  "brd_declared_selectors": {
+    "_status": "UNVERIFIED -- quoted from the BRD, never confirmed against the application. Do not promote into a flow until someone has seen one of these resolve in the running portal.",
+    "login_email": "input[data-testid=\"login-email\"]",
+    "login_password": "input[data-testid=\"login-password\"]",
+    "login_submit": "button[data-testid=\"login-submit-btn\"]",
+    "nav_manage_users": "[data-testid=\"nav-manage-users\"]",
+    "manage_users_table": "table[data-testid=\"manage-users-table\"]",
+    "trade_license_header": "th[data-testid=\"th-trade-license\"]",
+    "trade_license_filter": "input[data-testid=\"tl-filter-input\"]",
+    "trade_license_link": "a[data-testid=\"tl-number-link-{userId}\"]",
+    "trade_license_modal": "div[data-testid=\"tl-details-modal\"]",
+    "modal_close": "button[data-testid=\"tl-modal-close-btn\"]",
+    "loading_spinner": "div[data-testid=\"tl-loading-spinner\"]",
+    "pdf_viewer": "iframe[data-testid=\"tl-pdf-viewer\"]",
+    "image_viewer": "img[data-testid=\"tl-image-viewer\"]",
+    "doc_unavailable": "div[data-testid=\"tl-doc-unavailable-placeholder\"]",
+    "doc_corrupt": "div[data-testid=\"tl-doc-corrupt-placeholder\"]",
+    "error_alert": "div[data-testid=\"tl-error-alert\"]"
+  },
+  "product_name_stopwords": [
+    "trade",
+    "license",
+    "licence",
+    "user",
+    "users",
+    "business",
+    "portal",
+    "details"
+  ],
+  "step_grounding_rules": [
+    {
+      "id": "b2b_login_page",
+      "first_step_only": true,
+      "keywords": [
+        "login page",
+        "log in",
+        "sign in",
+        "b2b portal",
+        "business online",
+        "login.html"
+      ],
+      "target": "{base_url}"
+    },
+    {
+      "id": "username_field",
+      "keywords": [
+        "email address",
+        "username",
+        "user email",
+        "email field",
+        "enter the registered email"
+      ],
+      "target": "//input[@id ='userEmailField']"
+    },
+    {
+      "id": "receive_otp",
+      "keywords": [
+        "receive otp",
+        "request otp",
+        "request a one-time",
+        "send otp",
+        "trigger otp"
+      ],
+      "target": "//button[contains(.,'RECEIVE OTP')]"
+    },
+    {
+      "id": "otp_entry",
+      "keywords": [
+        "enter otp",
+        "one-time password",
+        "otp digit",
+        "six-digit",
+        "6-digit code",
+        "otp code"
+      ],
+      "target": "//input[contains(@name,'opt-field')]"
+    },
+    {
+      "id": "error_dialog_ok",
+      "keywords": [
+        "okay",
+        "acknowledge the error",
+        "dismiss the error",
+        "error dialog",
+        "invalid otp message"
+      ],
+      "target": "//button[contains(.,'OKAY')]"
+    },
+    {
+      "id": "manage_menu",
+      "keywords": [
+        "manage menu",
+        "manage link",
+        "click manage",
+        "navigate to manage"
+      ],
+      "target": "//a[text()='Manage']"
+    },
+    {
+      "id": "organizational_details",
+      "keywords": [
+        "organisational details",
+        "organizational details",
+        "view & update details",
+        "view and update details",
+        "company details"
+      ],
+      "target": "//a[text()=' view & update details ']"
+    },
+    {
+      "id": "close_trade_license_viewer",
+      "keywords": [
+        "close the trade licence",
+        "close the trade license",
+        "close the document",
+        "dismiss the document",
+        "close the image",
+        "close the modal"
+      ],
+      "target": "//button[@aria-label='Close']"
+    },
+    {
+      "id": "profile_menu",
+      "keywords": [
+        "profile menu",
+        "company info",
+        "open the profile",
+        "account menu"
+      ],
+      "target": "//a[@class='company-info font-light']"
+    },
+    {
+      "id": "sign_out",
+      "keywords": [
+        "sign out",
+        "log out",
+        "logout"
+      ],
+      "target": "//a[text()='Sign Out' and not (contains(@class,'px-10 py-0'))]"
+    }
+  ],
+  "generation_directives": [
+    "1. PRECONDITIONS: State that the tester is on '{app_name}' ({base_url}) as an Organization Administrator of a company that holds at least one Trade Licence, and that a mailbox able to receive the one-time password is available.",
+    "2. AUTHENTICATION IS OTP-BASED, NOT PASSWORD-BASED. Enter the registered email in the username field, click RECEIVE OTP, then fill the six OTP digit boxes in order. Never generate a password field, a 'Login' submit button or a 'remember me' control for this portal -- they do not exist. Where the requirement document describes a password login, treat the Knowledge Base as correct and the document as out of date.",
+    "3. TEST STEPS: Reproduce the canonical traversal above in order, one action per step. Quote the verified selector from this Knowledge Base for every step that has one, and refer to the OTP boxes by index 1 to 6.",
+    "4. UNVERIFIED HOOKS: Do not write steps against data-testid values. The application's confirmed hooks are the XPath expressions in this Knowledge Base; the data-testid table in the requirement document has never been confirmed to exist and a test case built on it will fail at execution.",
+    "5. THE VERIFIED ROUTE TO THE LICENCE is Manage -> 'view & update details' -> Organizational Details -> Trade Licence document. If the requirement also describes a Trade Licence column inside a Manage Users table, cover it, but state in Preconditions that this route is described by the requirement and is not yet confirmed in the application.",
+    "6. BOUNDARY: OTP delivery, Netcracker and EDMS are external systems. Assert what the portal displays; do not generate steps that read a mailbox, call Netcracker or call EDMS directly.",
+    "7. ALWAYS finish an end-to-end case by closing the document viewer and signing out through the profile menu, so the session does not leak into the next case."
+  ],
+  "test_case_matrix": [
+    "Positive path: sign in with a valid email and OTP, open Manage -> Organizational Details, and view the Trade Licence document.",
+    "Negative: an invalid or expired OTP raises the error dialog and the OKAY button returns the user to the OTP entry step.",
+    "Negative: RECEIVE OTP with an unregistered or malformed email address is rejected and no OTP is issued.",
+    "Boundary: fewer than six OTP digits entered -- verification cannot be submitted.",
+    "Document handling: the Trade Licence renders for PDF and for PNG/JPEG up to 5 MB; an unavailable or corrupt document shows its own message rather than an empty panel.",
+    "Usability: the document viewer closes cleanly and returns focus to Organizational Details.",
+    "Session: signing out through the profile menu ends the session and a protected route cannot be reached afterwards.",
+    "Read-only: nothing in this journey creates, edits or deletes a Trade Licence or a user-to-licence assignment."
+  ]
+}

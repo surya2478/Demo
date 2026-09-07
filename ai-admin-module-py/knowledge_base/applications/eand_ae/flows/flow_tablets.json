@@ -1,0 +1,193 @@
+{
+  "flow_id": "flow_tablets_purchase",
+  "flow_name": "Tablets & iPads Purchase Flow",
+  "category": "Tablets",
+  "target_match_keywords": [
+    "tablet",
+    "tablets",
+    "ipad",
+    "ipad pro",
+    "ipad air",
+    "ipad mini",
+    "galaxy tab",
+    "tab s10",
+    "tab s9",
+    "tab a9",
+    "honor pad",
+    "lenovo tab",
+    "surface pro",
+    "cellular tablet",
+    "wifi tablet"
+  ],
+  "catalog_entrypoint": "/eshop/devices/listing/tablet?category=mobileDevices&subCategory=cat1100019",
+  "cart_endpoint": "/eshop/checkout/cart",
+  "automation_boundary": {
+    "automated_scope": "Tablets Catalog -> Product Configuration (Storage, Color, Wi-Fi/5G, Smart Pay Plan) -> ADD TO CART -> Shopping Cart Verification",
+    "external_boundary": "Live Payment Gateway (Credit Card / OTP) and UAE PASS authentication are external boundaries."
+  },
+  "graph_edges": [
+    {
+      "from": "homepage",
+      "to": "tablets_catalog",
+      "action": "navigate_catalog"
+    },
+    {
+      "from": "tablets_catalog",
+      "to": "device_configuration",
+      "action": "select_product_sku"
+    },
+    {
+      "from": "device_configuration",
+      "to": "variant_selected",
+      "action": "select_storage_and_color"
+    },
+    {
+      "from": "variant_selected",
+      "to": "payment_plan_selected",
+      "action": "select_payment_plan"
+    },
+    {
+      "from": "payment_plan_selected",
+      "to": "cart_checkout",
+      "action": "click_add_to_cart"
+    }
+  ],
+  "canonical_steps": [
+    {
+      "step_number": 1,
+      "action": "Navigate to e& UAE portal homepage",
+      "target": "/en/index.html",
+      "expected_result": "e& UAE portal homepage loads successfully"
+    },
+    {
+      "step_number": 2,
+      "action": "Dismiss cookie and privacy overlay banner",
+      "target": "#usercentrics-root",
+      "expected_result": "Cookie overlay is dismissed cleanly"
+    },
+    {
+      "step_number": 3,
+      "action": "Navigate to Devices -> Tablets & Laptops catalog",
+      "target": "/eshop/devices/listing/tablet?category=mobileDevices&subCategory=cat1100019",
+      "expected_result": "Tablets catalog displays available iPad and Galaxy Tab models with active pricing"
+    },
+    {
+      "step_number": 4,
+      "action": "Open product configuration for {{product_name}}",
+      "target": "/eshop/devices/configuration?productId={{product_id}}&skuId={{sku_id}}&catName=Tablets&listVal=Tablets&showDefault=true",
+      "expected_result": "Product configuration page loads with storage, color swatches, and payment plan selectors"
+    },
+    {
+      "step_number": 5,
+      "action": "Select storage capacity, color variant, and connectivity (Wi-Fi / 5G Cellular)",
+      "target": ".device-variant-options, [role='radio'], button.variant-btn, .storage-btn, label:has-text('GB'), label:has-text('Cellular'), label:has-text('Wi-Fi')",
+      "expected_result": "Selected tablet options are highlighted and pricing updates dynamically"
+    },
+    {
+      "step_number": 6,
+      "action": "Select payment option (One Time or Smart Pay monthly installment)",
+      "target": ".segment-tab, [role='radio'], button:has-text('One time'), button:has-text('Smart Pay')",
+      "expected_result": "Payment plan is selected"
+    },
+    {
+      "step_number": 7,
+      "action": "Detect stock state and Click 'ADD TO CART' / 'Checkout Now' button",
+      "target": "button:has-text('Checkout Now'), button:has-text('ADD TO CART')",
+      "expected_result": "If in-stock item is added to cart; if out-of-stock button is disabled"
+    },
+    {
+      "step_number": 8,
+      "action": "Verify Shopping Cart & Secure Checkout review screen",
+      "target": "/eshop/checkout/cart",
+      "expected_result": "Shopping cart displays order review, selected tablet variant, payment breakdown, and checkout CTA"
+    }
+  ],
+  "known_products": {
+    "Apple iPad Pro 13-inch (M4)": {
+      "productId": "prod2450056",
+      "skuId": "bgSku3820208632",
+      "default_price": "AED 5,499.00",
+      "available_storage": [
+        "256 GB",
+        "512 GB",
+        "1 TB",
+        "2 TB"
+      ],
+      "available_colors": [
+        "Space Black",
+        "Silver"
+      ],
+      "connectivity": [
+        "Wi-Fi",
+        "Wi-Fi + Cellular"
+      ],
+      "payment_plans": [
+        "One time AED 5,199.00",
+        "24 months AED 232/mo",
+        "18 months",
+        "12 months"
+      ]
+    },
+    "Apple iPad Air 11-inch (M2)": {
+      "productId": "prod1T1715691024102",
+      "skuId": "bgskuTrans3999228701",
+      "default_price": "AED 2,499.00",
+      "available_storage": [
+        "128 GB",
+        "256 GB",
+        "512 GB",
+        "1 TB"
+      ],
+      "available_colors": [
+        "Space Grey",
+        "Starlight",
+        "Blue",
+        "Purple"
+      ],
+      "payment_plans": [
+        "One time AED 2,499.00",
+        "24 months AED 111/mo",
+        "18 months",
+        "12 months"
+      ]
+    },
+    "Samsung Galaxy Tab S10 Ultra 5G": {
+      "productId": "prod1T1727441029199",
+      "skuId": "bgskuTrans3999230501",
+      "default_price": "AED 4,899.00",
+      "available_storage": [
+        "256 GB",
+        "512 GB"
+      ],
+      "available_colors": [
+        "Moonstone Gray",
+        "Platinum Silver"
+      ],
+      "payment_plans": [
+        "One time AED 4,899.00",
+        "24 months AED 218/mo",
+        "18 months",
+        "12 months"
+      ]
+    },
+    "Samsung Galaxy Tab A9+ 5G": {
+      "productId": "prod1T1701239910294",
+      "skuId": "bgskuTrans3999225101",
+      "default_price": "AED 949.00",
+      "available_storage": [
+        "64 GB",
+        "128 GB"
+      ],
+      "available_colors": [
+        "Graphite",
+        "Silver",
+        "Navy"
+      ],
+      "payment_plans": [
+        "One time AED 949.00",
+        "24 months AED 42/mo",
+        "12 months"
+      ]
+    }
+  }
+}

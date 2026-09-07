@@ -1,0 +1,64 @@
+{
+  "flow_id": "flow_discovered_v1",
+  "flow_name": "Discovered walkthrough (draft, crawl v1)",
+  "category": "Discovered",
+  "target_match_keywords": [],
+  "catalog_entrypoint": "/en/smb/index.html",
+  "canonical_steps": [
+    {
+      "step_number": 1,
+      "action": "Navigate to e& UAE | The Best Business Solutions for Small and Medium Businesses",
+      "target": "/en/smb/index.html",
+      "expected_result": "e& UAE | The Best Business Solutions for Small and Medium Businesses loads (HTTP 200 when crawled)."
+    },
+    {
+      "step_number": 2,
+      "action": "Navigate to e& (etisalat and ) UAE | Mobile plans, TV & Internet plans, WiFi & Smartphones",
+      "target": "/en/c/index.html",
+      "expected_result": "e& (etisalat and ) UAE | Mobile plans, TV & Internet plans, WiFi & Smartphones loads (HTTP 200 when crawled)."
+    },
+    {
+      "step_number": 3,
+      "action": "Navigate to e& UAE | Enterprise and Government",
+      "target": "/en/enterprise-and-government/index.html",
+      "expected_result": "e& UAE | Enterprise and Government loads (HTTP 200 when crawled)."
+    },
+    {
+      "step_number": 4,
+      "action": "Navigate to e& (etisalat and ) | Global technology group | index",
+      "target": "/en/carrier-and-wholesale/index.html",
+      "expected_result": "e& (etisalat and ) | Global technology group | index loads (HTTP 200 when crawled)."
+    },
+    {
+      "step_number": 5,
+      "action": "Navigate to Etisalat UAE | Etisalat Business",
+      "target": "/b2bportal/quick-payment.html?locale=en",
+      "expected_result": "Etisalat UAE | Etisalat Business loads (HTTP 200 when crawled)."
+    },
+    {
+      "step_number": 6,
+      "action": "Navigate to e& UAE | e& UAE | Business First Plus| Value Mobile Plans for UAE",
+      "target": "/en/smb/products/mobile/mobile-plans/business-first-plus.html",
+      "expected_result": "e& UAE | e& UAE | Business First Plus| Value Mobile Plans for UAE loads (HTTP 200 when crawled)."
+    },
+    {
+      "step_number": 7,
+      "action": "Navigate to e& UAE | e& UAE | Business Xtreme | Premium Plans",
+      "target": "/en/smb/products/mobile/mobile-plans/business-xtreme.html",
+      "expected_result": "e& UAE | e& UAE | Business Xtreme | Premium Plans loads (HTTP 200 when crawled)."
+    },
+    {
+      "step_number": 8,
+      "action": "Navigate to e& UAE | e& UAE | UAE-KSA Business Mobile Plans | Connect Without BordersUnlimited Mobile Plans UAE KSA",
+      "target": "/en/smb/products/mobile/uae-ksa-plans.html",
+      "expected_result": "e& UAE | e& UAE | UAE-KSA Business Mobile Plans | Connect Without BordersUnlimited Mobile Plans UAE KSA loads (HTTP 200 when crawled)."
+    }
+  ],
+  "known_products": {},
+  "graph_edges": [],
+  "_draft": {
+    "generated_by": "Application Discovery crawl v1",
+    "generated_at": "2026-08-24T15:37:55.519442Z",
+    "status": "DRAFT -- the steps are pages the crawler reached, in the order it reached them, not a journey anybody designed. Rename, reorder, delete what is noise, and add known_products before using it."
+  }
+}

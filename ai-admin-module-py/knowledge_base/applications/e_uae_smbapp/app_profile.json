@@ -1,0 +1,316 @@
+{
+  "app_id": "e_uae_smbapp",
+  "app_name": "e& UAE SMBApp",
+  "base_url": "https://devnew-sas.etisalat.ae/en/smb/index.html",
+  "domain": "devnew-sas.etisalat.ae",
+  "framework": "Angular SPA",
+  "default_viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "search_mechanism": {
+    "input_selector": "page.getByPlaceholder('Search?')",
+    "_derived_from": "Application Discovery crawl"
+  },
+  "discovered_selectors": {
+    "https://devnew-sas.etisalat.ae/en/smb/index.html": {
+      "button_go_to_slide_5": "page.getByRole('button', { name: 'Go to slide 5' })",
+      "button_small_medium_business": "page.getByRole('button', { name: 'Small & Medium Business' })",
+      "group_1_5": "page.getByRole('group', { name: '1 / 5' })",
+      "group_2_5": "page.getByRole('group', { name: '2 / 5' })",
+      "group_3_5": "page.getByRole('group', { name: '3 / 5' })",
+      "group_4_5": "page.getByRole('group', { name: '4 / 5' })",
+      "group_5_5": "page.getByRole('group', { name: '5 / 5' })",
+      "link_about_us": "page.getByRole('link', { name: 'About Us' })",
+      "link_account_renewal": "page.getByRole('link', { name: 'Account Renewal' })",
+      "link_add_ons": "page.getByRole('link', { name: 'Add-ons' })",
+      "link_billing_and_payments": "page.getByRole('link', { name: 'Billing and Payments' })",
+      "link_business_data_roaming_stay_connected_experience_uninterrupted_business_connectivity_with_our_roaming_data_add_ons_starting_at_just_aed_25": "page.getByRole('link', { name: 'Business Data Roaming: Stay Connected Experience uninterrupted business connectivity with our roaming data add-ons, starting at just AED 25.' })",
+      "link_business_mobile_app": "page.getByRole('link', { name: 'Business Mobile App' })",
+      "link_careers": "page.getByRole('link', { name: 'Careers' })",
+      "link_code_of_conduct": "page.getByRole('link', { name: 'Code of Conduct' })",
+      "link_customer_success_stories": "page.getByRole('link', { name: 'Customer Success Stories' })",
+      "link_do_not_call_registry": "page.getByRole('link', { name: 'Do Not Call Registry' })",
+      "link_e_capital": "page.getByRole('link', { name: 'e&capital' })",
+      "link_e_enterprise": "page.getByRole('link', { name: 'e&enterprise' })",
+      "link_e_life": "page.getByRole('link', { name: 'e&life' })",
+      "link_e_tenders": "page.getByRole('link', { name: 'e& Tenders' })",
+      "link_elite_business_program": "page.getByRole('link', { name: 'Elite Business Program' })",
+      "link_emirati_national_programme": "page.getByRole('link', { name: 'Emirati National Programme' })",
+      "link_events": "page.getByRole('link', { name: 'Events' })",
+      "link_explore_now": "page.getByRole('link', { name: 'EXPLORE NOW' })"
+    },
+    "https://devnew-sas.etisalat.ae/en/index.html": {
+      "button_go_to_slide_6": "page.getByRole('button', { name: 'Go to slide 6' })",
+      "button_go_to_slide_7": "page.getByRole('button', { name: 'Go to slide 7' })",
+      "group_1_8": "page.getByRole('group', { name: '1 / 8' })",
+      "group_2_8": "page.getByRole('group', { name: '2 / 8' })",
+      "group_3_8": "page.getByRole('group', { name: '3 / 8' })",
+      "group_4_8": "page.getByRole('group', { name: '4 / 8' })",
+      "group_5_8": "page.getByRole('group', { name: '5 / 8' })",
+      "group_6_8": "page.getByRole('group', { name: '6 / 8' })",
+      "group_7_8": "page.getByRole('group', { name: '7 / 8' })",
+      "group_8_8": "page.getByRole('group', { name: '8 / 8' })",
+      "link_4_digit_pin": "page.getByRole('link', { name: '4-digit PIN' })",
+      "link_5g": "page.getByRole('link', { name: '5G' })",
+      "link_absher_plan": "page.getByRole('link', { name: 'Absher Plan' })",
+      "link_arena_play": "page.getByRole('link', { name: 'Arena Play' })",
+      "link_authorised_channel_partners": "page.getByRole('link', { name: 'Authorised Channel Partners' })",
+      "link_autopay": "page.getByRole('link', { name: 'Autopay' })",
+      "link_block_promotional_sms": "page.getByRole('link', { name: 'Block Promotional SMS' })",
+      "link_clearance_letter": "page.getByRole('link', { name: 'Clearance Letter' })",
+      "link_cnap_caller_id_kashif": "page.getByRole('link', { name: 'CNAP/Caller ID “Kashif”' })",
+      "link_connect_with_e": "page.getByRole('link', { name: 'Connect with e&' })",
+      "link_customer_quotation_cq": "page.getByRole('link', { name: 'Customer Quotation – CQ' })",
+      "link_data_and_credit_transfer": "page.getByRole('link', { name: 'Data and Credit Transfer' })",
+      "link_deals_for_you": "page.getByRole('link', { name: 'Deals for you' })",
+      "link_device_trade_in": "page.getByRole('link', { name: 'Device Trade-In' })",
+      "link_discover_arena_play": "page.getByRole('link', { name: 'Discover Arena Play' })"
+    },
+    "https://devnew-sas.etisalat.ae/en/enterprise-and-government/index.html": {
+      "button_enterprise_government": "page.getByRole('button', { name: 'Enterprise & Government' })",
+      "button_previous_slide": "page.getByRole('button', { name: 'Previous slide' })",
+      "link_5g_for_business_realise_the_full_potential_of_5g_and_explore_endless_possibilities": "page.getByRole('link', { name: '5G FOR BUSINESS Realise the full potential of 5G and explore endless possibilities' })",
+      "link_begin_now": "page.getByRole('link', { name: 'BEGIN NOW' })",
+      "link_business_blog": "page.getByRole('link', { name: 'Business Blog' })",
+      "link_discover_how": "page.getByRole('link', { name: 'DISCOVER HOW' })",
+      "link_global_services": "page.getByRole('link', { name: 'Global Services' })",
+      "link_hassantuk": "page.getByRole('link', { name: 'HASSANTUK' })",
+      "link_m2m_iot_connectivity_optimise_your_connected_devices_with_m2m_and_iot_connectivity": "page.getByRole('link', { name: 'M2M & IOT CONNECTIVITY Optimise your connected devices with M2M and IoT connectivity' })",
+      "link_managed_connectivity_solutions_reimagine_connectivity_with_an_agile_and_future_proof_network": "page.getByRole('link', { name: 'MANAGED CONNECTIVITY SOLUTIONS Reimagine connectivity with an agile and future-proof network' })",
+      "link_managed_ict_solutions": "page.getByRole('link', { name: 'Managed ICT Solutions' })",
+      "link_mobile_hub": "page.getByRole('link', { name: 'Mobile Hub' })",
+      "link_project_management_as_a_service": "page.getByRole('link', { name: 'Project Management as a Service' })",
+      "link_read_how": "page.getByRole('link', { name: 'READ HOW' })",
+      "link_unified_communications_combine_streamline_and_simplify_all_your_communications": "page.getByRole('link', { name: 'UNIFIED COMMUNICATIONS Combine, streamline and simplify all your communications' })",
+      "link_managed_connectivity_solutions": "page.getByText('MANAGED CONNECTIVITY SOLUTIONS')",
+      "link_unified_communications": "page.getByText('UNIFIED COMMUNICATIONS')",
+      "group_1_1": "page.getByRole('group', { name: '1 / 1' })",
+      "link_5g_for_business": "page.getByRole('link', { name: '5G For Business' })",
+      "link_capabilities": "page.getByRole('link', { name: 'Capabilities' })",
+      "link_know_more": "page.getByRole('link', { name: 'KNOW MORE' })",
+      "link_m2m_iot_connectivity": "page.getByRole('link', { name: 'M2M & IoT Connectivity' })",
+      "link_managed_connectivity": "page.getByRole('link', { name: 'Managed Connectivity' })",
+      "link_success_stories": "page.getByRole('link', { name: 'Success Stories' })",
+      "link_ai_net": "page.getByText('AI Net')"
+    },
+    "https://www.eand.com/en/whoweare/carrier-and-wholesale/index.html": {
+      "group_2_9": "page.getByRole('group', { name: '2 / 9' })",
+      "group_3_9": "page.getByRole('group', { name: '3 / 9' })",
+      "group_4_9": "page.getByRole('group', { name: '4 / 9' })",
+      "group_5_9": "page.getByRole('group', { name: '5 / 9' })",
+      "group_6_9": "page.getByRole('group', { name: '6 / 9' })",
+      "group_7_9": "page.getByRole('group', { name: '7 / 9' })",
+      "group_8_9": "page.getByRole('group', { name: '8 / 9' })",
+      "link_accelerate": "page.getByRole('link', { name: 'Accelerate' })",
+      "link_stories": "page.getByRole('link', { name: 'Stories' })",
+      "tab_language": "page.getByText('Language عربي')",
+      "tablist_who_we_are_about_us_governance_senior_management_our_strategy_sustainability_awards_and_recognitions_carrier_wholesale_responsible_ai_our_brands_uae_life_international_enterprise_capital_inves": "page.getByText('Who we are About Us Governance Senior Management Our Strategy Sustainability Awards and recognitions Carrier & Wholesale Responsible AI Our brands UAE life international enterprise capital Investors Financial Highlights Share Information Debt Profile Dividends Analyst Coverage Financial Results Annu')",
+      "group_1_9": "page.getByRole('group', { name: '1 / 9' })",
+      "group_9_9": "page.getByRole('group', { name: '9 / 9' })",
+      "link_read_more": "page.getByRole('link', { name: 'Read More' })",
+      "link_analyst_coverage": "page.getByText('Analyst Coverage')",
+      "link_annual_reports": "page.getByText('Annual Reports')",
+      "link_awards_and_recognitions": "page.getByText('Awards and recognitions')",
+      "link_capital": "page.getByText('capital')",
+      "link_corporate_announcements": "page.getByText('Corporate Announcements')",
+      "link_debt_profile": "page.getByText('Debt Profile')",
+      "link_dividends": "page.getByText('Dividends')",
+      "link_enterprise": "page.getByText('enterprise')",
+      "link_financial_calendar": "page.getByText('Financial Calendar')",
+      "link_financial_highlights": "page.getByText('Financial Highlights')",
+      "link_financial_results": "page.getByText('Financial Results')"
+    },
+    "https://devnew-sas.etisalat.ae/b2bportal/quick-payment.html?locale=en": {
+      "button_continue": "page.getByRole('button', { name: 'CONTINUE' })",
+      "link_bill_payment": "page.getByRole('link', { name: 'Bill Payment' })",
+      "link_internet_calling_plans": "page.getByRole('link', { name: 'Internet Calling Plans' })",
+      "link_terms_and_conditions": "page.getByRole('link', { name: 'Terms and Conditions' })",
+      "document_technical_issue_error_code_500_sorry_we_are_experiencing_technical_issues_please_try_again_later_ok": "page.getByText('Technical Issue Error Code : 500 Sorry we are experiencing technical issues. Please try again later. OK')",
+      "link_pay_by_summary_bill_account": "page.getByText('Pay by Summary Bill Account')",
+      "link_paymentfile_xls": "page.getByText('paymentfile.xls')",
+      "link_recharge_by_account": "page.getByText('Recharge by Account')",
+      "menu_small_medium_business_enterprise_government": "page.getByText('Small & Medium Business Enterprise & Government')",
+      "link_quickpay_recharge": "page.getByRole('link', { name: 'Quickpay & Recharge' })",
+      "link_recharge": "page.getByRole('link', { name: 'Recharge' })",
+      "button_check_status": "page.getByText('Check Status')",
+      "button_ok": "page.getByText('OK')",
+      "document_ok": "page.getByText('OK')",
+      "link_assets": "page.getByText('Assets')",
+      "link_check_payment_status": "page.getByText('Check Payment Status')",
+      "link_crm": "page.getByText('CRM')",
+      "link_digital_signage": "page.getByText('Digital Signage')",
+      "link_displays": "page.getByText('Displays')",
+      "link_invoicing": "page.getByText('Invoicing')",
+      "link_pay_by_account": "page.getByText('Pay by Account')",
+      "link_pay_by_bulk_file_upload": "page.getByText('Pay by Bulk File Upload')",
+      "link_payment_solution": "page.getByText('Payment Solution')",
+      "link_payment_solutions": "page.getByText('Payment Solutions')",
+      "link_printers": "page.getByText('Printers')"
+    },
+    "https://devnew-sas.etisalat.ae/en/smb/products/mobile/mobile-plans/business-first-plus.html": {
+      "button_frequently_asked_questions_for_careem_plus_benefit": "page.getByRole('button', { name: 'Frequently Asked Questions for Careem Plus Benefit' })",
+      "button_important_to_know": "page.getByRole('button', { name: 'Important to Know' })",
+      "link_dial_969": "page.getByRole('link', { name: 'DIAL *969#' })",
+      "link_share_now": "page.getByRole('link', { name: 'SHARE NOW' })",
+      "link_view_packs": "page.getByRole('link', { name: 'VIEW PACKS' })",
+      "tab_local_international": "page.getByRole('tab', { name: 'Local & International' })",
+      "group_30_off_for_first_4_months_business_first_plus_standard_110_aed_77_month_110_5_vat_excluded_7_5_gb_local_data_full_speed_local_data_speed_500_local_minutes_300_international_minutes_international": "page.getByText('30% Off for First 4 Months BUSINESS FIRST PLUS Standard 110 AED 77 /Month 110 5% VAT Excluded 7.5 GB Local Data Full Speed Local Data Speed 500 Local Minutes 300 International Minutes International minutes allowances are applicable to multiple destinations, click here to view the applicable countrie')",
+      "link_business_first_packages": "page.getByText('Business First Packages')",
+      "link_faq_s": "page.getByText('FAQ\\'s')",
+      "link_features": "page.getByText('Features')",
+      "link_help_careem_com": "page.getByText('help.careem.com')",
+      "tablist_local_local_international": "page.getByText('Local Local & International')",
+      "button_frequently_asked_questions": "page.getByRole('button', { name: 'Frequently Asked Questions' })",
+      "link_more_info": "page.getByRole('link', { name: 'MORE INFO' })",
+      "link_plans": "page.getByRole('link', { name: 'Plans' })",
+      "link_view_plans": "page.getByRole('link', { name: 'VIEW PLANS' })",
+      "tab_local": "page.getByRole('tab', { name: 'Local' })",
+      "link_applicable_countries": "page.getByText('applicable countries.')",
+      "link_click_here": "page.getByText('Click here')",
+      "presentation_local": "page.getByText('Local')",
+      "presentation_local_international": "page.getByText('Local & International')"
+    },
+    "https://devnew-sas.etisalat.ae/en/smb/products/mobile/mobile-plans/business-xtreme.html": {
+      "link_view_list_of_add_ons_here": "page.getByText('View list of add-ons here')",
+      "link_applicable_to_specific_destinations": "page.getByText('applicable to specific destinations.')"
+    },
+    "https://devnew-sas.etisalat.ae/en/smb/products/mobile/uae-ksa-plans.html": {
+      "group_borderless_plan_1_aed_450_month_5_vat_excluded_40gb_flexi_data_1_000_flexi_minutes_50_flexi_sms_600_flexi_idd_icr_silver_premium_number_more_info_buy_now_borderless_plan_2_aed_600_month_5_vat_ex": "page.getByText('BORDERLESS PLAN 1 AED 450 /Month 5% VAT Excluded 40GB Flexi Data 1,000 Flexi Minutes 50 Flexi SMS 600 Flexi IDD ICR Silver Premium Number MORE INFO BUY NOW BORDERLESS PLAN 2 AED 600 /Month 5% VAT Excluded 50GB Flexi Data 2000 Flexi Minutes 100 Flexi SMS 1,200 Flexi IDD ICR Gold Premium Number MORE I')",
+      "link_application_form": "page.getByText('Application Form')",
+      "link_view_consumer_facts_label": "page.getByText('View Consumer Facts Label')"
+    }
+  },
+  "_draft": {
+    "generated_by": "Application Discovery crawl v1",
+    "generated_at": "2026-08-24T15:37:55.515030Z",
+    "pages_crawled": 8,
+    "elements_catalogued": 448,
+    "pages_blocked": 0,
+    "status": "DRAFT -- review before relying on it for grounding.",
+    "still_needed": [
+      "url_templates.product_configuration: the PDP/detail URL shape, with {product_id} / {sku_id} / {category} placeholders.",
+      "endpoints.cart: the cart or review URL, if this application has one.",
+      "selectors.catalog / selectors.product_configuration / selectors.cart: promote the useful entries out of discovered_selectors below. That block is raw material -- nothing compiles from it until you move entries into a named selectors group.",
+      "step_grounding_rules: keyword -> target rules, evaluated in order.",
+      "flows/*.json known_products: real product identifiers; a crawl cannot infer them."
+    ]
+  },
+  "default_flow_id": "flow_smb_business_first_plus_local",
+  "endpoints": {
+    "homepage": "/en/smb/index.html",
+    "business_first_plus": "/en/smb/products/mobile/mobile-plans/business-first-plus.html",
+    "business_xtreme": "/en/smb/products/mobile/mobile-plans/business-xtreme.html",
+    "uae_ksa_plans": "/en/smb/products/mobile/uae-ksa-plans.html",
+    "add_ons": "/en/smb/products/mobile/add-ons.html",
+    "ordering_verification": "/b2bportal/ordering-email-verification.html",
+    "quick_pay": "/b2bportal/quick-payment.html?locale=en"
+  },
+  "url_templates": {
+    "ordering_email_verification": "/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&ratePlanId={rate_plan_id}&productId={product_id}&displayName={plan_name}&p={price}&contractPeriod=12%20Months%20Contract&locale=en",
+    "product_configuration": "/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&ratePlanId={rate_plan_id}&productId={product_id}&displayName={plan_name}&p={price}&contractPeriod=12%20Months%20Contract&locale=en"
+  },
+  "selectors": {
+    "navigation_header": "header, nav.main-nav, .header-container",
+    "category_navigation": {
+      "products_menu": "a:has-text(\"Product\"), button:has-text(\"Product\")",
+      "mobile_plans": "a:has-text(\"Value Plans\"), a[href*=\"business-first-plus.html\"]"
+    },
+    "plan_tabs": {
+      "local_tab": "button:has-text(\"Local\"), .tab-item:has-text(\"Local\"), a:has-text(\"Local\")",
+      "local_international_tab": "button:has-text(\"Local & International\"), .tab-item:has-text(\"Local & International\"), a:has-text(\"Local & International\")"
+    },
+    "plan_cards": {
+      "card_container": ".plan-card, .product-card, div:has-text(\"5% VAT Excluded\")",
+      "price_tag": "div:has-text(\"AED\"), .price-value",
+      "buy_now_cta": "a:has-text(\"Buy Now\"), a[href*=\"ordering-email-verification\"]",
+      "more_info_cta": "a:has-text(\"More Info\"), a[href*=\"business-first-plus/\"]"
+    }
+  },
+  "product_name_stopwords": [
+    "business",
+    "first",
+    "plus",
+    "local",
+    "standard"
+  ],
+  "step_grounding_rules": [
+    {
+      "id": "smb_homepage",
+      "first_step_only": true,
+      "keywords": [
+        "homepage",
+        "index.html",
+        "smb portal"
+      ],
+      "target": "{base_route}"
+    },
+    {
+      "id": "cookie_overlay",
+      "keywords": [
+        "cookie",
+        "privacy",
+        "overlay",
+        "banner",
+        "usercentrics"
+      ],
+      "target": "#usercentrics-root"
+    },
+    {
+      "id": "business_first_plus_catalog",
+      "keywords": [
+        "business first plus",
+        "value plans",
+        "mobile plans",
+        "business-first-plus.html"
+      ],
+      "target": "/en/smb/products/mobile/mobile-plans/business-first-plus.html"
+    },
+    {
+      "id": "local_plans_tab",
+      "keywords": [
+        "local tab",
+        "local plans",
+        "local minutes"
+      ],
+      "target": "button:has-text(\"Local\")"
+    },
+    {
+      "id": "local_intl_plans_tab",
+      "keywords": [
+        "local & international",
+        "international minutes",
+        "intl plans"
+      ],
+      "target": "button:has-text(\"Local & International\")"
+    },
+    {
+      "id": "b2b_ordering_verification",
+      "keywords": [
+        "buy now",
+        "ordering email verification",
+        "b2b ordering",
+        "checkout"
+      ],
+      "target": "{cart_route}"
+    }
+  ],
+  "generation_directives": [
+    "1. PRECONDITIONS: Must state that the user is on '{app_name}' ({base_url}) with the cookie banner dismissed.",
+    "2. TEST STEPS: Reproduce EVERY step of the CANONICAL STEP TRAVERSAL above, in order. Do not omit a step and do not merge two steps into one:",
+    "   - Begin with navigation to the SMB portal ({base_url}), then to the plans catalogue ({catalog_entrypoint}).",
+    "   - Switching the plans tab ('Local' or 'Local & International') is its own step.",
+    "   - Selecting the plan card and reviewing its allowances and promotional pricing are separate steps.",
+    "   - Include the 'Buy Now' click, which carries the plan's ratePlanId.",
+    "   - ALWAYS finish with a verification step asserting that the B2B Ordering Email Verification page ({cart_endpoint}) has been reached. A case that ends at 'Buy Now' asserts nothing about the purchase and must not be generated.",
+    "3. TEST DATA: Must explicitly include 'ProductId: <id>' and 'SkuId: <id>' together with the plan name and its monthly price from the Knowledge Base, so downstream automated execution can parse them.",
+    "4. BOUNDARY: Trade licence verification, OTP and live payment are outside the automated scope. Stop at the email verification page and generate no steps beyond it."
+  ],
+  "test_case_matrix": [
+    "Positive path: purchase the selected Business First Plus plan through to the B2B ordering email verification page.",
+    "Tab coverage: the 'Local' and 'Local & International' tabs each list their own plan set.",
+    "Plan comparison: allowances and promotional pricing shown on each plan card (110 / 150 / 200).",
+    "Navigation integrity: 'Buy Now' carries the ratePlanId of the plan actually chosen.",
+    "Negative: proceeding without selecting a plan does not reach the ordering page."
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "flow_id": "flow_b2b_manage_trade_license",
+  "flow_name": "Manage - Organizational Details - Trade Licence Document",
+  "category": "Trade License",
+  "subcategory": "Manage Users / Organizational Details",
+  "target_match_keywords": [
+    "trade license",
+    "trade licence",
+    "trade license number",
+    "manage users",
+    "manage user",
+    "organizational details",
+    "organisational details",
+    "view & update details",
+    "b2b portal",
+    "b2bportal",
+    "business online portal",
+    "edms",
+    "netcracker",
+    "issuing authority",
+    "license document",
+    "document preview",
+    "tl number"
+  ],
+  "catalog_entrypoint": "/b2bportal/login.html?rdr=home&locale=en",
+  "automation_boundary": {
+    "automated_scope": "Authenticated B2B Portal home -> Manage -> 'view & update details' -> Organizational Details -> open and close the Trade Licence document -> sign out through the profile menu.",
+    "external_boundary": "Netcracker (Trade Licence metadata) and EDMS (binary documents) are upstream systems reached only through the B2B Microservice. Assert what the portal renders; never call them directly."
+  },
+  "graph_edges": [
+    { "from": "portal_home", "to": "manage_menu", "action": "click_manage" },
+    { "from": "manage_menu", "to": "organizational_details", "action": "click_view_and_update_details" },
+    { "from": "organizational_details", "to": "trade_license_document", "action": "open_trade_license" },
+    { "from": "trade_license_document", "to": "organizational_details", "action": "close_document_viewer" },
+    { "from": "organizational_details", "to": "signed_out", "action": "profile_menu_sign_out" }
+  ],
+  "canonical_steps": [
+    {
+      "step_number": 1,
+      "action": "Sign in to the B2B Portal as an Organization Administrator",
+      "target": "/b2bportal/login.html?rdr=home&locale=en",
+      "expected_result": "The authenticated B2B Portal home page is displayed",
+      "_see_also": "flow_b2b_login_otp carries the authentication steps in full. Deliberately not spelled out in this action text: the step matcher scores canonical steps by word overlap, and an action mentioning RECEIVE OTP here swallowed the real OTP steps of any case that used this flow."
+    },
+    {
+      "step_number": 2,
+      "action": "Open the Manage section from the main navigation",
+      "target": "//a[text()='Manage']",
+      "expected_result": "The Manage section opens with the organization's management options listed"
+    },
+    {
+      "step_number": 3,
+      "action": "Open Organizational Details via the 'view & update details' link",
+      "target": "//a[text()=' view & update details ']",
+      "expected_result": "The Organizational Details page loads showing the company's registered information"
+    },
+    {
+      "step_number": 4,
+      "action": "Open the Trade Licence document from the Organizational Details page",
+      "target": null,
+      "expected_result": "The Trade Licence document viewer opens and renders the licence (PDF, PNG or JPEG up to 5 MB)"
+    },
+    {
+      "step_number": 5,
+      "action": "Verify the Trade Licence metadata shown alongside the document",
+      "target": null,
+      "expected_result": "Trade Licence number, company name, issue date, expiry date and issuing authority match the licence on record"
+    },
+    {
+      "step_number": 6,
+      "action": "Close the Trade Licence document viewer",
+      "target": "//button[@aria-label='Close']",
+      "expected_result": "The viewer closes and the Organizational Details page is shown again with focus restored"
+    },
+    {
+      "step_number": 7,
+      "action": "Open the company profile menu in the header",
+      "target": "//a[@class='company-info font-light']",
+      "expected_result": "The profile menu expands and offers Sign Out"
+    },
+    {
+      "step_number": 8,
+      "action": "Sign out of the B2B Portal",
+      "target": "//a[text()='Sign Out' and not (contains(@class,'px-10 py-0'))]",
+      "expected_result": "The session ends and the login page is displayed; a protected route cannot be reached without signing in again"
+    }
+  ],
+  "unverified_from_brd": {
+    "_status": "Described by BRD_B2B_Portal_Trade_License_Automation_v2 and NOT confirmed in the application. Kept out of canonical_steps on purpose: a step here would be grounded as fact and would fail at execution. Promote an entry only once someone has seen it work.",
+    "manage_users_table_route": "/b2bportal/manage/users",
+    "trade_license_column": "A 'Trade Licence' column in the Manage Users table, sortable, with a per-user link (TLXXXXXX) or a '-' placeholder for unlicensed users.",
+    "details_modal": "A modal opened from that link, showing a loading spinner, five metadata fields, and an embedded PDF or Base64 image preview.",
+    "api_contract": "GET /api/v1/b2b-admin/trade-license/{tradeLicenseNumber}/details, 30,000 ms timeout, headers Authorization: Bearer <JWT> and X-Organization-Id.",
+    "error_states": "Missing document, corrupt Base64 payload, 30-second downstream timeout.",
+    "note": "The verified journey reaches the same licence through Manage -> 'view & update details'. Generate cases for the modal route only when the requirement asks for it, and say in Preconditions that the route is unconfirmed."
+  },
+  "known_products": {}
+}

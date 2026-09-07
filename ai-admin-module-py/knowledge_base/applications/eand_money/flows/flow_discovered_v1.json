@@ -1,0 +1,44 @@
+{
+  "flow_id": "flow_discovered_v1",
+  "flow_name": "Discovered walkthrough (draft, crawl v1)",
+  "category": "Discovered",
+  "target_match_keywords": [],
+  "catalog_entrypoint": "https://www.eandmoney.com/en/cards.html",
+  "canonical_steps": [
+    {
+      "step_number": 1,
+      "action": "Navigate to Cards",
+      "target": "/en/cards.html",
+      "href": null,
+      "expected_result": "Cards loads (HTTP 200 when crawled)."
+    },
+    {
+      "step_number": 2,
+      "action": "Navigate to Home",
+      "target": "/en/home.html",
+      "href": "/en/home.html",
+      "expected_result": "Home loads (HTTP 200 when crawled)."
+    },
+    {
+      "step_number": 3,
+      "action": "Click 'Send abroad' to reach Send abroad",
+      "target": "/en/send-abroad.html",
+      "href": "/en/send-abroad.html",
+      "expected_result": "Send abroad loads (HTTP 200 when crawled)."
+    },
+    {
+      "step_number": 4,
+      "action": "Click 'Business' to reach WPS",
+      "target": "/en/services/wps.html",
+      "href": "/en/services/wps.html",
+      "expected_result": "WPS loads (HTTP 200 when crawled)."
+    }
+  ],
+  "known_products": {},
+  "graph_edges": [],
+  "_draft": {
+    "generated_by": "Application Discovery crawl v1",
+    "generated_at": "2026-09-02T06:51:25.998712Z",
+    "status": "DRAFT -- the steps are pages the crawler reached, in the order it reached them, not a journey anybody designed. Rename, reorder, delete what is noise, and add known_products before using it."
+  }
+}
