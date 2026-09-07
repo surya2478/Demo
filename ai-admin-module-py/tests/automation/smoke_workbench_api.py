@@ -142,7 +142,13 @@ def main() -> int:
               f"{row['tc_display_id']} != {target['tc_display_id']}")
         check("origin is 'existing'", row["origin"] == "existing", row["origin"])
         check("structured steps present", len(row["steps"]) == 3, str(len(row["steps"])))
-        check("classified automatically", row["classification"] in ("automation", "manual", "undecided"))
+        # All four outcomes, same as the rule-pass assertion below. This list
+        # was written before `partial` existed and never grew with it, so a
+        # refinement that landed on Needs minor changes -- an ordinary, correct
+        # verdict -- failed here as though the classifier had broken.
+        check("classified automatically", row["classification"] in
+              ("automation", "partial", "manual", "undecided"),
+              row["classification"])
         check("classification carries a reason", bool(row["classification_reason"]))
         check("test data flagged pending", row["test_data_status"] == "pending", row["test_data_status"])
         check("approval blocked while data pending", row["can_approve"] is False)

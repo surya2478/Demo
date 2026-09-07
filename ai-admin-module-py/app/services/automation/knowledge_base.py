@@ -242,6 +242,34 @@ def is_route(value: Optional[str]) -> bool:
     return raw.startswith("/") and not raw.startswith("//")
 
 
+def rehome_to_profile(url: Optional[str], profile: Optional[Dict[str, Any]]) -> str:
+    """`url` moved onto the origin the profile registers, path and query kept.
+
+    The Knowledge Base is the record of WHICH DEPLOYMENT an application is,
+    so repointing a profile's base_url has to repoint everything derived from
+    it. A URL harvested from requirement text does not follow on its own: BRDs
+    quote whatever environment they were written against, and that text is
+    copied into test cases that outlive the migration.
+
+    Only the origin is replaced. The path is the one thing the harvested URL
+    knows better than the profile does -- it names the page the case was
+    written for, where base_url only names the way in.
+
+    Returns the input unchanged when either side has no origin (a route, a
+    selector, a profile the Knowledge Base could not match), because there is
+    then nothing to move it onto. Same-origin input is likewise returned as
+    given.
+    """
+    raw_url = (url or "").strip()
+    if not raw_url:
+        return ""
+    target_origin = _origin_of((profile or {}).get("base_url") or "")
+    current_origin = _origin_of(raw_url)
+    if not target_origin or not current_origin or current_origin == target_origin:
+        return raw_url
+    return f"{target_origin}{raw_url[len(current_origin):]}"
+
+
 def absolutize(route: Optional[str], base_url: Optional[str]) -> str:
     """A route resolved against `base_url`; anything else returned as given.
 

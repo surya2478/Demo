@@ -29,7 +29,7 @@ import re
 import threading
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Optional
 
 from sqlalchemy import text
@@ -506,6 +506,36 @@ def detail_value(details: dict[str, Any], field: str) -> str:
     return ""
 
 
+# --- Automation Module: two clocks in one column -----------------------------
+# automation_test_cases.created_at is a naive column whose model default is
+# datetime.utcnow, and everything else on the row -- updated_at included -- is
+# UTC. The mirror below, however, prefers the source row's reviewed_datetime,
+# and Review & Approval writes THAT with _dubai_now(): naive Dubai local time.
+#
+# So one column carried two clocks, and the mismatch was invisible in the
+# database and loud in the browser. The frontend's parseServerTime appends a Z
+# to a bare timestamp -- correct, because the column is documented UTC -- and
+# formatToDubaiTime then adds Dubai's +04:00 on top. A case mirrored at 19:58
+# Dubai displayed as 11:58 pm: four hours into the future, on the same row
+# whose updated_at read correctly.
+#
+# Converting here rather than at the source keeps the change to one column.
+# Making _dubai_now() return UTC would be the deeper fix, but reviewed_datetime
+# is read by Review & Approval, which renders it WITHOUT the Z -- so flipping
+# the source without migrating that screen too would simply move the four-hour
+# error somewhere else.
+#
+# Dubai is UTC+04:00 all year and has observed no DST since 1990, so a fixed
+# offset is exact here; zoneinfo would need tzdata shipped in the container to
+# say the same thing.
+DUBAI_UTC_OFFSET = timedelta(hours=4)
+
+
+def _dubai_naive_to_utc(value: Optional[datetime]) -> Optional[datetime]:
+    """A naive Dubai-local timestamp as naive UTC, for a UTC column."""
+    return None if value is None else value - DUBAI_UTC_OFFSET
+
+
 def sync_approved_test_cases(db: Session) -> int:
     """Mirrors approved test cases from test_cases_details into AutomationTestCase so they appear in Automation Studio Workbench."""
     sql = """
@@ -565,8 +595,29 @@ def sync_approved_test_cases(db: Session) -> int:
             for i, s in enumerate(split_s)
         ] if split_s else []
 
-        # A URL written into the case wins; otherwise the registered
-        # application's. This was a literal eand.ae URL, which stamped that
+        # --- Automation Module: the Knowledge Base owns the host ------------
+        # A URL written into the case supplies the PATH; the Knowledge Base
+        # supplies the ORIGIN. Neither one alone was right.
+        #
+        # Letting the case text win outright -- the previous rule -- made the
+        # Knowledge Base unable to move an application between environments. A
+        # BRD quoting https://www.eand.ae/en/... kept stamping production onto
+        # every case derived from it, however many times the profile's base_url
+        # was repointed, because application_url is written once at sync time
+        # and never re-derived. Thirty-two rows were still driving a browser to
+        # production after the KB had been migrated, and nothing in the UI said
+        # so: the card shows a URL, and a stale URL looks exactly like a fresh
+        # one.
+        #
+        # Letting the profile win outright is no better -- it discards genuine
+        # page detail. A case naming /b2bportal/user-manage/user-management
+        # would collapse to the application's login page and assert nothing
+        # about the page it was written for.
+        #
+        # So: keep the path the case names, move it onto the host the profile
+        # registers. A case naming an application the KB does not know keeps
+        # its URL untouched, because there is no better answer to replace it
+        # with.
         full_case_text = " ".join((
             detail_value(details, "preconditions"),
             steps_raw,
@@ -577,6 +628,10 @@ def sync_approved_test_cases(db: Session) -> int:
         app_url_match = re.search(r"https?://[^\s'\"\)]+", full_case_text)
         if app_url_match:
             app_url = app_url_match.group(0).rstrip(".,)")
+            flow = kb.match_flow_blueprint(full_case_text)
+            matched_app = (flow.get("_app_id") if flow else None) or kb.identify_app_id(full_case_text)
+            prof = (kb.load_app_profile(matched_app) if matched_app else {}) or {}
+            app_url = kb.rehome_to_profile(app_url, prof)
         else:
             # identify_app_id, not resolve_app_id. Both resolve_app_id and
             # load_app_profile end in a fallback that cannot answer "no
@@ -596,18 +651,23 @@ def sync_approved_test_cases(db: Session) -> int:
             prof = (kb.load_app_profile(matched_app) if matched_app else {}) or {}
             app_url = (prof.get("base_url") or "").strip() or None
 
+        # reviewed_datetime is naive DUBAI time; created_at is a UTC column.
+        # See _dubai_naive_to_utc above for what the missing conversion did.
         created_at_dt = datetime.utcnow()
         if row.reviewed_datetime:
+            reviewed_dubai = None
             if isinstance(row.reviewed_datetime, datetime):
-                created_at_dt = row.reviewed_datetime
+                reviewed_dubai = row.reviewed_datetime
             elif isinstance(row.reviewed_datetime, str):
                 try:
-                    created_at_dt = datetime.fromisoformat(row.reviewed_datetime)
+                    reviewed_dubai = datetime.fromisoformat(row.reviewed_datetime)
                 except Exception:
                     try:
-                        created_at_dt = datetime.strptime(row.reviewed_datetime.split('.')[0], "%Y-%m-%d %H:%M:%S")
+                        reviewed_dubai = datetime.strptime(row.reviewed_datetime.split('.')[0], "%Y-%m-%d %H:%M:%S")
                     except Exception:
-                        created_at_dt = datetime.utcnow()
+                        reviewed_dubai = None
+            if reviewed_dubai is not None:
+                created_at_dt = _dubai_naive_to_utc(reviewed_dubai)
 
         if not existing:
             new_tc = AutomationTestCase(

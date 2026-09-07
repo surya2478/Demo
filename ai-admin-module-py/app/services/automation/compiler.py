@@ -510,6 +510,21 @@ def _phrase_locator(target: Optional[str], intent: str) -> tuple[str, Optional[s
 
     raw = target.strip()
 
+    # --- Automation Module: XPath is a selector, not a phrase ----------------
+    # Playwright auto-detects an XPath locator, but only if the expression
+    # reaches page.locator() intact. Without this branch the phrase heuristics
+    # below read it as prose, silently and with no TODO to show for it:
+    #
+    #   //a [text()='Manage']              -> page          (no locator at all)
+    #   //input[@id='userEmailField']      -> getByLabel("userEmailField")
+    #   (//input[@name='opt-field'])[3]    -> getByLabel("opt-field")
+    #
+    # None of those match anything. This matters now because a Knowledge Base
+    # can carry XPath recorded against a real application -- the B2B Portal
+    # profile does -- so a grounded step arrives in exactly this shape.
+    if raw.startswith(("//", "(//", ".//", "(.//", "xpath=", "(xpath=")):
+        return f"page.locator({_js(raw)}).first()", None
+
     # 0. Direct CSS / Playwright locator syntax
     if (
         raw.startswith((".", "#", "[", "button", "a[", "input[", "div[", "div.", "span["))
