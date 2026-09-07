@@ -29,8 +29,12 @@ import {
   HiOutlineEye,
   HiOutlineStar,
   HiOutlineShieldCheck,
-  HiOutlineClipboardCheck
+  HiOutlineClipboardCheck,
+  HiOutlineChip,
+  HiOutlineHand,
+  HiOutlineBadgeCheck
 } from 'react-icons/hi'
+import { useNavigate } from 'react-router-dom'
 import automationService from '../../services/automationService'
 import { useAutomationContext } from '../../components/automation/AutomationContext'
 import SectionCard from '../../components/ui/SectionCard'
@@ -53,7 +57,10 @@ import {
   ClassificationBadge,
   ClassificationReportPanel,
   JobProgress,
-  StatTile
+  StatTile,
+  StepBadge,
+  StepChevron,
+  StepHint
 } from '../../components/automation/workbenchPresentation'
 import { isJobSettled } from '../../types/automation'
 import type {
@@ -194,10 +201,43 @@ const Workbench: React.FC = () => {
     error?: string | null
   }>({ open: false, status: 'running', total: 0, startedAt: null })
 
+  /*
+   * --- Where the guided flow thinks you are -------------------------------
+   *
+   * One number: the step the callout is currently pointing at, or null for no
+   * callout. Not a "current step" the screen tries to compute -- a workbench
+   * holds cases at four different stages at once, so there is no single true
+   * answer, and a wrong one parked over a button is worse than none. This is
+   * only ever set from a step that just finished, which is the one moment the
+   * next move is unambiguous.
+   *
+   * Step 5 is not a button. It is the callout on step 4 that says the work is
+   * done here and offers the way through to the Script Lab.
+   */
+  const [stepHint, setStepHint] = useState<1 | 2 | 3 | 4 | 5 | null>(null)
+  const dismissHint = useCallback(() => setStepHint(null), [])
+
+  /*
+   * The rule pass narrates itself in a modal, so its callout has to wait for
+   * that modal to close -- fired on the response it would open behind it and
+   * be found already dismissed. Held in a ref because nothing renders from it.
+   */
+  const pendingHintRef = useRef<1 | 2 | 3 | 4 | 5 | null>(null)
+
+  /*
+   * Shown once per session, and only when there is something to classify.
+   * Someone arriving at a workbench with every case already settled does not
+   * need to be told to start at step 1.
+   */
+  const FIRST_HINT_KEY = 'automation-workbench-first-step-hint-seen'
+  const firstHintDone = useRef(false)
+
   const [reviewModalCase, setReviewModalCase] = useState<WorkbenchCase | null>(null)
   const [reviewingCaseId, setReviewingCaseId] = useState<number | null>(null)
   const [improvingCaseId, setImprovingCaseId] = useState<number | null>(null)
   const [reviewingAll, setReviewingAll] = useState<boolean>(false)
+
+  const navigate = useNavigate()
 
   const pollRef = useRef<number | null>(null)
   const discoveryPollRef = useRef<number | null>(null)
@@ -226,6 +266,26 @@ const Workbench: React.FC = () => {
       if (discoveryPollRef.current !== null) window.clearTimeout(discoveryPollRef.current)
     }
   }, [load])
+
+  /*
+   * Point at step 1 on the way in, once, and only when there is unclassified
+   * work for step 1 to do. Session-scoped rather than permanent: forever means
+   * a new starter who dismissed it on day one never sees it again, and
+   * every-visit means it interrupts a tab switch.
+   */
+  useEffect(() => {
+    if (loading || firstHintDone.current) return
+    firstHintDone.current = true
+    if (counts.undecided === 0) return
+    try {
+      if (sessionStorage.getItem(FIRST_HINT_KEY) === '1') return
+      sessionStorage.setItem(FIRST_HINT_KEY, '1')
+    } catch {
+      // A browser refusing storage gets the callout every visit rather than
+      // no callout at all -- the guidance is the point, the memory is not.
+    }
+    setStepHint(1)
+  }, [loading, counts.undecided])
 
   const pollDiscoveryStatus = useCallback(
     async (caseId: number) => {
@@ -389,7 +449,16 @@ const Workbench: React.FC = () => {
       )
       await load()
       const missed = requested - res.refined_count
-      if (missed > 0) {
+      if (res.errors?.length) {
+        // Named, not counted, and distinct from "came back unchanged" below:
+        // a case the refiner threw on has a reason, and that reason is the
+        // whole content of the message. The two used to read identically,
+        // which is how a batch that failed every case looked like a quiet one.
+        setWarning(
+          `Refined ${res.refined_count} of ${requested} — ${res.errors.length} failed`,
+          res.errors.map(e => `${e.display_id}: ${e.error}`).join(' · ')
+        )
+      } else if (missed > 0) {
         setWarning(
           `Refined ${res.refined_count} of ${requested} test cases`,
           `${missed} came back unchanged. Open one to see what the refiner could not resolve.`
@@ -399,7 +468,9 @@ const Workbench: React.FC = () => {
           `Refined ${res.refined_count} test case${res.refined_count === 1 ? '' : 's'}`
         )
       }
+      setStepHint(3)
     } catch (err: any) {
+      setStepHint(null)
       setError(err?.message ?? 'AI Refinement failed.')
     } finally {
       setRefining(false)
@@ -654,9 +725,12 @@ const Workbench: React.FC = () => {
         }))
       }
       if (classification) {
+        // A hand override is step 3, so what follows it is approval.
+        setStepHint(4)
         setNotice(`Set ${res.updated} ${noun} to ${CLASSIFICATION_NOUNS[classification]}`)
         return
       }
+      pendingHintRef.current = 2
       // A rule pass now has three possible outcomes, so the count alone hides
       // the answer someone ran it for. Broken out per outcome, in the order
       // they matter to whoever is about to approve them.
@@ -688,6 +762,7 @@ const Workbench: React.FC = () => {
         // A silent success is why people used to reload the page to check.
         setNotice(`${verb} ${res.updated} test case${res.updated === 1 ? '' : 's'}`)
       }
+      setStepHint(5)
     })
 
   /*
@@ -840,144 +915,110 @@ const Workbench: React.FC = () => {
        * A divider separates scope from actions instead.
        */}
       <SectionCard noPadding>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-app px-5 py-3">
-          {/* scope -- what the batch is aimed at */}
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              value={applicationUrl}
-              onChange={e => setApplicationUrl(e.target.value)}
-              placeholder="Target URL: https://..."
-              className="app-input h-8 w-40 py-0 text-xs"
-              title="Grounding application URL for test cases & refinement"
-            />
-            <select
-              value={filter}
-              onChange={e => setFilter(e.target.value as 'all' | Classification)}
-              className="app-input h-8 w-[150px] py-0 text-xs"
-              aria-label="Filter by classification"
-            >
-              <option value="all">All classifications</option>
-              <option value="automation">Automation</option>
-              <option value="partial">Needs minor changes</option>
-              <option value="manual">Manual</option>
-              <option value="undecided">Unclassified</option>
-            </select>
-
-            {/*
-              The rule pass sits beside the filter rather than in the Manual
-              Classify menu: it is the one classification action a person runs
-              on purpose, and burying the automatic verdict inside a menu of
-              hand overrides made it look like a fourth override.
-            */}
-            <button
-              type="button"
-              onClick={() => void handleClassify()}
-              disabled={!anySelected || !canExecute || busy !== null}
-              title={
-                anySelected
-                  ? 'Classify the selected test cases by rule -- steps, channel, Knowledge Base and test data'
-                  : 'Select test cases to classify them by rule'
-              }
-              className="app-btn app-btn-secondary inline-flex items-center gap-1.5 !px-2.5 border-app-brand-200 text-xs font-semibold text-app-brand-700 hover:bg-app-brand-75 hover:text-app-brand-800"
-            >
-              <HiOutlineSparkles
-                className={`h-4 w-4 ${busy === 'classify' ? 'animate-spin' : ''}`}
-              />
-              AI Classify
-            </button>
-          </div>
-
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-app px-5 py-4">
           {/*
-           * Reject and Delete are back as their own buttons, by request. Only
-           * the three classification verbs stay collapsed -- they are one
-           * choice, so one control -- which is what keeps the row on a single
-           * line at laptop width with the destructive pair visible.
+           * --- Reduced toolbar ---------------------------------------------
+           *
+           * Four controls only, by request. The guided flow that used to live
+           * here -- the Target URL box, AI Classify, AI Refine, the Manual
+           * Classify menu, Review Quality and the reload icon -- is gone from
+           * the markup, but nothing behind it was touched: handleClassify,
+           * handleRefineBulk, handleRunReviewAll and load are all still wired
+           * up, so restoring a control is re-adding its button.
+           *
+           * The four are not four peers, and spacing them evenly said they
+           * were. They group three ways:
+           *
+           *   Set Automation / Set Manual  one decision with two answers, so
+           *                                they share a bordered pill and a
+           *                                label. Picking one is picking not
+           *                                the other, and a segmented control
+           *                                is how that reads.
+           *   Approve for Scripts          the gate to the Script Lab, and the
+           *                                only thing here that moves a case
+           *                                forward. It carries the primary
+           *                                fill; the verdict pair does not
+           *                                compete with it.
+           *   Delete                       irreversible, so it keeps its own
+           *                                divider and danger tone.
+           *
+           * The two green ticks in the first cut were the problem: identical
+           * glyphs on Set Automation and Approve made them read as the same
+           * action, while Set Manual had no glyph at all. Each button now
+           * carries an icon that says what it does -- a chip for the machine,
+           * a hand for the human, a badge for the gate.
            */}
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 border-l border-app pl-2">
-            <button
-              type="button"
-              onClick={handleRefineBulk}
-              disabled={!anySelected || !canExecute || refining}
-              title="Refine selected test cases with AI on-demand"
-              className="app-btn app-btn-primary inline-flex items-center gap-1.5 !px-2.5 text-xs font-semibold"
-            >
-              <HiOutlineSparkles className={`h-4 w-4 ${refining ? 'animate-spin' : ''}`} />
-              {refining ? 'Refining...' : 'AI Refine'}
-            </button>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            {/* one decision, two answers */}
+            <div className="inline-flex items-center gap-1.5 rounded-app border border-app bg-app-surface p-1.5">
+              <span className="hidden pl-2 pr-1 text-[11px] font-semibold uppercase tracking-wide text-app-secondary sm:inline">
+                Classify as
+              </span>
+              <button
+                type="button"
+                onClick={() => void handleClassify('automation')}
+                disabled={!anySelected || !canExecute || busy !== null}
+                title="Mark the selected test cases as automatable — a script can drive them"
+                className="app-spark app-btn app-btn-ghost inline-flex items-center gap-2 !px-3 !py-2 text-sm font-medium hover:bg-app-brand-75 hover:text-app-brand-800"
+              >
+                <HiOutlineChip className="app-spark-glyph h-[18px] w-[18px] text-app-brand-600" />
+                Set Automation
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleClassify('manual')}
+                disabled={!anySelected || !canExecute || busy !== null}
+                title="Mark the selected test cases as manual — they stay with a human tester"
+                className="app-spark app-btn app-btn-ghost inline-flex items-center gap-2 !px-3 !py-2 text-sm font-medium hover:bg-app-brand-75 hover:text-app-brand-800"
+              >
+                <HiOutlineHand className="app-spark-glyph h-[18px] w-[18px] text-app-secondary" />
+                Set Manual
+              </button>
+            </div>
 
-            <button
-              type="button"
-              onClick={handleRunReviewAll}
-              disabled={!canExecute || reviewingAll || cases.length === 0}
-              title="Evaluate quality across all test cases using the eSMART Review Agent"
-              className="app-btn app-btn-secondary inline-flex items-center gap-1.5 !px-2.5 text-xs font-medium"
-            >
-              <HiOutlineShieldCheck className={`h-4 w-4 ${reviewingAll ? 'animate-spin' : ''}`} />
-              {reviewingAll ? 'Reviewing...' : 'Review Quality'}
-            </button>
-
-            <MenuButton
-              label="Manual Classify"
-              className="app-btn app-btn-secondary !px-2.5 text-xs font-medium"
-              title="Override the classification of the selected test cases by hand"
-              disabled={!anySelected || !canExecute || busy !== null}
-              actions={[
-                {
-                  label: 'Set Automation',
-                  detail: 'Override the rules by hand',
-                  onSelect: () => void handleClassify('automation')
-                },
-                {
-                  label: 'Set Needs minor changes',
-                  detail: 'Override the rules by hand',
-                  onSelect: () => void handleClassify('partial')
-                },
-                {
-                  label: 'Set Manual',
-                  detail: 'Override the rules by hand',
-                  onSelect: () => void handleClassify('manual')
-                }
-              ]}
-            />
-
+            {/* the gate -- the only forward move on this row */}
             <button
               type="button"
               onClick={handleApprove}
               disabled={!anySelected || !canExecute || busy !== null}
-              title="Approve the selected test cases for the Script Lab"
-              className="app-btn app-btn-secondary inline-flex items-center gap-1 !px-2.5 text-xs font-medium"
+              title="Approve the selected test cases and send them to the Script Lab"
+              className="app-spark app-spark-primary app-btn app-btn-primary inline-flex items-center gap-2 !px-4 !py-2 text-sm font-semibold"
             >
-              {/* Tone on the glyph, not the whole button: a green fill here
-                  read as a second primary and competed with AI Refine. */}
-              <HiOutlineCheck className="h-4 w-4 text-app-success" />
-              Approve
+              <HiOutlineBadgeCheck className="h-[18px] w-[18px]" />
+              Approve for Scripts
+              {/* The literal spark. On the gate button only -- it is the one
+                  control here that sends work on to be generated. */}
+              <HiOutlineSparkles className="app-spark-glyph h-4 w-4" />
             </button>
 
-            {/* risk -- still set apart by a divider and danger-toned text, so
-                the irreversible verb does not read like the rest. Reject went
-                with the approval flow that used to send cases back from here. */}
-            <div className="flex items-center gap-1 border-l border-app pl-2">
+            {/* risk -- its own divider and danger tone, so the irreversible
+                verb does not read like the rest */}
+            <div className="flex items-center gap-1 border-l border-app pl-3">
               <button
                 type="button"
                 onClick={() => void handleDeleteCases()}
                 disabled={!anySelected || !canExecute || busy !== null}
                 title="Delete the selected test cases and any scripts generated from them"
-                className="app-btn app-btn-ghost inline-flex items-center gap-1 !px-2.5 text-xs font-medium text-app-danger hover:bg-app-danger-bg hover:text-app-danger"
+                className="app-btn app-btn-ghost inline-flex items-center gap-2 !px-3 !py-2 text-sm font-medium text-app-danger hover:bg-app-danger-bg hover:text-app-danger"
               >
-                <HiOutlineTrash className="h-4 w-4" />
+                <HiOutlineTrash className="h-[18px] w-[18px]" />
                 Delete
-              </button>
-              <button
-                type="button"
-                onClick={() => void load()}
-                className="app-btn app-btn-ghost"
-                title="Reload the workbench"
-                aria-label="Reload the workbench"
-              >
-                <HiOutlineRefresh className="h-4 w-4" />
               </button>
             </div>
           </div>
+
+          <select
+            value={filter}
+            onChange={e => setFilter(e.target.value as 'all' | Classification)}
+            className="app-input h-8 w-[150px] py-0 text-xs sm:ml-auto"
+            aria-label="Filter by classification"
+          >
+            <option value="all">All classifications</option>
+            <option value="automation">Automation</option>
+            <option value="partial">Needs minor changes</option>
+            <option value="manual">Manual</option>
+            <option value="undecided">Unclassified</option>
+          </select>
         </div>
         {toolbarBlocker || anySelected ? (
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-app bg-app-surface-subtle px-5 py-2.5">
@@ -1276,7 +1317,10 @@ const Workbench: React.FC = () => {
                     </td>
                     <td className="app-table-pin-end text-center">
                       <div className="inline-flex items-center gap-0.5">
-                        <button
+                        {/* Per-row AI Refine, hidden with the rest of AI
+                            Refine. handleRefineSingle is still wired up --
+                            uncomment to bring the control back. */}
+                        {/* <button
                           type="button"
                           onClick={() => handleRefineSingle(testCase)}
                           disabled={!canExecute || refiningCaseId === testCase.id}
@@ -1284,7 +1328,7 @@ const Workbench: React.FC = () => {
                           title={`Refine ${testCase.tc_display_id} with AI`}
                         >
                           <HiOutlineSparkles className={`h-4 w-4 ${refiningCaseId === testCase.id ? 'animate-spin text-purple-600' : ''}`} />
-                        </button>
+                        </button> */}
                         <button
                           type="button"
                           onClick={() => handleOpenReviewModal(testCase)}
@@ -1831,10 +1875,19 @@ const Workbench: React.FC = () => {
         error={classifyProgress.error}
         canApprove={canExecute && busy === null && selectedCases.size > 0}
         onApprove={() => {
+          // Approving from inside the modal skips steps 2 and 3, so the
+          // callout queued for step 2 is no longer the right next move.
+          pendingHintRef.current = null
           setClassifyProgress(prev => ({ ...prev, open: false }))
           void handleApprove()
         }}
-        onClose={() => setClassifyProgress(prev => ({ ...prev, open: false }))}
+        onClose={() => {
+          setClassifyProgress(prev => ({ ...prev, open: false }))
+          if (pendingHintRef.current !== null) {
+            setStepHint(pendingHintRef.current)
+            pendingHintRef.current = null
+          }
+        }}
       />
     </div>
   )

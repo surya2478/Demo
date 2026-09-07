@@ -126,15 +126,19 @@ const StudioGuide: React.FC<{ onClose: () => void }> = ({ onClose }) => (
           <p id="studio-guide-title" className="text-sm font-semibold text-app-primary">
             Before the Script Lab can generate
           </p>
-          <p className="text-xs text-app-brand-700">Classify, then approve.</p>
+          <p className="text-xs text-app-brand-700">Set the verdict, approve — then generate.</p>
         </div>
       </div>
 
       <div className="px-5 py-4">
         <ol className="space-y-2.5">
           {[
-            ['Classify', 'AI Classify judges each case against the rules and says what needs an edit.'],
-            ['Approve', 'Approve the ones that came back automatable.'],
+            // Tracks the Workbench toolbar, which is now four controls. A
+            // guide naming buttons the screen does not have is worse than no
+            // guide: the reader hunts for them.
+            ['Set Automation', 'Mark the cases a script can drive.'],
+            ['Set Manual', 'Mark the ones that stay with a human tester.'],
+            ['Approve for Scripts', 'Approve the automatable ones. Nothing reaches the Lab without this.'],
             ['Generate', 'Approved and automatable cases appear in the Script Lab, ready to generate.']
           ].map(([step, detail], index) => (
             <li key={step} className="flex gap-2.5">

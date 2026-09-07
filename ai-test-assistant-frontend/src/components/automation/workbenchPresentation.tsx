@@ -348,3 +348,97 @@ export const ClassificationReportPanel: React.FC<{ report: ClassificationReport 
     </div>
   )
 }
+
+/*
+ * --- The guided run ------------------------------------------------------
+ *
+ * Four of the toolbar's actions are a sequence, not a menu, and nothing on
+ * the screen used to say so: approving before classifying puts a manual case
+ * in the Script Lab's queue where it will never generate, and refining after
+ * approval rewrites a case someone has already signed off. The number lives
+ * on the button rather than in a legend beside it, because the legend is not
+ * where the decision gets made.
+ *
+ * Steps stay numbered when they are disabled. A greyed-out "3" still tells
+ * someone the order they are working in; hiding it would leave them guessing
+ * why the row looks different from the last time they were here.
+ */
+export const StepBadge: React.FC<{ n: number; done?: boolean }> = ({ n, done = false }) => (
+  <span
+    aria-hidden
+    className={`flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold leading-none ${
+      done ? 'bg-app-success text-white' : 'bg-app-brand-700 text-white'
+    }`}
+  >
+    {n}
+  </span>
+)
+
+/** The connector between two steps -- reads as "then", costs 10px of width. */
+export const StepChevron: React.FC = () => (
+  <svg
+    viewBox="0 0 12 12"
+    aria-hidden
+    className="h-2.5 w-2.5 flex-shrink-0 text-app-brand-200"
+  >
+    <path
+      d="M4.5 2.5 8 6l-3.5 3.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
+/**
+ * The pointer to whatever comes next.
+ *
+ * Anchored inside the wrapper of the step it is pointing at rather than
+ * positioned by measurement: the toolbar wraps at laptop width, and a callout
+ * placed from a bounding rect ends up beside the wrong button the moment the
+ * row reflows. Absolute-inside-relative follows the button wherever it lands.
+ */
+export const StepHint: React.FC<{
+  title: string
+  body: string
+  onDismiss: () => void
+  actionLabel?: string
+  onAction?: () => void
+  align?: 'left' | 'right'
+}> = ({ title, body, onDismiss, actionLabel, onAction, align = 'left' }) => (
+  <div
+    role="status"
+    className={`absolute top-full z-[60] mt-2.5 w-[248px] rounded-app border border-app-brand-200 bg-app-surface p-3 text-left shadow-app-card-lg ${
+      align === 'right' ? 'right-0' : 'left-0'
+    }`}
+  >
+    <span
+      aria-hidden
+      className={`absolute -top-[7px] h-3 w-3 rotate-45 border-l border-t border-app-brand-200 bg-app-surface ${
+        align === 'right' ? 'right-6' : 'left-6'
+      }`}
+    />
+    <p className="text-[12px] font-semibold leading-snug text-app-primary">{title}</p>
+    <p className="mt-1 text-[11px] leading-snug text-app-secondary">{body}</p>
+    <div className="mt-2.5 flex items-center justify-end gap-2">
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="rounded-app px-1.5 py-1 text-[11px] font-medium text-app-secondary transition hover:text-app-primary"
+      >
+        {actionLabel && onAction ? 'Not now' : 'Got it'}
+      </button>
+      {actionLabel && onAction ? (
+        <button
+          type="button"
+          onClick={onAction}
+          className="app-btn app-btn-primary !px-2.5 !py-1 text-[11px] font-semibold"
+        >
+          {actionLabel}
+        </button>
+      ) : null}
+    </div>
+  </div>
+)

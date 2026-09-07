@@ -334,7 +334,13 @@ const automationService = {
   refineBulkTestCases: (
     caseIds: number[],
     applicationUrl?: string
-  ): Promise<{ refined_count: number; test_cases: WorkbenchCase[] }> =>
+  ): Promise<{
+    refined_count: number
+    test_cases: WorkbenchCase[]
+    /* Per-case failures. Absent on a backend older than the fix that stopped
+       reporting a failed batch as a successful one. */
+    errors?: { display_id: string; error: string }[]
+  }> =>
     call(() =>
       api.post(`${BASE}/workbench/test-cases/refine-bulk`, {
         case_ids: caseIds,

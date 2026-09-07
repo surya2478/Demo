@@ -393,181 +393,184 @@ const ScriptLab: React.FC = () => {
       </div>
       )}
 
-      <SectionCard
-        title="Approved automation test cases"
-        noPadding
-        actions={
-          /*
-            Order matches the source studio's Script Lab, deliberately:
-            framework, new-version, Generate, Dry run, Download all,
-            <Framework> only, Delete. People move between the two screens and
-            reach for the same button in the same place.
+      {/*
+        The card carried the title "Approved automation test cases", which said
+        what the grid underneath already says and pushed this toolbar into the
+        right half of the header. Dropping it lets the row start at the left
+        edge and use the full width, the same shape the Workbench uses.
 
-            Base URL is gone -- the compiler falls back to the case's own
-            application_url, which refinement already sets. Environment stays,
-            because it labels the run a dry run creates and there is nowhere
-            else to say it.
-          */
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={framework}
-                onChange={e => setFramework(e.target.value)}
-                className="app-input w-[150px]"
-                aria-label="Framework"
-              >
-                {(frameworks.length
-                  ? frameworks
-                  : [{ name: 'playwright', label: 'Playwright', runnable: true }]
-                ).map(fw => (
-                  <option key={fw.name} value={fw.name}>
-                    {fw.label}
-                  </option>
-                ))}
-              </select>
+        Order matches the source studio's Script Lab, deliberately: framework,
+        new-version, Generate, Dry run, Download all, <Framework> only, Delete.
+        People move between the two screens and reach for the same button in
+        the same place.
 
-              <label
-                className="inline-flex items-center gap-1.5 text-[12px] text-app-secondary"
-                title="Generating again replaces the current script unless this is ticked, in which case it is kept and a new version is added alongside it"
-              >
-                <input
-                  type="checkbox"
-                  checked={newVersion}
-                  onChange={e => setNewVersion(e.target.checked)}
-                  className="h-3.5 w-3.5"
-                />
-                New version if one exists
-              </label>
+        Base URL is gone -- the compiler falls back to the case's own
+        application_url, which refinement already sets.
+      */}
+      <SectionCard noPadding>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-app px-5 py-4">
+          <select
+            value={framework}
+            onChange={e => setFramework(e.target.value)}
+            className="app-input h-[38px] w-[160px] py-0 text-sm"
+            aria-label="Framework"
+          >
+            {(frameworks.length
+              ? frameworks
+              : [{ name: 'playwright', label: 'Playwright', runnable: true }]
+            ).map(fw => (
+              <option key={fw.name} value={fw.name}>
+                {fw.label}
+              </option>
+            ))}
+          </select>
 
-              <button
-                type="button"
-                onClick={handleGenerate}
-                disabled={!anySelected || !canExecute || busy !== null}
-                className="app-btn app-btn-primary inline-flex items-center gap-1.5 disabled:opacity-50"
-              >
-                <HiOutlineCode className="h-4 w-4" />
-                {busy === 'generate' ? 'Generating…' : 'Generate scripts'}
-              </button>
+          <label
+            className="inline-flex items-center gap-2 text-sm text-app-secondary"
+            title="Generating again replaces the current script unless this is ticked, in which case it is kept and a new version is added alongside it"
+          >
+            <input
+              type="checkbox"
+              checked={newVersion}
+              onChange={e => setNewVersion(e.target.checked)}
+              className="h-4 w-4 accent-app-brand-700"
+            />
+            New Script Version
+          </label>
 
-              <button
-                type="button"
-                onClick={handleDryRun}
-                disabled={
-                  selectedScriptIds.length === 0 || !canExecute || !runnable || busy !== null
-                }
-                title={
-                  !runnable
-                    ? `${activeFramework?.label} is generate-only — no runner exists for it.`
-                    : 'Execute the selected scripts once. Each becomes a run on the Runs screen.'
-                }
-                className="app-btn app-btn-secondary inline-flex items-center gap-1.5 disabled:opacity-50"
-              >
-                <HiOutlinePlay className="h-4 w-4" />
-                {busy === 'dry-run' ? 'Queueing…' : 'Dry run'}
-                {selectedScriptIds.length ? ` (${selectedScriptIds.length})` : ''}
-              </button>
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={!anySelected || !canExecute || busy !== null}
+            className="app-spark app-spark-primary app-btn app-btn-primary inline-flex items-center gap-2 !px-4 !py-2 text-sm font-semibold disabled:opacity-50"
+          >
+            <HiOutlineCode className="app-spark-glyph h-[18px] w-[18px]" />
+            {busy === 'generate' ? 'Generating…' : 'Generate scripts'}
+          </button>
 
-              <input
-                value={environment}
-                onChange={e => setEnvironment(e.target.value)}
-                placeholder="SIT"
-                className="app-input w-16 text-[12px]"
-                aria-label="Environment"
-                title="Recorded on the run, so its history says which environment it hit"
-              />
+          <button
+            type="button"
+            onClick={handleDryRun}
+            disabled={
+              selectedScriptIds.length === 0 || !canExecute || !runnable || busy !== null
+            }
+            title={
+              !runnable
+                ? `${activeFramework?.label} is generate-only — no runner exists for it.`
+                : 'Execute the selected scripts once. Each becomes a run on the Runs screen.'
+            }
+            className="app-spark app-btn app-btn-secondary inline-flex items-center gap-2 !px-3 !py-2 text-sm font-medium disabled:opacity-50"
+          >
+            <HiOutlinePlay className="app-spark-glyph h-[18px] w-[18px]" />
+            {busy === 'dry-run' ? 'Queueing…' : 'Dry run'}
+            {selectedScriptIds.length ? ` (${selectedScriptIds.length})` : ''}
+          </button>
 
-              <select
-                value={slowMoMs}
-                onChange={e => setSlowMoMs(Number(e.target.value))}
-                className="app-input text-[12px] w-[140px]"
-                aria-label="Execution speed"
-                title="Delay between actions: Safe (1000ms) for public WAF apps like eand.ae, Fast (0ms) for internal CI"
-              >
-                <option value={1000}>Safe / WAF (1s)</option>
-                <option value={0}>Fast / CI (0s)</option>
-                <option value={500}>Balanced (0.5s)</option>
-                <option value={2000}>Debug (2s)</option>
-              </select>
+          {/* Environment and execution speed, hidden on request.
+              Both still travel with every dry run -- they now take the
+              defaults their state was initialised with, `environment`
+              "SIT" and `slowMoMs` 1000 (Safe / WAF), which is what the
+              controls already showed. Nothing about a run changes; only
+              the ability to vary it from this screen is gone. Restore by
+              uncommenting. */}
+          {/* <input
+            value={environment}
+            onChange={e => setEnvironment(e.target.value)}
+            placeholder="SIT"
+            className="app-input w-16 text-[12px]"
+            aria-label="Environment"
+            title="Recorded on the run, so its history says which environment it hit"
+          />
 
-              <button
-                type="button"
-                onClick={() =>
-                  runAction('download', async () =>
-                    saveBlob(
-                      // No framework: every script, foldered by framework.
-                      await automationService.downloadScriptBundle(),
-                      'automation-scripts.zip'
-                    )
-                  )
-                }
-                disabled={busy !== null}
-                className="app-btn app-btn-secondary inline-flex items-center gap-1.5 disabled:opacity-50"
-              >
-                <HiOutlineDownload className="h-4 w-4" />
-                Download all
-              </button>
+          <select
+            value={slowMoMs}
+            onChange={e => setSlowMoMs(Number(e.target.value))}
+            className="app-input text-[12px] w-[140px]"
+            aria-label="Execution speed"
+            title="Delay between actions: Safe (1000ms) for public WAF apps like eand.ae, Fast (0ms) for internal CI"
+          >
+            <option value={1000}>Safe / WAF (1s)</option>
+            <option value={0}>Fast / CI (0s)</option>
+            <option value={500}>Balanced (0.5s)</option>
+            <option value={2000}>Debug (2s)</option>
+          </select> */}
 
-              <button
-                type="button"
-                onClick={() =>
-                  runAction('download-framework', async () =>
-                    saveBlob(
-                      await automationService.downloadScriptBundle(framework),
-                      `automation-scripts-${framework}.zip`
-                    )
-                  )
-                }
-                disabled={busy !== null}
-                title={`Download only the ${activeFramework?.label ?? framework} scripts`}
-                className="app-btn app-btn-secondary inline-flex items-center gap-1.5 disabled:opacity-50"
-              >
-                <HiOutlineDownload className="h-4 w-4" />
-                {activeFramework?.label ?? framework} only
-              </button>
+          <button
+            type="button"
+            onClick={() =>
+              runAction('download', async () =>
+                saveBlob(
+                  // No framework: every script, foldered by framework.
+                  await automationService.downloadScriptBundle(),
+                  'automation-scripts.zip'
+                )
+              )
+            }
+            disabled={busy !== null}
+            title="Download every generated script as one zip, foldered by framework"
+            className="app-spark app-btn app-btn-secondary inline-flex items-center gap-2 !px-3 !py-2 text-sm font-medium disabled:opacity-50"
+          >
+            <HiOutlineDownload className="app-spark-glyph h-[18px] w-[18px]" />
+            All
+          </button>
 
-              <button
-                type="button"
-                onClick={() =>
-                  runAction('delete', async () => {
-                    await automationService.deleteScripts(selectedScriptIds)
-                    setSelectedCases(new Set())
-                  })
-                }
-                disabled={selectedScriptIds.length === 0 || !canExecute || busy !== null}
-                title="Delete every script generated for the selected test cases"
-                className="app-btn app-btn-secondary inline-flex items-center gap-1.5 text-app-danger disabled:opacity-50"
-              >
-                <HiOutlineTrash className="h-4 w-4" />
-                Delete scripts
-                {selectedScriptIds.length ? ` (${selectedScriptIds.length})` : ''}
-              </button>
+          <button
+            type="button"
+            onClick={() =>
+              runAction('download-framework', async () =>
+                saveBlob(
+                  await automationService.downloadScriptBundle(framework),
+                  `automation-scripts-${framework}.zip`
+                )
+              )
+            }
+            disabled={busy !== null}
+            title={`Download only the ${activeFramework?.label ?? framework} scripts`}
+            className="app-spark app-btn app-btn-secondary inline-flex items-center gap-2 !px-3 !py-2 text-sm font-medium disabled:opacity-50"
+          >
+            <HiOutlineDownload className="app-spark-glyph h-[18px] w-[18px]" />
+            {activeFramework?.label ?? framework}
+          </button>
 
-              <button
-                type="button"
-                onClick={() => void handleDeleteCases()}
-                disabled={!anySelected || !canExecute || busy !== null}
-                title="Remove the selected test cases from Automation Studio entirely, including any scripts generated from them"
-                className="app-btn app-btn-secondary inline-flex items-center gap-1.5 text-app-danger disabled:opacity-50"
-              >
-                <HiOutlineTrash className="h-4 w-4" />
-                Delete test case
-                {selectedCases.size ? ` (${selectedCases.size})` : ''}
-              </button>
+          <button
+            type="button"
+            onClick={() =>
+              runAction('delete', async () => {
+                await automationService.deleteScripts(selectedScriptIds)
+                setSelectedCases(new Set())
+              })
+            }
+            disabled={selectedScriptIds.length === 0 || !canExecute || busy !== null}
+            title="Delete every script generated for the selected test cases"
+            className="app-spark app-btn app-btn-secondary inline-flex items-center gap-2 !px-3 !py-2 text-sm font-medium text-app-danger disabled:opacity-50"
+          >
+            <HiOutlineTrash className="app-spark-glyph h-[18px] w-[18px]" />
+            Delete scripts
+            {selectedScriptIds.length ? ` (${selectedScriptIds.length})` : ''}
+          </button>
 
-              <button
-                type="button"
-                onClick={() => void load()}
-                className="app-btn app-btn-ghost inline-flex items-center gap-1.5"
-                title="Reload"
-                aria-label="Reload"
-              >
-                <HiOutlineRefresh className="h-4 w-4" />
-              </button>
-            </div>
+          <button
+            type="button"
+            onClick={() => void handleDeleteCases()}
+            disabled={!anySelected || !canExecute || busy !== null}
+            title="Remove the selected test cases from Automation Studio entirely, including any scripts generated from them"
+            className="app-spark app-btn app-btn-secondary inline-flex items-center gap-2 !px-3 !py-2 text-sm font-medium text-app-danger disabled:opacity-50"
+          >
+            <HiOutlineTrash className="app-spark-glyph h-[18px] w-[18px]" />
+            Delete test case
+            {selectedCases.size ? ` (${selectedCases.size})` : ''}
+          </button>
 
-          </div>
-        }
-      >
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="app-spark app-btn app-btn-ghost inline-flex items-center gap-2 !px-3 !py-2"
+            title="Reload"
+            aria-label="Reload"
+          >
+            <HiOutlineRefresh className="app-spark-glyph h-[18px] w-[18px]" />
+          </button>
+        </div>
         {!runnable ? (
           <div className="mx-5 mt-4 flex items-start gap-2 rounded-app border border-orange-200 bg-app-warning-bg px-3 py-2.5 text-[12px] text-app-warning">
             <HiOutlineExclamationCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />

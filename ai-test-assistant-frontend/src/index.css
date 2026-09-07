@@ -211,6 +211,84 @@
     @apply app-btn text-app-secondary hover:bg-app-surface-muted hover:text-app-primary active:bg-app-border;
   }
 
+  /* --- Spark: a light sweep and a glow on the actions that matter ---------
+     Two effects, both hover-only and both skipped on a disabled button, so a
+     control that cannot be pressed never looks alive:
+
+       .app-spark          a diagonal highlight that crosses the button once.
+       .app-spark-primary  a coloured halo, for the one button on a row that
+                           moves work forward.
+
+     prefers-reduced-motion turns the sweep off rather than speeding it up --
+     a moving highlight is decoration, and decoration is the first thing to
+     drop when someone has asked for less movement. */
+  .app-spark {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  .app-spark::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      115deg,
+      transparent 38%,
+      rgba(255, 255, 255, 0.55) 50%,
+      transparent 62%
+    );
+    transform: translateX(-130%);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .app-spark:hover:not(:disabled)::after {
+    transform: translateX(130%);
+    transition: transform 0.65s cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+
+  .app-spark-primary {
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+  }
+
+  .app-spark-primary:hover:not(:disabled) {
+    box-shadow:
+      0 0 0 3px rgba(183, 25, 32, 0.16),
+      0 8px 20px -6px rgba(183, 25, 32, 0.55);
+    transform: translateY(-1px);
+  }
+
+  .app-spark-primary:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  }
+
+  /* The sparkle glyph itself, which only twinkles while the button is
+     hovered -- an icon that animates at rest pulls the eye off the grid. */
+  .app-spark-glyph {
+    opacity: 0.75;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+
+  .app-spark:hover:not(:disabled) .app-spark-glyph {
+    opacity: 1;
+    animation: app-spark-twinkle 1.1s ease-in-out infinite;
+  }
+
+  @keyframes app-spark-twinkle {
+    0%, 100% { transform: scale(1) rotate(0deg); }
+    35%      { transform: scale(1.18) rotate(12deg); }
+    70%      { transform: scale(0.94) rotate(-8deg); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-spark::after { display: none; }
+    .app-spark:hover:not(:disabled) .app-spark-glyph { animation: none; }
+    .app-spark-primary:hover:not(:disabled) { transform: none; }
+  }
+
   /* Scrollable area used inside sidebar / drawers */
   .app-scroll {
     scrollbar-gutter: stable;
