@@ -126,7 +126,7 @@ def _ai_service_url() -> str:
             "The AI service base URL is not configured. Set it in the Settings "
             "screen, or set LLM_PROVIDER=openrouter."
         )
-    endpoint = settings.ai_config.ENDPOINTS.chatStream or "/chat/message"
+    endpoint = settings.ai_config.ENDPOINTS.chatStream or "/chat/stream"
     return f"{base}{endpoint if endpoint.startswith('/') else '/' + endpoint}"
 
 

@@ -24,8 +24,16 @@ class AiEndpointsModel(BaseModel):
     exportExcel: str = Field(default="/export/test-cases-excel")
     kbGenerate: str = Field(default="/kb/generate")
     kbUploadZip: str = Field(default="/kb/upload-zip")
-    chatInitiate: str = Field(default="/chat/session-init")
-    chatStream: str = Field(default="/chat/message")
+    # --- The AI service's spelling, not ours ------------------------------
+    # config.json is excluded from the image, so a fresh container writes one
+    # from these defaults -- which makes them the value a new deployment
+    # actually runs on. They said "/chat/session-init" and "/chat/message",
+    # and the deployed AI service publishes "/chat/init" and "/chat/stream";
+    # its 404 surfaced as a 502 from generation with no hint that an endpoint
+    # NAME was the problem. routers/generate.py answers to both spellings,
+    # which is why this stayed hidden on the admin backend's own routes.
+    chatInitiate: str = Field(default="/chat/init")
+    chatStream: str = Field(default="/chat/stream")
     chatSessions: str = Field(default="/chat/sessions")
     chatDelete: str = Field(default="/chat/session/{session_id}")
 

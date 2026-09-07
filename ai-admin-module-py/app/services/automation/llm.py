@@ -105,7 +105,7 @@ def extract_json(text: str) -> Any:
 
 def _ai_service_url() -> str:
     base = (settings.ai_config.BASE_URL or "").rstrip("/")
-    endpoint = settings.ai_config.ENDPOINTS.chatStream or "/chat/message"
+    endpoint = settings.ai_config.ENDPOINTS.chatStream or "/chat/stream"
     if not base:
         raise LLMUnavailable(
             "The AI service base URL is not configured. Set it in the Settings "
