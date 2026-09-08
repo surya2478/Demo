@@ -130,6 +130,38 @@ def _ai_service_url() -> str:
     return f"{base}{endpoint if endpoint.startswith('/') else '/' + endpoint}"
 
 
+# --- Automation Module: what /chat/init actually wants -----------------------
+# brd_content is the ONLY required field on /chat/init, and the service is not
+# indifferent to it:
+#
+#   brd_content = ""            -> the session opens, and every /chat/stream on
+#                                  it answers with the literal string
+#                                  "Empty Response". A 200, no error, nothing to
+#                                  distinguish it from a model that had nothing
+#                                  to say.
+#   brd_content = whole BRD     -> /chat/init returns 500 at around 16k chars.
+#                                  The service appears to index what it is given
+#                                  and does not survive a document that size.
+#   brd_content = a short real
+#                 excerpt       -> answers normally, and a 16k user_input on the
+#                                  same session is handled without complaint.
+#
+# So the session is seeded with the opening of the document -- non-empty, well
+# under the ceiling, and genuinely representative rather than a dummy string --
+# and the full text continues to travel in user_input, where size has never been
+# a problem. Measured on the deployed service: 50 and 500 char seeds answered in
+# 858 and 1074 characters; an empty seed answered "Empty Response" every time.
+_SESSION_SEED_CHARS = 500
+
+
+def _session_seed(user_input: str) -> str:
+    """A short, non-empty excerpt of the document, to open the session with."""
+    seed = (user_input or "").strip()[:_SESSION_SEED_CHARS]
+    # A blank document is a caller error, but it must not become the silent
+    # "Empty Response" this constant exists to prevent.
+    return seed or "Requirements document."
+
+
 def _ai_service_init_url() -> str:
     """The AI service's session-init endpoint, built like the stream one."""
     base = (settings.ai_config.BASE_URL or "").rstrip("/")
@@ -137,7 +169,9 @@ def _ai_service_init_url() -> str:
     return f"{base}{endpoint if endpoint.startswith('/') else '/' + endpoint}"
 
 
-def _open_ai_service_session(*, temperature: float, max_tokens: int, timeout: float) -> str:
+def _open_ai_service_session(
+    *, seed: str, temperature: float, max_tokens: int, timeout: float
+) -> str:
     """Open a chat session and return its id.
 
     --- Automation Module: the handshake this transport was missing ----------
@@ -162,9 +196,7 @@ def _open_ai_service_session(*, temperature: float, max_tokens: int, timeout: fl
     url = _ai_service_init_url()
     params = settings.ai_config.PARAMETERS
     payload = {
-        # A session is opened for THIS generation and its content travels in
-        # the stream call, so there is nothing to seed it with here.
-        "brd_content": (None, ""),
+        "brd_content": (None, seed),
         "session_id": (None, ""),
         "provider": (None, str(params.provider or "")),
         "model_name": (None, str(params.model or "")),
@@ -265,7 +297,10 @@ def _stream_ai_service(
     params = settings.ai_config.PARAMETERS
     timeout = timeout or float(settings.AI_SERVICE_TIMEOUT_SECONDS or 120)
     session_id = _open_ai_service_session(
-        temperature=temperature, max_tokens=max_tokens, timeout=timeout
+        seed=_session_seed(user_input),
+        temperature=temperature,
+        max_tokens=max_tokens,
+        timeout=timeout,
     )
     payload = {
         "session_id": (None, session_id),

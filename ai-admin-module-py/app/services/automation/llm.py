@@ -114,13 +114,39 @@ def _ai_service_url() -> str:
     return f"{base}{endpoint if endpoint.startswith('/') else '/' + endpoint}"
 
 
+def _ai_service_headers() -> dict:
+    """The AI service's bearer token, when the deployment sets one.
+
+    This module posted without it. stream.py has always sent it, and the
+    deployed service answers 401 to a request that lacks it -- so the
+    Automation module's ai_service path (refine, classify, script generation)
+    could not have worked against that deployment, and would have failed as an
+    unexplained LLMError the first time anyone tried.
+    """
+    token = (settings.AI_SERVICE_AUTH_TOKEN or "").strip()
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
+# See services/generation/stream.py for the measurements behind this: an empty
+# brd_content makes every reply on the session the literal string "Empty
+# Response", and a whole document makes /chat/init return 500. A short real
+# excerpt does neither.
+_SESSION_SEED_CHARS = 500
+
+
+def _session_seed(user_input: str) -> str:
+    return (user_input or "").strip()[:_SESSION_SEED_CHARS] or "Requirements document."
+
+
 def _ai_service_init_url() -> str:
     base = (settings.ai_config.BASE_URL or "").rstrip("/")
     endpoint = settings.ai_config.ENDPOINTS.chatInitiate or "/chat/init"
     return f"{base}{endpoint if endpoint.startswith('/') else '/' + endpoint}"
 
 
-def _open_ai_service_session(*, temperature: float, max_tokens: int, timeout: float) -> str:
+def _open_ai_service_session(
+    *, seed: str, temperature: float, max_tokens: int, timeout: float
+) -> str:
     """Open a chat session and return its id.
 
     The AI service's chat endpoint is stateful and refuses an empty
@@ -134,7 +160,7 @@ def _open_ai_service_session(*, temperature: float, max_tokens: int, timeout: fl
     url = _ai_service_init_url()
     params = settings.ai_config.PARAMETERS
     payload = {
-        "brd_content": (None, ""),
+        "brd_content": (None, seed),
         "session_id": (None, ""),
         "provider": (None, str(params.provider or "")),
         "model_name": (None, str(params.model or "")),
@@ -142,7 +168,7 @@ def _open_ai_service_session(*, temperature: float, max_tokens: int, timeout: fl
         "max_tokens": (None, str(max_tokens)),
     }
     try:
-        response = requests.post(url, files=payload, timeout=timeout)
+        response = requests.post(url, files=payload, headers=_ai_service_headers(), timeout=timeout)
     except requests.RequestException as exc:
         raise LLMError(f"The AI service session could not be opened at {url}: {exc}") from exc
 
@@ -199,7 +225,10 @@ def _call_ai_service(
     url = _ai_service_url()
     params = settings.ai_config.PARAMETERS
     session_id = _open_ai_service_session(
-        temperature=temperature, max_tokens=max_tokens, timeout=timeout
+        seed=_session_seed(user_input),
+        temperature=temperature,
+        max_tokens=max_tokens,
+        timeout=timeout,
     )
     payload = {
         "session_id": (None, session_id),
@@ -212,7 +241,9 @@ def _call_ai_service(
     }
 
     try:
-        with requests.post(url, files=payload, timeout=timeout, stream=True) as response:
+        with requests.post(
+            url, files=payload, headers=_ai_service_headers(), timeout=timeout, stream=True
+        ) as response:
             if response.status_code >= 400:
                 body = (response.text or "")[:300]
                 raise LLMUnavailable(
