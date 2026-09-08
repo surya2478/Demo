@@ -114,6 +114,58 @@ def _ai_service_url() -> str:
     return f"{base}{endpoint if endpoint.startswith('/') else '/' + endpoint}"
 
 
+def _ai_service_init_url() -> str:
+    base = (settings.ai_config.BASE_URL or "").rstrip("/")
+    endpoint = settings.ai_config.ENDPOINTS.chatInitiate or "/chat/init"
+    return f"{base}{endpoint if endpoint.startswith('/') else '/' + endpoint}"
+
+
+def _open_ai_service_session(*, temperature: float, max_tokens: int, timeout: float) -> str:
+    """Open a chat session and return its id.
+
+    The AI service's chat endpoint is stateful and refuses an empty
+    session_id with a 404 whose BODY, not status, says why:
+    {"error": "Session  not found. Please initialize the session first."}.
+    This module and services/generation/stream.py both sent an empty id and
+    both therefore failed the same way; they keep separate copies of the
+    transport on purpose (see this module's header), so they keep separate
+    copies of the handshake too.
+    """
+    url = _ai_service_init_url()
+    params = settings.ai_config.PARAMETERS
+    payload = {
+        "brd_content": (None, ""),
+        "session_id": (None, ""),
+        "provider": (None, str(params.provider or "")),
+        "model_name": (None, str(params.model or "")),
+        "temperature": (None, str(temperature)),
+        "max_tokens": (None, str(max_tokens)),
+    }
+    try:
+        response = requests.post(url, files=payload, timeout=timeout)
+    except requests.RequestException as exc:
+        raise LLMError(f"The AI service session could not be opened at {url}: {exc}") from exc
+
+    if response.status_code >= 400:
+        raise LLMError(
+            f"The AI service returned {response.status_code} opening a session "
+            f"at {url}. {response.text[:300]}"
+        )
+    try:
+        data = response.json()
+    except ValueError:
+        raise LLMError(f"The AI service did not return JSON opening a session at {url}.") from None
+
+    for key in ("session_id", "sessionId", "id"):
+        value = str(data.get(key) or "").strip()
+        if value:
+            return value
+    raise LLMError(
+        f"The AI service opened a session at {url} but returned no session id. "
+        f"Body: {str(data)[:200]}"
+    )
+
+
 def _call_ai_service(
     *, system_prompt: str, user_input: str, timeout: float, max_tokens: int, temperature: float
 ) -> str:
@@ -146,8 +198,11 @@ def _call_ai_service(
     """
     url = _ai_service_url()
     params = settings.ai_config.PARAMETERS
+    session_id = _open_ai_service_session(
+        temperature=temperature, max_tokens=max_tokens, timeout=timeout
+    )
     payload = {
-        "session_id": (None, ""),
+        "session_id": (None, session_id),
         "user_input": (None, user_input),
         "system_prompt": (None, system_prompt),
         "provider": (None, str(params.provider or "")),

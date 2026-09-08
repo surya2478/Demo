@@ -130,6 +130,96 @@ def _ai_service_url() -> str:
     return f"{base}{endpoint if endpoint.startswith('/') else '/' + endpoint}"
 
 
+def _ai_service_init_url() -> str:
+    """The AI service's session-init endpoint, built like the stream one."""
+    base = (settings.ai_config.BASE_URL or "").rstrip("/")
+    endpoint = settings.ai_config.ENDPOINTS.chatInitiate or "/chat/init"
+    return f"{base}{endpoint if endpoint.startswith('/') else '/' + endpoint}"
+
+
+def _open_ai_service_session(*, temperature: float, max_tokens: int, timeout: float) -> str:
+    """Open a chat session and return its id.
+
+    --- Automation Module: the handshake this transport was missing ----------
+    The AI service's chat endpoint is stateful. It will not answer a request
+    carrying an empty session_id, and both callers here sent exactly that:
+
+        "session_id": (None, "")
+
+    Its refusal is an HTTP 404 whose body is an application error --
+    {"error": "Session  not found. Please initialize the session first."} --
+    and that combination is what made this expensive to find. A 404 reads as a
+    wrong URL, so the endpoint NAME was corrected first and the same 404 came
+    back; only the body distinguishes "no such route" (FastAPI's own
+    {"detail": "Not Found"}) from "route fine, session missing". The doubled
+    space in "Session  not found" is the empty id being interpolated.
+
+    So the session is opened here and its id travels with the prompt. Cost is
+    one extra round trip per generation; the alternative -- caching a session
+    across generations -- would tie an unrelated conversation's history to the
+    next document, which is worse than the round trip.
+    """
+    url = _ai_service_init_url()
+    params = settings.ai_config.PARAMETERS
+    payload = {
+        # A session is opened for THIS generation and its content travels in
+        # the stream call, so there is nothing to seed it with here.
+        "brd_content": (None, ""),
+        "session_id": (None, ""),
+        "provider": (None, str(params.provider or "")),
+        "model_name": (None, str(params.model or "")),
+        "temperature": (None, str(temperature)),
+        "max_tokens": (None, str(max_tokens)),
+    }
+    headers = {}
+    token = (settings.AI_SERVICE_AUTH_TOKEN or "").strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    try:
+        response = requests.post(
+            url,
+            files=payload,
+            headers=headers or None,
+            timeout=timeout,
+            verify=_ai_service_verify(),
+        )
+    except requests.RequestException as exc:
+        raise GenerationUnavailable(
+            f"The AI service session could not be opened at {url}: {exc}"
+        ) from exc
+
+    if response.status_code >= 400:
+        raise GenerationUnavailable(
+            f"The AI service returned {response.status_code} opening a session "
+            f"at {url}. {response.text[:300]}"
+        )
+
+    try:
+        data = response.json()
+    except ValueError:
+        raise GenerationUnavailable(
+            f"The AI service did not return JSON when opening a session at {url}."
+        ) from None
+
+    # Key name is not guaranteed across builds of the service, so accept the
+    # spellings it has used rather than failing on a cosmetic difference.
+    session_id = ""
+    for key in ("session_id", "sessionId", "id"):
+        value = str(data.get(key) or "").strip()
+        if value:
+            session_id = value
+            break
+    if not session_id:
+        raise GenerationUnavailable(
+            f"The AI service opened a session at {url} but returned no session "
+            f"id. Body: {str(data)[:200]}"
+        )
+
+    logger.info("Opened AI service chat session %s", session_id)
+    return session_id
+
+
 def _ai_service_verify() -> bool | str:
     """TLS verification for the AI service call.
 
@@ -173,8 +263,12 @@ def _stream_ai_service(
     """
     url = _ai_service_url()
     params = settings.ai_config.PARAMETERS
+    timeout = timeout or float(settings.AI_SERVICE_TIMEOUT_SECONDS or 120)
+    session_id = _open_ai_service_session(
+        temperature=temperature, max_tokens=max_tokens, timeout=timeout
+    )
     payload = {
-        "session_id": (None, ""),
+        "session_id": (None, session_id),
         "user_input": (None, user_input),
         "system_prompt": (None, system_prompt),
         "provider": (None, str(params.provider or "")),
@@ -187,7 +281,6 @@ def _stream_ai_service(
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
-    timeout = timeout or float(settings.AI_SERVICE_TIMEOUT_SECONDS or 120)
     logger.info(
         "Streaming generation from AI service at %s (model=%s)", url, params.model
     )
