@@ -83,7 +83,12 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7)
     JWT_ALGORITHM: str = Field(default="HS256")
     # keep as comma/string for dotenv compatibility
-    CORS_ALLOW_ORIGINS: str = Field(default="https://ai-studio.example.com,https://ai-studio.example.com,http://localhost:5175")
+    # The same placeholder host appeared twice here, which looked like a
+    # deliberate pair and was a copy-paste: a deployment fronting the app and
+    # the AI service on two different hosts has to list both, and whoever
+    # copied this line would have kept the duplicate. One placeholder, plus the
+    # Vite dev server the frontend actually runs on.
+    CORS_ALLOW_ORIGINS: str = Field(default="https://ai-studio.example.com,http://localhost:5175")
 
     # --- Automation Module: LDAP configuration moved to .env -------------------
     # Every value below previously shipped as a literal default in this file,

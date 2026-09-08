@@ -123,6 +123,66 @@ async def start_background_tasks():
     except Exception as exc:  # noqa: BLE001 - never block startup on this
         print(f"[Settings] ai_config load skipped: {exc}")
 
+    # --- Say what this deployment will actually talk to -----------------------
+    # Both of the day-long faults this exists to prevent were invisible until
+    # somebody clicked Generate, and both then surfaced as an opaque 502:
+    #
+    #   * ai_config.BASE_URL still holding the placeholder, or a dev machine's
+    #     127.0.0.1 copied in by a deploy that overwrote config.json.
+    #   * The Knowledge Base not reaching the container, so generation ran
+    #     ungrounded -- which produces plausible test cases and no error at all.
+    #
+    # Neither is visible from outside, and the Knowledge Base case is worse
+    # than silent: knowledge_base.py logs its success at INFO and its failure
+    # at WARNING, and nothing configures the root logger, so a WORKING KB
+    # prints nothing and an absent one prints nothing a reader will see. These
+    # lines print unconditionally, next to the CORS and database banners that
+    # already earn their space for the same reason.
+    try:
+        from .services.generation.stream import _ai_service_url
+
+        base = (settings.ai_config.BASE_URL or "").strip()
+        if settings.LLM_PROVIDER == "ai_service":
+            try:
+                print(f"[AI] provider=ai_service  chat endpoint: {_ai_service_url()}")
+            except Exception as exc:  # noqa: BLE001 - reporting must not fail startup
+                print(f"[AI] provider=ai_service  chat endpoint UNRESOLVED: {exc}")
+            if "example.com" in base:
+                print(
+                    "[AI] WARNING: BASE_URL is still the placeholder from "
+                    "config.py, so no AI service is configured. Set it in "
+                    "app/config.json or from the Settings screen."
+                )
+            elif "127.0.0.1" in base or "localhost" in base:
+                print(
+                    "[AI] WARNING: BASE_URL points at localhost. In a container "
+                    "that is the container itself, and in the browser it is the "
+                    "user's own machine -- a deploy that overwrote "
+                    "app/config.json with a development copy looks exactly like "
+                    "this."
+                )
+        else:
+            print(f"[AI] provider={settings.LLM_PROVIDER}")
+    except Exception as exc:  # noqa: BLE001 - never block startup on this
+        print(f"[AI] Configuration report skipped: {exc}")
+
+    try:
+        from .services.automation import knowledge_base as _kb
+
+        apps = _kb.list_applications()
+        if apps:
+            names = ", ".join(str(a.get("app_id")) for a in apps if a.get("app_id"))
+            print(f"[Knowledge Base] {len(apps)} application(s) at {_kb.get_kb_root()}: {names}")
+        else:
+            print(
+                f"[Knowledge Base] NONE FOUND at {_kb.get_kb_root()}. Generation "
+                "will run WITHOUT flow grounding -- test cases will carry "
+                "placeholder URLs and selectors instead of verified ones, and "
+                "nothing else will report this."
+            )
+    except Exception as exc:  # noqa: BLE001 - never block startup on this
+        print(f"[Knowledge Base] Report skipped: {exc}")
+
     # schedule cleanup loop (runs in background)
     asyncio.create_task(_session_cleanup_loop())
 
