@@ -37,3 +37,7 @@
 .blink-color { animation: blinkColor 800ms linear infinite; }
 .blink-bg { animation: blinkBg 900ms ease-in-out infinite; }
 .blink-text-pulse { animation: pulseTextColor 900ms linear infinite; }
+/* Generate Test Cases: placeholder row while the next case is being written. */
+@keyframes tc-shimmer { 0% { background-position: -300px 0; } 100% { background-position: 300px 0; } }
+.tc-shim { height: 10px; border-radius: 6px; background: linear-gradient(90deg, #F4F5F7 0%, #FDEBEC 50%, #F4F5F7 100%); background-size: 600px 10px; animation: tc-shimmer 1.6s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .tc-shim { animation: none; } }

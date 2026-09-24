@@ -1,4 +1,4 @@
-import React, { useState, ChangeEvent, useEffect, useRef } from 'react'
+import React, { useState, ChangeEvent, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import '../../styles/animations.css'
 import { loadConfigFromServer, getConfig } from '../../config/ai-api'
@@ -26,6 +26,7 @@ import { authHeaderFor, isOwnBackend } from '../../utils/trackedFetchWithTokens'
 import api from '../../services/api'
 import SelectKB, { type KnowledgeBaseOption } from '../../components/test-assistant/SelectKB'
 import JourneyBar from '../../components/test-assistant/JourneyBar'
+import { CaseGrid, InputSummary, ProgressPanel, parseStreamingCases } from '../../components/test-assistant/GenerationOutput'
 import { publishTokenUsage } from '../../components/test-assistant/TokenUsageChip'
 
 
@@ -111,6 +112,19 @@ const TestCases: React.FC = () => {
   const [outputOpen, setOutputOpen] = useState(false)
   // The input area is compact by default; Expand gives it room to edit.
   const [inputExpanded, setInputExpanded] = useState(false)
+  // While and after generating, the inputs fold to one line so the output
+  // gets the screen; "Show inputs" reopens them.
+  const [inputsFolded, setInputsFolded] = useState(false)
+  // Progress on the page, replacing the pop-up. Stages advance on what the
+  // stream actually does -- there is no server-side stage signal to report.
+  const [genStagesDone, setGenStagesDone] = useState(0)
+  const [genStartedAt, setGenStartedAt] = useState<number | null>(null)
+  const [nowTick, setNowTick] = useState(() => Date.now())
+  const [generationError, setGenerationError] = useState('')
+  const [generationStopped, setGenerationStopped] = useState(false)
+  const [showFullTable, setShowFullTable] = useState(false)
+  const stopRequestedRef = useRef(false)
+  const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
 
   // Chat state
   type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; timestamp: string }
@@ -1204,6 +1218,14 @@ const TestCases: React.FC = () => {
         setIsGenerationStreaming(true)
         setResponse('');
         setOutput('');
+        setInputsFolded(true)
+        setOutputOpen(true)
+        setShowFullTable(false)
+        setGenerationError('')
+        setGenerationStopped(false)
+        setGenStagesDone(0)
+        setGenStartedAt(Date.now())
+        stopRequestedRef.current = false
         // setError('');
         
         const requestPayload = {
@@ -1299,24 +1321,34 @@ const TestCases: React.FC = () => {
           externalStream: true
         }
       );
-      console.log("res === : ",res);
+      setGenStagesDone(1)
       // Stream and accumulate response here
       if (!res.body) {
         fullText = await res.text();
       } else {
         const reader = (res.body as ReadableStream<Uint8Array>).getReader();
+        streamReaderRef.current = reader
         const decoder = new TextDecoder();
         fullText = '';
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          
-          const chunk = decoder.decode(value);
-          const streamedChunk = chunk.replace(/^data: /, '');
-          setResponse(prev => prev + streamedChunk)
-          fullText += streamedChunk;
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            const streamedChunk = chunk.replace(/^data: /, '');
+            setResponse(prev => prev + streamedChunk)
+            fullText += streamedChunk;
+            // Scope is understood once text arrives, scenarios once the table
+            // header is written; rows then stream as "Generating test cases".
+            setGenStagesDone(prev => Math.max(prev, /test case id/i.test(fullText) ? 3 : 2))
+          }
+        } finally {
+          streamReaderRef.current = null
         }
       }
+      setGenStagesDone(4)
+      if (stopRequestedRef.current) setGenerationStopped(true)
 
       console.log('Full response text received:', fullText);
       // Extract tokens if present
@@ -1354,6 +1386,7 @@ const TestCases: React.FC = () => {
 
       responsePayload = fullText;
 
+      setGenStagesDone(5)
       if (fullText && fullText.trim().length > 0) {
         setTestCasesData(fullText);
         await startWorkflow(getWorkflowDocumentName(), {
@@ -1365,8 +1398,10 @@ const TestCases: React.FC = () => {
         }, flowId)
       }
 
+          setGenStagesDone(6)
         } catch (err) {
           console.error('Generation error:', err);
+          setGenerationError(err instanceof Error ? err.message : String(err))
           // setError(`Error generating test cases: ${err instanceof Error ? err.message : String(err)}`);
           auditStatus = 'failure';
           responsePayload = String(err);
@@ -1393,6 +1428,13 @@ const TestCases: React.FC = () => {
         }
       }
     });
+  }
+
+  // Stop keeps what was written so far: cancelling the reader ends the stream
+  // loop normally, so the partial table is stored and can still be sent.
+  const handleStopGeneration = () => {
+    stopRequestedRef.current = true
+    void streamReaderRef.current?.cancel().catch(() => undefined)
   }
 
   const handleUseForTestData = () => {
@@ -1449,6 +1491,11 @@ const TestCases: React.FC = () => {
 
   const handleResetAll = () => {
     setOutputOpen(false)
+    setInputsFolded(false)
+    setGenerationError('')
+    setGenerationStopped(false)
+    setGenStagesDone(0)
+    setShowFullTable(false)
     setInputExpanded(false)
     setInputType('text')
     setTextValue('')
@@ -1513,6 +1560,24 @@ const TestCases: React.FC = () => {
 
   const tokenLimitReached = !isAdminUser && userTokenAllocation > 0 && userTokensUsed >= userTokenAllocation
   const hasOutput = isGenerationStreaming || Boolean(response || output)
+  const streamParse = useMemo(
+    () => parseStreamingCases(response || output || '', !isGenerationStreaming),
+    [response, output, isGenerationStreaming]
+  )
+
+  useEffect(() => {
+    if (!isGenerationStreaming) return
+    setNowTick(Date.now())
+    const id = window.setInterval(() => setNowTick(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [isGenerationStreaming])
+
+  const inputSummarySource =
+    inputType === 'text'
+      ? `Text input · ${textValue.trim().length.toLocaleString()} chars`
+      : inputType === 'e2e-spark'
+        ? `e2e Spark · PPM ${ppmId.trim() || '—'}`
+        : fileInputs.map((file) => file.name).join(', ') || 'No files'
 
   useEffect(() => {
     if (isGenerationStreaming || response || output) setOutputOpen(true)
@@ -1579,7 +1644,16 @@ const TestCases: React.FC = () => {
       )}
 
       <div className="space-y-4">
-        {/* Generate Test Cases */}
+        {/* Generate Test Cases -- folds to one line while and after generating */}
+        {inputsFolded ? (
+          <InputSummary
+            source={inputSummarySource}
+            knowledgeBase={selectedKnowledgeBaseOption.label}
+            environment={selectedEnvironment || undefined}
+            focus={selectedFocus || undefined}
+            onShowInputs={() => setInputsFolded(false)}
+          />
+        ) : (
         <section className="relative rounded-[20px] border border-[#E8EAEE] bg-white px-[22px] py-5 shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)]">
@@ -1829,90 +1903,143 @@ const TestCases: React.FC = () => {
           </div>
         </section>
 
-        {/* Output: closed until generation starts */}
-        <section className={`rounded-[16px] border border-[#E8EAEE] bg-white px-[22px] shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)] ${outputOpen ? 'py-4' : 'py-3'}`}>
-          <div className="flex flex-wrap items-center gap-2.5">
+        )}
+
+        {/* Output: closed until generation starts, then progress and cases in place */}
+        {!hasOutput && !generationError ? (
+          <section className="flex flex-wrap items-center gap-2.5 rounded-[16px] border border-[#E8EAEE] bg-white px-[22px] py-3 shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B71920" strokeWidth="1.8" aria-hidden><path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5" /></svg>
             <span className="text-[15px] font-bold text-[#1F2937]">Output</span>
             <span className="text-[12.5px] text-[#6B7280]">
-              {isGenerationStreaming
-                ? 'Generating test cases — they appear below as they are written.'
-                : response || output
-                  ? 'Test cases are ready. Review them, then send them for approval.'
-                  : documentsProcessed
-                    ? `Files processed — click "${getGenerateButtonLabel()}" to continue.`
-                    : 'Opens when you click Generate Test Cases — progress and test cases appear right here.'}
+              {documentsProcessed
+                ? `Files processed — click "${getGenerateButtonLabel()}" to continue.`
+                : 'Opens when you click Generate Test Cases — progress and test cases appear right here.'}
             </span>
             <div className="ml-auto flex items-center gap-2">
-              {outputOpen && (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleUseForTestData}
-                    data-audit-name="Use for Test Data"
-                    disabled={!response}
-                    className="flex h-[34px] items-center rounded-[12px] border border-[#E8EAEE] bg-white px-3 text-[12.5px] font-semibold text-[#1F2937] transition hover:border-[#F6D4D5] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Use for Test Data
-                  </button>
-                  <button
-                    type="button"
-                    onClick={openReviewWindow}
-                    data-audit-name="Review & Send"
-                    disabled={!(response || output) || submittedTestCaseCount !== null}
-                    className={`flex h-[34px] items-center rounded-[12px] px-3 text-[12.5px] font-bold transition ${
-                      submittedTestCaseCount !== null
-                        ? 'cursor-not-allowed border border-[#F1A4A6] bg-white text-[#B71920]'
-                        : response || output
-                          ? 'bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] hover:opacity-95'
-                          : 'cursor-not-allowed bg-[#F4F5F7] text-[#9CA3AF]'
-                    }`}
-                  >
-                    {submittedTestCaseCount !== null ? `${submittedTestCaseCount} TCs Pending Approval` : 'Review & Send'}
-                  </button>
-                </>
-              )}
-              <button
-                type="button"
-                disabled
-                title="AI Checks arrive in a later release"
-                className="flex h-[34px] cursor-not-allowed items-center rounded-[12px] bg-[#F4F5F7] px-4 text-[13px] font-bold text-[#9CA3AF]"
-              >
+              <button type="button" disabled title="AI Checks arrive in a later release" className="flex h-[34px] cursor-not-allowed items-center rounded-[12px] bg-[#F4F5F7] px-4 text-[13px] font-bold text-[#9CA3AF]">
                 Run AI Checks
               </button>
-              <button
-                type="button"
-                onClick={() => setOutputOpen((value) => !value)}
-                disabled={!hasOutput}
-                aria-expanded={outputOpen}
-                aria-label={outputOpen ? 'Close output' : 'Open output'}
-                className="box-border flex h-[34px] w-[34px] items-center justify-center rounded-[10px] border border-[#E8EAEE] bg-white disabled:cursor-not-allowed"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={hasOutput ? '#6B7280' : '#C4C8CF'} strokeWidth="2" aria-hidden>
-                  <path d={outputOpen ? 'M18 15l-6-6-6 6' : 'M6 9l6 6 6-6'} />
-                </svg>
-              </button>
+              <span className="box-border flex h-[34px] w-[34px] items-center justify-center rounded-[10px] border border-[#E8EAEE]" aria-hidden>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C4C8CF" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>
+              </span>
             </div>
-          </div>
-
-          {outputOpen && (
-            <div className="mt-3">
+          </section>
+        ) : (
+          <section className="flex flex-col overflow-hidden rounded-[20px] border border-[#E8EAEE] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]">
+            <div className={`flex flex-wrap items-center gap-2.5 px-[22px] pt-4 ${outputOpen || isGenerationStreaming ? '' : 'pb-4'}`}>
+              <span className="text-[15px] font-bold text-[#1F2937]">Output</span>
               {isGenerationStreaming ? (
-                <div className="rounded-[12px] border border-[#E8EAEE] bg-[#F8F9FB] px-3 py-2">
-                  <div className="mb-1 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[#6B7280]">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#B71920]" />
-                    Generating test cases
-                  </div>
-                  <div ref={generationStreamRef} className="max-h-[360px] overflow-y-auto pr-2 text-[12px] leading-5 text-[#1F2937]">
-                    {response ? <MarkdownViewer content={response} className="prose prose-sm max-w-none text-[12px] leading-5" /> : 'Waiting for generated test cases...'}
-                  </div>
-                </div>
-              ) : (response || output) ? (
-                <MarkdownViewer content={response || output || ''} className="min-h-[200px]" />
-              ) : null}
+                <span className="inline-flex h-6 items-center gap-1.5 rounded-full bg-[#FDEBEC] px-[9px] text-[11.5px] font-semibold text-[#941216]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#B71920]" />Generating
+                </span>
+              ) : generationError ? (
+                <span className="inline-flex h-6 items-center rounded-full bg-[#FEEBEC] px-[9px] text-[11.5px] font-semibold text-[#A3231C]">Failed</span>
+              ) : (
+                <span className="inline-flex h-6 items-center rounded-full bg-[#EAF7EF] px-[9px] text-[11.5px] font-semibold text-[#136B34]">
+                  {generationStopped ? 'Stopped · ' : ''}{streamParse.cases.length} test case{streamParse.cases.length === 1 ? '' : 's'}
+                </span>
+              )}
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                {isGenerationStreaming ? (
+                  <button
+                    type="button"
+                    onClick={handleStopGeneration}
+                    data-audit-name="Stop generation"
+                    className="flex h-[34px] items-center rounded-[12px] border border-[#E8EAEE] bg-white px-4 text-[13px] font-bold text-[#1F2937] transition hover:border-[#F6D4D5]"
+                  >
+                    Stop
+                  </button>
+                ) : generationError ? (
+                  <button
+                    type="button"
+                    onClick={handleGenerate}
+                    data-audit-name="Retry generation"
+                    className="flex h-[34px] items-center rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-4 text-[13px] font-bold text-white"
+                  >
+                    Retry
+                  </button>
+                ) : (
+                  <>
+                    {streamParse.cases.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowFullTable((value) => !value)}
+                        className="flex h-[34px] items-center rounded-[12px] border border-[#E8EAEE] bg-white px-3 text-[12.5px] font-semibold text-[#1F2937] transition hover:border-[#F6D4D5]"
+                      >
+                        {showFullTable ? 'Summary' : 'Full table'}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleUseForTestData}
+                      data-audit-name="Use for Test Data"
+                      disabled={!response}
+                      className="flex h-[34px] items-center rounded-[12px] border border-[#E8EAEE] bg-white px-3 text-[12.5px] font-semibold text-[#1F2937] transition hover:border-[#F6D4D5] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Use for Test Data
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openReviewWindow}
+                      data-audit-name="Review & Send"
+                      disabled={!(response || output) || submittedTestCaseCount !== null}
+                      className={`flex h-[34px] items-center rounded-[12px] px-3 text-[12.5px] font-bold transition ${
+                        submittedTestCaseCount !== null
+                          ? 'cursor-not-allowed border border-[#F1A4A6] bg-white text-[#B71920]'
+                          : 'bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] hover:opacity-95'
+                      }`}
+                    >
+                      {submittedTestCaseCount !== null ? `${submittedTestCaseCount} TCs Pending Approval` : 'Review & Send'}
+                    </button>
+                  </>
+                )}
+                <button type="button" disabled title="AI Checks arrive in a later release" className="flex h-[34px] cursor-not-allowed items-center rounded-[12px] bg-[#F4F5F7] px-4 text-[13px] font-bold text-[#9CA3AF]">
+                  Run AI Checks
+                </button>
+                {!isGenerationStreaming && !generationError && (
+                  <button
+                    type="button"
+                    onClick={() => setOutputOpen((value) => !value)}
+                    aria-expanded={outputOpen}
+                    aria-label={outputOpen ? 'Close output' : 'Open output'}
+                    className="box-border flex h-[34px] w-[34px] items-center justify-center rounded-[10px] border border-[#E8EAEE] bg-white"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" aria-hidden>
+                      <path d={outputOpen ? 'M18 15l-6-6-6 6' : 'M6 9l6 6 6-6'} />
+                    </svg>
+                  </button>
+                )}
+              </div>
             </div>
-          )}
-        </section>
+
+            {generationError && (
+              <div className="mx-[22px] mb-4 mt-3.5 rounded-[16px] border border-[#F6D4D5] bg-[#FFF8F8] px-[18px] py-3.5 text-[13px] text-[#7A0B0D]" role="alert">
+                <div className="font-bold">Test cases could not be generated</div>
+                <div className="mt-1 break-words text-[12.5px] text-[#6B7280]">{generationError}</div>
+              </div>
+            )}
+
+            {isGenerationStreaming && (
+              <ProgressPanel stagesDone={genStagesDone} written={streamParse.cases.length} elapsedMs={genStartedAt ? nowTick - genStartedAt : 0} />
+            )}
+
+            {!generationError && (isGenerationStreaming || outputOpen) && (
+              streamParse.cases.length > 0 && !showFullTable ? (
+                <CaseGrid
+                  cases={streamParse.cases}
+                  streaming={isGenerationStreaming}
+                  footerNote={isGenerationStreaming ? 'You can switch testing tools — generation keeps running.' : undefined}
+                />
+              ) : isGenerationStreaming ? (
+                <CaseGrid cases={[]} streaming footerNote="You can switch testing tools — generation keeps running." />
+              ) : (response || output) ? (
+                <div className="px-[22px] pb-4 pt-3">
+                  <MarkdownViewer content={response || output || ''} className="min-h-[200px]" />
+                </div>
+              ) : null
+            )}
+          </section>
+        )}
 
         <JourneyBar current={journeyStep} unavailable={[3]} />
       </div>
@@ -1951,7 +2078,6 @@ const TestCases: React.FC = () => {
         onTableDataChange={handleReviewTableChange}
         onSendForApproval={handleSendForApproval}
       />
-      {isGenerationStreaming && <div className="fixed inset-0 z-50 cursor-wait bg-transparent" aria-hidden="true" />}
       {approvalNotification && (
         <Notification
           message={approvalNotification.message}
