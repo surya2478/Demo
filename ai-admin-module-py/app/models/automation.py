@@ -694,3 +694,48 @@ class AutomationDeletedOrigin(Base):
 
     deleted_by = Column(String(255), nullable=True)
     deleted_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class AutomationAICheck(Base):
+    """One case's pass through AI Checks, before it is sent for approval.
+
+    AI Checks run on the Test Assistant page -- Refine, Quality Review,
+    Auto-Improve (only when the review did not pass), AI Classify -- so the
+    manager approves a case that has already been improved and triaged. The
+    case itself is an AutomationTestCase with origin="ai_checks": a draft that
+    Automation Studio does not list until the manager approves it.
+
+    Progress lives here rather than in memory so a page reload, or a backend
+    restart, can still say where every case got to. A case that was running
+    when the process stopped is reported as interrupted and can be retried.
+
+    `source_row` is the case exactly as it was generated. It is what Quality
+    Review scores COVERAGE against -- there is no approved source row yet at
+    this point -- and what Retry starts again from.
+    """
+
+    __tablename__ = "automation_ai_checks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    batch_id = Column(String(40), nullable=False, index=True)
+    position = Column(Integer, nullable=False, default=0)
+    case_id = Column(Integer, ForeignKey("automation_test_cases.id"), nullable=True, index=True)
+    source_row = Column(JSON, nullable=False)
+
+    # queued | running | done | failed
+    status = Column(String(20), nullable=False, default="queued", index=True)
+    # {"refine"|"review"|"improve"|"classify": pending | running | done | skipped | failed}
+    steps = Column(JSON, nullable=True)
+    error = Column(Text, nullable=True)
+
+    score_before = Column(Float, nullable=True)
+    score_after = Column(Float, nullable=True)
+    improved = Column(Boolean, nullable=False, default=False)
+    # What the rules said before Partial and Undecided were folded into Manual.
+    classification_detail = Column(String(20), nullable=True)
+    knowledge_base = Column(String(100), nullable=True)
+
+    requested_by = Column(String(255), nullable=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    finished_at = Column(DateTime, nullable=True)

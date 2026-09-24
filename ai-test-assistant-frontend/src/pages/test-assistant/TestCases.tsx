@@ -27,6 +27,9 @@ import api from '../../services/api'
 import SelectKB, { type KnowledgeBaseOption } from '../../components/test-assistant/SelectKB'
 import JourneyBar from '../../components/test-assistant/JourneyBar'
 import { CaseGrid, InputSummary, ProgressPanel, parseStreamingCases } from '../../components/test-assistant/GenerationOutput'
+import AIChecksPanel from '../../components/test-assistant/AIChecksPanel'
+import StepEditor from '../../components/test-assistant/StepEditor'
+import aiChecksService, { type CheckBatch, type CheckItem, type EditedStep } from '../../services/aiChecksService'
 import { publishTokenUsage } from '../../components/test-assistant/TokenUsageChip'
 
 
@@ -124,6 +127,16 @@ const TestCases: React.FC = () => {
   const [generationStopped, setGenerationStopped] = useState(false)
   const [showFullTable, setShowFullTable] = useState(false)
   const stopRequestedRef = useRef(false)
+  // AI Checks (screen 3): Refine -> Review -> Improve -> Classify, before approval.
+  const [aiBatchId, setAiBatchId] = useState<string | null>(null)
+  const [aiBatch, setAiBatch] = useState<CheckBatch | null>(null)
+  const [aiStarting, setAiStarting] = useState(false)
+  const [aiError, setAiError] = useState('')
+  const [aiSelected, setAiSelected] = useState<Set<number>>(() => new Set())
+  const [aiEditing, setAiEditing] = useState<number | null>(null)
+  const [aiSaving, setAiSaving] = useState(false)
+  const [aiEditError, setAiEditError] = useState('')
+  const aiAutoSelectedRef = useRef<Set<number>>(new Set())
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
 
   // Chat state
@@ -1226,6 +1239,7 @@ const TestCases: React.FC = () => {
         setGenStagesDone(0)
         setGenStartedAt(Date.now())
         stopRequestedRef.current = false
+        clearAiChecks()
         // setError('');
         
         const requestPayload = {
@@ -1430,6 +1444,132 @@ const TestCases: React.FC = () => {
     });
   }
 
+  function clearAiChecks() {
+    setAiBatchId(null)
+    setAiBatch(null)
+    setAiError('')
+    setAiSelected(new Set())
+    setAiEditing(null)
+    setAiEditError('')
+    aiAutoSelectedRef.current = new Set()
+  }
+
+  // Same rows Review & Send uses, so the checks start from exactly the table
+  // the author sees.
+  const handleRunAiChecks = async () => {
+    const rows = extractAndConsolidateTestCases(response || output || '').rows
+    if (!rows.length) {
+      setAiError('No test cases were found in the output to check.')
+      return
+    }
+    setAiStarting(true)
+    setAiError('')
+    try {
+      const batchId = await aiChecksService.start(rows, selectedKnowledgeBaseOption.knowledgeBase || undefined)
+      setAiBatchId(batchId)
+      setAiBatch(await aiChecksService.get(batchId))
+    } catch (error: any) {
+      setAiError(error?.response?.data?.detail || error?.message || 'AI Checks could not be started.')
+    } finally {
+      setAiStarting(false)
+    }
+  }
+
+  const refreshAiBatch = async (batchId: string) => {
+    try {
+      const batch = await aiChecksService.get(batchId)
+      setAiBatch(batch)
+      // Select each case once, as it finishes; a case the author unticks stays unticked.
+      const fresh = batch.items.filter((item) => item.status === 'done' && !aiAutoSelectedRef.current.has(item.check_id))
+      if (fresh.length) {
+        fresh.forEach((item) => aiAutoSelectedRef.current.add(item.check_id))
+        setAiSelected((current) => {
+          const next = new Set(current)
+          fresh.forEach((item) => next.add(item.check_id))
+          return next
+        })
+      }
+      // A failed case cannot be sent.
+      setAiSelected((current) => {
+        const failed = batch.items.filter((item) => item.status !== 'done' && current.has(item.check_id))
+        if (!failed.length) return current
+        const next = new Set(current)
+        failed.forEach((item) => next.delete(item.check_id))
+        return next
+      })
+    } catch (error) {
+      console.warn('[TestCases] Could not refresh AI Checks:', error)
+    }
+  }
+
+  const handleAiRetry = async (checkId: number) => {
+    if (!aiBatchId) return
+    try {
+      await aiChecksService.retry(aiBatchId, checkId)
+      aiAutoSelectedRef.current.delete(checkId)
+      await refreshAiBatch(aiBatchId)
+    } catch (error: any) {
+      setAiError(error?.response?.data?.detail || 'Retry could not be started.')
+    }
+  }
+
+  const handleAiSaveSteps = async (steps: EditedStep[]) => {
+    if (!aiBatchId || aiEditing === null) return
+    setAiSaving(true)
+    setAiEditError('')
+    try {
+      await aiChecksService.saveSteps(aiBatchId, aiEditing, steps)
+      setAiEditing(null)
+      await refreshAiBatch(aiBatchId)
+    } catch (error: any) {
+      setAiEditError(error?.response?.data?.detail || 'The steps could not be saved.')
+    } finally {
+      setAiSaving(false)
+    }
+  }
+
+  // The improved text is what goes for approval, not the text as generated.
+  const checkedRow = (item: CheckItem): Record<string, string> => {
+    const steps = (item.steps_structured ?? []).map((step) => `${step.step_number}. ${step.action}`).join(' ')
+    return {
+      ...item.source_row,
+      'Test Case ID': item.display_id || item.source_row['Test Case ID'] || '',
+      'Test Case Description': item.title || item.source_row['Test Case Description'] || '',
+      Preconditions: item.preconditions || 'None',
+      'Test Steps': steps || item.source_row['Test Steps'] || '',
+      'Test Data': item.test_data || item.source_row['Test Data'] || 'None',
+      'Expected Result': item.expected_result || item.source_row['Expected Result'] || ''
+    }
+  }
+
+  const aiSendable = aiBatch ? aiBatch.items.filter((item) => item.status === 'done' && aiSelected.has(item.check_id)) : []
+
+  const handleAiSend = () => {
+    if (!aiSendable.length) return
+    setReviewTableData(aiSendable.map(checkedRow))
+    setReviewDocuments(getReviewDocuments())
+    setIsReviewOpen(true)
+  }
+
+  const handleAiDownload = () => {
+    if (!aiBatch) return
+    const header = ['Test Case ID', 'Title', 'Status', 'Classification', 'Quality before', 'Quality after', 'Improved by AI', 'Test data pending', 'Note']
+    const quote = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`
+    const lines = aiBatch.items.map((item) => [
+      item.display_id, item.title, item.status === 'failed' ? 'Not checked' : item.status,
+      item.classification ?? '', item.score_before ?? '', item.score_after ?? '',
+      item.improved ? 'Yes' : 'No', item.test_data_pending ? 'Yes' : 'No',
+      item.status === 'failed' ? item.error : item.classification_reason
+    ].map(quote).join(','))
+    const blob = new Blob([[header.map(quote).join(','), ...lines].join('\r\n')], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `ai-checks-${aiBatch.batch_id}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   // Stop keeps what was written so far: cancelling the reader ends the stream
   // loop normally, so the partial table is stored and can still be sent.
   const handleStopGeneration = () => {
@@ -1490,6 +1630,7 @@ const TestCases: React.FC = () => {
   }
 
   const handleResetAll = () => {
+    clearAiChecks()
     setOutputOpen(false)
     setInputsFolded(false)
     setGenerationError('')
@@ -1565,6 +1706,23 @@ const TestCases: React.FC = () => {
     [response, output, isGenerationStreaming]
   )
 
+  // Poll while any case is still being checked; the job runs on the server
+  // and its progress lives in the database.
+  const aiRunning = Boolean(aiBatch && aiBatch.items.some((item) => item.status === 'queued' || item.status === 'running'))
+  useEffect(() => {
+    if (!aiBatchId || (aiBatch && !aiRunning)) return
+    const id = window.setInterval(() => void refreshAiBatch(aiBatchId), 2500)
+    return () => window.clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiBatchId, aiRunning])
+
+  useEffect(() => {
+    if (!aiRunning) return
+    setNowTick(Date.now())
+    const id = window.setInterval(() => setNowTick(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [aiRunning])
+
   useEffect(() => {
     if (!isGenerationStreaming) return
     setNowTick(Date.now())
@@ -1587,13 +1745,13 @@ const TestCases: React.FC = () => {
     publishTokenUsage({ used: userTokensUsed, allocation: userTokenAllocation, isAdmin: isAdminUser, loading: tokenCheckLoading })
   }, [userTokensUsed, userTokenAllocation, isAdminUser, tokenCheckLoading])
 
-  // Where this request is on the journey. AI Checks (3) is not built yet, so
-  // a generated request goes straight to Send for Approval.
+  // Where this request is on the journey.
   const inputReady =
     inputType === 'text' ? textValue.trim().length > 0 : documentsProcessed || combinedContent.trim().length > 0
   const journeyStep =
     submittedTestCaseCount !== null ? 5
-      : (response || output) && !isGenerationStreaming ? 4
+      : aiBatch && !aiRunning ? 4
+        : (response || output) && !isGenerationStreaming ? 3
         : inputReady || loading || isGenerationStreaming ? 2
           : 1
 
@@ -1906,7 +2064,41 @@ const TestCases: React.FC = () => {
         )}
 
         {/* Output: closed until generation starts, then progress and cases in place */}
-        {!hasOutput && !generationError ? (
+        {aiBatch && aiEditing !== null && aiBatch.items.find((item) => item.check_id === aiEditing) ? (
+          <StepEditor
+            key={aiEditing}
+            item={aiBatch.items.find((item) => item.check_id === aiEditing)!}
+            totalCases={aiBatch.total}
+            saving={aiSaving}
+            error={aiEditError}
+            onCancel={() => { setAiEditing(null); setAiEditError('') }}
+            onSave={handleAiSaveSteps}
+          />
+        ) : aiBatch ? (
+          <AIChecksPanel
+            batch={aiBatch}
+            now={nowTick}
+            selected={aiSelected}
+            onToggle={(checkId) => setAiSelected((current) => {
+              const next = new Set(current)
+              if (next.has(checkId)) next.delete(checkId)
+              else next.add(checkId)
+              return next
+            })}
+            onToggleAll={(ids, on) => setAiSelected((current) => {
+              const next = new Set(current)
+              ids.forEach((id) => (on ? next.add(id) : next.delete(id)))
+              return next
+            })}
+            onRetry={handleAiRetry}
+            onEdit={(checkId) => { setAiEditError(''); setAiEditing(checkId) }}
+            onSend={handleAiSend}
+            onDownload={handleAiDownload}
+            sendCount={aiSendable.length}
+            sent={submittedTestCaseCount !== null}
+            sentCount={submittedTestCaseCount}
+          />
+        ) : !hasOutput && !generationError ? (
           <section className="flex flex-wrap items-center gap-2.5 rounded-[16px] border border-[#E8EAEE] bg-white px-[22px] py-3 shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B71920" strokeWidth="1.8" aria-hidden><path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5" /></svg>
             <span className="text-[15px] font-bold text-[#1F2937]">Output</span>
@@ -1993,8 +2185,19 @@ const TestCases: React.FC = () => {
                     </button>
                   </>
                 )}
-                <button type="button" disabled title="AI Checks arrive in a later release" className="flex h-[34px] cursor-not-allowed items-center rounded-[12px] bg-[#F4F5F7] px-4 text-[13px] font-bold text-[#9CA3AF]">
-                  Run AI Checks
+                <button
+                  type="button"
+                  onClick={handleRunAiChecks}
+                  data-audit-name="Run AI Checks"
+                  disabled={isGenerationStreaming || Boolean(generationError) || streamParse.cases.length === 0 || aiStarting || submittedTestCaseCount !== null}
+                  title={streamParse.cases.length === 0 ? 'Generate test cases first' : 'Refine, review, improve and classify every case before approval'}
+                  className={`flex h-[34px] items-center rounded-[12px] px-4 text-[13px] font-bold transition ${
+                    isGenerationStreaming || generationError || streamParse.cases.length === 0 || submittedTestCaseCount !== null
+                      ? 'cursor-not-allowed bg-[#F4F5F7] text-[#9CA3AF]'
+                      : 'bg-[#1F2937] text-white hover:bg-[#111827]'
+                  }`}
+                >
+                  {aiStarting ? 'Starting…' : 'Run AI Checks'}
                 </button>
                 {!isGenerationStreaming && !generationError && (
                   <button
@@ -2011,6 +2214,12 @@ const TestCases: React.FC = () => {
                 )}
               </div>
             </div>
+
+            {aiError && (
+              <div className="mx-[22px] mt-3.5 rounded-[12px] border border-[#F6D4D5] bg-[#FFF8F8] px-3.5 py-2.5 text-[12.5px] text-[#7A0B0D]" role="alert">
+                {aiError}
+              </div>
+            )}
 
             {generationError && (
               <div className="mx-[22px] mb-4 mt-3.5 rounded-[16px] border border-[#F6D4D5] bg-[#FFF8F8] px-[18px] py-3.5 text-[13px] text-[#7A0B0D]" role="alert">
@@ -2041,7 +2250,7 @@ const TestCases: React.FC = () => {
           </section>
         )}
 
-        <JourneyBar current={journeyStep} unavailable={[3]} />
+        <JourneyBar current={journeyStep} />
       </div>
 
       {/* Expanded combined preview modal */}

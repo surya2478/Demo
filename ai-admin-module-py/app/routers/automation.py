@@ -1647,8 +1647,12 @@ def list_workbench_cases(
     # were handed out in arrival order, but it is the timestamp the column
     # shows, so it is the timestamp the sort should use. id breaks ties within
     # a batch, which lands several cases on the same instant.
+    # AI Checks drafts belong to the Test Assistant until a manager approves
+    # them; listing them here would put unapproved cases in front of the
+    # Automation team.
     cases = (
         db.query(AutomationTestCase)
+        .filter(AutomationTestCase.origin != "ai_checks")
         .order_by(AutomationTestCase.created_at.desc(), AutomationTestCase.id.desc())
         .all()
     )
@@ -2149,7 +2153,10 @@ def export_workbench_cases(
     the wrong place to pay that cost -- the frontend already ships SheetJS and
     builds the two-sheet workbook from this data client-side.
     """
-    query = db.query(AutomationTestCase).filter(AutomationTestCase.source == "refined")
+    # AI Checks drafts stay with the Test Assistant until a manager approves them.
+    query = db.query(AutomationTestCase).filter(
+        AutomationTestCase.source == "refined", AutomationTestCase.origin != "ai_checks"
+    )
     if classification != "all":
         query = query.filter(AutomationTestCase.classification == classification)
     cases = query.order_by(AutomationTestCase.display_id).all()
@@ -3729,7 +3736,10 @@ def ground_cases(
 
     catalog = _current_catalog(db, application.id)
 
-    query = db.query(AutomationTestCase).filter(AutomationTestCase.source == "refined")
+    # AI Checks drafts stay with the Test Assistant until a manager approves them.
+    query = db.query(AutomationTestCase).filter(
+        AutomationTestCase.source == "refined", AutomationTestCase.origin != "ai_checks"
+    )
     if body.case_ids:
         query = query.filter(AutomationTestCase.id.in_(body.case_ids))
     cases = query.all()
