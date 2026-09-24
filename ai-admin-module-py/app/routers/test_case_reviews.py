@@ -280,6 +280,21 @@ def _serialize_approved_review_details(details: List[TestCaseReviewDetail]) -> D
     return {'items': [_serialize_review_detail(detail) for detail in details]}
 
 # Endpoint to list current review details
+@router.get("/pending-count")
+def pending_review_count(
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    """Requests waiting for a decision -- the sidebar's Review & Approve badge."""
+    _require_review_manager(current_user)
+    count = (
+        db.query(TestCaseReviewDetail)
+        .filter(TestCaseReviewDetail.overall_status == 'PENDING_REVIEW')
+        .count()
+    )
+    return {'pending': count}
+
+
 @router.get("/details/current")
 async def list_current_review_details(
     current_user=Depends(get_current_user_strict),

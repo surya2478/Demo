@@ -1702,8 +1702,14 @@ def refine_cases_in_place(
         raise HTTPException(status_code=404, detail="No matching test cases found to refine.")
 
     refined_results = []
+    errors: list[dict[str, str]] = []
     for c in cases:
         try:
+            application = (
+                db.query(AutomationApplication).filter(AutomationApplication.id == c.application_id).first()
+                if c.application_id
+                else None
+            )
             existing_dict = {
                 "Test Case ID": c.display_id,
                 "Test Case Description": c.description or c.objective or c.display_id,
@@ -1715,22 +1721,30 @@ def refine_cases_in_place(
                 "Test Data": c.test_data or "",
                 "Expected Result": c.expected_result or "",
             }
+            # `existing=` and `application_name=` are what _refine_one takes.
+            # This call used to pass `case_dict=` and omit application_name,
+            # so every case raised a TypeError that the handler below logged
+            # and swallowed -- a bulk Refine that reported success and
+            # refined nothing.
             ref_out = wb._refine_one(
-                db=db,
-                case_dict=existing_dict,
+                db,
+                existing=existing_dict,
                 display_id=c.display_id,
                 origin=c.origin or "imported",
                 origin_test_case_id=c.origin_test_case_id or f"studio-{c.id}",
                 category=c.category,
                 application_url=body.application_url or c.application_url,
+                application_name=application.name if application else None,
                 replace=c,
                 actor=actor,
             )
             refined_results.append(_workbench_case(ref_out))
-        except Exception as e:
-            logger.error("In-place refinement failed for case %s: %s", c.display_id, e)
+        except Exception as e:  # noqa: BLE001 - one bad case must not kill the batch
+            logger.exception("In-place refinement failed for case %s", c.display_id)
+            db.rollback()
+            errors.append({"display_id": c.display_id, "error": str(e)})
 
-    return {"refined_count": len(refined_results), "test_cases": refined_results}
+    return {"refined_count": len(refined_results), "test_cases": refined_results, "errors": errors}
 
 
 @router.post("/workbench/test-cases/{case_id}/refine")
@@ -1745,7 +1759,8 @@ def refine_single_case_in_place(
     res = refine_cases_in_place(req, db, current_user)
     if res["test_cases"]:
         return res["test_cases"][0]
-    raise HTTPException(status_code=500, detail="Refinement failed for this test case.")
+    reason = res["errors"][0]["error"] if res["errors"] else "unknown error"
+    raise HTTPException(status_code=500, detail=f"Refinement failed for this test case: {reason}")
 
 
 @router.post("/workbench/generate", status_code=202)
@@ -2381,10 +2396,15 @@ def generate_scripts(
             })
             continue
 
-        # Ensure steps_structured is in sync with steps_raw
-        if case.steps_raw:
+        # Build structured steps from the raw text only when there are none.
+        # This used to rebuild them whenever the two step COUNTS differed --
+        # and split_steps' count differs from the refiner's whenever a step's
+        # own text contains a numbered list -- which replaced refined steps
+        # (action types, targets, expected results) with bare copies of the
+        # prose, so the compiler guessed what the refiner had already said.
+        if case.steps_raw and not case.steps_structured:
             raw_list = split_steps(case.steps_raw)
-            if raw_list and (not case.steps_structured or len(case.steps_structured) != len(raw_list)):
+            if raw_list:
                 case.steps_structured = [
                     {
                         "step_number": i,

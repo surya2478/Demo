@@ -12,6 +12,13 @@ export interface PageMeta {
   subtitle?: string
   welcomeText?: string
   actions?: React.ReactNode
+  leading?: React.ReactNode
+  /*
+   * JSX is not part of the republish key (see usePageHeader). A page whose
+   * `leading` or `actions` depend on data -- a menu filtered by permissions --
+   * passes a string that changes with that data, so the header refreshes.
+   */
+  contentKey?: string
   showSearch?: boolean
   onSearch?: (q: string) => void
   searchPlaceholder?: string
@@ -80,7 +87,8 @@ export function usePageHeader(meta: PageMeta) {
     showSearch: meta.showSearch ?? null,
     showAssistant: meta.showAssistant ?? null,
     showNotifications: meta.showNotifications ?? null,
-    showDateRange: meta.showDateRange ?? null
+    showDateRange: meta.showDateRange ?? null,
+    contentKey: meta.contentKey ?? null
   })
 
   // Publish on mount + whenever a primitive field changes.

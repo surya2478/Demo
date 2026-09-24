@@ -1,9 +1,11 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation, useOutlet } from 'react-router-dom';
+import { useLocation, useOutlet } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { formatToDubaiTime } from '../utils/formatToDubaiTime';
 import { TestDataProvider } from '../context/TestDataContext';
 import { usePageHeader } from '../components/layout/PageHeaderContext';
+import TestingToolsMenu, { type TestingTool } from '../components/test-assistant/TestingToolsMenu';
+import TokenUsageChip from '../components/test-assistant/TokenUsageChip';
 
 const allTabs = [
   { to: 'testcases', label: 'Test Cases', permission: 'view_testcases' },
@@ -198,6 +200,21 @@ const TestAssistant: React.FC = () => {
   const [chatSessions, setChatSessions] = useState<Record<string, Array<{ id: string; role: 'user' | 'assistant'; content: string; timestamp: string }>>>({});
   const [isChatOpen, setIsChatOpen] = useState(false);
 
+  const tabs = useMemo(() => {
+    return allTabs.filter(t => hasPermission(user, t.permission));
+  }, [user]);
+
+  // The tab bar is gone: the modes live in the top bar's Testing tools menu,
+  // next to search and token usage.
+  const testingTools = useMemo<TestingTool[]>(
+    () =>
+      tabs.map((t) => {
+        const visual = tabVisuals[t.to] ?? tabVisuals.testcases;
+        return { to: `/test-assistant/${t.to}`, label: t.label, detail: visual.detail, Icon: visual.Icon };
+      }),
+    [tabs]
+  );
+
   usePageHeader({
     showSearch: true,
     searchPlaceholder: 'Search users, logs, test activity...',
@@ -205,12 +222,11 @@ const TestAssistant: React.FC = () => {
     showNotifications: true,
     showDateRange: true,
     dateRangeLabel: 'Last 24 hours',
-    notificationCount: 1
+    notificationCount: 1,
+    leading: <TestingToolsMenu tools={testingTools} />,
+    actions: <TokenUsageChip />,
+    contentKey: tabs.map((t) => t.to).join(',')
   });
-
-  const tabs = useMemo(() => {
-    return allTabs.filter(t => hasPermission(user, t.permission));
-  }, [user]);
 
   const currentTab = useMemo(() => {
     const pathname = location?.pathname || '';
@@ -297,10 +313,10 @@ const TestAssistant: React.FC = () => {
 
   return (
     <TestDataProvider>
-    <div ref={containerRef} className="relative space-y-3">
+    <div ref={containerRef} className="relative space-y-4">
       {/* Hero — compact 2-column header */}
       <section className="overflow-hidden rounded-[20px] border border-app bg-app-surface shadow-app-card">
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.7fr)]">
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_460px]">
           <div className="px-5 py-4 sm:px-6">
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-app-brand-700">
               Workspace
@@ -335,57 +351,6 @@ const TestAssistant: React.FC = () => {
             </div>
           </div>
         </div>
-      </section>
-
-      {/* Tabs card with inline helper text */}
-      <section className="rounded-[20px] border border-app bg-app-surface p-3 shadow-app-card">
-        <nav className="grid gap-1.5 grid-cols-3 xl:grid-cols-6">
-          {tabs.length === 0 ? (
-            <div className="col-span-3 xl:col-span-6 rounded-[16px] border border-dashed border-app px-4 py-4 text-sm text-app-secondary">
-              You do not have access to any Test Assistant tabs.
-            </div>
-          ) : (
-            tabs.map((t) => {
-              const visual = tabVisuals[t.to] ?? tabVisuals.testcases;
-              const TabIcon = visual.Icon;
-              return (
-                <NavLink
-                  key={t.to}
-                  to={t.to}
-                  className={({ isActive }) =>
-                    [
-                      'group flex flex-col items-center gap-1.5 rounded-[14px] border px-2 py-2.5 transition-all duration-200',
-                      isActive
-                        ? 'border-app-brand-200 bg-white shadow-[0_4px_12px_rgba(183,25,32,0.08)]'
-                        : 'border-app bg-white hover:border-app-brand-100 hover:bg-app-brand-50/30'
-                    ].join(' ')
-                  }
-                  data-audit="true"
-                  data-audit-name={t.label}
-                >
-                  {({ isActive }) => (
-                    <>
-                      <span className={[
-                        'flex h-9 w-9 items-center justify-center rounded-[10px] transition-all',
-                        isActive
-                          ? 'bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white shadow-[0_6px_14px_rgba(183,25,32,0.22)]'
-                          : 'border border-app bg-app-surface-muted text-app-secondary group-hover:border-app-brand-100 group-hover:text-app-brand-700'
-                      ].join(' ')}>
-                        <TabIcon className="h-4 w-4" />
-                      </span>
-                      <span className={`text-[11px] font-semibold leading-tight text-center ${isActive ? 'text-app-brand-800' : 'text-app-secondary'}`}>
-                        {t.label}
-                      </span>
-                    </>
-                  )}
-                </NavLink>
-              );
-            })
-          )}
-        </nav>
-        <p className="mt-2.5 px-1 text-[12px] leading-5 text-app-secondary">
-          Use the tab bar to switch testing modes. Each workspace keeps its existing upload, generation, streaming, and export behavior.
-        </p>
       </section>
 
       {/* Tab content — no extra wrapper */}

@@ -54,6 +54,7 @@ const LayoutShell: React.FC = () => {
           subtitle={meta.subtitle}
           welcomeText={meta.welcomeText}
           actions={meta.actions}
+          leading={meta.leading}
           onSearch={meta.onSearch}
           searchPlaceholder={meta.searchPlaceholder}
           showSearch={meta.showSearch}
@@ -67,7 +68,7 @@ const LayoutShell: React.FC = () => {
           onAssistantClick={meta.onAssistantClick}
           onMobileMenuOpen={() => setMobileNavOpen(true)}
         />
-        <main className="flex-1 px-4 py-4 sm:px-6 lg:px-8 lg:py-5">
+        <main className="flex-1 px-4 py-4 sm:px-6 lg:px-7 lg:py-5">
           <div className="mx-auto w-full max-w-[1600px]">
             <Outlet />
           </div>

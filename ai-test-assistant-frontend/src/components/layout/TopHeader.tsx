@@ -19,6 +19,8 @@ export interface TopHeaderProps {
   onNotificationsClick?: () => void
   onAssistantClick?: () => void
   actions?: React.ReactNode
+  /** Controls placed before the search box, e.g. a page's tools menu. */
+  leading?: React.ReactNode
   onMobileMenuOpen?: () => void
 }
 
@@ -38,6 +40,7 @@ const TopHeader: React.FC<TopHeaderProps> = ({
   onNotificationsClick,
   onAssistantClick,
   actions,
+  leading,
   onMobileMenuOpen
 }) => {
   const { user } = useAuth()
@@ -76,7 +79,7 @@ const TopHeader: React.FC<TopHeaderProps> = ({
    * lives here, so the band collapses on large screens only.
    */
   const hasContent =
-    hasTitle || !!actions || showSearch || canShowAssistant || canShowNotifications || canShowDateRange
+    hasTitle || !!actions || !!leading || showSearch || canShowAssistant || canShowNotifications || canShowDateRange
 
   return (
     <header
@@ -84,7 +87,7 @@ const TopHeader: React.FC<TopHeaderProps> = ({
         hasContent ? '' : 'lg:hidden'
       }`}
     >
-      <div className="flex flex-wrap items-center gap-2.5 px-4 py-3 sm:px-6 lg:px-8">
+      <div className="flex min-h-[63px] flex-wrap items-center gap-2.5 px-4 py-3 sm:px-6 lg:px-7">
         {onMobileMenuOpen && <MobileMenuButton onClick={onMobileMenuOpen} />}
 
         {hasTitle && (
@@ -105,7 +108,9 @@ const TopHeader: React.FC<TopHeaderProps> = ({
           </div>
         )}
 
-        <div className="ml-auto flex flex-wrap items-center gap-2 lg:gap-3">
+        <div className="ml-auto flex flex-wrap items-center gap-2 lg:gap-2.5">
+          {leading}
+
           {showSearch && (
             <div className="relative hidden md:block">
               <HiOutlineSearch
@@ -117,7 +122,7 @@ const TopHeader: React.FC<TopHeaderProps> = ({
                 value={q}
                 onChange={e => setQ(e.target.value)}
                 placeholder={searchPlaceholder}
-                className="w-[240px] rounded-app border border-app bg-app-surface py-1.5 pl-9 pr-3 text-sm text-app-primary placeholder:text-app-muted focus:border-app-brand-600 focus:outline-none focus:ring-2 focus:ring-app-brand-100 xl:w-[320px]"
+                className="h-9 w-[240px] rounded-[12px] border border-app bg-app-surface pl-9 pr-3 text-[13px] text-app-primary placeholder:text-app-muted focus:border-app-brand-600 focus:outline-none focus:ring-2 focus:ring-app-brand-100 xl:w-[320px]"
               />
             </div>
           )}

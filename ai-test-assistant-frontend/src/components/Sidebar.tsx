@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { HiOutlineChevronDown, HiOutlineLogout, HiOutlineX, HiOutlineMenu } from 'react-icons/hi'
 import { menuIcons } from '../config/menuIcons'
+import api from '../services/api'
 
 interface MenuItem {
   path: string
@@ -42,8 +43,9 @@ const adminMenuGroups: MenuGroup[] = [
 
 const aiTestGenerationItems: MenuItem[] = [
   { path: '/test-assistant', label: 'Test Assistant', permission: 'testassistant.view' },
-  { path: '/manager-review', label: 'Review & Approve', permission: 'dashboard.view' },
-  { path: '/approved-test-cases', label: 'Approved Test Cases', permission: 'testassistant.view' }
+  { path: '/manager-review', label: 'Review & Approve', permission: 'dashboard.view' }
+  // Approved Test Cases is hidden from the menu; its route still exists, and
+  // its list and downloads move into Review & Approval.
 
      
     ]
@@ -80,6 +82,24 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileClose }) 
   const [isAdminModuleOpen, setIsAdminModuleOpen] = useState(false)
   const [isAiTestGenerationOpen, setIsAiTestGenerationOpen] = useState(true)
   const [isAiTestAutomationOpen, setIsAiTestAutomationOpen] = useState(true)
+  const [pendingReviews, setPendingReviews] = useState(0)
+
+  // Review & Approve badge: requests waiting for a decision. Managers only --
+  // anyone else gets a 403 and simply sees no badge.
+  useEffect(() => {
+    let cancelled = false
+    const load = () => {
+      api.get('/test-case-reviews/pending-count')
+        .then((res: any) => { if (!cancelled) setPendingReviews(Number(res?.data?.pending) || 0) })
+        .catch(() => { if (!cancelled) setPendingReviews(0) })
+    }
+    load()
+    window.addEventListener('test-case-review-updated', load)
+    return () => {
+      cancelled = true
+      window.removeEventListener('test-case-review-updated', load)
+    }
+  }, [location.pathname])
 
   // Close user menu on outside click
   useEffect(() => {
@@ -188,10 +208,16 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileClose }) 
             <div className="mt-1 space-y-0.5">
               {aiTestGenerationItems.filter(canSee).map((item) => {
                 const IconComponent = (menuIcons as any)[item.path.slice(1)]
+                const badge = item.path === '/manager-review' && pendingReviews > 0 ? pendingReviews : null
                 return (
                   <NavLink key={item.path} to={item.path} className={linkClass} onClick={onMobileClose}>
                     {IconComponent && <IconComponent className="h-[18px] w-[18px] flex-shrink-0" />}
                     <span className="truncate">{item.label}</span>
+                    {badge !== null && (
+                      <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-white px-1.5 text-[11px] font-bold text-[#941216]">
+                        {badge > 99 ? '99+' : badge}
+                      </span>
+                    )}
                   </NavLink>
                 )
               })}

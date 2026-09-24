@@ -4,7 +4,6 @@ import '../../styles/animations.css'
 import { loadConfigFromServer, getConfig } from '../../config/ai-api'
 import MarkdownViewer from '../../components/MarkdownViewer'
 import { getTimestampedFilename } from '../../utils/DynamicFileName-DateTime'
-import ResetButton from '../../components/ResetButton'
 import auditService from '../../services/auditService'
 import { buildDetailedFieldAudit } from '../../utils/auditDetailsHelper'
 import useAuth from '../../hooks/useAuth'
@@ -25,6 +24,9 @@ import ReviewAndSendModal, { type ReviewDocumentItem } from '../../components/Re
 import Notification from '../../components/Notification'
 import { authHeaderFor, isOwnBackend } from '../../utils/trackedFetchWithTokens'
 import api from '../../services/api'
+import SelectKB, { type KnowledgeBaseOption } from '../../components/test-assistant/SelectKB'
+import JourneyBar from '../../components/test-assistant/JourneyBar'
+import { publishTokenUsage } from '../../components/test-assistant/TokenUsageChip'
 
 
 
@@ -88,14 +90,27 @@ const TestCases: React.FC = () => {
   // Select KB. Default KB is the default application route (BASE_URL). The
   // other two are served by the admin backend and answered by the Squad KB's
   // model; `knowledgeBase` is the form value the backend expects.
-  const knowledgeBaseOptions = [
-    { value: 'default', label: 'Default KB', knowledgeBase: '', hint: 'Default application generation' },
-    { value: 'squad', label: 'Squad KB', knowledgeBase: 'Device Squad', hint: 'Device Squad knowledge base' },
-    { value: 'automation', label: 'Automation KB', knowledgeBase: 'Automation KB', hint: 'Application profiles and flows used by Automation' }
-  ] as const
-  type KnowledgeBaseChoice = (typeof knowledgeBaseOptions)[number]['value']
+  type KnowledgeBaseChoice = 'default' | 'squad' | 'automation'
+  const knowledgeBaseOptions: readonly (KnowledgeBaseOption<KnowledgeBaseChoice> & { knowledgeBase: string })[] = [
+    { value: 'default', label: 'Default KB', short: 'Default application', description: 'Generates with the default application, as before', isDefault: true, knowledgeBase: '' },
+    { value: 'squad', label: 'Squad KB', short: 'Device Squad', description: "Grounds test cases in the Device Squad's knowledge base", knowledgeBase: 'Device Squad' },
+    { value: 'automation', label: 'Automation KB', short: 'App profiles & flows', description: 'Grounds test cases in the application profiles and flows Automation uses', knowledgeBase: 'Automation KB' }
+  ]
   const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState<KnowledgeBaseChoice>('default')
   const selectedKnowledgeBaseOption = knowledgeBaseOptions.find((option) => option.value === selectedKnowledgeBase) ?? knowledgeBaseOptions[0]
+
+  const sourceOptions = [
+    { value: 'text', label: 'Text Input', audit: 'Text Input', icon: 'M4 20h4L19 9l-4-4L4 16z' },
+    { value: 'file', label: 'File Upload', audit: 'File Upload', icon: 'M20 12.5l-7.8 7.8a5 5 0 01-7-7L13 5.5a3.3 3.3 0 014.7 4.7L10 18a1.7 1.7 0 01-2.4-2.4l7-7' },
+    { value: 'e2e-spark', label: 'From e2e Spark', audit: 'Solution from e2e Spark', icon: 'M13 2.75L6.75 13H11l-1 8.25L17.25 11H13z' },
+    { value: 'figma-pdf', label: 'Figma Files (PDF)', audit: 'Figma Files (PDF)', icon: 'M8 3h5a3 3 0 010 6H8zM8 9h5a3 3 0 010 6H8zM8 15h3a3 3 0 11-3 3zM8 3a3 3 0 000 6M8 9a3 3 0 000 6' }
+  ] as const
+
+  // Output stays closed until generation starts, then opens; the chevron
+  // toggles it once there is something to show.
+  const [outputOpen, setOutputOpen] = useState(false)
+  // The input area is compact by default; Expand gives it room to edit.
+  const [inputExpanded, setInputExpanded] = useState(false)
 
   // Chat state
   type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; timestamp: string }
@@ -1433,6 +1448,8 @@ const TestCases: React.FC = () => {
   }
 
   const handleResetAll = () => {
+    setOutputOpen(false)
+    setInputExpanded(false)
     setInputType('text')
     setTextValue('')
     setFileInputs([])
@@ -1494,6 +1511,27 @@ const TestCases: React.FC = () => {
 
 
 
+  const tokenLimitReached = !isAdminUser && userTokenAllocation > 0 && userTokensUsed >= userTokenAllocation
+  const hasOutput = isGenerationStreaming || Boolean(response || output)
+
+  useEffect(() => {
+    if (isGenerationStreaming || response || output) setOutputOpen(true)
+  }, [isGenerationStreaming, response, output])
+
+  useEffect(() => {
+    publishTokenUsage({ used: userTokensUsed, allocation: userTokenAllocation, isAdmin: isAdminUser, loading: tokenCheckLoading })
+  }, [userTokensUsed, userTokenAllocation, isAdminUser, tokenCheckLoading])
+
+  // Where this request is on the journey. AI Checks (3) is not built yet, so
+  // a generated request goes straight to Send for Approval.
+  const inputReady =
+    inputType === 'text' ? textValue.trim().length > 0 : documentsProcessed || combinedContent.trim().length > 0
+  const journeyStep =
+    submittedTestCaseCount !== null ? 5
+      : (response || output) && !isGenerationStreaming ? 4
+        : inputReady || loading || isGenerationStreaming ? 2
+          : 1
+
   return (
     <div className="mx-auto max-w-[1600px] space-y-4">
       {/* Token Warning Banner */}
@@ -1540,415 +1578,344 @@ const TestCases: React.FC = () => {
         </div>
       )}
 
-      <div className="space-y-3">
-        {/* Solutions card — header + input type pills + textarea all in one */}
-        <div className="relative overflow-hidden rounded-[20px] border border-app bg-app-surface p-4 shadow-app-card">
-          {/* Paper airplane decorative trail (right side, behind content) */}
-          <svg viewBox="0 0 280 60" className="pointer-events-none absolute right-3 top-2 h-12 w-[260px] opacity-90" aria-hidden>
-            <path d="M0 38 Q 40 18, 80 32 T 160 28 T 240 18" fill="none" stroke="#E8292E" strokeWidth="1.5" strokeDasharray="3 4" strokeLinecap="round" opacity="0.55" />
-            <g transform="translate(244 14) rotate(-18)">
-              <path d="M0 0 L18 6 L8 8 L6 16 Z" fill="#E8292E" />
-            </g>
-          </svg>
-
-          {/* Solutions header */}
-          <div className="relative mb-3 flex w-full flex-wrap items-start justify-between gap-3">
-            <div className="flex min-w-0 flex-1 items-start gap-2.5">
-              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white shadow-[0_8px_20px_rgba(183,25,32,0.18)]">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15M4.5 12h15" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 7l10 10M17 7L7 17" />
-                </svg>
-              </div>
-              <div className="min-w-0">
-                <h2 className="text-[16px] font-bold tracking-[-0.01em] text-app-primary leading-tight">GENERATE Test Cases</h2>
-                <p className="text-[12px] leading-5 text-app-secondary">
-                  BRDs, SDDs, ADO or Spark
-                </p>
-              </div>
+      <div className="space-y-4">
+        {/* Generate Test Cases */}
+        <section className="relative rounded-[20px] border border-[#E8EAEE] bg-white px-[22px] py-5 shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)]">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" aria-hidden><path d="M12 3l1.8 4.9L19 9.7l-4.2 3.1 1.5 5.2L12 15l-4.3 3 1.5-5.2L5 9.7l5.2-1.8z" /></svg>
             </div>
-
-            <div className="flex min-w-[210px] items-center justify-end gap-3 rounded-[12px] border border-app bg-white px-3 py-2 shadow-sm">
-              <div className="text-right">
-                <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-app-secondary">Token Usage</div>
-                {!tokenCheckLoading ? (
-                  isAdminUser ? (
-                    <div className="mt-0.5 text-[12px] text-app-secondary">Total tokens used</div>
-                  ) : (
-                    <div className="mt-0.5 text-[12px] text-app-secondary">of {userTokenAllocation.toLocaleString()} allocated</div>
-                  )
-                ) : (
-                  <div className="mt-0.5 text-[12px] text-app-secondary">Loading...</div>
-                )}
-              </div>
-              <div className={`text-[22px] font-bold leading-none ${!isAdminUser && userTokenAllocation > 0 && userTokensUsed >= userTokenAllocation ? 'text-app-brand-700' : 'text-app-primary'}`}>
-                {tokenCheckLoading ? '...' : userTokensUsed.toLocaleString()}
-              </div>
-            </div>
-          </div>
-
-          {/* Input type pills */}
-          <div className="relative mb-3 grid gap-2 grid-cols-2 md:grid-cols-4">
-            <label className={`cursor-pointer rounded-[12px] border px-3 py-2 transition-all duration-200 ${inputType === 'text' ? 'border-app-brand-200 bg-app-brand-50/60' : 'border-app bg-white hover:border-app-brand-100 hover:bg-app-brand-50/30'}`}>
-              <input
-                type="radio"
-                data-audit-name="Text Input"
-                checked={inputType === 'text'}
-                onChange={() => setInputType('text')}
-                className="sr-only"
-              />
-              <div className="flex items-center gap-2">
-                <span className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[8px] ${inputType === 'text' ? 'bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white' : 'bg-app-surface-muted text-app-secondary'}`}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 4l4 4m0 0l-9 9-4-4 9-9m4 4l-4-4M5 21h14" />
-                  </svg>
-                </span>
-                <span className={`text-[13px] font-semibold ${inputType === 'text' ? 'text-app-brand-800' : 'text-app-primary'}`}>Text Input</span>
-              </div>
-            </label>
-
-            <label className={`cursor-pointer rounded-[12px] border px-3 py-2 transition-all duration-200 ${inputType === 'file' ? 'border-app-brand-200 bg-app-brand-50/60' : 'border-app bg-white hover:border-app-brand-100 hover:bg-app-brand-50/30'}`}>
-              <input
-                type="radio"
-                data-audit-name="File Upload"
-                checked={inputType === 'file'}
-                onChange={() => setInputType('file')}
-                className="sr-only"
-              />
-              <div className="flex items-center gap-2">
-                <span className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[8px] ${inputType === 'file' ? 'bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white' : 'bg-app-surface-muted text-app-secondary'}`}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656L5.172 10.343a6 6 0 008.486 8.486L20.5 12" />
-                  </svg>
-                </span>
-                <span className={`text-[13px] font-semibold ${inputType === 'file' ? 'text-app-brand-800' : 'text-app-primary'}`}>File Upload</span>
-              </div>
-            </label>
-
-            <label className={`cursor-pointer rounded-[12px] border px-3 py-2 transition-all duration-200 ${inputType === 'e2e-spark' ? 'border-app-brand-200 bg-app-brand-50/60' : 'border-app bg-white hover:border-app-brand-100 hover:bg-app-brand-50/30'}`}>
-              <input
-                type="radio"
-                data-audit-name="Solution from e2e Spark"
-                checked={inputType === 'e2e-spark'}
-                onChange={() => setInputType('e2e-spark')}
-                className="sr-only"
-              />
-              <div className="flex items-center gap-2">
-                <span className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[8px] ${inputType === 'e2e-spark' ? 'bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white' : 'bg-app-surface-muted text-app-secondary'}`}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </span>
-                <span className={`text-[13px] font-semibold ${inputType === 'e2e-spark' ? 'text-app-brand-800' : 'text-app-primary'}`}>From e2e Spark</span>
-              </div>
-            </label>
-
-            <label className={`cursor-pointer rounded-[12px] border px-3 py-2 transition-all duration-200 ${inputType === 'figma-pdf' ? 'border-app-brand-200 bg-app-brand-50/60' : 'border-app bg-white hover:border-app-brand-100 hover:bg-app-brand-50/30'}`}>
-              <input
-                type="radio"
-                data-audit-name="Figma Files (PDF)"
-                checked={inputType === 'figma-pdf'}
-                onChange={() => setInputType('figma-pdf')}
-                className="sr-only"
-              />
-              <div className="flex items-center gap-2">
-                <span className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[8px] ${inputType === 'figma-pdf' ? 'bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white' : 'bg-app-surface-muted text-app-secondary'}`}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 3h6l5 5v13a2 2 0 01-2 2H9a2 2 0 01-2-2V5a2 2 0 012-2zm6 1v5h5" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 15c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2H9v-2z" />
-                  </svg>
-                </span>
-                <span className={`text-[13px] font-semibold ${inputType === 'figma-pdf' ? 'text-app-brand-800' : 'text-app-primary'}`}>Figma Files (PDF)</span>
-              </div>
-            </label>
-          </div>
-
-          {inputType === 'text' ? (
             <div>
-              <textarea
-                value={textValue}
-                data-audit-name="Text Input"
-                onChange={(e) => setTextValue(e.target.value)}
-                placeholder="Enter your BRD text here..."
-                className="min-h-[180px] w-full resize-none rounded-[20px] border border-app bg-white px-4 py-3.5 text-sm text-app-primary outline-none transition placeholder:text-app-muted focus:border-app-brand-600 focus:ring-2 focus:ring-app-brand-100"
-              />
+              <h2 className="m-0 text-[16px] font-bold tracking-[-0.01em] text-[#1F2937]">Generate Test Cases</h2>
+              <p className="mt-0.5 text-[12.5px] text-[#6B7280]">Generate test cases from BRDs, SDDs, ADO and e2e Spark</p>
             </div>
-          ) : (
-            <>
-              {inputType === 'file' ? (
-                <div className="mb-4">
-                  <div className="rounded-[20px] border border-dashed border-app-brand-200 bg-app-brand-50/35 p-6 text-center">
-                    <input
-                      type="file"
-                      onChange={handleFileChange}
-                      data-audit-name="File Upload"
-                      className="hidden"
-                      id="file-upload"
-                      accept=".txt,.doc,.docx,.pdf,.xls,.xlsx,.ppt,.pptx"
-                      multiple
-                    />
-                    <label htmlFor="file-upload" className="cursor-pointer text-app-brand-700 hover:text-app-brand-800">
-                      <div className="mb-2 text-base font-semibold">Click to upload or drag and drop (multiple files)</div>
-                      <div className="text-sm text-app-secondary">
-                        Supported files: TXT, DOC, DOCX, PDF, XLS, XLSX, PPT, PPTX
-                      </div>
-                    </label>
-                  </div>
-                </div>
-              ) : inputType === 'figma-pdf' ? (
-                <div className="mb-4">
-                  <div className="rounded-[20px] border border-dashed border-app-brand-200 bg-app-brand-50/35 p-6 text-center">
-                    <input
-                      type="file"
-                      onChange={handleFileChange}
-                      data-audit-name="Figma Files (PDF)"
-                      className="hidden"
-                      id="figma-pdf-upload"
-                      accept=".pdf,application/pdf"
-                    />
-                    <label htmlFor="figma-pdf-upload" className="cursor-pointer text-app-brand-700 hover:text-app-brand-800">
-                      <div className="mb-2 text-base font-semibold">Click to upload or drag and drop Figma PDF exports</div>
-                      <div className="text-sm text-app-secondary">
-                        Supported files: PDF only
-                      </div>
-                    </label>
-                  </div>
-                </div>
-              ) : (
-                <div className="mb-4">
-                  <div className="rounded-[20px] border border-app-brand-100 bg-[linear-gradient(180deg,rgba(253,235,236,0.7)_0%,rgba(255,255,255,1)_100%)] p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end">
-                      <div>
-                        <label className="mb-2 block text-sm font-medium text-app-primary">
-                          PPM ID <span className="text-app-brand-700">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={ppmId}
-                          onChange={(e) => {
-                            setPpmId(e.target.value)
-                            if (sparkImportError) setSparkImportError('')
-                          }}
-                          placeholder="Enter PPM ID"
-                          className={theme.input}
-                        />
-                      </div>
-                      <button
-                        onClick={handleImportSsd}
-                        disabled={sparkImportLoading || ppmId.trim().length === 0}
-                        className={`inline-flex h-11 items-center justify-center rounded-[18px] px-5 text-sm font-semibold transition ${
-                          !sparkImportLoading && ppmId.trim().length > 0
-                            ? 'bg-app-brand-700 text-white hover:bg-app-brand-800'
-                            : 'cursor-not-allowed bg-gray-300 text-gray-500'
-                        }`}
-                      >
-                        {sparkImportLoading ? 'Importing...' : 'Import SSD'}
-                      </button>
-                    </div>
-                    {sparkStorageKey && (
-                    <div className="mt-3 text-xs font-medium text-green-700">SSD imported successfully (id: {sparkStorageKey})</div>
-                  )}
-                  {sparkImportError && (
-                      <div className="mt-3 text-xs font-medium text-app-brand-700">{sparkImportError}</div>
-                    )}
-                  </div>
-                </div>
-              )}
+          </div>
 
-              {/* File list: show only attachments */}
-              {(inputType === 'file' || inputType === 'figma-pdf') && fileInputs.length > 0 && (
-                <div className="space-y-3">
-                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-app-secondary">Uploaded Files ({fileInputs.length})</div>
-                  {fileInputs.map((file, index) => (
-                    <div key={index} className="flex items-start justify-between gap-4 rounded-[22px] border border-app bg-app-surface-muted/55 p-4">
-                      <div className="flex items-center space-x-2">
-                        <svg className="h-5 w-5 flex-shrink-0 text-app-brand-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-semibold text-app-primary">{file.name}</div>
-                          <div className="text-xs text-app-secondary">{(file.size / 1024).toFixed(2)} KB</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <button onClick={() => handleRemoveFile(index)} className="ml-2 flex-shrink-0 rounded-full p-2 text-app-brand-700 transition hover:bg-white hover:text-red-800" title="Remove file">
-                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+          {/* Source */}
+          <div role="radiogroup" aria-label="Source" className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
+            {sourceOptions.map((source) => {
+              const active = inputType === source.value
+              return (
+                <button
+                  key={source.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  data-audit-name={source.audit}
+                  onClick={() => setInputType(source.value)}
+                  className={`flex h-11 items-center gap-2 rounded-[12px] border px-3 text-[13px] font-semibold transition ${
+                    active ? 'border-[#F6D4D5] bg-[#FFF5F5] text-[#7A0B0D]' : 'border-[#E8EAEE] bg-white text-[#1F2937] hover:border-[#F6D4D5]'
+                  }`}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={active ? '#B71920' : '#6B7280'} strokeWidth="1.8" aria-hidden><path d={source.icon} /></svg>
+                  {source.label}
+                </button>
+              )
+            })}
+          </div>
 
-              {/* Combined editable textarea */}
-              <div className="mt-4">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-app-secondary">Combined Editable Content</div>
-                  {documentsProcessed && (
-                    <button
-                      type="button"
-                      onClick={() => setExpandedPreview(true)}
-                      aria-label="Open document preview"
-                      title="Open document preview"
-                      className="inline-flex items-center gap-2 rounded-md border-2 border-red-600 bg-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-red-600 transition hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-app-brand-200 focus:ring-offset-2"
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 3h7l5 5v13a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2zm7 1v5h5" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 14s1.2-2.5 3-2.5 3 2.5 3 2.5-1.2 2.5-3 2.5-3-2.5-3-2.5z" />
-                        <circle cx="12" cy="14" r="0.75" fill="currentColor" stroke="none" />
-                      </svg>
-                      <span>Document Preview</span>
+          {/* Compact input, expandable */}
+          <div className={`mt-3 grid gap-3 ${inputType === 'text' ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-[minmax(0,1fr)_300px]'}`}>
+            <div className={`relative box-border overflow-hidden rounded-[16px] border border-[#E8EAEE] px-3.5 py-3 ${inputExpanded ? 'h-[360px]' : 'h-[116px]'}`}>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6B7280]">
+                  {inputType === 'text' ? 'Requirements' : 'Document preview'}
+                </span>
+                <span className="flex items-center gap-3">
+                  {inputType !== 'text' && documentsProcessed && (
+                    <button type="button" onClick={() => setExpandedPreview(true)} className="text-[12px] font-semibold text-[#B71920] hover:text-[#941216]">
+                      Full preview
                     </button>
                   )}
-                </div>
+                  <button
+                    type="button"
+                    onClick={() => setInputExpanded((value) => !value)}
+                    aria-expanded={inputExpanded}
+                    className="text-[12px] font-semibold text-[#B71920] hover:text-[#941216]"
+                  >
+                    {inputExpanded ? 'Collapse' : 'Expand'}
+                  </button>
+                </span>
+              </div>
+              {inputType === 'text' ? (
+                <textarea
+                  value={textValue}
+                  data-audit-name="Text Input"
+                  onChange={(e) => setTextValue(e.target.value)}
+                  placeholder="Enter your BRD text here..."
+                  className="mt-2 h-[calc(100%-26px)] w-full resize-none border-0 bg-transparent p-0 text-[12.5px] leading-[1.6] text-[#1F2937] outline-none placeholder:text-[#9CA3AF]"
+                />
+              ) : (
                 <textarea
                   value={combinedContent}
+                  data-audit-name="Combined Editable Content"
                   onChange={(e) => handleCombinedChange(e.target.value)}
-                  placeholder={inputType === 'e2e-spark' ? "Imported SSD content will appear here after clicking 'Import SSD'..." : inputType === 'figma-pdf' ? "Combined content from uploaded Figma PDFs will appear here (edit and click 'Process Documents' to refresh preview)..." : "Combined content from all uploaded files will appear here (edit and click 'Process Documents' to refresh preview)..."}
-                  className="min-h-[176px] w-full resize-y rounded-[20px] border border-app bg-white px-4 py-3.5 text-sm text-app-primary outline-none transition placeholder:text-app-muted focus:border-app-brand-600 focus:ring-2 focus:ring-app-brand-100"
+                  placeholder={
+                    inputType === 'e2e-spark'
+                      ? 'Imported SSD content appears here after Import SSD.'
+                      : 'Document text appears here after Process Documents. Edit it and process again to refresh.'
+                  }
+                  className="mt-2 h-[calc(100%-26px)] w-full resize-none border-0 bg-transparent p-0 text-[12.5px] leading-[1.6] text-[#6B7280] outline-none placeholder:text-[#9CA3AF]"
                 />
+              )}
+              {!inputExpanded && (
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-9 bg-[linear-gradient(180deg,rgba(255,255,255,0),#fff)]" />
+              )}
+            </div>
+
+            {(inputType === 'file' || inputType === 'figma-pdf') && (
+              <div
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  if (e.dataTransfer.files?.length) {
+                    handleFileChange({ target: { files: e.dataTransfer.files } } as unknown as ChangeEvent<HTMLInputElement>)
+                  }
+                }}
+                className="box-border flex max-h-[360px] flex-col gap-2 overflow-y-auto rounded-[16px] border-[1.5px] border-dashed border-[#F1A4A6] bg-[#FFF8F8] px-3.5 py-3"
+              >
+                <input
+                  type="file"
+                  onChange={handleFileChange}
+                  data-audit-name={inputType === 'figma-pdf' ? 'Figma Files (PDF)' : 'File Upload'}
+                  className="hidden"
+                  id="file-upload"
+                  accept={inputType === 'figma-pdf' ? '.pdf,application/pdf' : '.txt,.doc,.docx,.pdf,.xls,.xlsx,.ppt,.pptx'}
+                  multiple={inputType !== 'figma-pdf'}
+                />
+                {fileInputs.map((file, index) => (
+                  <div key={`${file.name}-${index}`} className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[8px] border border-[#F6D4D5] bg-white">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B71920" strokeWidth="1.8" aria-hidden><path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5" /></svg>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[12.5px] font-semibold text-[#1F2937]" title={file.name}>{file.name}</div>
+                      <div className={`text-[11px] font-semibold ${documentsProcessed ? 'text-[#136B34]' : 'text-[#6B7280]'}`}>
+                        {documentsProcessed ? 'Processed' : 'Ready to process'} · {Math.max(1, Math.round(file.size / 1024))} KB
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFile(index)}
+                      title="Remove file"
+                      aria-label={`Remove ${file.name}`}
+                      className="flex-shrink-0 rounded-full p-1 text-[#B71920] transition hover:bg-white"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+                ))}
+                <div className="text-[12px] text-[#6B7280]">
+                  {fileInputs.length === 0
+                    ? inputType === 'figma-pdf' ? 'Drop Figma PDF exports here, or ' : 'Drop BRDs or SDDs here, or '
+                    : inputType === 'figma-pdf' ? 'Drop more Figma PDFs, or ' : 'Drop more BRDs or SDDs, or '}
+                  <label htmlFor="file-upload" className="cursor-pointer font-semibold text-[#B71920] hover:text-[#941216]">browse</label>
+                </div>
               </div>
-            </>
-          )}
-        </div>
+            )}
 
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <div
-              className="flex items-center gap-2 rounded-[12px] border border-app bg-white px-2.5 py-2 text-app-primary shadow-sm"
-              title={selectedKnowledgeBaseOption.hint}
-            >
-              <label htmlFor="select-kb" className="text-[10px] font-semibold uppercase tracking-[0.16em] text-app-secondary">Select KB</label>
-              <select
-                id="select-kb"
-                data-audit-name="Select KB"
-                value={selectedKnowledgeBase}
-                onChange={(event: ChangeEvent<HTMLSelectElement>) => setSelectedKnowledgeBase(event.target.value as KnowledgeBaseChoice)}
-                disabled={loading}
-                className="min-w-[120px] bg-transparent text-[13px] font-medium text-app-primary outline-none"
-              >
-                {knowledgeBaseOptions.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </div>
-            <button
-              onClick={async () => {
-                if (inputType === 'figma-pdf' && fileInputs.length > 0 && !documentsProcessed) {
-                  await handleProcessFigmaPdf()
-                  return
-                }
-                if (inputType === 'file' && fileInputs.length > 0 && !documentsProcessed) {
-                  await handleProcessDocuments()
-                  return
-                }
-                handleGenerate()
-              }}
-              data-audit-name={getGenerateButtonLabel()}
-              disabled={!isGenerateEnabled || loading || (!isAdminUser && userTokenAllocation > 0 && userTokensUsed >= userTokenAllocation)}
-              className={`inline-flex items-center gap-2 rounded-[12px] px-4 py-2.5 text-[13px] font-semibold transition ${
-                isGenerateEnabled && !loading && (isAdminUser || userTokenAllocation === 0 || userTokensUsed < userTokenAllocation)
-                  ? 'bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] hover:opacity-95'
-                  : 'cursor-not-allowed bg-gray-300 text-gray-500'
-              } ${loading ? 'blink-bg' : ''}`}
-              title={!isAdminUser && userTokenAllocation > 0 && userTokensUsed >= userTokenAllocation ? 'Token allocation limit reached' : ''}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 3l1.5 3L9 7.5 6.5 9 5 12 3.5 9 1 7.5 3.5 6 5 3zM19 13l1.5 3L23 17.5 20.5 19 19 22 17.5 19 15 17.5 17.5 16 19 13zM12 6l2 4 4 2-4 2-2 4-2-4-4-2 4-2 2-4z" />
-              </svg>
-              <span className={loading ? 'blink-text' : ''}>{getGenerateButtonLabel()}</span>
-            </button>
+            {inputType === 'e2e-spark' && (
+              <div className="box-border flex flex-col gap-2 rounded-[16px] border-[1.5px] border-dashed border-[#F1A4A6] bg-[#FFF8F8] px-3.5 py-3">
+                <label htmlFor="ppm-id" className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6B7280]">
+                  PPM ID <span className="text-[#B71920]">*</span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="ppm-id"
+                    type="text"
+                    value={ppmId}
+                    onChange={(e) => {
+                      setPpmId(e.target.value)
+                      if (sparkImportError) setSparkImportError('')
+                    }}
+                    placeholder="Enter PPM ID"
+                    className="h-9 min-w-0 flex-1 rounded-[10px] border border-[#E8EAEE] bg-white px-3 text-[13px] text-[#1F2937] outline-none focus:border-[#B71920] focus:ring-2 focus:ring-[#FDEBEC]"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleImportSsd}
+                    disabled={sparkImportLoading || ppmId.trim().length === 0}
+                    className={`h-9 flex-shrink-0 rounded-[10px] px-3 text-[12.5px] font-bold transition ${
+                      !sparkImportLoading && ppmId.trim().length > 0
+                        ? 'bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white'
+                        : 'cursor-not-allowed bg-[#F4F5F7] text-[#9CA3AF]'
+                    }`}
+                  >
+                    {sparkImportLoading ? 'Importing...' : 'Import SSD'}
+                  </button>
+                </div>
+                {sparkStorageKey && <div className="text-[11px] font-semibold text-[#136B34]">SSD imported · {sparkStorageKey}</div>}
+                {sparkImportError && <div className="text-[11px] font-semibold text-[#B71920]">{sparkImportError}</div>}
+              </div>
+            )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-2 rounded-[12px] border border-app bg-white px-2.5 py-2 text-app-primary shadow-sm">
-              <label className="text-[10px] font-semibold uppercase tracking-[0.16em] text-app-secondary">Environment</label>
-              <select
-                value={selectedEnvironment}
-                onChange={(event: ChangeEvent<HTMLSelectElement>) => setSelectedEnvironment(event.target.value as EnvironmentOption)}
-                className="min-w-[88px] bg-transparent text-[13px] font-medium text-app-primary outline-none"
+          {/* Controls: Select KB before Generate */}
+          <div className="mt-4 flex flex-wrap items-end gap-2.5">
+            <SelectKB
+              options={knowledgeBaseOptions}
+              value={selectedKnowledgeBase}
+              onChange={setSelectedKnowledgeBase}
+              disabled={loading}
+            />
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6B7280]">Environment</span>
+              <span className="relative">
+                <select
+                  value={selectedEnvironment}
+                  data-audit-name="Environment"
+                  onChange={(event: ChangeEvent<HTMLSelectElement>) => setSelectedEnvironment(event.target.value as EnvironmentOption)}
+                  className="h-10 w-40 appearance-none rounded-[12px] border border-[#E8EAEE] bg-white pl-3 pr-8 text-[13px] font-semibold text-[#1F2937] outline-none focus:border-[#B71920] focus:ring-2 focus:ring-[#FDEBEC]"
+                >
+                  {environmentOptions.map((option) => (
+                    <option key={option.label} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" aria-hidden><path d="M6 9l6 6 6-6" /></svg>
+              </span>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6B7280]">Focus</span>
+              <span className="relative">
+                <select
+                  value={selectedFocus}
+                  data-audit-name="Focus"
+                  onChange={(event: ChangeEvent<HTMLSelectElement>) => setSelectedFocus(event.target.value as FocusOption)}
+                  className="h-10 w-40 appearance-none rounded-[12px] border border-[#E8EAEE] bg-white pl-3 pr-8 text-[13px] font-semibold text-[#1F2937] outline-none focus:border-[#B71920] focus:ring-2 focus:ring-[#FDEBEC]"
+                >
+                  {focusOptions.map((option) => (
+                    <option key={option.label} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" aria-hidden><path d="M6 9l6 6 6-6" /></svg>
+              </span>
+            </label>
+            <div className="ml-auto flex gap-2.5">
+              <button
+                type="button"
+                data-audit-name="Reset"
+                onClick={handleResetAll}
+                disabled={!textValue && fileInputs.length === 0 && !ppmId && !combinedContent && !response && !output && !loading && !sparkImportLoading}
+                className="flex h-10 items-center rounded-[12px] border border-[#F1A4A6] bg-white px-4 text-[13px] font-bold text-[#B71920] transition hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {environmentOptions.map((option) => (
-                  <option key={option.label} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center gap-2 rounded-[12px] border border-app bg-white px-2.5 py-2 text-app-primary shadow-sm">
-              <label className="text-[10px] font-semibold uppercase tracking-[0.16em] text-app-secondary">Focus</label>
-              <select
-                value={selectedFocus}
-                onChange={(event: ChangeEvent<HTMLSelectElement>) => setSelectedFocus(event.target.value as FocusOption)}
-                className="min-w-[96px] bg-transparent text-[13px] font-medium text-app-primary outline-none"
+                Reset
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (inputType === 'figma-pdf' && fileInputs.length > 0 && !documentsProcessed) {
+                    await handleProcessFigmaPdf()
+                    return
+                  }
+                  if (inputType === 'file' && fileInputs.length > 0 && !documentsProcessed) {
+                    await handleProcessDocuments()
+                    return
+                  }
+                  handleGenerate()
+                }}
+                data-audit-name={getGenerateButtonLabel()}
+                disabled={!isGenerateEnabled || loading || tokenLimitReached}
+                title={tokenLimitReached ? 'Token allocation limit reached' : ''}
+                className={`flex h-10 items-center gap-2 rounded-[12px] px-4 text-[13px] font-bold transition ${
+                  isGenerateEnabled && !loading && !tokenLimitReached
+                    ? 'bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] hover:opacity-95'
+                    : 'cursor-not-allowed bg-[#F4F5F7] text-[#9CA3AF]'
+                } ${loading ? 'blink-bg' : ''}`}
               >
-                {focusOptions.map((option) => (
-                  <option key={option.label} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <button onClick={handleUseForTestData} data-audit-name="Use for Test Data" disabled={!response} className={`inline-flex items-center gap-2 rounded-[12px] border px-3.5 py-2.5 text-[13px] font-semibold transition ${response ? 'border-app bg-white text-app-primary hover:border-app-brand-100 hover:bg-app-brand-50' : 'cursor-not-allowed border-app bg-white text-app-muted opacity-60'}`}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-                <ellipse cx="12" cy="5.5" rx="7" ry="2.5"/>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 5.5v6c0 1.38 3.13 2.5 7 2.5s7-1.12 7-2.5v-6"/>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 11.5v6c0 1.38 3.13 2.5 7 2.5s7-1.12 7-2.5v-6"/>
-              </svg>
-              Use for Test Data
-            </button>
-
-            {/* <button onClick={exportToExcel} disabled={!response} data-audit-name="Export to Excel" className={`inline-flex items-center gap-2 rounded-[12px] border px-3.5 py-2.5 text-[13px] font-semibold transition ${response ? 'border-app bg-white text-app-primary hover:border-app-brand-100 hover:bg-app-brand-50' : 'cursor-not-allowed border-app bg-white text-app-muted opacity-60'}`}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10 14L21 3m0 0h-6m6 0v6M21 14v5a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h5"/>
-              </svg>
-              Export to Excel
-            </button> */}
-
-            <ResetButton data-audit-name="Reset" onClick={handleResetAll} disabled={!textValue && fileInputs.length === 0 && !ppmId && !combinedContent && !response && !output && !loading && !sparkImportLoading} className="rounded-[12px] px-3.5 py-2.5 text-[13px]" />
-          </div>
-        </div>
-
-        {isGenerationStreaming && (
-          <div className="relative z-[60] w-full rounded-md border border-slate-300 bg-white px-3 py-2 shadow-sm">
-            <div className="mb-1 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-slate-500" />
-              Generating test cases
-            </div>
-            <div ref={generationStreamRef} className="max-h-[120px] overflow-y-auto pr-2 text-[11px] leading-5 text-slate-700">
-              {response ? <MarkdownViewer content={response} className="prose prose-sm max-w-none text-[11px] leading-5" /> : 'Waiting for generated test cases...'}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><path d="M12 3l1.8 4.9L19 9.7l-4.2 3.1 1.5 5.2L12 15l-4.3 3 1.5-5.2L5 9.7l5.2-1.8z" /></svg>
+                <span className={loading ? 'blink-text' : ''}>{getGenerateButtonLabel()}</span>
+              </button>
             </div>
           </div>
-        )}
+        </section>
 
-        {/* Output Section - final generated test cases */}
-        <div className="relative overflow-hidden rounded-[20px] border border-app bg-app-surface p-4 shadow-app-card">
-          <div className="relative flex items-center justify-between gap-2.5 mb-2">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[10px] bg-app-brand-50 text-app-brand-700">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-4 w-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        {/* Output: closed until generation starts */}
+        <section className={`rounded-[16px] border border-[#E8EAEE] bg-white px-[22px] shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)] ${outputOpen ? 'py-4' : 'py-3'}`}>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B71920" strokeWidth="1.8" aria-hidden><path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5" /></svg>
+            <span className="text-[15px] font-bold text-[#1F2937]">Output</span>
+            <span className="text-[12.5px] text-[#6B7280]">
+              {isGenerationStreaming
+                ? 'Generating test cases — they appear below as they are written.'
+                : response || output
+                  ? 'Test cases are ready. Review them, then send them for approval.'
+                  : documentsProcessed
+                    ? `Files processed — click "${getGenerateButtonLabel()}" to continue.`
+                    : 'Opens when you click Generate Test Cases — progress and test cases appear right here.'}
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              {outputOpen && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleUseForTestData}
+                    data-audit-name="Use for Test Data"
+                    disabled={!response}
+                    className="flex h-[34px] items-center rounded-[12px] border border-[#E8EAEE] bg-white px-3 text-[12.5px] font-semibold text-[#1F2937] transition hover:border-[#F6D4D5] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Use for Test Data
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openReviewWindow}
+                    data-audit-name="Review & Send"
+                    disabled={!(response || output) || submittedTestCaseCount !== null}
+                    className={`flex h-[34px] items-center rounded-[12px] px-3 text-[12.5px] font-bold transition ${
+                      submittedTestCaseCount !== null
+                        ? 'cursor-not-allowed border border-[#F1A4A6] bg-white text-[#B71920]'
+                        : response || output
+                          ? 'bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] hover:opacity-95'
+                          : 'cursor-not-allowed bg-[#F4F5F7] text-[#9CA3AF]'
+                    }`}
+                  >
+                    {submittedTestCaseCount !== null ? `${submittedTestCaseCount} TCs Pending Approval` : 'Review & Send'}
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                disabled
+                title="AI Checks arrive in a later release"
+                className="flex h-[34px] cursor-not-allowed items-center rounded-[12px] bg-[#F4F5F7] px-4 text-[13px] font-bold text-[#9CA3AF]"
+              >
+                Run AI Checks
+              </button>
+              <button
+                type="button"
+                onClick={() => setOutputOpen((value) => !value)}
+                disabled={!hasOutput}
+                aria-expanded={outputOpen}
+                aria-label={outputOpen ? 'Close output' : 'Open output'}
+                className="box-border flex h-[34px] w-[34px] items-center justify-center rounded-[10px] border border-[#E8EAEE] bg-white disabled:cursor-not-allowed"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={hasOutput ? '#6B7280' : '#C4C8CF'} strokeWidth="2" aria-hidden>
+                  <path d={outputOpen ? 'M18 15l-6-6-6 6' : 'M6 9l6 6 6-6'} />
                 </svg>
-              </div>
-              <div className="text-[15px] font-bold text-app-primary">Output</div>
+              </button>
             </div>
-
-            <button
-              type="button"
-              onClick={openReviewWindow}
-              disabled={!(response || output) || submittedTestCaseCount !== null}
-              className={`inline-flex items-center gap-2 rounded-[12px] px-3.5 py-2 text-[12px] font-semibold transition ${submittedTestCaseCount !== null ? 'cursor-not-allowed border-2 border-red-600 bg-white text-red-600 opacity-75' : response || output ? 'bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] hover:opacity-95' : 'cursor-not-allowed bg-gray-300 text-gray-500 opacity-60'}`}
-            >
-              {submittedTestCaseCount !== null ? `${submittedTestCaseCount} TCs Pending Approval` : 'Review & Send'}
-            </button>
           </div>
-          <div className="relative mb-3 text-[12px] text-app-secondary">{documentsProcessed && !response ? `Files processed - click "${inputType === 'e2e-spark' ? 'E2E Spark Generate' : 'Generate Test Cases'}" to continue` : 'Generation output will appear here....'}</div>
-          {(response || output) && (
-            <MarkdownViewer content={response || output || ''} className="min-h-[200px]" />
-          )}
-        </div>
 
-        </div>{/* closes solutions column */}
+          {outputOpen && (
+            <div className="mt-3">
+              {isGenerationStreaming ? (
+                <div className="rounded-[12px] border border-[#E8EAEE] bg-[#F8F9FB] px-3 py-2">
+                  <div className="mb-1 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[#6B7280]">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#B71920]" />
+                    Generating test cases
+                  </div>
+                  <div ref={generationStreamRef} className="max-h-[360px] overflow-y-auto pr-2 text-[12px] leading-5 text-[#1F2937]">
+                    {response ? <MarkdownViewer content={response} className="prose prose-sm max-w-none text-[12px] leading-5" /> : 'Waiting for generated test cases...'}
+                  </div>
+                </div>
+              ) : (response || output) ? (
+                <MarkdownViewer content={response || output || ''} className="min-h-[200px]" />
+              ) : null}
+            </div>
+          )}
+        </section>
+
+        <JourneyBar current={journeyStep} unavailable={[3]} />
+      </div>
 
       {/* Expanded combined preview modal */}
       {expandedPreview && (
