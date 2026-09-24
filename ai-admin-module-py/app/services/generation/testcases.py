@@ -27,6 +27,7 @@ import logging
 import re
 from typing import Any, Dict, Iterator
 
+from ...config import settings
 from . import stream
 
 logger = logging.getLogger(__name__)
@@ -136,7 +137,7 @@ UNGROUNDED_GUIDANCE = """\
 ================================================================================
 NO VERIFIED APPLICATION KNOWLEDGE IS AVAILABLE FOR THIS REQUIREMENT
 ================================================================================
-No application profile matched this requirement, so you have no ground truth \
+No verified application profile is available for this requirement, so you have no ground truth \
 about the system under test beyond what the requirements themselves state. \
 Write the test cases from the requirements alone.
 
@@ -331,32 +332,87 @@ def describe_grounding(requirements: str) -> Dict[str, Any]:
     return info
 
 
+# The Knowledge Bases the Test Assistant's "Select KB" dropdown offers, as the
+# form value the frontend sends. "Default KB" sends nothing and never reaches
+# this table: it is the default application route (ai_config.BASE_URL).
+AUTOMATION_KB = "Automation KB"
+SQUAD_KBS = ("Device Squad",)
+KNOWLEDGE_BASES = (AUTOMATION_KB, *SQUAD_KBS)
+
+
 def stream_test_cases(
     *,
     requirements: str,
     temperature: float | None = None,
     max_tokens: int | None = None,
+    knowledge_base: str = "",
+    generation_mode: str = "",
+    generation_provider: str | None = None,
 ) -> Iterator[str]:
     """Stream a markdown table of test cases derived from `requirements`.
 
-    Raises GenerationUnavailable before yielding anything if OpenRouter is not
-    configured or cannot be reached, so the caller can still answer with a
-    proper status code.
-    """
-    grounding = describe_grounding(requirements)
+    `knowledge_base` is what "Select KB" picked, and exactly one KB grounds a
+    prompt:
 
-    # Ungrounded is the default here, not the failure case. Every path that
-    # produces no flow context -- no match, no Knowledge Base, an outright
-    # error -- lands on the same disciplined prompt rather than on the bare
-    # format rules.
-    if grounding["grounded"]:
-        system_prompt = f"{SYSTEM_PROMPT}\n\n{grounding['context']}"
+      AUTOMATION_KB -- the file-based application profiles and flows the
+                       Automation module also reads (describe_grounding).
+      a squad       -- hybrid-retrieved passages from the Squad Knowledge Base
+                       in Postgres (services/knowledge_base/).
+      empty         -- no Knowledge Base; the disciplined ungrounded prompt.
+
+    They used to stack -- the application KB was applied to every request and a
+    squad added on top. Separate choices keep the result attributable to the KB
+    the user picked.
+
+    Either KB switches the model to the Squad KB's: SQUAD_KB_GENERATION_PROVIDER
+    unless the caller names a provider, and SQUAD_KB_GENERATION_MODEL (or the
+    Figma model for Figma input) on it. With no KB, LLM_PROVIDER answers.
+
+    Raises GenerationUnavailable before yielding anything if the selected
+    provider is not configured or cannot be reached, so the caller can still
+    answer with a proper status code.
+    """
+    kb = (knowledge_base or "").strip()
+    system_prompt = f"{SYSTEM_PROMPT}\n\n{UNGROUNDED_GUIDANCE}"
+
+    if kb == AUTOMATION_KB:
+        grounding = describe_grounding(requirements)
+        # Ungrounded is an outcome here, not a failure: no match, no Knowledge
+        # Base or an outright error all keep the disciplined prompt above.
+        if grounding["grounded"]:
+            system_prompt = f"{SYSTEM_PROMPT}\n\n{grounding['context']}"
+    elif kb:
+        # retrieve_context never raises by contract; the guard is for the
+        # import, since psycopg and pgvector are optional in a local install.
+        try:
+            from ..knowledge_base import hybrid_retrieval_engine as squad_kb
+
+            squad_context = squad_kb.retrieve_context(squad=kb, query=requirements)
+        except Exception:
+            logger.warning(
+                "Squad Knowledge Base (%s) retrieval failed; generating without it",
+                kb,
+                exc_info=True,
+            )
+            squad_context = ""
+        if squad_context:
+            system_prompt = f"{system_prompt}\n\n{squad_context}"
+            logger.info("Test case prompt grounded in Squad Knowledge Base %s", kb)
+        else:
+            logger.info("Squad Knowledge Base %s returned no usable context", kb)
     else:
-        system_prompt = f"{SYSTEM_PROMPT}\n\n{UNGROUNDED_GUIDANCE}"
+        logger.info("Test cases generated without a Knowledge Base (none selected)")
 
     return stream.stream_chat(
         system_prompt=system_prompt,
         user_input=wrap_user_content(requirements),
         temperature=temperature,
         max_tokens=max_tokens,
+        provider=generation_provider
+        or (settings.SQUAD_KB_GENERATION_PROVIDER if kb else None),
+        model_override=(
+            (settings.FIGMA_VLM_MODEL if generation_mode == "figma_pdf" else settings.SQUAD_KB_GENERATION_MODEL)
+            if kb
+            else None
+        ),
     )

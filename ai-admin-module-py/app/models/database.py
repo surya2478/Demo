@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, JSON, ForeignKey, CheckConstraint
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, JSON, ForeignKey, CheckConstraint, UniqueConstraint
 from sqlalchemy.orm import relationship
 from ..database.connection import Base
 from datetime import datetime, timezone
@@ -144,4 +144,25 @@ class TestCaseDetail(Base):
 
     __table_args__ = (
         CheckConstraint("status IN ('PENDING', 'APPROVED', 'REJECTED')", name='ck_test_case_detail_status'),
+    )
+
+class TestCaseWorkflowStage(Base):
+    """One stage of a Test Assistant journey, keyed by the flow it belongs to.
+
+    Written by routers/test_case_workflows.py: a row per (flow, stage), so the
+    journey bar can show where a document is -- processed, generated, in
+    review, in automation -- without inferring it from the other tables.
+    """
+    __tablename__ = "test_case_workflow_stages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    stage_request_id = Column(String(255), nullable=False, index=True)
+    stage = Column(String(64), nullable=False)
+    status = Column(String(32), nullable=False, default='PENDING', server_default='PENDING')
+    document_name = Column(Text, nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('stage_request_id', 'stage', name='uq_test_case_workflow_stage'),
+        CheckConstraint("status IN ('PENDING', 'ACTIVE', 'COMPLETED')", name='ck_test_case_workflow_stage_status'),
     )

@@ -67,20 +67,6 @@ const Settings: React.FC = () => {
 
   const handleBaseUrlChange = (v: string) => setConfig((prev) => (prev ? { ...prev, BASE_URL: v } : prev));
 
-  // Absolute override for the "Generate Test Cases" call ONLY. Empty means
-  // "use Backend URL", which is the default and what every environment ran on
-  // until now.
-  //
-  // It exists because only /generate/brd-testcases has been ported onto the
-  // admin backend. Moving Backend URL there would move all the AI endpoints at
-  // once and the other seven (visual, test-data, kb/*, code/*, export/*) would
-  // 404. This repoints the one call that needs the Knowledge Base, and leaves
-  // the rest talking to the AI service.
-  const handleGenerateUrlChange = (v: string) =>
-    setConfig((prev) =>
-      prev ? { ...prev, ENDPOINTS: { ...prev.ENDPOINTS, generateTestCasesUrl: v } } : prev
-    );
-
   if (loading) {
     return <div className="p-6">Loading AI configuration...</div>;
   }
@@ -240,51 +226,6 @@ const Settings: React.FC = () => {
                     onChange={(e) => handleBaseUrlChange(e.target.value)}
                     className="w-full rounded-[12px] border border-app bg-white py-2.5 pl-10 pr-4 text-sm text-app-primary outline-none transition placeholder:text-app-muted focus:border-app-brand-600 focus:ring-2 focus:ring-app-brand-100"
                   />
-                </div>
-
-                {/* Generation override. Separate from Backend URL on purpose --
-                    see handleGenerateUrlChange for why the two cannot be one
-                    setting. */}
-                <div className="mt-5 border-t border-app pt-4">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <h4 className="text-[14px] font-semibold text-app-primary">
-                      Test Case Generation URL
-                    </h4>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                        String(config.ENDPOINTS.generateTestCasesUrl || '').trim()
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-app-brand-50 text-app-brand-700'
-                      }`}
-                    >
-                      {String(config.ENDPOINTS.generateTestCasesUrl || '').trim()
-                        ? 'Override active'
-                        : 'Using Backend URL'}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 text-[13px] text-app-secondary">
-                    Sends only <strong>Generate Test Cases</strong> to this address. Point it at
-                    the admin backend to generate with Knowledge Base grounding — real URLs and
-                    product identifiers — while every other tab keeps using the Backend URL
-                    above. Leave blank to use the Backend URL.
-                  </p>
-                  <div className="relative mt-3">
-                    <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-app-brand-700">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                    </span>
-                    <input
-                      type="text"
-                      value={config.ENDPOINTS.generateTestCasesUrl || ''}
-                      onChange={(e) => handleGenerateUrlChange(e.target.value)}
-                      placeholder="Blank — using Backend URL. e.g. https://your-host/admin/generate/brd-testcases"
-                      className="w-full rounded-[12px] border border-app bg-white py-2.5 pl-10 pr-4 text-sm text-app-primary outline-none transition placeholder:text-app-muted focus:border-app-brand-600 focus:ring-2 focus:ring-app-brand-100"
-                    />
-                  </div>
-                  <p className="mt-2 text-[12px] text-app-muted">
-                    Must be the full address ending in <code>/generate/brd-testcases</code>.
-                  </p>
                 </div>
 
                 {/* Decorative API illustration */}

@@ -1,4 +1,4 @@
-import React, { useState, ChangeEvent, useEffect } from 'react'
+import React, { useState, ChangeEvent, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import '../../styles/animations.css'
 import { loadConfigFromServer, getConfig } from '../../config/ai-api'
@@ -21,10 +21,10 @@ import userService from '../../services/userService'
 import RequestTrackerAPI from '../../utils/requestTrackerAPI'
 import { theme } from '../../styles/theme'
 import { useAIAction } from '../../hooks/useAIAction'
-import { useAIProcessing } from '../../context/AIProcessingContext'
 import ReviewAndSendModal, { type ReviewDocumentItem } from '../../components/ReviewAndSendModal'
 import Notification from '../../components/Notification'
 import { authHeaderFor, isOwnBackend } from '../../utils/trackedFetchWithTokens'
+import api from '../../services/api'
 
 
 
@@ -39,7 +39,7 @@ interface FilePreviewData {
 
 const TestCases: React.FC = () => {
   const navigate = useNavigate()
-  const [inputType, setInputType] = useState<'text' | 'file' | 'e2e-spark'>('text')
+  const [inputType, setInputType] = useState<'text' | 'file' | 'e2e-spark' | 'figma-pdf'>('text')
   const [textValue, setTextValue] = useState('')
   const [fileInputs, setFileInputs] = useState<File[]>([])
   const [filePreviews, setFilePreviews] = useState<FilePreviewData[]>([])
@@ -67,6 +67,7 @@ const TestCases: React.FC = () => {
   const [reviewDocuments, setReviewDocuments] = useState<ReviewDocumentItem[]>([])
   const [approvalNotification, setApprovalNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [submittedTestCaseCount, setSubmittedTestCaseCount] = useState<number | null>(null)
+  const [workflowStageRequestId, setWorkflowStageRequestId] = useState<string | null>(null)
   const environmentOptions = [
     { label: 'Select', value: '' },
     { label: 'SIT', value: 'SIT' },
@@ -84,6 +85,17 @@ const TestCases: React.FC = () => {
   type FocusOption = (typeof focusOptions)[number]['value']
   const [selectedEnvironment, setSelectedEnvironment] = useState<EnvironmentOption>('')
   const [selectedFocus, setSelectedFocus] = useState<FocusOption>('')
+  // Select KB. Default KB is the default application route (BASE_URL). The
+  // other two are served by the admin backend and answered by the Squad KB's
+  // model; `knowledgeBase` is the form value the backend expects.
+  const knowledgeBaseOptions = [
+    { value: 'default', label: 'Default KB', knowledgeBase: '', hint: 'Default application generation' },
+    { value: 'squad', label: 'Squad KB', knowledgeBase: 'Device Squad', hint: 'Device Squad knowledge base' },
+    { value: 'automation', label: 'Automation KB', knowledgeBase: 'Automation KB', hint: 'Application profiles and flows used by Automation' }
+  ] as const
+  type KnowledgeBaseChoice = (typeof knowledgeBaseOptions)[number]['value']
+  const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState<KnowledgeBaseChoice>('default')
+  const selectedKnowledgeBaseOption = knowledgeBaseOptions.find((option) => option.value === selectedKnowledgeBase) ?? knowledgeBaseOptions[0]
 
   // Chat state
   type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; timestamp: string }
@@ -101,8 +113,9 @@ const TestCases: React.FC = () => {
   const [sparkStorageKey, setSparkStorageKey] = useState('')
   const [sparkImportLoading, setSparkImportLoading] = useState(false)
   const [sparkImportError, setSparkImportError] = useState('')
+  const [isGenerationStreaming, setIsGenerationStreaming] = useState(false)
+  const generationStreamRef = useRef<HTMLDivElement | null>(null)
   const { runAIAction } = useAIAction()
-  const { setStreamPreview } = useAIProcessing()
   const isAdminUser = (() => {
     const role = String((authUser.user as any)?.role || '').toLowerCase()
     const roles = (authUser.user as any)?.roles
@@ -257,31 +270,20 @@ const TestCases: React.FC = () => {
   useEffect(() => {
     if (inputType === 'text') {
       setIsGenerateEnabled(textValue.trim().length > 0)
-    } else if (inputType === 'file') {
+    } else if (inputType === 'file' || inputType === 'figma-pdf') {
       setIsGenerateEnabled(fileInputs.length > 0)
     } else {
       setIsGenerateEnabled(combinedContent.trim().length > 0 && sparkStorageKey.trim().length > 0)
     }
   }, [inputType, textValue, fileInputs, combinedContent, sparkStorageKey])
 
-  // Normalize text: collapse excessive whitespace, trim lines, collapse multiple blank lines
-  // --- Where generation goes ------------------------------------------------
-  //
-  // ENDPOINTS.generateTestCasesUrl is an absolute override for THIS BUTTON
-  // ONLY. It has existed in the config type and in config.json since the
-  // migration but nothing ever read it, so the only way to move generation
-  // onto the admin backend was to move BASE_URL -- which moves all eight AI
-  // endpoints at once, and only /generate/brd-testcases has been ported. The
-  // other seven (visual, test-data, kb/*, code/*, export/*) would 404.
-  //
-  // Reading it here is what makes the deployed environment able to route just
-  // this call to the backend that holds the Knowledge Base, while every other
-  // tab keeps talking to the AI service exactly as it does today.
-  const resolveGenerateUrl = (cfg: ReturnType<typeof getConfig>) => {
-    const override = String((cfg.ENDPOINTS as any).generateTestCasesUrl || '').trim()
-    return override || `${cfg.BASE_URL}${cfg.ENDPOINTS.generateTestCases}`
-  }
+  useEffect(() => {
+    if (isGenerationStreaming && generationStreamRef.current) {
+      generationStreamRef.current.scrollTop = generationStreamRef.current.scrollHeight
+    }
+  }, [response, isGenerationStreaming])
 
+  // Normalize text: collapse excessive whitespace, trim lines, collapse multiple blank lines
   const normalizeText = (s: string) => {
     if (!s || typeof s !== 'string') return ''
     const lf = s.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
@@ -329,7 +331,7 @@ const TestCases: React.FC = () => {
 
   const getReviewSourceText = () => {
     if (inputType === 'text') return textValue
-    if (inputType === 'file') {
+    if (inputType === 'file' || inputType === 'figma-pdf') {
       return combinedContent || fileInputs.map(file => `${file.name}\n${combinedContent || ''}`).join('\n\n') || ''
     }
     if (inputType === 'e2e-spark') {
@@ -424,7 +426,7 @@ const TestCases: React.FC = () => {
   const getReviewDocuments = (): ReviewDocumentItem[] => {
     const docs: ReviewDocumentItem[] = []
 
-    if (inputType === 'file' && fileInputs.length > 0) {
+    if ((inputType === 'file' || inputType === 'figma-pdf') && fileInputs.length > 0) {
       fileInputs.forEach((file, index) => {
         const previewData = filePreviews[index]
         docs.push({
@@ -485,11 +487,37 @@ const TestCases: React.FC = () => {
     return Array.from(new Set(documentIds)).join(' | ') || `input_text_${new Date().toISOString().replace(/[-:.TZ]/g, '')}`
   }
 
+  const getWorkflowDocumentName = () => {
+    if (inputType === 'text') return 'Text Input BRD'
+    if (inputType === 'e2e-spark') return ppmId.trim() || sparkStorageKey || 'E2E Spark Document'
+    return fileInputs.map((file) => file.name).join(' | ') || 'Uploaded BRD'
+  }
+
+  const startWorkflow = async (documentName: string, stages: Record<string, string>, existingFlowId?: string | null) => {
+    const stageRequestId = existingFlowId || workflowStageRequestId || `FLOW-${crypto.randomUUID()}`
+    // Progress tracking only. A tracker that cannot be reached must never stop
+    // a generation or an approval, so its failure is logged and swallowed.
+    try {
+      await api.post(`/test-case-workflows/${encodeURIComponent(stageRequestId)}/start`, {
+        document_name: documentName,
+        stages
+      })
+    } catch (error) {
+      console.warn('[TestCases] Workflow tracker unavailable; continuing without it:', error)
+    }
+    setWorkflowStageRequestId(stageRequestId)
+    window.dispatchEvent(new CustomEvent('test-case-workflow-updated', {
+      detail: { stageRequestId, documentName }
+    }))
+    return stageRequestId
+  }
+
   const handleSendForApproval = async (rows: Record<string, string>[], documents: ReviewDocumentItem[] = getReviewDocuments()) => {
     try {
       const requestId = `REQ-${Date.now()}`
       const requestBy = (authUser.user as any)?.username || (authUser.user as any)?.email || 'system'
       const documentId = getApprovalDocumentId(documents)
+      const stageRequestId = workflowStageRequestId || requestId
       const uniqueRows = deduplicateTestCases(rows).map((row, index) => {
         const baseId = typeof row.id === 'string' && row.id.trim() ? row.id.trim() : `TC-${index + 1}`
         return {
@@ -502,6 +530,7 @@ const TestCases: React.FC = () => {
 
       const payload = {
         request_id: requestId,
+        stage_request_id: stageRequestId,
         source: inputType === 'e2e-spark' ? 'AZURE_DEVOPS' : inputType.toUpperCase(),
         request_by: requestBy,
         request_date_time: new Date().toISOString(),
@@ -548,6 +577,9 @@ const TestCases: React.FC = () => {
       const data = await responseData.json().catch(() => ({ success: true }))
       console.log('[TestCases] Approval submission succeeded:', data)
       window.dispatchEvent(new Event('test-case-review-updated'))
+      window.dispatchEvent(new CustomEvent('test-case-workflow-updated', {
+        detail: { stageRequestId, documentName: getWorkflowDocumentName() }
+      }))
       setSubmittedTestCaseCount(uniqueRows.length)
       setApprovalNotification({ message: `${uniqueRows.length} test case${uniqueRows.length === 1 ? '' : 's'} sent for approval`, type: 'success' })
       return true
@@ -800,6 +832,13 @@ const TestCases: React.FC = () => {
       setDocumentsProcessed(true)
       setNeedsReprocess(false)
       setResponse('')
+      await startWorkflow(trimmedPpmId, {
+        PROCESS_DOCUMENT: 'COMPLETED',
+        GENERATE_TEST_CASES: 'PENDING',
+        REVIEW_APPROVAL: 'PENDING',
+        AUTOMATION_REVIEW: 'PENDING',
+        AUTOMATION_EXECUTION: 'PENDING'
+      })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to import SSD content'
       setSparkImportError(msg)
@@ -807,6 +846,53 @@ const TestCases: React.FC = () => {
     } finally {
       setSparkImportLoading(false)
     }
+  }
+
+  const handleProcessFigmaPdf = async () => {
+    if (fileInputs.length === 0) return
+
+    await runAIAction({
+      actionName: 'extract_figma_pdf_text',
+      actionLabel: 'Extracting Figma PDF Text',
+      artifactType: 'Figma PDF Text',
+      stages: [
+        'Uploading Figma PDF',
+        'Reading visual pages with GPT-5.1',
+        'Extracting visible labels and requirements',
+        'Preparing editable text'
+      ],
+      successMessage: 'Figma PDF text extracted successfully.',
+      retryAction: handleProcessFigmaPdf,
+      execute: async () => {
+        setLoading(true)
+        setResponse('')
+        try {
+          const formData = new FormData()
+          formData.append('file', fileInputs[0])
+          const result = await api.post<{ text: string }>('/generate/figma/extract-text', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          })
+          const extractedText = normalizeText(result.data?.text || '')
+          if (!extractedText) {
+            throw new Error('GPT-5.1 returned no readable text from the Figma PDF')
+          }
+
+          setCombinedContent(extractedText)
+          setCombinedPreviewHtml(textToHtml(extractedText))
+          setDocumentsProcessed(true)
+          setNeedsReprocess(false)
+          await startWorkflow(getWorkflowDocumentName(), {
+            PROCESS_DOCUMENT: 'COMPLETED',
+            GENERATE_TEST_CASES: 'PENDING',
+            REVIEW_APPROVAL: 'PENDING',
+            AUTOMATION_REVIEW: 'PENDING',
+            AUTOMATION_EXECUTION: 'PENDING'
+          })
+        } finally {
+          setLoading(false)
+        }
+      }
+    })
   }
 
   // Process Documents: convert DOCX now, combine all file texts (or use combinedContent if user edited it),
@@ -851,12 +937,12 @@ const TestCases: React.FC = () => {
 
       // --- Where documents get extracted --------------------------------
       //
-      // Deliberately NOT resolveGenerateUrl(). Generation and extraction are
+      // Deliberately independent of Select KB. Generation and extraction are
       // two different jobs with two different best homes, and the whole point
-      // of the generateTestCasesUrl override is that they can now diverge:
+      // of Select KB is that they can diverge:
       //
-      //   generation  -> the admin backend, which holds the Knowledge Base and
-      //                  is the only thing that can ground a prompt.
+      //   generation  -> the admin backend for Squad KB and Automation KB,
+      //                  which only it can ground a prompt with.
       //   extraction  -> BASE_URL, the AI service, which has always done this
       //                  and reads formats nothing in this repo can, PDF
       //                  included. Confirmed working in the deployed
@@ -930,6 +1016,13 @@ const TestCases: React.FC = () => {
           setNeedsReprocess(false)
           setResponse('')
           responsePayload = normalizedCombined
+          await startWorkflow(getWorkflowDocumentName(), {
+            PROCESS_DOCUMENT: 'COMPLETED',
+            GENERATE_TEST_CASES: 'PENDING',
+            REVIEW_APPROVAL: 'PENDING',
+            AUTOMATION_REVIEW: 'PENDING',
+            AUTOMATION_EXECUTION: 'PENDING'
+          })
           return
         }
         throw new Error('No readable text was returned for the uploaded document(s).')
@@ -1049,6 +1142,7 @@ const TestCases: React.FC = () => {
   let fullText = ''
   const handleGenerate = async () => {
     setSubmittedTestCaseCount(null)
+
     // Check token allocation before making request
     if (!isAdminUser && userTokenAllocation > 0 && userTokensUsed >= userTokenAllocation) {
       setShowTokenWarning(true)
@@ -1066,9 +1160,18 @@ const TestCases: React.FC = () => {
         `Warning: You have only ${remainingTokens.toLocaleString()} tokens remaining in your allocation.`
       )
     }
+
+    const flowId = await startWorkflow(getWorkflowDocumentName(), {
+      PROCESS_DOCUMENT: 'COMPLETED',
+      GENERATE_TEST_CASES: 'ACTIVE',
+      REVIEW_APPROVAL: 'PENDING',
+      AUTOMATION_REVIEW: 'PENDING',
+      AUTOMATION_EXECUTION: 'PENDING'
+    })
     
     await runAIAction({
       actionName: 'generate_test_cases',
+      showModal: false,
       actionLabel: 'Generating Test Cases',
       artifactType: 'Test Cases',
       stages: [
@@ -1083,6 +1186,7 @@ const TestCases: React.FC = () => {
       retryAction: handleGenerate,
       execute: async () => {
         setLoading(true);
+        setIsGenerationStreaming(true)
         setResponse('');
         setOutput('');
         // setError('');
@@ -1114,7 +1218,7 @@ const TestCases: React.FC = () => {
 
           const sourceText = (() => {
             if (inputType === 'text') return textValue
-            if (inputType === 'file' && fileInputs.length > 0) {
+            if ((inputType === 'file' || inputType === 'figma-pdf') && fileInputs.length > 0) {
               return combinedContent && combinedContent.trim().length > 0 ? combinedContent : ''
             }
             if (inputType === 'e2e-spark') {
@@ -1125,6 +1229,12 @@ const TestCases: React.FC = () => {
 
           const promptText = buildPromptTextWithSelection(sourceText)
           formData.append('text', promptText)
+          if (selectedKnowledgeBaseOption.knowledgeBase) {
+            formData.append('knowledge_base', selectedKnowledgeBaseOption.knowledgeBase)
+          }
+          if (inputType === 'figma-pdf') {
+            formData.append('generation_mode', 'figma_pdf')
+          }
           console.log('Prompt text being sent to API:', promptText)
 
       // console.log('Generating test cases with formData:', Array.from(formData.keys()));
@@ -1155,9 +1265,16 @@ const TestCases: React.FC = () => {
       // Start timer for duration calculation
       const startedAt = Date.now();
 
+      // Squad KB and Automation KB exist only on the admin backend, so they go
+      // there whatever BASE_URL says. Default KB is the default application
+      // route and keeps using BASE_URL.
+      const generationBackendUrl = String((import.meta as any).env?.VITE_API_URL || 'http://localhost:8002').replace(/\/$/, '')
+      const generationUrl = selectedKnowledgeBaseOption.knowledgeBase
+        ? `${generationBackendUrl}/generate/kb-testcases`
+        : `${config.BASE_URL}${config.ENDPOINTS.generateTestCases}`
       // Call tracked fetch but handle streaming locally
       const { response: res, status, logId } = await trackedFetchWithTokens(
-        resolveGenerateUrl(config),
+        generationUrl,
         {
           tab: 'testcases',
           method: 'POST',
@@ -1183,7 +1300,6 @@ const TestCases: React.FC = () => {
           const streamedChunk = chunk.replace(/^data: /, '');
           setResponse(prev => prev + streamedChunk)
           fullText += streamedChunk;
-          setStreamPreview(fullText);
         }
       }
 
@@ -1225,6 +1341,13 @@ const TestCases: React.FC = () => {
 
       if (fullText && fullText.trim().length > 0) {
         setTestCasesData(fullText);
+        await startWorkflow(getWorkflowDocumentName(), {
+          PROCESS_DOCUMENT: 'COMPLETED',
+          GENERATE_TEST_CASES: 'COMPLETED',
+          REVIEW_APPROVAL: 'ACTIVE',
+          AUTOMATION_REVIEW: 'PENDING',
+          AUTOMATION_EXECUTION: 'PENDING'
+        }, flowId)
       }
 
         } catch (err) {
@@ -1236,6 +1359,7 @@ const TestCases: React.FC = () => {
 
         } finally {
           setLoading(false);
+          setIsGenerationStreaming(false)
           try {
             await logApiEvent({
               user: authUser.user,
@@ -1326,6 +1450,10 @@ const TestCases: React.FC = () => {
     setSparkStorageKey('')
     setSparkImportLoading(false)
     setSparkImportError('')
+    setIsGenerationStreaming(false)
+    setWorkflowStageRequestId(null)
+    setSelectedKnowledgeBase('default')
+    window.dispatchEvent(new CustomEvent('test-case-workflow-updated'))
   }
 
   const getGenerateButtonLabel = () => {
@@ -1333,7 +1461,7 @@ const TestCases: React.FC = () => {
       return loading ? 'Generating...' : 'E2E Spark Generate'
     }
     if (loading) return 'Generating...'
-    if (inputType === 'file' && fileInputs.length > 0 && !documentsProcessed) {
+    if ((inputType === 'file' || inputType === 'figma-pdf') && fileInputs.length > 0 && !documentsProcessed) {
       return 'Process Documents'
     }
     return 'Generate Test Cases'
@@ -1354,13 +1482,14 @@ const TestCases: React.FC = () => {
   };
 
   const inputOptions: Array<{
-    value: 'text' | 'file' | 'e2e-spark'
+    value: 'text' | 'file' | 'e2e-spark' | 'figma-pdf'
     label: string
     description: string
   }> = [
     { value: 'text', label: 'Text Input', description: 'Paste BRD or solution text directly.' },
     { value: 'file', label: 'File Upload', description: 'Bring in documents and process them in place.' },
-    { value: 'e2e-spark', label: 'From e2e Spark', description: 'Import SSD content using a PPM identifier.' }
+    { value: 'e2e-spark', label: 'From e2e Spark', description: 'Import SSD content using a PPM identifier.' },
+    { value: 'figma-pdf', label: 'Figma Files (PDF)', description: 'Upload Figma design exports as PDF.' }
   ]
 
 
@@ -1432,9 +1561,9 @@ const TestCases: React.FC = () => {
                 </svg>
               </div>
               <div className="min-w-0">
-                <h2 className="text-[16px] font-bold tracking-[-0.01em] text-app-primary leading-tight">Solutions</h2>
+                <h2 className="text-[16px] font-bold tracking-[-0.01em] text-app-primary leading-tight">GENERATE Test Cases</h2>
                 <p className="text-[12px] leading-5 text-app-secondary">
-                  Generate test cases and test data from your solutions text or uploaded files.
+                  BRDs, SDDs, ADO or Spark
                 </p>
               </div>
             </div>
@@ -1459,7 +1588,7 @@ const TestCases: React.FC = () => {
           </div>
 
           {/* Input type pills */}
-          <div className="relative mb-3 grid gap-2 md:grid-cols-3">
+          <div className="relative mb-3 grid gap-2 grid-cols-2 md:grid-cols-4">
             <label className={`cursor-pointer rounded-[12px] border px-3 py-2 transition-all duration-200 ${inputType === 'text' ? 'border-app-brand-200 bg-app-brand-50/60' : 'border-app bg-white hover:border-app-brand-100 hover:bg-app-brand-50/30'}`}>
               <input
                 type="radio"
@@ -1513,77 +1642,121 @@ const TestCases: React.FC = () => {
                 <span className={`text-[13px] font-semibold ${inputType === 'e2e-spark' ? 'text-app-brand-800' : 'text-app-primary'}`}>From e2e Spark</span>
               </div>
             </label>
+
+            <label className={`cursor-pointer rounded-[12px] border px-3 py-2 transition-all duration-200 ${inputType === 'figma-pdf' ? 'border-app-brand-200 bg-app-brand-50/60' : 'border-app bg-white hover:border-app-brand-100 hover:bg-app-brand-50/30'}`}>
+              <input
+                type="radio"
+                data-audit-name="Figma Files (PDF)"
+                checked={inputType === 'figma-pdf'}
+                onChange={() => setInputType('figma-pdf')}
+                className="sr-only"
+              />
+              <div className="flex items-center gap-2">
+                <span className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[8px] ${inputType === 'figma-pdf' ? 'bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white' : 'bg-app-surface-muted text-app-secondary'}`}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 3h6l5 5v13a2 2 0 01-2 2H9a2 2 0 01-2-2V5a2 2 0 012-2zm6 1v5h5" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 15c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2H9v-2z" />
+                  </svg>
+                </span>
+                <span className={`text-[13px] font-semibold ${inputType === 'figma-pdf' ? 'text-app-brand-800' : 'text-app-primary'}`}>Figma Files (PDF)</span>
+              </div>
+            </label>
           </div>
 
           {inputType === 'text' ? (
-            <textarea
-              value={textValue}
-              data-audit-name="Text Input"
-              onChange={(e) => setTextValue(e.target.value)}
-              placeholder="Enter your BRD text here..."
-              className="min-h-[180px] w-full resize-none rounded-[20px] border border-app bg-white px-4 py-3.5 text-sm text-app-primary outline-none transition placeholder:text-app-muted focus:border-app-brand-600 focus:ring-2 focus:ring-app-brand-100"
-            />
+            <div>
+              <textarea
+                value={textValue}
+                data-audit-name="Text Input"
+                onChange={(e) => setTextValue(e.target.value)}
+                placeholder="Enter your BRD text here..."
+                className="min-h-[180px] w-full resize-none rounded-[20px] border border-app bg-white px-4 py-3.5 text-sm text-app-primary outline-none transition placeholder:text-app-muted focus:border-app-brand-600 focus:ring-2 focus:ring-app-brand-100"
+              />
+            </div>
           ) : (
             <>
               {inputType === 'file' ? (
-                <div className="mb-4 rounded-[20px] border border-dashed border-app-brand-200 bg-app-brand-50/35 p-6 text-center">
-                  <input
-                    type="file"
-                    onChange={handleFileChange}
-                    data-audit-name="File Upload"
-                    className="hidden"
-                    id="file-upload"
-                    accept=".txt,.doc,.docx,.pdf,.xls,.xlsx,.ppt,.pptx"
-                    multiple
-                  />
-                  <label htmlFor="file-upload" className="cursor-pointer text-app-brand-700 hover:text-app-brand-800">
-                    <div className="mb-2 text-base font-semibold">Click to upload or drag and drop (multiple files)</div>
-                    <div className="text-sm text-app-secondary">
-                      Supported files: TXT, DOC, DOCX, PDF, XLS, XLSX, PPT, PPTX
-                    </div>
-                  </label>
+                <div className="mb-4">
+                  <div className="rounded-[20px] border border-dashed border-app-brand-200 bg-app-brand-50/35 p-6 text-center">
+                    <input
+                      type="file"
+                      onChange={handleFileChange}
+                      data-audit-name="File Upload"
+                      className="hidden"
+                      id="file-upload"
+                      accept=".txt,.doc,.docx,.pdf,.xls,.xlsx,.ppt,.pptx"
+                      multiple
+                    />
+                    <label htmlFor="file-upload" className="cursor-pointer text-app-brand-700 hover:text-app-brand-800">
+                      <div className="mb-2 text-base font-semibold">Click to upload or drag and drop (multiple files)</div>
+                      <div className="text-sm text-app-secondary">
+                        Supported files: TXT, DOC, DOCX, PDF, XLS, XLSX, PPT, PPTX
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              ) : inputType === 'figma-pdf' ? (
+                <div className="mb-4">
+                  <div className="rounded-[20px] border border-dashed border-app-brand-200 bg-app-brand-50/35 p-6 text-center">
+                    <input
+                      type="file"
+                      onChange={handleFileChange}
+                      data-audit-name="Figma Files (PDF)"
+                      className="hidden"
+                      id="figma-pdf-upload"
+                      accept=".pdf,application/pdf"
+                    />
+                    <label htmlFor="figma-pdf-upload" className="cursor-pointer text-app-brand-700 hover:text-app-brand-800">
+                      <div className="mb-2 text-base font-semibold">Click to upload or drag and drop Figma PDF exports</div>
+                      <div className="text-sm text-app-secondary">
+                        Supported files: PDF only
+                      </div>
+                    </label>
+                  </div>
                 </div>
               ) : (
-                <div className="mb-4 rounded-[20px] border border-app-brand-100 bg-[linear-gradient(180deg,rgba(253,235,236,0.7)_0%,rgba(255,255,255,1)_100%)] p-4">
-                  <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end">
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-app-primary">
-                        PPM ID <span className="text-app-brand-700">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={ppmId}
-                        onChange={(e) => {
-                          setPpmId(e.target.value)
-                          if (sparkImportError) setSparkImportError('')
-                        }}
-                        placeholder="Enter PPM ID"
-                        className={theme.input}
-                      />
+                <div className="mb-4">
+                  <div className="rounded-[20px] border border-app-brand-100 bg-[linear-gradient(180deg,rgba(253,235,236,0.7)_0%,rgba(255,255,255,1)_100%)] p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end">
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-app-primary">
+                          PPM ID <span className="text-app-brand-700">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={ppmId}
+                          onChange={(e) => {
+                            setPpmId(e.target.value)
+                            if (sparkImportError) setSparkImportError('')
+                          }}
+                          placeholder="Enter PPM ID"
+                          className={theme.input}
+                        />
+                      </div>
+                      <button
+                        onClick={handleImportSsd}
+                        disabled={sparkImportLoading || ppmId.trim().length === 0}
+                        className={`inline-flex h-11 items-center justify-center rounded-[18px] px-5 text-sm font-semibold transition ${
+                          !sparkImportLoading && ppmId.trim().length > 0
+                            ? 'bg-app-brand-700 text-white hover:bg-app-brand-800'
+                            : 'cursor-not-allowed bg-gray-300 text-gray-500'
+                        }`}
+                      >
+                        {sparkImportLoading ? 'Importing...' : 'Import SSD'}
+                      </button>
                     </div>
-                    <button
-                      onClick={handleImportSsd}
-                      disabled={sparkImportLoading || ppmId.trim().length === 0}
-                      className={`inline-flex h-11 items-center justify-center rounded-[18px] px-5 text-sm font-semibold transition ${
-                        !sparkImportLoading && ppmId.trim().length > 0
-                          ? 'bg-app-brand-700 text-white hover:bg-app-brand-800'
-                          : 'cursor-not-allowed bg-gray-300 text-gray-500'
-                      }`}
-                    >
-                      {sparkImportLoading ? 'Importing...' : 'Import SSD'}
-                    </button>
-                  </div>
-                  {sparkStorageKey && (
-                  <div className="mt-3 text-xs font-medium text-green-700">SSD imported successfully (id: {sparkStorageKey})</div>
-                )}
-                {sparkImportError && (
-                    <div className="mt-3 text-xs font-medium text-app-brand-700">{sparkImportError}</div>
+                    {sparkStorageKey && (
+                    <div className="mt-3 text-xs font-medium text-green-700">SSD imported successfully (id: {sparkStorageKey})</div>
                   )}
+                  {sparkImportError && (
+                      <div className="mt-3 text-xs font-medium text-app-brand-700">{sparkImportError}</div>
+                    )}
+                  </div>
                 </div>
               )}
 
               {/* File list: show only attachments */}
-              {inputType === 'file' && fileInputs.length > 0 && (
+              {(inputType === 'file' || inputType === 'figma-pdf') && fileInputs.length > 0 && (
                 <div className="space-y-3">
                   <div className="text-xs font-semibold uppercase tracking-[0.16em] text-app-secondary">Uploaded Files ({fileInputs.length})</div>
                   {fileInputs.map((file, index) => (
@@ -1633,7 +1806,7 @@ const TestCases: React.FC = () => {
                 <textarea
                   value={combinedContent}
                   onChange={(e) => handleCombinedChange(e.target.value)}
-                  placeholder={inputType === 'e2e-spark' ? "Imported SSD content will appear here after clicking 'Import SSD'..." : "Combined content from all uploaded files will appear here (edit and click 'Process Documents' to refresh preview)..."}
+                  placeholder={inputType === 'e2e-spark' ? "Imported SSD content will appear here after clicking 'Import SSD'..." : inputType === 'figma-pdf' ? "Combined content from uploaded Figma PDFs will appear here (edit and click 'Process Documents' to refresh preview)..." : "Combined content from all uploaded files will appear here (edit and click 'Process Documents' to refresh preview)..."}
                   className="min-h-[176px] w-full resize-y rounded-[20px] border border-app bg-white px-4 py-3.5 text-sm text-app-primary outline-none transition placeholder:text-app-muted focus:border-app-brand-600 focus:ring-2 focus:ring-app-brand-100"
                 />
               </div>
@@ -1642,9 +1815,31 @@ const TestCases: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <div
+              className="flex items-center gap-2 rounded-[12px] border border-app bg-white px-2.5 py-2 text-app-primary shadow-sm"
+              title={selectedKnowledgeBaseOption.hint}
+            >
+              <label htmlFor="select-kb" className="text-[10px] font-semibold uppercase tracking-[0.16em] text-app-secondary">Select KB</label>
+              <select
+                id="select-kb"
+                data-audit-name="Select KB"
+                value={selectedKnowledgeBase}
+                onChange={(event: ChangeEvent<HTMLSelectElement>) => setSelectedKnowledgeBase(event.target.value as KnowledgeBaseChoice)}
+                disabled={loading}
+                className="min-w-[120px] bg-transparent text-[13px] font-medium text-app-primary outline-none"
+              >
+                {knowledgeBaseOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
             <button
               onClick={async () => {
+                if (inputType === 'figma-pdf' && fileInputs.length > 0 && !documentsProcessed) {
+                  await handleProcessFigmaPdf()
+                  return
+                }
                 if (inputType === 'file' && fileInputs.length > 0 && !documentsProcessed) {
                   await handleProcessDocuments()
                   return
@@ -1714,6 +1909,18 @@ const TestCases: React.FC = () => {
           </div>
         </div>
 
+        {isGenerationStreaming && (
+          <div className="relative z-[60] w-full rounded-md border border-slate-300 bg-white px-3 py-2 shadow-sm">
+            <div className="mb-1 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-slate-500" />
+              Generating test cases
+            </div>
+            <div ref={generationStreamRef} className="max-h-[120px] overflow-y-auto pr-2 text-[11px] leading-5 text-slate-700">
+              {response ? <MarkdownViewer content={response} className="prose prose-sm max-w-none text-[11px] leading-5" /> : 'Waiting for generated test cases...'}
+            </div>
+          </div>
+        )}
+
         {/* Output Section - final generated test cases */}
         <div className="relative overflow-hidden rounded-[20px] border border-app bg-app-surface p-4 shadow-app-card">
           <div className="relative flex items-center justify-between gap-2.5 mb-2">
@@ -1777,6 +1984,7 @@ const TestCases: React.FC = () => {
         onTableDataChange={handleReviewTableChange}
         onSendForApproval={handleSendForApproval}
       />
+      {isGenerationStreaming && <div className="fixed inset-0 z-50 cursor-wait bg-transparent" aria-hidden="true" />}
       {approvalNotification && (
         <Notification
           message={approvalNotification.message}
@@ -1785,7 +1993,7 @@ const TestCases: React.FC = () => {
           onClose={() => setApprovalNotification(null)}
         />
       )}
-      <ChatWindow
+      {/* <ChatWindow
         isOpen={isChatOpen}
         onToggle={() => setIsChatOpen(!isChatOpen)}
         messages={chatMessages}
@@ -1795,7 +2003,7 @@ const TestCases: React.FC = () => {
         currentTab="Test Cases"
         userName={authUser.user?.username || 'User'}
         seedContent={brdContent}
-      />
+      /> */}
     </div>
   )
 }

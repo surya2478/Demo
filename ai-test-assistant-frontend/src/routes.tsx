@@ -39,6 +39,8 @@ import DataTab from './pages/test-assistant/DataTab'
 import Changes from './pages/test-assistant/Changes'
 import Unit from './pages/test-assistant/Unit'
 import KB from './pages/test-assistant/KB'
+import FigmaVlmPrompt from './pages/FigmaVlmPrompt'
+import SquadKnowledgeBaseIngestion from './pages/SquadKnowledgeBaseIngestion'
 
 const LayoutShell: React.FC = () => {
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false)
@@ -222,6 +224,24 @@ const AppRoutes: React.FC = () => {
           <Route path="unit" element={<Unit />} />
           <Route path="kb" element={<KB />} />
         </Route>
+
+        <Route
+          path="settings/figma-vlm-prompt"
+          element={
+            <ProtectedRoute allowedPermissions={['testassistant.view']}>
+              <FigmaVlmPrompt />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="settings/squad-knowledge-base-ingestion"
+          element={
+            <ProtectedRoute allowedPermissions={['testassistant.view']}>
+              <SquadKnowledgeBaseIngestion />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Dedicated Application Discovery & Application Model Route */}
         <Route

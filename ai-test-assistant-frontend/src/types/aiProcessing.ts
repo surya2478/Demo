@@ -31,4 +31,6 @@ export interface RunAIActionOptions<T> extends AIProcessingRequest {
   execute: () => Promise<T>;
   onSuccess?: (result: T) => void | Promise<void>;
   onError?: (error: unknown) => void | Promise<void>;
+  /** False runs the action without the processing modal, for callers that show progress on the page. Defaults to true. */
+  showModal?: boolean;
 }

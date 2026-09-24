@@ -1,5 +1,5 @@
 """
---- Generation: OpenRouter streaming transport -------------------------------
+--- Generation: streaming transport ------------------------------------------
 
 The Test Assistant tabs render the model's answer as it arrives: the browser
 reads the response body chunk by chunk and appends each one to the view. That
@@ -33,12 +33,24 @@ services/automation/llm.py has its own ai_service transport and is NOT
 imported here. It buffers a whole reply to validate against a schema, which by
 construction cannot render progressively, and the two modules deliberately
 share no transport -- see this file's opening paragraph.
+
+Two more transports exist for the Squad Knowledge Base, and only a caller can
+select them (testcases.py passes SQUAD_KB_GENERATION_PROVIDER):
+
+  * openai -- any OpenAI-compatible /chat/completions at OPENAI_BASE_URL.
+  * azure  -- the full chat-completions URL in AZURE_AI_CHAT_COMPLETIONS_URL.
+
+They are deliberately NOT valid values for LLM_PROVIDER. That setting also
+drives services/automation/llm.py, which knows only ai_service and openrouter,
+so LLM_PROVIDER=openai would take down Refine, Review and healing just to
+change where test cases are generated.
 """
 from __future__ import annotations
 
 import json
 import logging
 from typing import Iterator
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import requests
 
@@ -73,13 +85,17 @@ def token_marker(prompt_tokens: int, response_tokens: int, total_tokens: int) ->
     )
 
 
-def _provider() -> str:
-    """Which transport answers. Same setting the Automation module reads."""
-    return (settings.LLM_PROVIDER or "ai_service").strip().lower()
+def _provider(override: str | None = None) -> str:
+    """Which transport answers.
+
+    LLM_PROVIDER, the same setting the Automation module reads, unless the
+    caller names one -- which only the Squad Knowledge Base path does.
+    """
+    return (override or settings.LLM_PROVIDER or "ai_service").strip().lower()
 
 
 def _resolve_limits(
-    temperature: float | None, max_tokens: int | None
+    temperature: float | None, max_tokens: int | None, provider: str
 ) -> tuple[float, int]:
     """Reconcile what the client asked for with what the server permits.
 
@@ -93,8 +109,11 @@ def _resolve_limits(
     OpenRouter would silently truncate a long table for a deployment that has
     no OpenRouter account -- the same mistake AI_SERVICE_TIMEOUT_SECONDS exists
     to correct for timeouts.
+
+    openai and azure spend a key this backend holds too, so they share the same
+    ceiling rather than each growing a setting of its own.
     """
-    if _provider() == "ai_service":
+    if provider == "ai_service":
         resolved_tokens = int(max_tokens) if max_tokens and max_tokens > 0 else 8192
         resolved_temp = 0.1 if temperature is None else min(max(float(temperature), 0.0), 2.0)
         return resolved_temp, resolved_tokens
@@ -367,20 +386,29 @@ def stream_chat(
     temperature: float | None = None,
     max_tokens: int | None = None,
     timeout: float | None = None,
+    provider: str | None = None,
+    model_override: str | None = None,
 ) -> Iterator[str]:
-    """Stream one chat completion as plain text chunks, via LLM_PROVIDER.
+    """Stream one chat completion as plain text chunks.
 
-    The caller builds the prompt and never learns which transport answered --
-    that is the whole point. Knowledge Base grounding is applied by the caller
-    in this process, so it survives either route.
+    The transport is LLM_PROVIDER unless `provider` names one. The caller builds
+    the prompt and never learns which transport answered -- that is the whole
+    point. Knowledge Base grounding is applied by the caller in this process,
+    so it survives any route.
+
+    `model_override` is a SERVER-side choice (a setting the caller read), never
+    a form field: see _stream_chat_completions for why a browser must not pick
+    the model. Only openai and azure honour it, because it is written in their
+    model names; an OpenRouter slug and the AI service's own configuration are
+    a different vocabulary, and "gpt-5.1" sent to either is simply rejected.
 
     `yield from`, not `return`, so this stays a generator: every failure below
     then surfaces on the first next() rather than at call time, which is where
     the router is waiting for it with a 502. A bare `return` would let an
-    unknown LLM_PROVIDER escape the router's try block as a 500.
+    unknown provider escape the router's try block as a 500.
     """
-    provider = _provider()
-    temperature, max_tokens = _resolve_limits(temperature, max_tokens)
+    provider = _provider(provider)
+    temperature, max_tokens = _resolve_limits(temperature, max_tokens, provider)
 
     if provider == "ai_service":
         yield from _stream_ai_service(
@@ -390,8 +418,9 @@ def stream_chat(
             max_tokens=max_tokens,
             timeout=timeout,
         )
-    elif provider == "openrouter":
-        yield from _stream_openrouter(
+    elif provider in ("openrouter", "openai", "azure"):
+        yield from _stream_chat_completions(
+            _chat_completions_target(provider, model_override),
             system_prompt=system_prompt,
             user_input=user_input,
             temperature=temperature,
@@ -400,12 +429,115 @@ def stream_chat(
         )
     else:
         raise GenerationUnavailable(
-            f"LLM_PROVIDER is set to {provider!r}, which is not a transport this "
-            "build knows. Use 'ai_service' or 'openrouter'."
+            f"The generation provider is set to {provider!r}, which is not a "
+            "transport this build knows. Use 'ai_service', 'openrouter', "
+            "'openai' or 'azure'."
         )
 
 
-def _stream_openrouter(
+def _missing(pairs: tuple[tuple[str, str], ...]) -> list[str]:
+    return [name for name, value in pairs if not (value or "").strip()]
+
+
+def _chat_completions_target(provider: str, model_override: str | None) -> dict:
+    """Where an OpenAI-shaped call goes, and how it authenticates.
+
+    The three providers speak the same streaming protocol and differ only in
+    what is gathered here, so there is one stream loop instead of three.
+    """
+    if provider == "openrouter":
+        missing = settings.openrouter_missing_keys()
+        if missing:
+            raise GenerationUnavailable(
+                "OpenRouter is not configured. Missing: "
+                + ", ".join(missing)
+                + ". Set them in the backend's .env."
+            )
+        headers = {"Authorization": f"Bearer {settings.OPENROUTER_API_KEY}"}
+        # Optional attribution. OpenRouter uses these to identify the calling app.
+        if settings.OPENROUTER_SITE_URL:
+            headers["HTTP-Referer"] = settings.OPENROUTER_SITE_URL
+        if settings.OPENROUTER_APP_NAME:
+            headers["X-Title"] = settings.OPENROUTER_APP_NAME
+        return {
+            "label": "OpenRouter",
+            "url": settings.OPENROUTER_BASE_URL.rstrip("/") + "/chat/completions",
+            "headers": headers,
+            "model": settings.OPENROUTER_MODEL,
+            "timeout": settings.OPENROUTER_TIMEOUT_SECONDS,
+            "token_field": "max_tokens",
+            "usage": {"usage": {"include": True}},
+        }
+
+    if provider == "openai":
+        model = (model_override or settings.OPENAI_MODEL or "").strip()
+        missing = _missing((
+            ("OPENAI_API_KEY", settings.OPENAI_API_KEY),
+            ("OPENAI_BASE_URL", settings.OPENAI_BASE_URL),
+            ("OPENAI_MODEL", model),
+        ))
+        if missing:
+            raise GenerationUnavailable(
+                "OpenAI is not configured. Missing: "
+                + ", ".join(missing)
+                + ". Set them in the backend's .env."
+            )
+        return {
+            "label": "OpenAI",
+            "url": settings.OPENAI_BASE_URL.rstrip("/") + "/chat/completions",
+            "headers": {"Authorization": f"Bearer {settings.OPENAI_API_KEY}"},
+            "model": model,
+            "timeout": settings.OPENAI_TIMEOUT_SECONDS,
+            # gpt-5 and the o-series reject max_tokens outright; this name is
+            # accepted by every current chat model, older ones included.
+            "token_field": "max_completion_tokens",
+            "usage": {"stream_options": {"include_usage": True}},
+        }
+
+    # azure
+    model = (model_override or settings.AZURE_AI_MODEL or "").strip()
+    missing = _missing((
+        ("AZURE_AI_CHAT_COMPLETIONS_URL", settings.AZURE_AI_CHAT_COMPLETIONS_URL),
+        ("AZURE_AI_API_KEY", settings.AZURE_AI_API_KEY),
+        ("AZURE_AI_MODEL", model),
+    ))
+    if missing:
+        raise GenerationUnavailable(
+            "Azure AI is not configured. Missing: "
+            + ", ".join(missing)
+            + ". Set them in the backend's .env."
+        )
+    parts = urlsplit(settings.AZURE_AI_CHAT_COMPLETIONS_URL.strip())
+    # The setting is the WHOLE route, because Azure OpenAI and Azure AI Projects
+    # shape it differently. A bare host is the likely mistake, and it fails as
+    # an unexplained 404 -- so it is named here instead.
+    if not parts.path.rstrip("/").endswith("/chat/completions"):
+        raise GenerationUnavailable(
+            "AZURE_AI_CHAT_COMPLETIONS_URL must be the full chat-completions "
+            "route (ending in /chat/completions), not just the host. Got "
+            f"{settings.AZURE_AI_CHAT_COMPLETIONS_URL!r}."
+        )
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    if settings.AZURE_AI_API_VERSION and "api-version" not in query:
+        query["api-version"] = settings.AZURE_AI_API_VERSION
+    url = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+    if settings.AZURE_AI_AUTH_MODE.strip().lower() == "bearer":
+        headers = {"Authorization": f"Bearer {settings.AZURE_AI_API_KEY}"}
+    else:
+        headers = {"api-key": settings.AZURE_AI_API_KEY}
+    return {
+        "label": "Azure AI",
+        "url": url,
+        "headers": headers,
+        "model": model,
+        "timeout": settings.AZURE_AI_TIMEOUT_SECONDS,
+        "token_field": "max_completion_tokens",
+        "usage": {"stream_options": {"include_usage": True}},
+    }
+
+
+def _stream_chat_completions(
+    target: dict,
     *,
     system_prompt: str,
     user_input: str,
@@ -413,12 +545,13 @@ def _stream_openrouter(
     max_tokens: int,
     timeout: float | None = None,
 ) -> Iterator[str]:
-    """Stream one chat completion from OpenRouter as plain text chunks.
+    """Stream one chat completion from an OpenAI-shaped endpoint as text chunks.
 
-    Yields the assistant's content deltas in order, then the token marker.
+    `target` comes from _chat_completions_target. Yields the assistant's
+    content deltas in order, then the token marker.
 
-    Note what is absent: a `model` argument. The model is settings.OPENROUTER_-
-    MODEL and nothing else. The frontend does send a `model_name` in its form,
+    Note what is absent: a client-supplied model. The model is a server setting
+    and nothing else. The frontend does send a `model_name` in its form,
     but that value comes from ai_config, which is served to every authenticated
     user and cached in their localStorage -- honouring it would let a browser
     pick which model this backend's key pays for. It also currently holds an
@@ -430,48 +563,38 @@ def _stream_openrouter(
     the first token has been produced degrade into in-band text -- unavoidable,
     since the status line is long gone by then.
     """
-    missing = settings.openrouter_missing_keys()
-    if missing:
-        raise GenerationUnavailable(
-            "OpenRouter is not configured. Missing: "
-            + ", ".join(missing)
-            + ". Set them in the backend's .env."
-        )
-
+    label = target["label"]
     # Limits are already resolved by stream_chat, which is the only caller.
-    timeout = timeout or float(settings.OPENROUTER_TIMEOUT_SECONDS or 120)
+    timeout = timeout or float(target["timeout"] or 120)
 
     headers = {
-        "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
+        **target["headers"],
         "Content-Type": "application/json",
         "Accept": "text/event-stream",
     }
-    # Optional attribution. OpenRouter uses these to identify the calling app.
-    if settings.OPENROUTER_SITE_URL:
-        headers["HTTP-Referer"] = settings.OPENROUTER_SITE_URL
-    if settings.OPENROUTER_APP_NAME:
-        headers["X-Title"] = settings.OPENROUTER_APP_NAME
 
     body = {
-        "model": settings.OPENROUTER_MODEL,
+        "model": target["model"],
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_input},
         ],
         "temperature": temperature,
-        "max_tokens": max_tokens,
+        target["token_field"]: max_tokens,
         "stream": True,
         # Ask for usage totals on the final frame. Without this the stream ends
         # with no counts at all and the request tracker logs a generation that
         # apparently cost nothing -- a wrong number being worse than none, the
         # marker below is omitted entirely when this does not come back.
-        "usage": {"include": True},
+        # OpenRouter and OpenAI spell the request differently.
+        **target["usage"],
     }
 
-    url = settings.OPENROUTER_BASE_URL.rstrip("/") + "/chat/completions"
+    url = target["url"]
     logger.info(
-        "Streaming generation from OpenRouter model=%s max_tokens=%d temperature=%.2f",
-        settings.OPENROUTER_MODEL,
+        "Streaming generation from %s model=%s max_tokens=%d temperature=%.2f",
+        label,
+        target["model"],
         max_tokens,
         temperature,
     )
@@ -482,16 +605,16 @@ def _stream_openrouter(
         )
     except requests.Timeout as exc:
         raise GenerationUnavailable(
-            f"OpenRouter did not respond within {timeout:.0f}s."
+            f"{label} did not respond within {timeout:.0f}s."
         ) from exc
     except requests.RequestException as exc:
-        raise GenerationUnavailable(f"OpenRouter could not be reached: {exc}") from exc
+        raise GenerationUnavailable(f"{label} could not be reached: {exc}") from exc
 
     with response:
         if response.status_code >= 400:
             detail = (response.text or "")[:300]
             raise GenerationUnavailable(
-                f"OpenRouter returned {response.status_code}. {detail}"
+                f"{label} returned {response.status_code}. {detail}"
             )
 
         usage: dict | None = None
@@ -515,7 +638,7 @@ def _stream_openrouter(
                 frame = json.loads(payload)
             except ValueError:
                 logger.warning(
-                    "Skipping unparseable SSE frame from OpenRouter: %.120s", payload
+                    "Skipping unparseable SSE frame from %s: %.120s", label, payload
                 )
                 continue
 
@@ -527,7 +650,7 @@ def _stream_openrouter(
                 message = (
                     error.get("message") if isinstance(error, dict) else str(error)
                 ) or "unspecified error"
-                logger.error("OpenRouter reported an error mid-stream: %s", message)
+                logger.error("%s reported an error mid-stream: %s", label, message)
                 yield f"\n\n> **Generation stopped:** {message}\n"
                 break
 
@@ -541,7 +664,7 @@ def _stream_openrouter(
                     yield delta
 
     if not produced:
-        logger.warning("OpenRouter stream closed without producing any content")
+        logger.warning("%s stream closed without producing any content", label)
         yield (
             "\n> **No content was returned.** The model accepted the request but "
             "produced an empty reply. Try again, or reduce the size of the input.\n"
@@ -555,6 +678,7 @@ def _stream_openrouter(
         )
     else:
         logger.warning(
-            "OpenRouter returned no usage totals; omitting the token marker so "
-            "the request tracker records nothing rather than zero"
+            "%s returned no usage totals; omitting the token marker so "
+            "the request tracker records nothing rather than zero",
+            label,
         )

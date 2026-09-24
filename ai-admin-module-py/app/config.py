@@ -5,16 +5,6 @@ from typing import Dict, Any, List, Optional
 
 class AiEndpointsModel(BaseModel):
     generateTestCases: str = Field(default="/generate/brd-testcases")
-    # Absolute URL that overrides BASE_URL + generateTestCases, for the Generate
-    # button and nothing else.
-    #
-    # It exists because BASE_URL is shared by every endpoint in this model, so
-    # repointing it to move ONE capability onto this backend drags the other
-    # twelve along with it -- including "Process Documents", which posts files
-    # to generateTestCases and expects the external service's extracted text
-    # back. Empty is the normal state: every caller then resolves through
-    # BASE_URL exactly as before, which is what production does.
-    generateTestCasesUrl: str = Field(default="")
     generateVisual: str = Field(default="/generate/visual")
     generateTestData: str = Field(default="/generate/test-data")
     codeChanges: str = Field(default="/code/changes")
@@ -62,9 +52,9 @@ class AiConfigModel(BaseModel):
     # external service's extracted text back.
     #
     # To run generation against this backend on purpose, set it in
-    # app/config.json for that environment (or via generateTestCasesUrl, which
-    # repoints the one endpoint without dragging the other twelve along). Do
-    # not move it here.
+    # app/config.json for that environment. Do not move it here. (Squad KB and
+    # Automation KB generation reach this backend anyway -- the Test Assistant
+    # posts them to /generate/kb-testcases on its own API URL.)
     BASE_URL: str = Field(default="https://ai-studio.example.com")
     ENDPOINTS: AiEndpointsModel = Field(default_factory=AiEndpointsModel)
     PARAMETERS: AiParametersModel = Field(default_factory=AiParametersModel)
@@ -146,6 +136,8 @@ class Settings(BaseSettings):
     # Last resort for a local machine only: skips certificate verification,
     # which removes protection against interception.
     AI_SERVICE_VERIFY_SSL: bool = Field(default=True)
+    # Secret. The AI service's own API key, sent as a bearer token by backend
+    # callers. Server-side only -- never expose it as a VITE_ variable.
     AI_SERVICE_AUTH_TOKEN: str = Field(default="")
 
     ROLES: List[str] = Field(default=["Admin", "Manager", "QA", "Tester"])
@@ -239,6 +231,45 @@ class Settings(BaseSettings):
     # calls the AI service directly, so it would also travel to the client on
     # every request.
     LLM_PROVIDER: str = Field(default="ai_service")
+
+    # Direct OpenAI-compatible generation settings. Keep the key server-side;
+    # the browser must never receive or choose it.
+    OPENAI_API_KEY: str = Field(default="")
+    OPENAI_BASE_URL: str = Field(default="https://api.openai.com/v1")
+    OPENAI_MODEL: str = Field(default="")
+    OPENAI_TIMEOUT_SECONDS: int = Field(default=120)
+    FIGMA_VLM_MODEL: str = Field(default="gpt-5.1")
+    SQUAD_KB_GENERATION_MODEL: str = Field(default="gpt-5.1")
+    SQUAD_KB_GENERATION_PROVIDER: str = Field(default="openai")
+    FIGMA_VLM_PROMPT: str = Field(
+        default=(
+            "Extract all readable content from this Figma-exported PDF. "
+            "Preserve page order, screen names, headings, labels, button text, "
+            "field names, validation messages, tables, and visible business rules. "
+            "Return clean plain text only. Do not describe images or invent text. "
+            "Mark unreadable content as [UNREADABLE]."
+        )
+    )
+
+    # Squad Knowledge Base retrieval settings. The embedding model must match
+    # the vector dimension/model used when the PostgreSQL corpus was indexed.
+    SQUAD_KB_DATABASE_URL: str = Field(default="")
+    SQUAD_KB_EMBEDDING_MODEL: str = Field(default="octen-embedding")
+    SQUAD_KB_EMBEDDING_BASE_URL: str = Field(default="")
+    # Secret. Key for SQUAD_KB_EMBEDDING_BASE_URL. Kept separate from
+    # OPENAI_API_KEY because the embedding server is usually a different host,
+    # and the OpenAI key must not be sent to it. Blank sends no Authorization.
+    SQUAD_KB_EMBEDDING_API_KEY: str = Field(default="")
+    SQUAD_KB_EMBEDDING_DIMENSIONS: int = Field(default=1024)
+
+    # Server-side Azure AI generation client. The full URL is configurable
+    # because Azure OpenAI and Azure AI Projects expose different route shapes.
+    AZURE_AI_CHAT_COMPLETIONS_URL: str = Field(default="")
+    AZURE_AI_API_KEY: str = Field(default="")
+    AZURE_AI_API_VERSION: str = Field(default="")
+    AZURE_AI_MODEL: str = Field(default="gpt-5.1")
+    AZURE_AI_AUTH_MODE: str = Field(default="api-key")
+    AZURE_AI_TIMEOUT_SECONDS: int = Field(default=120)
 
     # Wall clock for one call on the ai_service path. Separate from
     # OPENROUTER_TIMEOUT_SECONDS because the two providers are tuned

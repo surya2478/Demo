@@ -2,7 +2,6 @@
   "BASE_URL": "https://ai-studio.example.com",
   "ENDPOINTS": {
     "generateTestCases": "/generate/brd-testcases",
-    "generateTestCasesUrl": "",
     "generateVisual": "/generate/visual",
     "generateTestData": "/generate/test-data",
     "codeChanges": "/code/changes",

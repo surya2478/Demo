@@ -80,7 +80,7 @@ export const AIProcessingProvider: React.FC<{ children: React.ReactNode }> = ({ 
       successMessage: options.successMessage || `${options.artifactType || 'AI output'} is ready.`,
       errorMessage: options.errorMessage || 'The AI service could not complete this request. Please retry or review your input.',
       retryAction,
-      isOpen: true,
+      isOpen: options.showModal !== false,
       status: 'processing',
       streamPreview: undefined,
       startedAt
