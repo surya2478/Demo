@@ -4312,6 +4312,26 @@ def run_case_review(
     return result
 
 
+# --- Removed: POST /workbench/test-cases/review-all --------------------------
+#
+# It reviewed every row in the table, not a selection, and each row is its own
+# language model call run in series inside the request. On a workbench holding
+# ninety cases that was ~35 minutes in one blocking POST, holding a database
+# connection the whole time.
+#
+# It was not a slow endpoint so much as a way to take the application down.
+# Three of them were triggered in one morning -- pressed once, then again when
+# nothing appeared to happen -- and between them they exhausted the connection
+# pool, at which point every other request in the app queued and the server
+# stopped answering anything at all.
+#
+# The workbench now walks its selection through the per-case endpoint above,
+# one call at a time, so it shows progress, keeps each result as it lands, and
+# reviews the five cases someone actually ticked instead of all ninety. If a
+# full sweep is ever wanted back it belongs in the job queue that generation
+# and intake extraction already use, not in a request.
+
+
 @router.post("/workbench/test-cases/{case_id}/auto-improve")
 def run_case_auto_improve(
     case_id: int,

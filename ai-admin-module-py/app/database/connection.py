@@ -13,9 +13,52 @@ if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
     # timeout is how long the driver waits for a held write lock before
     # raising "database is locked". The default is 5s, which the session
     # purge loop plus an automation run writing status can exceed.
+    # --- Automation Module: pool sized for slow requests -------------------
+    #
+    # The defaults were pool_size=5, max_overflow=10, pool_timeout=30 -- and
+    # those numbers wedged the whole application once, so they are worth
+    # spelling out rather than inheriting.
+    #
+    # This app has two populations of request. Most answer in milliseconds and
+    # hand their connection straight back. A few hold one for the length of a
+    # language model call or a browser run: a single test case quality review
+    # is ~25 seconds, and `get_db` keeps its session for the whole request, so
+    # that connection is checked out and idle the entire time. Fifteen of those
+    # in flight exhausted the pool, and every other request in the app -- a
+    # login, a list, a session poll -- then queued on pool_timeout and appeared
+    # to hang for exactly 30 seconds before anything came back. The endpoint
+    # people blamed was whichever one they happened to be looking at.
+    #
+    #   pool_size / max_overflow  50 in total. A SQLite connection is a file
+    #                             handle, not a server session, so they are
+    #                             cheap, and WAL (set below) lets readers run
+    #                             concurrently with a writer. The ceiling is
+    #                             here to catch a leak, not to ration.
+    #   pool_timeout              10s, down from 30. If the pool is genuinely
+    #                             exhausted the caller should be told promptly
+    #                             and in words -- "QueuePool limit reached" is
+    #                             a diagnosis, whereas a 30s stall is a
+    #                             mystery. It is also now well inside the
+    #                             frontend's own 30s request timeout, so the
+    #                             browser reports the server's reason rather
+    #                             than giving up first and reporting nothing.
+    #   pool_pre_ping             a connection can die under a process while
+    #                             it sits in the pool; pre_ping spends a
+    #                             SELECT 1 to find out before a query does.
+    #   pool_recycle              30 minutes, so nothing sits open forever.
+    #
+    # None of this makes a 25s review cheap. The real fix for that is to stop
+    # holding a session across the model call, which is a change to the review
+    # path rather than to the pool; this keeps one slow endpoint from taking
+    # the rest of the application down with it.
     engine = create_engine(
         SQLALCHEMY_DATABASE_URL,
         connect_args={"check_same_thread": False, "timeout": 30},
+        pool_size=20,
+        max_overflow=30,
+        pool_timeout=10,
+        pool_pre_ping=True,
+        pool_recycle=1800,
     )
 
     # --- Automation Module: SQLite WAL journal mode -----------------------
@@ -44,7 +87,16 @@ if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
         finally:
             cursor.close()
 else:
-    engine = create_engine(SQLALCHEMY_DATABASE_URL)
+    # Same reasoning as the SQLite branch above, minus connect_args. A real
+    # database server does charge for connections, so the ceiling is lower.
+    engine = create_engine(
+        SQLALCHEMY_DATABASE_URL,
+        pool_size=10,
+        max_overflow=20,
+        pool_timeout=10,
+        pool_pre_ping=True,
+        pool_recycle=1800,
+    )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()

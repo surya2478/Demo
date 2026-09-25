@@ -4,8 +4,33 @@ import { setupRequestTrackerInterceptor } from '../utils/requestTrackerIntercept
 
 const API_BASE = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:8002'; //'https://ai-studio.example.com/admin/';
 console.log("API_BASE",API_BASE)
+/**
+ * --- Timeouts ------------------------------------------------------------
+ *
+ * There was no timeout at all here, which is not "no limit" so much as
+ * "whatever the browser feels like": a request to a wedged endpoint sat
+ * spinning until Chrome gave up minutes later, and what came back then was a
+ * bare "Network Error" with nothing to say which call had died or why.
+ *
+ * Two tiers, because this API has two populations of endpoint and one number
+ * cannot serve both. Ordinary reads and writes answer in well under a second,
+ * so 30s on those is generous and still fails fast when something is wrong.
+ * The other population runs a language model or drives a real browser and is
+ * measured in minutes -- a single test case review is ~20s of model time, and
+ * the backend's own run cap (AUTOMATION_RUN_TIMEOUT_SECONDS) is 600s. Those
+ * calls opt in to LONG_REQUEST_MS per call, which sits above that cap so the
+ * server's own deadline is what a caller hits, not ours.
+ *
+ * Anything long enough to want LONG_REQUEST_MS is really asking to be a
+ * polled background job; the two that already are -- generation and intake
+ * extraction -- return a job id and are on the default.
+ */
+export const DEFAULT_REQUEST_MS = 30_000;
+export const LONG_REQUEST_MS = 900_000;
+
 const api = axios.create({
   baseURL: API_BASE,
+  timeout: DEFAULT_REQUEST_MS,
   headers: {
     'Content-Type': 'application/json'
   }
@@ -15,6 +40,18 @@ const api = axios.create({
 api.interceptors.response.use(
   (res) => res,
   (err) => {
+    // Axios reports a timeout as ECONNABORTED with "timeout of 30000ms
+    // exceeded", which is true and useless -- it names neither the call nor
+    // anything the reader can do. Rewriting the message here rather than in
+    // each feature's error mapper means every screen benefits, since they all
+    // fall back to err.message when the response carries no `detail`.
+    if (err?.code === 'ECONNABORTED' || err?.code === 'ETIMEDOUT') {
+      const ms = err?.config?.timeout ?? DEFAULT_REQUEST_MS
+      const url = err?.config?.url ?? 'the server'
+      err.message =
+        `The request to ${url} did not finish within ${Math.round(ms / 1000)}s and was given up on. ` +
+        `The work may still be running on the server.`
+    }
     const status = err?.response?.status
     if (status === 401 || status === 440 || status === 419) {
       try {

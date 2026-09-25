@@ -12,7 +12,7 @@
  *    authenticated, and an <img src> cannot carry the Authorization header,
  *    so a plain URL would render a broken image for every user.
  */
-import api from './api'
+import api, { LONG_REQUEST_MS } from './api'
 import type {
   ApprovedCandidateDetail,
   ArtifactKind,
@@ -54,6 +54,13 @@ import type {
 } from '../types/automation'
 
 const BASE = '/automation'
+
+/**
+ * Spread into any call that runs a language model or drives a real browser.
+ * See the timeout note in ./api -- the client default is 30s, which is right
+ * for the CRUD on this module and far too short for the rest of it.
+ */
+const LONG = { timeout: LONG_REQUEST_MS }
 
 /** Pull the human-readable reason out of a FastAPI error response. */
 export function automationError(err: any): string {
@@ -114,10 +121,10 @@ const automationService = {
     call(() => api.delete(`${BASE}/runs/${encodeURIComponent(runKey)}`)),
 
   healRun: (runKey: string): Promise<HealRunResponse> =>
-    call(() => api.post(`${BASE}/runs/${encodeURIComponent(runKey)}/heal`)),
+    call(() => api.post(`${BASE}/runs/${encodeURIComponent(runKey)}/heal`, undefined, LONG)),
 
   healScript: (scriptId: number): Promise<HealRunResponse> =>
-    call(() => api.post(`${BASE}/scripts/${scriptId}/heal`)),
+    call(() => api.post(`${BASE}/scripts/${scriptId}/heal`, undefined, LONG)),
 
   /** Runner stdout and stderr, as plain text. */
   getRunLog: async (runKey: string): Promise<string> => {
@@ -214,10 +221,14 @@ const automationService = {
     test_cases: WorkbenchCase[]
   }> =>
     call(() =>
-      api.post(`${BASE}/workbench/classify`, {
-        case_ids: caseIds,
-        ...(classification ? { classification } : {})
-      })
+      api.post(
+        `${BASE}/workbench/classify`,
+        {
+          case_ids: caseIds,
+          ...(classification ? { classification } : {})
+        },
+        LONG
+      )
     ),
 
   decideCases: (
@@ -313,15 +324,19 @@ const automationService = {
   // ── Quality Review (eSMART Review Agent) ──────────────────────────────
 
   reviewTestCase: (caseId: number): Promise<CaseReviewResult> =>
-    call<CaseReviewResult>(() => api.post(`${BASE}/workbench/test-cases/${caseId}/review`)),
+    call<CaseReviewResult>(() =>
+      api.post(`${BASE}/workbench/test-cases/${caseId}/review`, undefined, LONG)
+    ),
 
+  // Kept for the committed Workbench, which still calls it; the server no
+  // longer has the endpoint (see routers/automation.py), so it fails there.
   reviewAllTestCases: (): Promise<{ reviewed_count: number; reviews: CaseReviewResult[] }> =>
     call(() => api.post(`${BASE}/workbench/test-cases/review-all`)),
 
   autoImproveTestCase: (
     caseId: number
   ): Promise<{ case_id: number; display_id: string; improved: boolean; review: CaseReviewResult }> =>
-    call(() => api.post(`${BASE}/workbench/test-cases/${caseId}/auto-improve`)),
+    call(() => api.post(`${BASE}/workbench/test-cases/${caseId}/auto-improve`, undefined, LONG)),
 
   // ── On-Demand In-Place Refinement ────────────────────────────────────
 
@@ -329,7 +344,9 @@ const automationService = {
     caseId: number,
     options?: { application_url?: string }
   ): Promise<WorkbenchCase> =>
-    call<WorkbenchCase>(() => api.post(`${BASE}/workbench/test-cases/${caseId}/refine`, options || {})),
+    call<WorkbenchCase>(() =>
+      api.post(`${BASE}/workbench/test-cases/${caseId}/refine`, options || {}, LONG)
+    ),
 
   refineBulkTestCases: (
     caseIds: number[],
@@ -342,10 +359,14 @@ const automationService = {
     errors?: { display_id: string; error: string }[]
   }> =>
     call(() =>
-      api.post(`${BASE}/workbench/test-cases/refine-bulk`, {
-        case_ids: caseIds,
-        application_url: applicationUrl
-      })
+      api.post(
+        `${BASE}/workbench/test-cases/refine-bulk`,
+        {
+          case_ids: caseIds,
+          application_url: applicationUrl
+        },
+        LONG
+      )
     ),
 
   deleteWorkbenchSources: (payload: {
@@ -395,7 +416,7 @@ const automationService = {
     base_url?: string | null
     regenerate?: boolean
   }): Promise<GenerateScriptsResult> =>
-    call<GenerateScriptsResult>(() => api.post(`${BASE}/scripts/generate`, body)),
+    call<GenerateScriptsResult>(() => api.post(`${BASE}/scripts/generate`, body, LONG)),
 
   getScript: (scriptId: number): Promise<ScriptAsset> =>
     call<ScriptAsset>(() => api.get(`${BASE}/scripts/${scriptId}`)),
@@ -420,7 +441,7 @@ const automationService = {
     slow_mo_ms?: number | null
     headless?: boolean | null
   }): Promise<DryRunResult> =>
-    call<DryRunResult>(() => api.post(`${BASE}/scripts/dry-run`, body)),
+    call<DryRunResult>(() => api.post(`${BASE}/scripts/dry-run`, body, LONG)),
 
   getDryRun: (scriptId: number): Promise<DryRunState> =>
     call<DryRunState>(() => api.get(`${BASE}/scripts/${scriptId}/dry-run`)),
@@ -442,7 +463,10 @@ const automationService = {
     try {
       const res = await api.get(`${BASE}/scripts/download/bundle`, {
         params: framework ? { framework } : {},
-        responseType: 'blob'
+        responseType: 'blob',
+        // The bundle is every generated script zipped, so its size is a
+        // function of the workbench, not of any one request.
+        timeout: LONG_REQUEST_MS
       })
       return res.data as Blob
     } catch (err: any) {
@@ -467,7 +491,7 @@ const automationService = {
     application_environment?: string | null
     max_pages?: number
   }): Promise<DiscoveryRun> =>
-    call<DiscoveryRun>(() => api.post(`${BASE}/discovery/run`, body)),
+    call<DiscoveryRun>(() => api.post(`${BASE}/discovery/run`, body, LONG)),
 
   /** One application's catalogue state. Folds in a finished crawl on the way. */
   getDiscovery: (applicationId?: number | null): Promise<DiscoveryState> =>
@@ -506,10 +530,14 @@ const automationService = {
   /** Match test case steps against the catalogue. Empty list means all of them. */
   groundCases: (caseIds: number[] = [], applicationId?: number | null): Promise<GroundResult> =>
     call<GroundResult>(() =>
-      api.post(`${BASE}/workbench/ground`, {
-        case_ids: caseIds,
-        application_id: applicationId ?? null
-      })
+      api.post(
+        `${BASE}/workbench/ground`,
+        {
+          case_ids: caseIds,
+          application_id: applicationId ?? null
+        },
+        LONG
+      )
     ),
 
   /* --- Document intake --------------------------------------------------- */
@@ -542,8 +570,11 @@ const automationService = {
     files.forEach(file => form.append('files', file))
     form.append('role', role)
     return call<IntakeUploadResult>(() =>
+      // A slow upload is not a stalled one -- the default 30s is a deadline
+      // on someone's connection rather than on the server.
       api.post(`${BASE}/intake/batches/${batchId}/documents`, form, {
-        headers: { 'Content-Type': undefined as unknown as string }
+        headers: { 'Content-Type': undefined as unknown as string },
+        timeout: LONG_REQUEST_MS
       })
     )
   },
@@ -633,10 +664,14 @@ const automationService = {
     synthesise = true
   ): Promise<KnowledgeBaseDraftResult> =>
     call<KnowledgeBaseDraftResult>(() =>
-      api.post(`${BASE}/applications/${applicationId}/knowledge-base/draft`, {
-        overwrite_profile: overwriteProfile,
-        synthesise
-      })
+      api.post(
+        `${BASE}/applications/${applicationId}/knowledge-base/draft`,
+        {
+          overwrite_profile: overwriteProfile,
+          synthesise
+        },
+        LONG
+      )
     ),
 
   // ── Knowledge Base & Application Model ─────────────────────────────────
