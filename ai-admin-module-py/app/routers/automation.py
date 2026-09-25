@@ -298,6 +298,9 @@ class CreateRunRequest(BaseModel):
     test_case_id: Optional[int] = None
     slow_mo_ms: Optional[int] = Field(default=None, ge=0, le=10000)
     headless: Optional[bool] = Field(default=True)
+    # "rerun" when the Runs screen runs a finished run's spec again, so the
+    # history can say so; anything else is recorded as "standard".
+    mode: Optional[str] = Field(default=None, pattern="^(standard|rerun)$")
 
 
 def _run_summary(run: AutomationRun) -> dict:
@@ -352,6 +355,9 @@ def _run_summary(run: AutomationRun) -> dict:
         "original_code": metadata.get("original_code"),
         "healed_code": metadata.get("healed_code"),
         "run_metadata": metadata,
+        # dry_run, rerun, discovery -- or None for a spec run started by hand.
+        "mode": (run.run_config or {}).get("mode") if isinstance(run.run_config, dict) else None,
+        "slow_mo_ms": (run.run_config or {}).get("slow_mo_ms") if isinstance(run.run_config, dict) else None,
     }
 
 
@@ -406,7 +412,7 @@ def create_run(
         run_config={
             "headless": is_headless,
             "slow_mo_ms": slow_mo,
-            "mode": "standard",
+            "mode": body.mode or "standard",
         },
         run_metadata={
             "code": body.code,
@@ -444,6 +450,48 @@ def _projects(db: Session) -> dict[int, dict]:
     from ..models.database import Project
 
     return {p.id: {"id": p.id, "ppm_id": p.ppm_id, "name": p.name} for p in db.query(Project).all()}
+
+
+def _dry_run_status(run: AutomationRun) -> str:
+    return {
+        "queued": "queued",
+        "running": "running",
+        "completed": "passed" if run.outcome == "passed" else "failed",
+        "failed": "blocked" if run.outcome == "blocked" else "failed",
+        "cancelled": "not_run",
+    }.get(run.status, "not_run")
+
+
+def _dry_run_brief(run: AutomationRun) -> dict:
+    """Where the last dry run got to: "failed at step 5 · 00:48"."""
+    meta = run.run_metadata if isinstance(run.run_metadata, dict) else {}
+    progress = meta.get("step_progress") or {}
+    failed = next(
+        (h for h in (progress.get("history") or []) if isinstance(h, dict) and h.get("ok") is False),
+        None,
+    )
+    return {
+        "run_key": run.run_key,
+        "status": run.status,
+        "outcome": run.outcome,
+        "duration_seconds": run.duration_seconds,
+        "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+        "failed_step": failed.get("n") if failed else None,
+        "failed_title": failed.get("title") if failed else None,
+        "error_message": (failed or {}).get("error") or run.error_message,
+        "is_healed": bool(meta.get("is_healed")),
+    }
+
+
+def _request_sources(db: Session, request_ids: set) -> dict[str, str]:
+    """BRD, SDD, ADO or e2e Spark per review request, as Review & Approval groups them."""
+    if not request_ids:
+        return {}
+    from ..models.database import TestCaseReviewDetail
+    from .test_case_reviews import _source_group
+
+    details = db.query(TestCaseReviewDetail).filter(TestCaseReviewDetail.request_id.in_(list(request_ids))).all()
+    return {detail.request_id: _source_group(detail) for detail in details}
 
 
 def _case_project_id(case) -> Optional[int]:
@@ -2347,18 +2395,37 @@ def list_approved_automation_cases(
     )
 
     scripts = db.query(AutomationScript).filter(AutomationScript.is_current.is_(True)).all()
+    dry_runs = {
+        run.run_key: run
+        for run in db.query(AutomationRun).filter(
+            AutomationRun.run_key.in_([s.dry_run_key for s in scripts if s.dry_run_key])
+        )
+    } if any(s.dry_run_key for s in scripts) else {}
     by_case: dict[int, list[dict]] = {}
     for script in scripts:
-        by_case.setdefault(script.test_case_id, []).append(_script_detail(script))
+        detail = _script_detail(script)
+        run = dry_runs.get(script.dry_run_key)
+        if run is not None:
+            # Read through the run, as get_dry_run does: the column on the
+            # script is only synced when someone polls that endpoint.
+            detail["dry_run_status"] = _dry_run_status(run)
+            detail["dry_run"] = _dry_run_brief(run)
+        by_case.setdefault(script.test_case_id, []).append(detail)
 
     projects = _projects(db)
+    requests = _request_sources(db, {case.origin_request_id for case in cases if case.origin_request_id})
     counts: dict[str, int] = {name: 0 for name in compiler.FRAMEWORKS}
     for script in scripts:
         if script.framework in counts:
             counts[script.framework] += 1
 
     return {
-        "counts": {"approved_cases": len(cases), "by_framework": counts},
+        "counts": {
+            "approved_cases": len(cases),
+            "by_framework": counts,
+            # "22 from 3 approved requests".
+            "requests": len({case.origin_request_id for case in cases if case.origin_request_id}),
+        },
         "cases": [
             {
                 "id": case.id,
@@ -2371,6 +2438,8 @@ def list_approved_automation_cases(
                 "application_url": case.application_url,
                 "scripts": by_case.get(case.id, []),
                 "project": projects.get(case.project_id),
+                "request_id": case.origin_request_id,
+                "source_group": requests.get(case.origin_request_id),
             }
             for case in cases
         ],

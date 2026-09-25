@@ -1,61 +1,33 @@
 /**
- * --- Automation Script Lab ----------------------------------------------
+ * --- Automation Script Lab (screen 6) -------------------------------------
  *
- * Generate, review, dry-run and download scripts for approved automation test
- * cases.
+ * Manager-approved Automation cases on the left; the selected case's script on
+ * the right -- what the static gate and the Knowledge Base said before it ran,
+ * the code, and what its last dry run did -- with Heal with AI and Dry run
+ * beside it.
  *
- * Two things are deliberate here. The working set is only cases that are both
- * approved AND classified Automation — generating from anything else produces
- * a script nobody agreed should exist. And a dry run links straight through to
- * the Runs tab rather than rendering its own evidence panel: a dry run IS an
- * ordinary run, so its screenshot, video, trace and log already have a home.
+ * The working set is only cases that are both approved AND classified
+ * Automation: generating from anything else produces a script nobody agreed
+ * should exist. A dry run IS an ordinary run, so its evidence lives on the Runs
+ * tab and "Open evidence" goes there.
  *
- * Katalon and Appium are generate-only. That is stated on the row rather than
- * discovered on a disabled button, because no runner exists for them here or
- * upstream.
+ * Katalon and Appium are generate-only: no runner exists for them here or
+ * upstream, and the header chip says so.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  HiOutlineCode,
-  HiOutlinePlay,
-  HiOutlineDownload,
-  HiOutlineTrash,
-  HiOutlineRefresh,
-  HiOutlineExclamationCircle,
-  HiOutlineCheckCircle,
-  HiOutlineEye,
-  HiOutlineExternalLink,
-  HiOutlineSparkles,
-  HiOutlinePencil
-} from 'react-icons/hi'
 import automationService from '../../services/automationService'
 import { useAutomationContext } from '../../components/automation/AutomationContext'
-import SectionCard from '../../components/ui/SectionCard'
-import EmptyState from '../../components/ui/EmptyState'
-import LoadingSkeleton from '../../components/ui/LoadingSkeleton'
 import { useConfirm } from '../../components/ui/ConfirmDialog'
-import StatusBadge from '../../components/ui/StatusBadge'
-import { CodeViewer } from '../../components/automation/CodeViewer'
-import { StatTile } from '../../components/automation/workbenchPresentation'
-import { formatWhen } from '../../components/automation/runPresentation'
-import { isDryRunSettled, readSelectedApplicationId } from '../../types/automation'
-import ProjectFilter, { matchesProject } from '../../components/project/ProjectFilter'
-import type {
-  DryRunStatus,
-  FrameworkInfo,
-  ScriptAsset,
-  ScriptLabCase
-} from '../../types/automation'
+import { readSelectedApplicationId } from '../../types/automation'
+import type { DryRunBrief, FrameworkInfo, ScriptAsset, ScriptLabCase } from '../../types/automation'
 
-const DRY_RUN_TONE: Record<DryRunStatus, 'success' | 'danger' | 'warning' | 'info' | 'neutral'> = {
-  not_run: 'neutral',
-  queued: 'info',
-  running: 'info',
-  passed: 'success',
-  failed: 'danger',
-  blocked: 'warning'
-}
+const CARD = 'rounded-[20px] border border-[#E8EAEE] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]'
+const CHIP = 'inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-[12.5px] font-semibold'
+const ICON_BTN = 'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[12px] border border-[#E8EAEE] bg-white text-[#6B7280] transition hover:border-[#F6D4D5] hover:text-[#B71920] disabled:cursor-not-allowed disabled:opacity-40'
+const ROW = 'grid grid-cols-[36px_84px_minmax(0,1fr)_52px_116px_190px] items-center gap-2 px-4'
+
+const FW_SHORT: Record<string, string> = { playwright: 'PW', katalon: 'KT', appium: 'AP' }
 
 function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
@@ -68,259 +40,281 @@ function saveBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url)
 }
 
-/** The static gate's verdict, with its reasons — never a bare tick. */
-/**
- * Hidden on request: the per-script status cluster in the grid -- compile mode,
- * the static gate verdict, the dry-run state and the evidence link.
- *
- * A flag rather than a deletion, because none of it is dead: GateBadge and the
- * evidence link still render in the script viewer panel below, so opening a
- * script still shows its gate result and still reaches its run. Flip this to
- * true to put the row badges back.
- */
-const SHOW_SCRIPT_STATUS_BADGES = false
+/** "TC-001 (#606123)" -> "TC-001": the request is its own column. */
+const baseId = (displayId: string) => displayId.replace(/\s*\(#[^)]*\)\s*$/, '')
 
-const GateBadge: React.FC<{ script: ScriptAsset }> = ({ script }) => {
+const clock = (seconds: number | null | undefined) => {
+  if (seconds == null) return ''
+  const s = Math.max(0, Math.round(seconds))
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+}
+
+const stamp = (iso: string | null | undefined) => {
+  if (!iso) return ''
+  const date = new Date(iso.endsWith('Z') || iso.includes('+') ? iso : `${iso}Z`)
+  return date.toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+}
+
+const briefOf = (script: ScriptAsset): DryRunBrief | null => script.dry_run ?? null
+
+// --- What the script says before it runs ------------------------------------
+
+/** Each `await test.step(` opens one step; returns the lines of each block. */
+const stepBlocks = (code: string): { start: number; end: number }[] => {
+  const lines = code.split('\n')
+  // Only real step calls: helper comments above the test mention test.step() too.
+  const starts = lines.map((line, i) => (/^\s*await test\.step\(/.test(line) ? i : -1)).filter(i => i >= 0)
+  return starts.map((start, index) => ({ start, end: (starts[index + 1] ?? lines.length) - 1 }))
+}
+
+type Check = { tone: 'ok' | 'warn' | 'bad'; text: React.ReactNode }
+
+const beforeRunning = (script: ScriptAsset): Check[] => {
+  const checks: Check[] = []
   const gate = script.static_gate_result
-  if (!gate) return <span className="text-[12px] text-app-secondary">—</span>
-  const errors = gate.errors ?? []
-  const warnings = gate.warnings ?? []
-  const title = [...errors, ...warnings].join(' · ')
-  return (
-    <span title={title || 'All static checks passed'}>
-      <StatusBadge tone={gate.passed ? 'success' : 'danger'} size="sm">
-        {gate.passed ? 'Gate passed' : `Gate failed (${errors.length})`}
-      </StatusBadge>
+  if (gate) {
+    checks.push(
+      gate.passed
+        ? { tone: 'ok', text: 'Static gate passed — compiles, every step emitted' }
+        : { tone: 'bad', text: `Static gate failed — ${gate.errors[0] ?? 'see the script'}${gate.errors.length > 1 ? ` (+${gate.errors.length - 1} more)` : ''}` }
+    )
+  }
+  const blocks = stepBlocks(script.code || '')
+  if (blocks.length) {
+    // A warning "Step N: …" is a step whose element neither the Knowledge Base
+    // nor discovery named, so its locator was inferred from prose.
+    const unresolved = new Set(
+      (gate?.warnings ?? []).map(w => /^Step (\d+):/.exec(w)?.[1]).filter(Boolean) as string[]
+    ).size
+    const found = Math.max(0, blocks.length - unresolved)
+    checks.push({
+      tone: unresolved ? 'warn' : 'ok',
+      text: `${found} of ${blocks.length} controls found in the Knowledge Base`
+    })
+  }
+  const lines = (script.code || '').split('\n')
+  const todoSteps = blocks
+    .map((block, index) => (lines.slice(block.start, block.end + 1).some(line => line.includes('<<TODO')) ? index + 1 : 0))
+    .filter(Boolean)
+  if (todoSteps.length) {
+    checks.push({
+      tone: 'warn',
+      text: (
+        <>
+          {todoSteps.length === 1 ? `Step ${todoSteps[0]} still has a ` : `Steps ${todoSteps.join(', ')} still have a `}
+          <code className="rounded bg-[#F4F5F7] px-1 font-mono text-[12px]">{'<<TODO>>'}</code> test data value
+        </>
+      )
+    })
+  }
+  return checks
+}
+
+const CheckIcon: React.FC<{ tone: Check['tone'] }> = ({ tone }) =>
+  tone === 'ok' ? (
+    <span className="flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-full bg-[#15803D]">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" aria-hidden><path d="M5 12l5 5 9-10" /></svg>
     </span>
+  ) : tone === 'warn' ? (
+    <span className="flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-full bg-[#D97706] text-[11px] font-extrabold text-white">!</span>
+  ) : (
+    <span className="flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-full bg-[#DC2626]">
+      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
+    </span>
+  )
+
+// --- Status chips -------------------------------------------------------------
+
+const Spinner: React.FC<{ color?: string }> = ({ color = '#1D4ED8' }) => (
+  <span className="box-border h-3 w-3 flex-shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent" style={{ color }} />
+)
+
+const ScriptStatus: React.FC<{ script: ScriptAsset }> = ({ script }) => {
+  const status = script.dry_run_status
+  if (status === 'passed') {
+    return (
+      <span className={`${CHIP} bg-[#EAF7EF] text-[#136B34]`}>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" aria-hidden><path d="M5 12l5 5 9-10" /></svg>
+        Dry run passed
+      </span>
+    )
+  }
+  if (status === 'failed') return <span className={`${CHIP} bg-[#FEEBEC] text-[#A3231C]`}>Dry run failed</span>
+  if (status === 'running' || status === 'queued') {
+    return (
+      <span className={`${CHIP} bg-[#EEF4FF] text-[#1D4ED8]`}>
+        <Spinner />
+        {status === 'running' ? 'Dry run running' : 'Dry run queued'}
+      </span>
+    )
+  }
+  if (status === 'blocked') return <span className={`${CHIP} bg-[#FFF4E5] text-[#8A5000]`}>Dry run blocked</span>
+  if (script.static_gate_result && !script.static_gate_result.passed) {
+    return <span className={`${CHIP} bg-[#FFF4E5] text-[#8A5000]`}>Static gate failed</span>
+  }
+  return <span className={`${CHIP} bg-[#F4F5F7] text-[#374151]`}>Not run</span>
+}
+
+const PanelStatus: React.FC<{ script: ScriptAsset }> = ({ script }) => {
+  const status = script.dry_run_status
+  const tone =
+    status === 'passed' ? 'bg-[#EAF7EF] text-[#136B34]'
+      : status === 'failed' ? 'bg-[#FEEBEC] text-[#A3231C]'
+        : status === 'running' || status === 'queued' ? 'bg-[#EEF4FF] text-[#1D4ED8]'
+          : status === 'blocked' || (script.static_gate_result && !script.static_gate_result.passed) ? 'bg-[#FFF4E5] text-[#8A5000]'
+            : 'bg-[#F4F5F7] text-[#374151]'
+  const label =
+    status === 'passed' ? 'Dry run passed'
+      : status === 'failed' ? 'Dry run failed'
+        : status === 'running' ? 'Dry run running'
+          : status === 'queued' ? 'Dry run queued'
+            : status === 'blocked' ? 'Dry run blocked'
+              : script.static_gate_result && !script.static_gate_result.passed ? 'Static gate failed' : 'Not run'
+  return <span className={`${CHIP} flex-shrink-0 ${tone}`}>{label}</span>
+}
+
+// --- Code, with the failing step marked ----------------------------------------
+
+const CodeBlock: React.FC<{ code: string; highlight: Set<number> }> = ({ code, highlight }) => {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const lines = code.split('\n')
+  const marked = Math.min(...Array.from(highlight))
+  // The failing step, else the test itself -- its header comment first -- not
+  // the file's imports and helpers.
+  const testLine = lines.findIndex(line => /^\s*test\(/.test(line))
+  const commentAbove = testLine > 0 && lines[testLine - 1].trim().startsWith('//') ? testLine - 1 : testLine
+  const first = Number.isFinite(marked) ? marked : commentAbove
+  useEffect(() => {
+    if (!ref.current || first < 0) return
+    const row = ref.current.querySelector<HTMLElement>(`[data-line="${first}"]`)
+    if (!row) return
+    // Measured against the box itself: offsetTop is relative to whichever
+    // ancestor is positioned, which is not this scroller.
+    const box = ref.current
+    const offset = row.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop
+    box.scrollTop = Math.max(0, offset - (Number.isFinite(marked) ? 120 : 12))
+  }, [first, marked, code])
+  return (
+    <div ref={ref} className="app-scroll h-[360px] flex-1 overflow-auto bg-[#1B1B1F] py-3 font-mono text-[12.5px] leading-[1.75] xl:h-auto xl:min-h-0">
+      {lines.map((line, i) => {
+        const comment = line.trim().startsWith('//')
+        const keyword = /^\s*(test\(|import |export |const |await expect)/.test(line)
+        return (
+          <div
+            key={i}
+            data-line={i}
+            className={`whitespace-pre px-4 ${highlight.has(i) ? 'bg-[rgba(220,38,38,0.28)] shadow-[inset_3px_0_0_#EF4444]' : ''} ${
+              comment ? 'text-[#9CA3AF]' : keyword ? 'text-[#FCA5A5]' : 'text-[#E5E7EB]'
+            }`}
+          >
+            {line || ' '}
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
-/**
- * How the script was produced. "Compiled" means the deterministic compiler
- * built it from the structured steps; "LLM-authored" means a model wrote it,
- * which is the only route for the generate-only frameworks. Worth showing per
- * script rather than per framework: the distinction decides how much a reviewer
- * should trust the locators.
- */
-const ModeBadge: React.FC<{ script: ScriptAsset }> = ({ script }) => (
-  <StatusBadge tone={script.generation_mode === 'compiled' ? 'info' : 'neutral'} size="sm">
-    {script.generation_mode === 'compiled' ? 'Compiled' : 'LLM-authored'}
-  </StatusBadge>
-)
+/** The action lines of the step a dry run failed on. */
+const failedLines = (code: string, step: number | null | undefined): Set<number> => {
+  const out = new Set<number>()
+  if (!step) return out
+  const block = stepBlocks(code)[step - 1]
+  if (!block) return out
+  const lines = code.split('\n')
+  for (let i = block.start + 1; i <= block.end; i++) {
+    if (/\b(page|expect)\b/.test(lines[i]) && !lines[i].trim().startsWith('//')) out.add(i)
+  }
+  if (!out.size) out.add(block.start)
+  return out
+}
 
-
-/**
- * Hidden for now, not deleted.
- *
- * The tiles still compute correctly and the data behind them is still fetched,
- * so this is one line to put back when the row is wanted again -- which is why
- * it is a flag rather than a commented-out block or a deletion.
- */
-const SHOW_STAT_TILES = false
+// --- Page -----------------------------------------------------------------------
 
 const ScriptLab: React.FC = () => {
-  const { canExecute, runtime } = useAutomationContext()
+  const { canExecute, runtime, query, setLabCount } = useAutomationContext()
   const confirm = useConfirm()
 
   const [cases, setCases] = useState<ScriptLabCase[]>([])
-  const [counts, setCounts] = useState<{ approved_cases: number; by_framework: Record<string, number> }>({
-    approved_cases: 0,
-    by_framework: {}
-  })
+  const [requestCount, setRequestCount] = useState(0)
   const [frameworks, setFrameworks] = useState<FrameworkInfo[]>([])
   const [framework, setFramework] = useState('playwright')
-  /**
-   * Whether generating keeps the existing script and adds a version alongside
-   * it. Was hardcoded true, so every Generate silently produced a v2, v3, v4 —
-   * the user now decides, which is what the source studio does.
-   */
-  const [newVersion, setNewVersion] = useState(false)
-  /** Recorded on the run so its history says which environment it hit. */
-  const [environment, setEnvironment] = useState('SIT')
-  const [slowMoMs, setSlowMoMs] = useState<number>(1000)
-
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-
-  const [selectedCases, setSelectedCases] = useState<Set<number>>(new Set())
-  const [viewing, setViewing] = useState<ScriptAsset | null>(null)
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [openId, setOpenId] = useState<number | null>(null)
+  const [projectFilter, setProjectFilter] = useState('all')
+  const [projectMenu, setProjectMenu] = useState(false)
+  const [heal, setHeal] = useState<{ scriptId: number; code: string; diagnosis: string; changes: string[] } | null>(null)
   const [editingScript, setEditingScript] = useState<ScriptAsset | null>(null)
-  const [editCode, setEditCode] = useState<string>('')
-  const [savingEdit, setSavingEdit] = useState<boolean>(false)
+  const [editCode, setEditCode] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
 
-  const pollRef = useRef<number | null>(null)
-
   const load = useCallback(async () => {
-    setError(null)
     try {
-      const [listing, fw] = await Promise.all([
-        automationService.listScriptLabCases(),
-        automationService.listFrameworks()
-      ])
+      const [listing, fw] = await Promise.all([automationService.listScriptLabCases(), automationService.listFrameworks()])
       setCases(listing.cases ?? [])
-      setCounts(listing.counts ?? { approved_cases: 0, by_framework: {} })
+      setRequestCount(listing.counts?.requests ?? 0)
       setFrameworks(fw.frameworks ?? [])
+      setLabCount(listing.cases?.length ?? 0)
+      setError(null)
     } catch (err: any) {
       setError(err?.message ?? 'The Script Lab could not be loaded.')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [setLabCount])
 
-  useEffect(() => {
-    void load()
-    return () => {
-      if (pollRef.current !== null) window.clearTimeout(pollRef.current)
-    }
-  }, [load])
+  useEffect(() => { void load() }, [load])
 
-  /** Follow a dry run until it settles, then refresh once from the real state. */
-  const pollDryRun = useCallback(
-    async (scriptId: number) => {
-      try {
-        const state = await automationService.getDryRun(scriptId)
-        if (isDryRunSettled(state.dry_run_status) && state.dry_run_status !== 'not_run') {
-          await load()
-          return
-        }
-        pollRef.current = window.setTimeout(() => void pollDryRun(scriptId), 2000)
-      } catch {
-        await load()
-      }
-    },
-    [load]
+  const scriptOf = useCallback(
+    (testCase: ScriptLabCase) =>
+      testCase.scripts.filter(s => s.framework === framework).sort((a, b) => b.version - a.version)[0] ?? null,
+    [framework]
   )
 
-  /** Scripts for the selected framework — what Generate and Delete act on. */
-  /**
-   * Execute the selected scripts once.
-   *
-   * This is the only route by which a generated script becomes a run: the
-   * backend turns each script into an AutomationRun, so its log, evidence and
-   * cancellation behave like anything else on the Runs screen, and dry_run_key
-   * is the join back to the script.
-   */
-  const handleDryRun = () =>
-    runAction('dry-run', async () => {
-      const res = await automationService.dryRunScripts({
-        script_ids: selectedScriptIds,
-        environment: environment.trim() || null,
-        base_url: null,
-        slow_mo_ms: slowMoMs
-      })
-      if (res.refused?.length) {
-        setNotice(
-          `${res.queued ?? 0} queued. ${res.refused.length} refused — ` +
-            res.refused.map((r: any) => `${r.script_id}: ${r.reason}`).join(' · ')
-        )
-      }
-    })
+  // Follow dry runs until they settle.
+  const anyLive = cases.some(c => c.scripts.some(s => s.dry_run_status === 'running' || s.dry_run_status === 'queued'))
+  useEffect(() => {
+    if (!anyLive) return
+    const id = window.setInterval(() => void load(), 3000)
+    return () => window.clearInterval(id)
+  }, [anyLive, load])
 
-  const scriptsOf = (testCase: ScriptLabCase) =>
-    testCase.scripts.filter(s => s.framework === framework)
+  const projects = useMemo(() => {
+    const byId = new Map<number, { id: number; ppm_id: string; name: string }>()
+    cases.forEach(c => { if (c.project) byId.set(c.project.id, c.project) })
+    return Array.from(byId.values())
+  }, [cases])
 
-  /**
-   * Every script on the case, newest framework-version first.
-   *
-   * Separate from scriptsOf on purpose: the row reports what exists across all
-   * frameworks, while the action buttons still operate on the selected one.
-   */
-  const allScriptsOf = (testCase: ScriptLabCase) =>
-    [...testCase.scripts].sort(
-      (a, b) => a.framework.localeCompare(b.framework) || a.version - b.version
-    )
+  const visible = useMemo(
+    () =>
+      cases.filter(c => {
+        if (projectFilter === 'none' ? c.project : projectFilter !== 'all' && String(c.project?.id) !== projectFilter) return false
+        if (!query) return true
+        return [c.tc_display_id, c.title, c.request_id, c.project?.ppm_id]
+          .some(v => String(v ?? '').toLowerCase().includes(query))
+      }),
+    [cases, projectFilter, query]
+  )
 
-  /*
-   * --- One table, two groups ---------------------------------------------
-   *
-   * Cases still waiting for a script on top, cases that already have one
-   * underneath. Ordered rather than split into two <table>s: a second table
-   * carries its own column widths and would drift out of alignment with the
-   * first as soon as their content differed.
-   *
-   * "Has a script" counts every framework, matching what the row reports --
-   * a case with a Katalon script but no Playwright one has been generated for,
-   * and belongs below.
-   */
-  const hasScript = (testCase: ScriptLabCase) => testCase.scripts.length > 0
+  // Open the case most worth looking at: a failed dry run, else any script.
+  useEffect(() => {
+    if (openId !== null && visible.some(c => c.id === openId)) return
+    const failed = visible.find(c => scriptOf(c)?.dry_run_status === 'failed')
+    const withScript = visible.find(c => scriptOf(c))
+    setOpenId((failed ?? withScript ?? visible[0])?.id ?? null)
+  }, [visible, openId, scriptOf])
 
-  /** The group a band heads -- what its checkbox selects. */
-  const groupOf = (generated: boolean) =>
-    generated ? groupedCases.generated : groupedCases.pending
-
-  /* One group at a time, so selecting all of one leaves the other alone. */
-  const toggleGroup = (group: ScriptLabCase[], checked: boolean) =>
-    setSelectedCases(prev => {
-      const next = new Set(prev)
-      group.forEach(testCase => (checked ? next.add(testCase.id) : next.delete(testCase.id)))
-      return next
-    })
-
-  const [projectFilter, setProjectFilter] = useState('all')
-  const groupedCases = useMemo(() => {
-    const shown = cases.filter(testCase => matchesProject(testCase, projectFilter))
-    const pending = shown.filter(testCase => !hasScript(testCase))
-    const generated = shown.filter(hasScript)
-    return { pending, generated, rows: [...pending, ...generated] }
-  }, [cases, projectFilter])
-
-  const frameworkLabel = (name: string) =>
-    frameworks.find(f => f.name === name)?.label ??
-    name.charAt(0).toUpperCase() + name.slice(1)
-
-  const selectedScriptIds = useMemo(() => {
-    const ids: number[] = []
-    cases
-      .filter(c => selectedCases.has(c.id))
-      .forEach(c => scriptsOf(c).forEach(s => ids.push(s.id)))
-    return ids
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cases, selectedCases, framework])
-
-  /**
-   * Delete the selected test cases outright, scripts and all.
-   *
-   * Distinct from "Delete scripts", which only clears what was generated and
-   * leaves the case in the Lab to be generated again. This removes the entry,
-   * so it is the action for a case that should not be here at all -- and it is
-   * the one a case showing "Not generated" needs, since that case has no
-   * scripts for the other button to act on and leaves it disabled.
-   *
-   * Confirmed because the two buttons sit together and read alike, while only
-   * one of them is reversible by pressing Generate again.
-   */
-  const handleDeleteCases = async () => {
-    const chosen = cases.filter(c => selectedCases.has(c.id))
-    if (chosen.length === 0) return
-    const count = chosen.length
-    const ok = await confirm({
-      title: count === 1 ? `Delete ${chosen[0].tc_display_id}?` : `Delete ${count} test cases?`,
-      body:
-        count === 1
-          ? chosen[0].title
-          : `${count} selected test cases will be removed from the Script Lab.`,
-      consequences: [
-        `Every script generated from ${count === 1 ? 'it' : 'them'} is deleted too.`,
-        // The distinction the surrounding comment makes: the neighbouring
-        // button is the reversible one, and this is not it.
-        'Regenerating is not possible afterwards — the test case is gone, not just its scripts.',
-        'This cannot be undone.'
-      ],
-      confirmLabel: count === 1 ? 'Delete test case' : `Delete ${count} test cases`
-    })
-    if (!ok) return
-    void runAction('delete-cases', async () => {
-      const res = await automationService.deleteWorkbenchCases(Array.from(selectedCases))
-      setSelectedCases(new Set())
-      setNotice(
-        `${res.deleted} test case(s) deleted` +
-          (res.scripts_removed ? `, along with ${res.scripts_removed} script(s).` : '.')
-      )
-    })
-  }
+  const openCase = visible.find(c => c.id === openId) ?? null
+  const openScript = openCase ? scriptOf(openCase) : null
+  const healing = heal && openScript && heal.scriptId === openScript.id ? heal : null
+  const brief = openScript ? briefOf(openScript) : null
+  const activeFramework = frameworks.find(f => f.name === framework)
+  const runnable = activeFramework?.runnable ?? framework === 'playwright'
 
   const runAction = async (label: string, fn: () => Promise<void>) => {
     setBusy(label)
@@ -339,787 +333,441 @@ const ScriptLab: React.FC = () => {
   const handleGenerate = () =>
     runAction('generate', async () => {
       const res = await automationService.generateScripts({
-        case_ids: Array.from(selectedCases),
+        case_ids: Array.from(selected),
         framework,
-        // Which application's discovery catalogue to compile against — the one
-        // selected on Application Discovery. Omitting it only works while a
-        // single application is registered; naming it keeps the scripts and
-        // the grounding badges judged against the same catalogue.
         application_id: readSelectedApplicationId(),
-        // No Base URL field on this screen any more: the compiler falls back
-        // to the case's own application_url, which refinement already set.
         base_url: null,
-        regenerate: newVersion
+        regenerate: false
       })
+      setSelected(new Set())
       if (res.skipped?.length) {
-        setNotice(
-          `${res.generated} generated. ${res.skipped.length} skipped — ` +
-            res.skipped.map(s => `${s.display_id}: ${s.reason}`).join(' · ')
-        )
+        setNotice(`${res.generated} generated. ${res.skipped.length} skipped — ` + res.skipped.map(s => `${baseId(s.display_id)}: ${s.reason}`).join(' · '))
       }
     })
+
+  const handleDelete = async () => {
+    const chosen = cases.filter(c => selected.has(c.id))
+    if (!chosen.length) return
+    const count = chosen.length
+    const ok = await confirm({
+      title: count === 1 ? `Delete ${baseId(chosen[0].tc_display_id)}?` : `Delete ${count} test cases?`,
+      body: count === 1 ? chosen[0].title : `${count} selected test cases will be removed from the Script Lab.`,
+      consequences: [
+        `Every script generated from ${count === 1 ? 'it' : 'them'} is deleted too.`,
+        'This cannot be undone.'
+      ],
+      confirmLabel: count === 1 ? 'Delete test case' : `Delete ${count} test cases`
+    })
+    if (!ok) return
+    void runAction('delete', async () => {
+      const res = await automationService.deleteWorkbenchCases(Array.from(selected))
+      setSelected(new Set())
+      setNotice(`${res.deleted} test case(s) deleted` + (res.scripts_removed ? `, with ${res.scripts_removed} script(s).` : '.'))
+    })
+  }
+
+  const handleDryRun = (script: ScriptAsset) =>
+    runAction('dry-run', async () => {
+      const res = await automationService.dryRunScripts({ script_ids: [script.id], environment: 'SIT', base_url: null, slow_mo_ms: 1000 })
+      if (res.refused?.length) setNotice(`Dry run refused — ${res.refused.map((r: any) => r.reason).join(' · ')}`)
+    })
+
+  const handleHeal = (script: ScriptAsset) =>
+    runAction('heal', async () => {
+      const res = await automationService.healScript(script.id)
+      setHeal({ scriptId: script.id, code: res.healed_code, diagnosis: res.diagnosis, changes: res.changes_made ?? [] })
+    })
+
+  const keepHeal = () => {
+    if (!healing) return
+    void runAction('keep-heal', async () => {
+      await automationService.editScript(healing.scriptId, healing.code)
+      setHeal(null)
+      setNotice('The AI fix is saved to the script. Dry run it to check.')
+    })
+  }
 
   const handleSaveEdit = async () => {
     if (!editingScript) return
     setSavingEdit(true)
     setEditError(null)
     try {
-      const updated = await automationService.editScript(editingScript.id, editCode)
-      setNotice(`Saved edits to ${updated.file_name}`)
+      await automationService.editScript(editingScript.id, editCode)
       setEditingScript(null)
       await load()
     } catch (err: any) {
-      setEditError(err?.message ?? 'Failed to save script edits.')
+      setEditError(err?.message ?? 'The edits could not be saved.')
     } finally {
       setSavingEdit(false)
     }
   }
 
-  const activeFramework = frameworks.find(f => f.name === framework)
-  const runnable = activeFramework?.runnable ?? framework === 'playwright'
-  const anySelected = selectedCases.size > 0
+  const allOn = visible.length > 0 && visible.every(c => selected.has(c.id))
+  const toggle = (id: number) =>
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  const filterLabel = projectFilter === 'all' ? 'All' : projectFilter === 'none' ? 'No project' : projects.find(p => String(p.id) === projectFilter)?.ppm_id ?? 'All'
+  const code = healing ? healing.code : openScript?.code ?? ''
+  const highlight = healing || !openScript ? new Set<number>() : failedLines(openScript.code || '', brief?.failed_step)
+  const failed = openScript?.dry_run_status === 'failed' || openScript?.dry_run_status === 'blocked'
 
   return (
-    <div className="space-y-3">
-      {SHOW_STAT_TILES && (
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile label="Approved automation TCs" value={loading ? '—' : counts.approved_cases} />
-        {(frameworks.length ? frameworks : [{ name: 'playwright', label: 'Playwright', runnable: true }]).map(
-          fw => (
-            <StatTile
-              key={fw.name}
-              label={`${fw.label} scripts`}
-              value={loading ? '—' : counts.by_framework?.[fw.name] ?? 0}
-            />
-          )
-        )}
-      </div>
-      )}
+    <section className={`${CARD} grid grid-cols-1 overflow-hidden xl:h-[760px] xl:grid-cols-[minmax(0,1fr)_minmax(420px,556px)]`}>
+      {/* Cases */}
+      <div className="flex min-h-0 min-w-0 flex-col">
+        <div className="flex flex-wrap items-center gap-3 px-5 py-4">
+          <div className="min-w-0">
+            <div className="text-[16px] font-bold text-[#1F2937]">Approved Automation cases</div>
+            <div className="text-[12.5px] text-[#6B7280]">
+              {cases.length} from {requestCount} approved request{requestCount === 1 ? '' : 's'}
+            </div>
+          </div>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setProjectMenu(v => !v)}
+              aria-haspopup="menu"
+              aria-expanded={projectMenu}
+              title="Filter by project"
+              className="inline-flex h-8 items-center gap-1 rounded-full bg-[#1F2937] px-3 text-[13px] font-bold text-white"
+            >
+              {filterLabel} {visible.length}
+            </button>
+            {projectMenu && (
+              <div role="menu" className="absolute left-0 top-10 z-20 min-w-[240px] overflow-hidden rounded-[14px] border border-[#E8EAEE] bg-white py-1 shadow-[0_12px_32px_rgba(16,24,40,0.14)]">
+                {[{ key: 'all', label: 'All projects' }, ...projects.map(p => ({ key: String(p.id), label: `${p.ppm_id} · ${p.name}` })), { key: 'none', label: 'No project' }].map(item => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={projectFilter === item.key}
+                    onClick={() => { setProjectFilter(item.key); setProjectMenu(false) }}
+                    className={`block w-full truncate px-3.5 py-2 text-left text-[13px] hover:bg-[#FFF8F8] ${projectFilter === item.key ? 'font-bold text-[#941216]' : 'text-[#1F2937]'}`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
-      {/*
-        The card carried the title "Approved automation test cases", which said
-        what the grid underneath already says and pushed this toolbar into the
-        right half of the header. Dropping it lets the row start at the left
-        edge and use the full width, the same shape the Workbench uses.
-
-        Order matches the source studio's Script Lab, deliberately: framework,
-        new-version, Generate, Dry run, Download all, <Framework> only, Delete.
-        People move between the two screens and reach for the same button in
-        the same place.
-
-        Base URL is gone -- the compiler falls back to the case's own
-        application_url, which refinement already sets.
-      */}
-      <SectionCard noPadding>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-app px-5 py-4">
-          <select
-            value={framework}
-            onChange={e => setFramework(e.target.value)}
-            className="app-input h-[38px] w-[160px] py-0 text-sm"
-            aria-label="Framework"
-          >
-            {(frameworks.length
-              ? frameworks
-              : [{ name: 'playwright', label: 'Playwright', runnable: true }]
-            ).map(fw => (
-              <option key={fw.name} value={fw.name}>
-                {fw.label}
-              </option>
-            ))}
-          </select>
-
-          <label
-            className="inline-flex items-center gap-2 text-sm text-app-secondary"
-            title="Generating again replaces the current script unless this is ticked, in which case it is kept and a new version is added alongside it"
-          >
-            <input
-              type="checkbox"
-              checked={newVersion}
-              onChange={e => setNewVersion(e.target.checked)}
-              className="h-4 w-4 accent-app-brand-700"
-            />
-            New Script Version
-          </label>
-
-          <ProjectFilter items={cases} value={projectFilter} onChange={setProjectFilter} className="app-input h-9 w-[190px] py-0 text-xs" />
-
-          <button
-            type="button"
-            onClick={handleGenerate}
-            disabled={!anySelected || !canExecute || busy !== null}
-            className="app-spark app-spark-primary app-btn app-btn-primary inline-flex items-center gap-2 !px-4 !py-2 text-sm font-semibold disabled:opacity-50"
-          >
-            <HiOutlineCode className="app-spark-glyph h-[18px] w-[18px]" />
-            {busy === 'generate' ? 'Generating…' : 'Generate scripts'}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleDryRun}
-            disabled={
-              selectedScriptIds.length === 0 || !canExecute || !runnable || busy !== null
-            }
-            title={
-              !runnable
-                ? `${activeFramework?.label} is generate-only — no runner exists for it.`
-                : 'Execute the selected scripts once. Each becomes a run on the Runs screen.'
-            }
-            className="app-spark app-btn app-btn-secondary inline-flex items-center gap-2 !px-3 !py-2 text-sm font-medium disabled:opacity-50"
-          >
-            <HiOutlinePlay className="app-spark-glyph h-[18px] w-[18px]" />
-            {busy === 'dry-run' ? 'Queueing…' : 'Dry run'}
-            {selectedScriptIds.length ? ` (${selectedScriptIds.length})` : ''}
-          </button>
-
-          {/* Environment and execution speed, hidden on request.
-              Both still travel with every dry run -- they now take the
-              defaults their state was initialised with, `environment`
-              "SIT" and `slowMoMs` 1000 (Safe / WAF), which is what the
-              controls already showed. Nothing about a run changes; only
-              the ability to vary it from this screen is gone. Restore by
-              uncommenting. */}
-          {/* <input
-            value={environment}
-            onChange={e => setEnvironment(e.target.value)}
-            placeholder="SIT"
-            className="app-input w-16 text-[12px]"
-            aria-label="Environment"
-            title="Recorded on the run, so its history says which environment it hit"
-          />
-
-          <select
-            value={slowMoMs}
-            onChange={e => setSlowMoMs(Number(e.target.value))}
-            className="app-input text-[12px] w-[140px]"
-            aria-label="Execution speed"
-            title="Delay between actions: Safe (1000ms) for public WAF apps like eand.ae, Fast (0ms) for internal CI"
-          >
-            <option value={1000}>Safe / WAF (1s)</option>
-            <option value={0}>Fast / CI (0s)</option>
-            <option value={500}>Balanced (0.5s)</option>
-            <option value={2000}>Debug (2s)</option>
-          </select> */}
-
-          <button
-            type="button"
-            onClick={() =>
-              runAction('download', async () =>
-                saveBlob(
-                  // No framework: every script, foldered by framework.
-                  await automationService.downloadScriptBundle(),
-                  'automation-scripts.zip'
-                )
-              )
-            }
-            disabled={busy !== null}
-            title="Download every generated script as one zip, foldered by framework"
-            className="app-spark app-btn app-btn-secondary inline-flex items-center gap-2 !px-3 !py-2 text-sm font-medium disabled:opacity-50"
-          >
-            <HiOutlineDownload className="app-spark-glyph h-[18px] w-[18px]" />
-            All
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              runAction('download-framework', async () =>
-                saveBlob(
-                  await automationService.downloadScriptBundle(framework),
-                  `automation-scripts-${framework}.zip`
-                )
-              )
-            }
-            disabled={busy !== null}
-            title={`Download only the ${activeFramework?.label ?? framework} scripts`}
-            className="app-spark app-btn app-btn-secondary inline-flex items-center gap-2 !px-3 !py-2 text-sm font-medium disabled:opacity-50"
-          >
-            <HiOutlineDownload className="app-spark-glyph h-[18px] w-[18px]" />
-            {activeFramework?.label ?? framework}
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              runAction('delete', async () => {
-                await automationService.deleteScripts(selectedScriptIds)
-                setSelectedCases(new Set())
-              })
-            }
-            disabled={selectedScriptIds.length === 0 || !canExecute || busy !== null}
-            title="Delete every script generated for the selected test cases"
-            className="app-spark app-btn app-btn-secondary inline-flex items-center gap-2 !px-3 !py-2 text-sm font-medium text-app-danger disabled:opacity-50"
-          >
-            <HiOutlineTrash className="app-spark-glyph h-[18px] w-[18px]" />
-            Delete scripts
-            {selectedScriptIds.length ? ` (${selectedScriptIds.length})` : ''}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => void handleDeleteCases()}
-            disabled={!anySelected || !canExecute || busy !== null}
-            title="Remove the selected test cases from Automation Studio entirely, including any scripts generated from them"
-            className="app-spark app-btn app-btn-secondary inline-flex items-center gap-2 !px-3 !py-2 text-sm font-medium text-app-danger disabled:opacity-50"
-          >
-            <HiOutlineTrash className="app-spark-glyph h-[18px] w-[18px]" />
-            Delete test case
-            {selectedCases.size ? ` (${selectedCases.size})` : ''}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="app-spark app-btn app-btn-ghost inline-flex items-center gap-2 !px-3 !py-2"
-            title="Reload"
-            aria-label="Reload"
-          >
-            <HiOutlineRefresh className="app-spark-glyph h-[18px] w-[18px]" />
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <div className="relative">
+              <select
+                value={framework}
+                onChange={e => { setFramework(e.target.value); setHeal(null) }}
+                aria-label="Framework"
+                className="h-10 appearance-none rounded-[12px] border border-[#E8EAEE] bg-white pl-3.5 pr-9 text-[14px] font-semibold text-[#1F2937] outline-none focus:border-[#F1A4A6]"
+              >
+                {(frameworks.length ? frameworks : [{ name: 'playwright', label: 'Playwright', runnable: true }]).map(fw => (
+                  <option key={fw.name} value={fw.name}>{fw.label}</option>
+                ))}
+              </select>
+              <svg className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" aria-hidden><path d="M6 9l6 6 6-6" /></svg>
+            </div>
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={!selected.size || !canExecute || busy !== null}
+              title={!selected.size ? 'Tick the cases to generate scripts for' : undefined}
+              className="flex h-10 items-center gap-2 rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-4 text-[14px] font-bold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M12 3l1.8 4.9L19 9.7l-4.2 3.1 1.5 5.2L12 15l-4.3 3 1.5-5.2L5 9.7l5.2-1.8z" /></svg>
+              {busy === 'generate' ? 'Generating…' : selected.size ? `Generate ${selected.size}` : 'Generate'}
+            </button>
+            <button
+              type="button"
+              onClick={() => runAction('download', async () => saveBlob(await automationService.downloadScriptBundle(framework), `automation-scripts-${framework}.zip`))}
+              disabled={busy !== null}
+              title={`Download every ${activeFramework?.label ?? framework} script as one zip`}
+              aria-label="Download scripts"
+              className={ICON_BTN}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><path d="M12 4v11M7 10l5 5 5-5M5 19h14" /></svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleDelete()}
+              disabled={!selected.size || !canExecute || busy !== null}
+              title="Delete the selected test cases and their scripts"
+              aria-label="Delete selected test cases"
+              className={`${ICON_BTN} !text-[#B71920]`}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
+            </button>
+          </div>
         </div>
-        {!runnable ? (
-          <div className="mx-5 mt-4 flex items-start gap-2 rounded-app border border-orange-200 bg-app-warning-bg px-3 py-2.5 text-[12px] text-app-warning">
-            <HiOutlineExclamationCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <span>
-              {activeFramework?.label} is generate-only in this deployment. Scripts are
-              produced and downloadable, but no runner exists to execute them.
-            </span>
-          </div>
-        ) : null}
 
-        {runtime && !runtime.ready ? (
-          <div className="mx-5 mt-4 flex items-start gap-2 rounded-app border border-orange-200 bg-app-warning-bg px-3 py-2.5 text-[12px] text-app-warning">
-            <HiOutlineExclamationCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <span>The browser runtime is unavailable, so a dry run would be refused.</span>
+        {(notice || error || !runnable || (runtime && !runtime.ready)) && (
+          <div className="mx-5 mb-3 flex flex-col gap-2">
+            {!runnable && <div className="rounded-[12px] border border-[#EBCFA4] bg-[#FFFBF4] px-3.5 py-2 text-[12.5px] text-[#8A5000]">{activeFramework?.label} is generate-only here: scripts can be generated and downloaded, not run.</div>}
+            {runnable && runtime && !runtime.ready && <div className="rounded-[12px] border border-[#EBCFA4] bg-[#FFFBF4] px-3.5 py-2 text-[12.5px] text-[#8A5000]">The browser runtime is unavailable, so a dry run would be refused.</div>}
+            {notice && <div className="rounded-[12px] border border-[#E8EAEE] bg-[#FCFCFD] px-3.5 py-2 text-[12.5px] text-[#374151]">{notice}</div>}
+            {error && <div role="alert" className="rounded-[12px] border border-[#F6D4D5] bg-[#FFF8F8] px-3.5 py-2 text-[12.5px] text-[#7A0B0D]">{error}</div>}
           </div>
-        ) : null}
+        )}
 
-        {notice ? (
-          <div className="mx-5 mt-4 flex items-start gap-2 rounded-app border border-orange-200 bg-app-warning-bg px-3 py-3 text-[12px] text-app-warning">
-            <HiOutlineExclamationCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <span>{notice}</span>
+        <div className="app-scroll max-h-[640px] min-h-0 flex-1 overflow-auto xl:max-h-none">
+          <div className="min-w-[700px]">
+            <div className={`${ROW} sticky top-0 z-10 h-12 border-y border-[#E8EAEE] bg-[#F4F5F7] text-[11.5px] font-semibold uppercase tracking-[0.12em] text-[#1F2937]`}>
+              <input type="checkbox" aria-label="Select all cases" title="Select all" checked={allOn} disabled={!visible.length} onChange={() => setSelected(allOn ? new Set() : new Set(visible.map(c => c.id)))} className="h-4 w-4 accent-[#B71920]" />
+              <span>TC ID</span>
+              <span>Title</span>
+              <span>Steps</span>
+              <span className="leading-tight">From request</span>
+              <span>Script</span>
+            </div>
+            {loading ? (
+              <div className="px-5 py-8 text-[13px] text-[#6B7280]">Loading the Script Lab…</div>
+            ) : visible.length === 0 ? (
+              <div className="px-5 py-10 text-center text-[13px] text-[#6B7280]">
+                {cases.length
+                  ? 'No cases match this filter.'
+                  : <>No approved Automation cases yet. Cases arrive here once a manager approves them in Review &amp; Approval. Cases from other sources are prepared in the <Link to="/automation/workbench" className="font-semibold text-[#B71920] hover:underline">Automation Workspace</Link>.</>}
+              </div>
+            ) : (
+              visible.map(testCase => {
+                const script = scriptOf(testCase)
+                const open = testCase.id === openId
+                const request = String(testCase.request_id ?? '')
+                return (
+                  <div
+                    key={testCase.id}
+                    onClick={() => { setOpenId(testCase.id); setHeal(null) }}
+                    className={`${ROW} min-h-[68px] cursor-pointer border-b border-[#F1F2F4] py-2 text-[14px] text-[#1F2937] ${
+                      open ? 'bg-[#FFF5F5] shadow-[inset_3px_0_0_#B71920]' : 'hover:bg-[#FCFCFD]'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${baseId(testCase.tc_display_id)}`}
+                      checked={selected.has(testCase.id)}
+                      onClick={e => e.stopPropagation()}
+                      onChange={() => toggle(testCase.id)}
+                      className="h-4 w-4 accent-[#B71920]"
+                    />
+                    <span className="font-bold" title={testCase.tc_display_id}>{baseId(testCase.tc_display_id)}</span>
+                    <span className="min-w-0">
+                      <span className="block truncate" title={testCase.title}>{testCase.title}</span>
+                      {testCase.test_data_status === 'pending' && (
+                        <span className="block text-[12.5px] font-semibold text-[#B45309]" title="A test data value is still missing; fill it in before running.">Test data pending</span>
+                      )}
+                    </span>
+                    <span className="text-[#374151]">{testCase.steps}</span>
+                    <span className="truncate font-mono text-[12px] text-[#6B7280]" title={request}>
+                      {testCase.source_group ? `${testCase.source_group} · ` : ''}{request ? request.replace(/^.*?(\w{6})$/, '$1') : '—'}
+                    </span>
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      {script ? (
+                        <>
+                          <span className={`${CHIP} bg-[#F4F5F7] text-[#1F2937]`} title={script.file_name}>
+                            {FW_SHORT[script.framework] ?? script.framework} v{script.version}
+                          </span>
+                          <ScriptStatus script={script} />
+                        </>
+                      ) : (
+                        <span className="text-[13px] text-[#9CA3AF]">Not generated</span>
+                      )}
+                    </span>
+                  </div>
+                )
+              })
+            )}
           </div>
-        ) : null}
+        </div>
+      </div>
 
-        {error ? (
-          <div className="mx-5 mt-4 flex items-start gap-2 rounded-app border border-red-200 bg-app-danger-bg px-3 py-3 text-[13px] text-app-danger">
-            <HiOutlineExclamationCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <span>{error}</span>
-          </div>
-        ) : null}
-
-        {loading ? (
-          <div className="space-y-2 p-5">
-            {Array.from({ length: 4 }, (_, i) => (
-              <LoadingSkeleton key={i} className="h-12 w-full" rounded="lg" />
-            ))}
-          </div>
-        ) : cases.length === 0 ? (
-          <div className="p-5">
-            <EmptyState
-              title="No approved automation test cases"
-              description="Approve cases classified as Automation in the Automation Workspace tab, and they arrive here ready to generate."
-              icon={<HiOutlineCode className="h-5 w-5" />}
-            />
+      {/* The selected case's script */}
+      <aside className="flex min-h-[640px] min-w-0 flex-col border-t border-[#E8EAEE] xl:min-h-0 xl:border-l xl:border-t-0">
+        {!openCase ? (
+          <div className="m-auto px-6 text-center text-[13px] text-[#6B7280]">Select a case to see its script.</div>
+        ) : !openScript ? (
+          <div className="m-auto max-w-[320px] px-6 text-center">
+            <div className="text-[15px] font-bold text-[#1F2937]">{baseId(openCase.tc_display_id)} has no {activeFramework?.label ?? framework} script yet</div>
+            <p className="mt-1.5 text-[13px] text-[#6B7280]">Tick it and press Generate. The script is checked by the static gate before anything runs.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="app-table">
-              <thead>
-                <tr>
-                  {/* No select-all here: it selected across both groups at
-                      once. Each band carries its own instead. */}
-                  <th className="text-left" />
-                  {/* Centred over the column rather than pinned to its left
-                      edge: TC ID, Title and Generated scripts are all wider
-                      than their labels, which left each heading floating away
-                      from the data under it. */}
-                  <th className="text-center">TC ID</th>
-                  <th className="text-center">Title</th>
-                  <th className="text-center">Steps</th>
-                  <th className="text-center">Added</th>
-                  <th className="text-center">Generated scripts</th>
-                </tr>
-              </thead>
-              <tbody>
-                {groupedCases.rows.map((testCase, index) => {
-                  // Every framework, not just the selected one. The dropdown
-                  // chooses what Generate produces; the row reports what
-                  // exists, so a case carrying both Playwright and Katalon
-                  // shows both instead of hiding one behind the selector.
-                  const scripts = allScriptsOf(testCase)
-                  const generated = scripts.length > 0
-                  const startsGroup =
-                    index === 0 || hasScript(groupedCases.rows[index - 1]) !== generated
-                  return (
-                  <React.Fragment key={testCase.id}>
-                    {/* A band only where the group changes, so a lab that is
-                        entirely one or the other shows one heading. */}
-                    {startsGroup ? (
-                      /* Checkbox and heading in one cell, so the heading is not
-                         stranded at the start of the Title column. A plain
-                         block comment, not {\/* *\/}: this is a ternary's
-                         expression slot, not JSX children. */
-                      <tr className="bg-app-surface-muted">
-                        <td colSpan={6} className="border-b border-app bg-app-surface-muted px-3 py-2">
-                          <div className="flex items-center gap-2.5">
-                            <input
-                              type="checkbox"
-                              checked={groupOf(generated).length > 0 && groupOf(generated).every(c => selectedCases.has(c.id))}
-                              onChange={event => toggleGroup(groupOf(generated), event.target.checked)}
-                              className="h-3.5 w-3.5 flex-shrink-0"
-                              aria-label={
-                                generated
-                                  ? 'Select every case that already has a script'
-                                  : 'Select every case awaiting script generation'
-                              }
-                            />
-                            <span
-                              className={`text-[13px] font-bold uppercase tracking-[0.08em] ${
-                                generated ? 'text-emerald-600' : 'text-app-brand-600'
-                              }`}
-                            >
-                          {generated
-                                ? `Script generated (${groupedCases.generated.length})`
-                                : `Awaiting script generation (${groupedCases.pending.length})`}
-                            </span>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : null}
-                    <tr key={testCase.id}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={selectedCases.has(testCase.id)}
-                          onChange={() =>
-                            setSelectedCases(prev => {
-                              const next = new Set(prev)
-                              if (next.has(testCase.id)) next.delete(testCase.id)
-                              else next.add(testCase.id)
-                              return next
-                            })
-                          }
-                          className="h-3.5 w-3.5"
-                          aria-label={`Select ${testCase.tc_display_id}`}
-                        />
-                      </td>
-                      <td className="whitespace-nowrap font-mono text-app-primary">
-                        {testCase.tc_display_id}
-                      </td>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <p className="max-w-sm truncate font-medium text-app-primary">
-                            {testCase.title}
-                          </p>
-                          {/* Approval does not wait for test data, so a case can
-                              land here with a value still to supply. Its first
-                              run would fail on the placeholder. */}
-                          {testCase.test_data_status === 'pending' && (
-                            <span
-                              className="inline-flex h-5 flex-shrink-0 items-center whitespace-nowrap rounded-full bg-[#FFF4E5] px-2 text-[10.5px] font-semibold text-[#8A5000]"
-                              title="A test data value is still missing. Fill it in before running this script."
-                            >
-                              Test data pending
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="text-app-secondary">{testCase.steps}</td>
-                      {/* Same field and same order as the Workbench grid, so a
-                          case sits in the same place on both screens. */}
-                      <td className="whitespace-nowrap text-[12px] text-app-secondary">
-                        {formatWhen(testCase.created_at)}
-                      </td>
-                      <td>
-                        {scripts.length ? (
-                          <div className="space-y-1">
-                            {scripts.map(script => (
-                              <div key={script.id} className="flex flex-wrap items-center gap-1.5">
-                                <span
-                                  className="inline-flex items-center gap-1 rounded-app border border-app px-1.5 py-0.5 text-[12px] text-app-primary"
-                                  title={script.file_name}
-                                >
-                                  <HiOutlineCode className="h-3 w-3 text-app-secondary" />
-                                  {frameworkLabel(script.framework)}
-                                  <span className="text-app-secondary">v{script.version}</span>
-                                </span>
-
-                                {SHOW_SCRIPT_STATUS_BADGES ? (
-                                  <>
-                                    <ModeBadge script={script} />
-                                    <GateBadge script={script} />
-
-                                    <StatusBadge
-                                      tone={
-                                        script.dry_run_status && DRY_RUN_TONE[script.dry_run_status]
-                                          ? DRY_RUN_TONE[script.dry_run_status]
-                                          : 'neutral'
-                                      }
-                                      size="sm"
-                                      dot={script.dry_run_status === 'running'}
-                                    >
-                                      {script.dry_run_status ? script.dry_run_status.replace('_', ' ') : 'not run'}
-                                    </StatusBadge>
-
-                                    {/* A dry run IS a run, so its evidence lives
-                                        on the Runs tab rather than in a panel. */}
-                                    {script.dry_run_key ? (
-                                      <Link
-                                        to={`/automation/runs/${script.dry_run_key}`}
-                                        className="inline-flex items-center gap-0.5 text-[12px] font-semibold text-app-brand-700 hover:underline"
-                                        title="Open the run, with its screenshot, video, trace and log"
-                                      >
-                                        evidence
-                                        <HiOutlineExternalLink className="h-3 w-3" />
-                                      </Link>
-                                    ) : null}
-                                  </>
-                                ) : null}
-
-                                {/* Kept: a hand-edited script is not a status,
-                                    it is a warning that the file no longer
-                                    matches what the compiler would produce. */}
-                                {script.edited_by_user ? (
-                                  <StatusBadge tone="warning" size="sm">
-                                    edited
-                                  </StatusBadge>
-                                ) : null}
-
-                                <button
-                                  type="button"
-                                  onClick={() => setViewing(script)}
-                                  className="rounded-md p-1 text-app-secondary transition hover:bg-app-surface-muted hover:text-app-primary"
-                                  title={`View ${script.file_name}`}
-                                  aria-label={`View ${script.file_name}`}
-                                >
-                                  <HiOutlineEye className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    runAction('download', async () =>
-                                      saveBlob(
-                                        await automationService.downloadScript(script.id),
-                                        script.file_name
-                                      )
-                                    )
-                                  }
-                                  disabled={busy !== null}
-                                  className="rounded-md p-1 text-app-secondary transition hover:bg-app-surface-muted hover:text-app-primary disabled:opacity-40"
-                                  title={`Download ${script.file_name}`}
-                                  aria-label={`Download ${script.file_name}`}
-                                >
-                                  <HiOutlineDownload className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingScript(script)
-                                    setEditCode(script.code || '')
-                                    setEditError(null)
-                                  }}
-                                  disabled={!canExecute || busy !== null}
-                                  className="rounded-md p-1 text-app-secondary transition hover:bg-app-surface-muted hover:text-app-brand-600 disabled:opacity-40"
-                                  title={`Edit ${script.file_name}`}
-                                  aria-label={`Edit ${script.file_name}`}
-                                >
-                                  <HiOutlinePencil className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-[12px] text-app-secondary">Not generated</span>
-                        )}
-                      </td>
-                    </tr>
-                  </React.Fragment>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </SectionCard>
-
-      {viewing ? (
-        <div
-          className="fixed inset-0 z-[65] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
-          onClick={e => {
-            if (e.target === e.currentTarget) setViewing(null)
-          }}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="flex h-[92vh] w-full max-w-[1000px] flex-col overflow-hidden rounded-[24px] border border-app bg-app-surface shadow-[0_28px_70px_rgba(15,23,42,0.18)]">
-            <div className="flex items-start justify-between gap-3 border-b border-app bg-app-surface-muted px-5 py-4">
-              <div className="min-w-0">
-                <h2 className="truncate text-[15px] font-bold text-app-primary">
-                  {viewing.test_case_display_id} · {viewing.file_name}
-                </h2>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <StatusBadge tone="info" size="sm">
-                    {viewing.framework}
-                  </StatusBadge>
-                  <StatusBadge tone="neutral" size="sm">
-                    {viewing.generation_mode}
-                  </StatusBadge>
-                  <GateBadge script={viewing} />
+          <>
+            <div className="flex items-start gap-3 border-b border-[#E8EAEE] px-5 py-3.5">
+              <span className="mt-0.5 text-[#B71920]">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><path d="M9 7L4.5 12 9 17M15 7l4.5 5-4.5 5" /></svg>
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-mono text-[14px] font-semibold text-[#1F2937]" title={openScript.file_name}>{openScript.file_name}</div>
+                <div className="text-[12.5px] text-[#6B7280]">
+                  {activeFramework?.label ?? openScript.framework} · v{openScript.version} · generated {stamp(openScript.created_at)}
+                  {openScript.edited_by_user ? ' · edited' : ''}
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setViewing(null)}
-                className="rounded-md p-1.5 text-app-secondary transition hover:bg-app-surface hover:text-app-primary"
-                aria-label="Close"
-              >
-                ✕
-              </button>
+              <PanelStatus script={openScript} />
             </div>
 
-            <div className="app-scroll flex-1 space-y-3 overflow-y-auto px-5 py-4">
-              {viewing.static_gate_result && !viewing.static_gate_result.passed ? (
-                <div className="rounded-app border border-red-200 bg-app-danger-bg px-3 py-3 text-[12px] text-app-danger">
-                  <div className="font-semibold">Static gate failed</div>
-                  <ul className="mt-1 space-y-0.5">
-                    {viewing.static_gate_result.errors.map((e, i) => (
-                      <li key={i}>{e}</li>
-                    ))}
+            {healing ? (
+              <div className="border-b border-[#D9CCF5] bg-[#F6F2FF] px-5 py-3">
+                <div className="text-[11.5px] font-semibold uppercase tracking-[0.12em] text-[#6D28D9]">AI fix ready</div>
+                <p className="mt-1 text-[13px] text-[#4C1D95]">{healing.diagnosis}</p>
+                {healing.changes.length > 0 && (
+                  <ul className="mt-1 list-disc pl-5 text-[12.5px] text-[#5B21B6]">
+                    {healing.changes.slice(0, 4).map((change, i) => <li key={i}>{change}</li>)}
                   </ul>
-                </div>
-              ) : null}
+                )}
+              </div>
+            ) : (
+              <div className="px-5 py-3.5">
+                <div className="mb-2 text-[11.5px] font-semibold uppercase tracking-[0.14em] text-[#6B7280]">Before running</div>
+                <ul className="flex flex-col gap-2">
+                  {beforeRunning(openScript).map((check, i) => (
+                    <li key={i} className="flex items-start gap-2.5 text-[14px] text-[#1F2937]">
+                      <CheckIcon tone={check.tone} />
+                      <span className="leading-[1.3]">{check.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
-              {viewing.static_gate_result?.warnings?.length ? (
-                <div className="rounded-app border border-orange-200 bg-app-warning-bg px-3 py-3 text-[12px] text-app-warning">
-                  <div className="font-semibold">
-                    {viewing.static_gate_result.warnings.length} locator warning(s)
-                  </div>
-                  <ul className="mt-1 space-y-0.5">
-                    {viewing.static_gate_result.warnings.map((w, i) => (
-                      <li key={i}>{w}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
+            <CodeBlock code={code} highlight={highlight} />
 
-              {viewing.setup_notes?.length ? (
-                <div className="rounded-app border border-app bg-app-surface-muted/40 px-3 py-3 text-[12px] text-app-secondary">
-                  <div className="font-semibold text-app-primary">Before running</div>
-                  <ul className="mt-1 space-y-0.5">
-                    {viewing.setup_notes.map((n, i) => (
-                      <li key={i}>{n}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-
-              <CodeViewer
-                code={viewing.code}
-                language={viewing.language === 'typescript' ? 'typescript' : 'javascript'}
-                fileName={viewing.file_name}
-                downloadable
-                maxHeight="52vh"
-              />
-
-              {viewing.execution_command ? (
-                <p className="text-[12px] text-app-secondary">
-                  Runs with{' '}
-                  <span className="font-mono text-app-primary">{viewing.execution_command}</span>
-                </p>
-              ) : null}
-            </div>
-
-            <div className="flex items-center justify-end gap-2 border-t border-app bg-app-surface-muted px-5 py-3">
-              {canExecute ? (
+            <div className="border-t border-[#E8EAEE] px-5 py-3">
+              <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[13px] text-[#6B7280]">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><circle cx="12" cy="12" r="8.5" /><path d="M10.5 9l4.5 3-4.5 3z" /></svg>
+                {healing ? (
+                  <span>Review the fix, then keep it and dry run again.</span>
+                ) : brief && (openScript.dry_run_status === 'running' || openScript.dry_run_status === 'queued') ? (
+                  <>Dry run in progress · <Link to={`/automation/runs/${brief.run_key}`} className="font-semibold text-[#B71920] hover:underline">Watch it</Link></>
+                ) : brief ? (
+                  <>
+                    {openScript.dry_run_status === 'passed'
+                      ? 'Last dry run passed'
+                      : brief.failed_step
+                        ? `Last dry run failed at step ${brief.failed_step}`
+                        : 'Last dry run failed'}
+                    {brief.duration_seconds != null ? ` · ${clock(brief.duration_seconds)}` : ''} ·{' '}
+                    <Link to={`/automation/runs/${brief.run_key}`} className="font-semibold text-[#B71920] hover:underline">Open evidence</Link>
+                  </>
+                ) : (
+                  <span>Not dry-run yet.</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {healing ? (
+                  <>
+                    <button type="button" onClick={keepHeal} disabled={busy !== null || !canExecute} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-[12px] bg-[#6D28D9] px-4 text-[14px] font-bold text-white shadow-[0_8px_20px_rgba(109,40,217,0.22)] disabled:opacity-50">
+                      {busy === 'keep-heal' ? 'Saving…' : 'Keep fix'}
+                    </button>
+                    <button type="button" onClick={() => setHeal(null)} className="flex h-11 items-center rounded-[12px] border border-[#E8EAEE] bg-white px-4 text-[14px] font-bold text-[#1F2937] hover:border-[#F6D4D5]">
+                      Discard
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {failed ? (
+                      <button
+                        type="button"
+                        onClick={() => handleHeal(openScript)}
+                        disabled={busy !== null || !canExecute}
+                        className="flex h-11 flex-1 items-center justify-center gap-2 rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-4 text-[14px] font-bold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] disabled:opacity-50"
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M12 3l1.8 4.9L19 9.7l-4.2 3.1 1.5 5.2L12 15l-4.3 3 1.5-5.2L5 9.7l5.2-1.8z" /></svg>
+                        {busy === 'heal' ? 'Healing…' : 'Heal with AI'}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => handleDryRun(openScript)}
+                      disabled={busy !== null || !canExecute || !runnable || openScript.dry_run_status === 'running' || openScript.dry_run_status === 'queued'}
+                      title={!runnable ? `${activeFramework?.label} is generate-only — no runner exists for it.` : 'Run the script once on this host; the run appears in Runs'}
+                      className={
+                        failed
+                          ? 'flex h-11 items-center gap-2 rounded-[12px] border border-[#E8EAEE] bg-white px-4 text-[14px] font-bold text-[#1F2937] transition hover:border-[#F6D4D5] disabled:opacity-50'
+                          : 'flex h-11 flex-1 items-center justify-center gap-2 rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-4 text-[14px] font-bold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] disabled:opacity-50'
+                      }
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><circle cx="12" cy="12" r="8.5" /><path d="M10.5 9l4.5 3-4.5 3z" /></svg>
+                      {busy === 'dry-run' ? 'Queueing…' : 'Dry run'}
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
-                  onClick={() =>
-                    runAction('heal-script', async () => {
-                      const healRes = await automationService.healScript(viewing.id)
-                      setViewing({
-                        ...viewing,
-                        code: healRes.healed_code
-                      })
-                      setNotice(`Healed with AI: ${healRes.diagnosis}`)
-                    })
-                  }
+                  onClick={() => { setEditingScript(openScript); setEditCode(openScript.code || ''); setEditError(null) }}
+                  disabled={!canExecute || busy !== null || Boolean(healing)}
+                  title="Edit the script"
+                  aria-label="Edit the script"
+                  className={`${ICON_BTN} h-11 w-11`}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><path d="M4 20h4L19 9l-4-4L4 16z" /></svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => runAction('download-one', async () => saveBlob(await automationService.downloadScript(openScript.id), openScript.file_name))}
                   disabled={busy !== null}
-                  className="app-btn inline-flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-medium shadow-sm hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50"
-                  title="Analyze failure logs & Discovery catalogue to repair this script"
+                  title="Download the script"
+                  aria-label="Download the script"
+                  className={`${ICON_BTN} h-11 w-11`}
                 >
-                  <HiOutlineSparkles className="h-4 w-4" />
-                  Heal & Regenerate
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><path d="M12 4v11M7 10l5 5 5-5M5 19h14" /></svg>
                 </button>
-              ) : null}
-              {viewing.dry_run_key ? (
-                <Link
-                  to={`/automation/runs/${viewing.dry_run_key}`}
-                  className="app-btn app-btn-secondary inline-flex items-center gap-1.5"
-                >
-                  <HiOutlineExternalLink className="h-4 w-4" />
-                  Open the run
-                </Link>
-              ) : null}
-              {canExecute ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const target = viewing
-                    setViewing(null)
-                    setEditingScript(target)
-                    setEditCode(target.code || '')
-                    setEditError(null)
-                  }}
-                  className="app-btn app-btn-secondary inline-flex items-center gap-1.5"
-                  title="Hand-edit this script's code"
-                >
-                  <HiOutlinePencil className="h-4 w-4" />
-                  Edit Code
-                </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={() =>
-                  runAction('approve-script', async () => {
-                    await automationService.decideScript(viewing.id, 'approve')
-                    setViewing(null)
-                  })
-                }
-                disabled={
-                  !canExecute ||
-                  busy !== null ||
-                  viewing.static_gate_result?.passed === false ||
-                  viewing.status === 'approved'
-                }
-                title={
-                  viewing.static_gate_result?.passed === false
-                    ? 'The static gate failed — fix it before approving.'
-                    : undefined
-                }
-                className="app-btn app-btn-primary inline-flex items-center gap-1.5 disabled:opacity-50"
-              >
-                <HiOutlineCheckCircle className="h-4 w-4" />
-                {viewing.status === 'approved' ? 'Approved' : 'Approve script'}
-              </button>
+              </div>
             </div>
-          </div>
-        </div>
-      ) : null}
+          </>
+        )}
+      </aside>
 
       {editingScript ? (
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
-          onClick={e => {
-            if (e.target === e.currentTarget && !savingEdit) setEditingScript(null)
-          }}
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-[rgba(17,24,39,0.55)] p-4"
+          onMouseDown={e => { if (e.target === e.currentTarget && !savingEdit) setEditingScript(null) }}
           role="dialog"
           aria-modal="true"
+          aria-label={`Edit ${editingScript.file_name}`}
         >
-          <div className="flex h-[92vh] w-full max-w-[1100px] flex-col overflow-hidden rounded-[24px] border border-app bg-app-surface shadow-[0_28px_70px_rgba(15,23,42,0.22)]">
-            <div className="flex items-start justify-between gap-3 border-b border-app bg-app-surface-muted px-5 py-4">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-app-brand-500/10 text-app-brand-600">
-                    <HiOutlinePencil className="h-4 w-4" />
-                  </span>
-                  <h2 className="truncate text-[15px] font-bold text-app-primary">
-                    Edit Script · {editingScript.test_case_display_id} · {editingScript.file_name}
-                  </h2>
-                </div>
-                <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                  <StatusBadge tone="info" size="sm">
-                    {editingScript.framework}
-                  </StatusBadge>
-                  <StatusBadge tone="neutral" size="sm">
-                    v{editingScript.version}
-                  </StatusBadge>
-                  <span className="text-[12px] text-app-secondary">
-                    {editCode.split('\n').length} lines · {editCode.length} characters
-                  </span>
-                </div>
+          <div className="flex h-[88vh] w-full max-w-[1100px] flex-col overflow-hidden rounded-[20px] border border-[#E8EAEE] bg-white shadow-[0_28px_70px_rgba(15,23,42,0.22)]">
+            <div className="flex items-center gap-3 border-b border-[#E8EAEE] px-5 py-3.5">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[15px] font-bold text-[#1F2937]">Edit script · {baseId(editingScript.test_case_display_id ?? '')}</div>
+                <div className="truncate font-mono text-[12px] text-[#6B7280]">{editingScript.file_name} · v{editingScript.version} · {editCode.split('\n').length} lines</div>
               </div>
-              <button
-                type="button"
-                onClick={() => !savingEdit && setEditingScript(null)}
-                disabled={savingEdit}
-                className="rounded-md p-1.5 text-app-secondary transition hover:bg-app-surface hover:text-app-primary disabled:opacity-40"
-                aria-label="Close"
-              >
-                ✕
+              <button type="button" onClick={() => !savingEdit && setEditingScript(null)} aria-label="Close" className="flex h-8 w-8 items-center justify-center rounded-[10px] text-[#6B7280] hover:bg-[#F4F5F7]">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
               </button>
             </div>
-
-            <div className="app-scroll flex-1 space-y-3 overflow-y-auto px-5 py-4">
-              {editError ? (
-                <div className="rounded-app border border-red-200 bg-app-danger-bg px-3 py-2.5 text-[12px] text-app-danger flex items-center justify-between">
-                  <span>{editError}</span>
-                  <button type="button" onClick={() => setEditError(null)} className="text-xs font-semibold hover:underline">
-                    Dismiss
-                  </button>
-                </div>
-              ) : null}
-
-              <div className="flex flex-col h-[calc(100%-20px)] min-h-[460px] rounded-xl border border-slate-700 bg-slate-950 overflow-hidden shadow-inner">
-                <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-4 py-2 text-xs text-slate-400 font-mono">
-                  <span>{editingScript.file_name}</span>
-                  <span>TypeScript / JavaScript</span>
-                </div>
-                <textarea
-                  value={editCode}
-                  onChange={e => setEditCode(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Tab') {
-                      e.preventDefault()
-                      const target = e.currentTarget
-                      const start = target.selectionStart
-                      const end = target.selectionEnd
-                      setEditCode(editCode.substring(0, start) + '  ' + editCode.substring(end))
-                      setTimeout(() => {
-                        target.selectionStart = target.selectionEnd = start + 2
-                      }, 0)
-                    }
-                  }}
-                  className="flex-1 w-full resize-none bg-slate-950 p-4 font-mono text-[13px] leading-relaxed text-emerald-400 focus:outline-none selection:bg-emerald-500/30 selection:text-white"
-                  spellCheck={false}
-                  placeholder="// Paste or edit your Playwright automation script here..."
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between border-t border-app bg-app-surface-muted px-5 py-3.5">
-              <button
-                type="button"
-                onClick={() => setEditCode(editingScript.code || '')}
-                disabled={savingEdit || editCode === editingScript.code}
-                className="text-[12px] text-app-secondary hover:text-app-primary disabled:opacity-40"
-              >
+            {editError && <div role="alert" className="mx-5 mt-3 rounded-[12px] border border-[#F6D4D5] bg-[#FFF8F8] px-3.5 py-2 text-[12.5px] text-[#7A0B0D]">{editError}</div>}
+            <textarea
+              value={editCode}
+              onChange={e => setEditCode(e.target.value)}
+              onKeyDown={e => {
+                if (e.key !== 'Tab') return
+                e.preventDefault()
+                const target = e.currentTarget
+                const start = target.selectionStart
+                const end = target.selectionEnd
+                setEditCode(editCode.substring(0, start) + '  ' + editCode.substring(end))
+                window.setTimeout(() => { target.selectionStart = target.selectionEnd = start + 2 }, 0)
+              }}
+              spellCheck={false}
+              className="m-5 flex-1 resize-none rounded-[14px] bg-[#1B1B1F] p-4 font-mono text-[13px] leading-[1.7] text-[#E5E7EB] outline-none"
+            />
+            <div className="flex items-center gap-2 border-t border-[#E8EAEE] bg-[#FCFCFD] px-5 py-3">
+              <button type="button" onClick={() => setEditCode(editingScript.code || '')} disabled={savingEdit || editCode === editingScript.code} className="text-[12.5px] font-semibold text-[#6B7280] hover:text-[#1F2937] disabled:opacity-40">
                 Reset to current code
               </button>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingScript(null)}
-                  disabled={savingEdit}
-                  className="app-btn app-btn-secondary"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveEdit}
-                  disabled={savingEdit || !canExecute}
-                  className="app-btn app-btn-primary inline-flex items-center gap-1.5"
-                >
-                  <HiOutlineCheckCircle className="h-4 w-4" />
-                  {savingEdit ? 'Saving Changes…' : 'Save Changes'}
+              <div className="ml-auto flex gap-2">
+                <button type="button" onClick={() => setEditingScript(null)} disabled={savingEdit} className="flex h-9 items-center rounded-[12px] border border-[#E8EAEE] bg-white px-4 text-[13px] font-bold text-[#1F2937]">Cancel</button>
+                <button type="button" onClick={() => void handleSaveEdit()} disabled={savingEdit || !canExecute} className="flex h-9 items-center rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-4 text-[13px] font-bold text-white disabled:opacity-50">
+                  {savingEdit ? 'Saving…' : 'Save changes'}
                 </button>
               </div>
             </div>
           </div>
         </div>
       ) : null}
-    </div>
+    </section>
   )
 }
 

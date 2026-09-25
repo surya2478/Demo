@@ -23,6 +23,11 @@ export interface AutomationContext {
    * require_permission, so a hidden button is a courtesy, not the control.
    */
   canExecute: boolean
+  /** The header search ("Search scripts, runs, test cases…"), lower-cased. */
+  query: string
+  /** The tab cards' counts: Script Lab cases and runs executing now. */
+  setLabCount: (count: number) => void
+  setLiveRuns: (count: number) => void
 }
 
 export function useAutomationContext(): AutomationContext {

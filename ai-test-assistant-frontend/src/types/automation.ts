@@ -102,6 +102,10 @@ export interface RunSummary {
   /** Whether this process is executing the run right now. */
   is_active: boolean
   is_healed?: boolean
+  /** How it was started: dry_run, rerun, discovery -- or null for a spec run. */
+  mode?: string | null
+  /** Pause between actions; 1000 is "Safe / WAF (1s)". */
+  slow_mo_ms?: number | null
   healing_diagnosis?: string | null
   healing_changes?: string[] | null
   original_code?: string | null
@@ -164,6 +168,8 @@ export interface CreateRunRequest {
   test_case_id?: number | null
   slow_mo_ms?: number | null
   headless?: boolean | null
+  /** "rerun" when a finished run's spec is run again from Runs. */
+  mode?: 'standard' | 'rerun' | null
 }
 
 export interface CreateRunResponse {
@@ -513,11 +519,26 @@ export interface ScriptAsset {
   is_current: boolean
   /** Set once a human edits the code; regeneration refuses to discard it. */
   edited_by_user: boolean
+  /** The last dry run, read through its run (Script Lab listing only). */
+  dry_run?: DryRunBrief | null
   generation_error: string | null
   runnable: boolean
   created_by: string | null
   created_at: string | null
   updated_at: string | null
+}
+
+/** Where a script's last dry run got to: "failed at step 5 · 00:48". */
+export interface DryRunBrief {
+  run_key: string
+  status: RunStatus
+  outcome: RunOutcome
+  duration_seconds: number | null
+  completed_at: string | null
+  failed_step: number | null
+  failed_title: string | null
+  error_message: string | null
+  is_healed: boolean
 }
 
 export interface ScriptLabCase {
@@ -533,12 +554,17 @@ export interface ScriptLabCase {
   /** When the case landed in the automation module; the Lab is sorted on it. */
   created_at: string | null
   scripts: ScriptAsset[]
+  /** The review request it was approved in, and that request's source. */
+  request_id?: string | null
+  source_group?: string | null
 }
 
 export interface ScriptLabListing {
   counts: {
     approved_cases: number
     by_framework: Record<string, number>
+    /** How many approved requests the cases came from. */
+    requests?: number
   }
   cases: ScriptLabCase[]
 }
