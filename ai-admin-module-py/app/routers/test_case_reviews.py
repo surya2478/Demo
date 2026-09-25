@@ -1058,6 +1058,53 @@ async def update_review_detail_decision(
     return {'success': True, 'data': _serialize_review_detail(detail)}
 
 
+@router.post("/delete")
+def delete_review_requests(
+    payload: Dict[str, Any],
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    """Delete review requests and their test cases (Review & Approval).
+
+    Cases already approved into Automation Studio are copies there and stay.
+    AI Checks drafts still waiting on these requests go with them: nothing
+    else could ever approve them now.
+    """
+    _require_review_manager(current_user)
+    ids = [str(item) for item in (payload.get('request_ids') or []) if item]
+    if not ids:
+        raise HTTPException(status_code=400, detail='Choose the requests to delete.')
+    details = db.query(TestCaseReviewDetail).filter(TestCaseReviewDetail.request_id.in_(ids)).all()
+    if not details:
+        raise HTTPException(status_code=404, detail='None of those requests exist.')
+    found = [detail.request_id for detail in details]
+
+    from ..models.automation import AutomationAICheck, AutomationTestCase
+    from ..services.automation import ai_checks
+
+    drafts = (
+        db.query(AutomationTestCase)
+        .filter(AutomationTestCase.origin == ai_checks.ORIGIN, AutomationTestCase.origin_request_id.in_(found))
+        .all()
+    )
+    if drafts:
+        db.query(AutomationAICheck).filter(
+            AutomationAICheck.case_id.in_([case.id for case in drafts])
+        ).delete(synchronize_session=False)
+        for case in drafts:
+            db.delete(case)
+
+    cases = (
+        db.query(TestCaseDetail)
+        .filter(TestCaseDetail.request_id.in_(found))
+        .delete(synchronize_session=False)
+    )
+    for detail in details:
+        db.delete(detail)
+    db.commit()
+    return {'deleted': len(found), 'test_cases': cases, 'drafts': len(drafts)}
+
+
 @router.get("/list")
 async def list_reviews(
     status: Optional[str] = Query(default=None),

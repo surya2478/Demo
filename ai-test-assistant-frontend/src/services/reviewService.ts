@@ -121,6 +121,12 @@ const reviewService = {
       review_notes: reviewNotes || undefined
     })
     window.dispatchEvent(new Event('test-case-review-updated'))
+  },
+  /** Delete requests and their test cases. Manager only. */
+  remove: async (requestIds: string[]): Promise<{ deleted: number; test_cases: number; drafts: number }> => {
+    const res = await api.post('/test-case-reviews/delete', { request_ids: requestIds })
+    window.dispatchEvent(new Event('test-case-review-updated'))
+    return res.data
   }
 }
 

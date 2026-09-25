@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageHeader } from '../../components/layout/PageHeaderContext'
+import { useConfirm } from '../../components/ui/ConfirmDialog'
 import JourneyBar from '../../components/test-assistant/JourneyBar'
 import reviewService, {
   PENDING, ageLabel, downloadRequestCases, downloadRequestList,
@@ -16,7 +17,7 @@ type Tab = 'pending' | 'approved' | 'rejected' | 'all'
 const CARD = 'rounded-[20px] border border-[#E8EAEE] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]'
 const LBL = 'text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6B7280]'
 const CHIP = 'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-[9px] text-[11.5px] font-semibold'
-const REQ = 'grid grid-cols-[minmax(0,1fr)_56px_150px_64px_100px_86px] items-center gap-3 border-b border-[#F1F2F4] px-[18px]'
+const REQ = 'grid grid-cols-[18px_minmax(0,1fr)_56px_150px_64px_100px_86px] items-center gap-3 border-b border-[#F1F2F4] px-[18px]'
 const SOURCES: SourceGroup[] = ['BRD', 'SDD', 'ADO', 'e2e Spark']
 
 const SOURCE_TONE: Record<SourceGroup, string> = {
@@ -54,6 +55,9 @@ const ReviewApproval: React.FC = () => {
   const [query, setQuery] = useState('')
   const [downloading, setDownloading] = useState<string | null>(null)
   const visibleRef = useRef<RequestSummary[]>([])
+  const [selected, setSelected] = useState<Set<string>>(() => new Set())
+  const [deleting, setDeleting] = useState(false)
+  const confirm = useConfirm()
 
   const load = useCallback(async () => {
     try {
@@ -107,15 +111,53 @@ const ReviewApproval: React.FC = () => {
     && (source === 'all' || item.source_group === source)
     && (projectFilter === 'all' || (projectFilter === 'none' ? !item.project : String(item.project?.id) === projectFilter))
     && (!query || [item.document_name, item.request_id, item.request_by, item.project?.ppm_id, item.project?.name].some((v) => String(v ?? '').toLowerCase().includes(query)))
-  ).sort((a, b) => tab === 'pending'
-    ? String(a.request_date_time).localeCompare(String(b.request_date_time))
-    : String(b.request_date_time).localeCompare(String(a.request_date_time))), [requests, tab, source, projectFilter, query])
+  ).sort((a, b) => (Date.parse(b.request_date_time ?? '') || 0) - (Date.parse(a.request_date_time ?? '') || 0)), [requests, tab, source, projectFilter, query])
   const projectOptions = useMemo(() => {
     const byId = new Map<number, { id: number; ppm_id: string; name: string }>()
     requests.forEach((item) => { if (item.project) byId.set(item.project.id, item.project) })
     return Array.from(byId.values()).sort((a, b) => a.ppm_id.localeCompare(b.ppm_id))
   }, [requests])
   visibleRef.current = visible
+
+  // Selection follows what is shown: a request filtered away is not deleted.
+  useEffect(() => {
+    setSelected((current) => {
+      const shown = new Set(visible.map((item) => item.request_id))
+      const next = new Set(Array.from(current).filter((id) => shown.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [visible])
+
+  const allOn = visible.length > 0 && visible.every((item) => selected.has(item.request_id))
+
+  const deleteSelected = async () => {
+    const chosen = visible.filter((item) => selected.has(item.request_id))
+    if (!chosen.length) return
+    const count = chosen.length
+    const cases = chosen.reduce((sum, item) => sum + item.cases, 0)
+    const inLab = chosen.reduce((sum, item) => sum + item.sent_to_lab, 0)
+    const ok = await confirm({
+      title: count === 1 ? `Delete ${chosen[0].request_id}?` : `Delete ${count} requests?`,
+      body: count === 1 ? chosen[0].document_name : `${count} requests with ${cases} test cases will be removed from Review & Approval.`,
+      consequences: [
+        `Their ${cases} test case${cases === 1 ? '' : 's'} and review decisions are deleted.`,
+        ...(inLab ? [`${inLab} already in Automation Studio stay there.`] : []),
+        'This cannot be undone.'
+      ],
+      confirmLabel: count === 1 ? 'Delete request' : `Delete ${count} requests`
+    })
+    if (!ok) return
+    setDeleting(true)
+    try {
+      await reviewService.remove(chosen.map((item) => item.request_id))
+      setSelected(new Set())
+      await load()
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || 'The requests could not be deleted.')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const recent = requests
     .filter((item) => item.overall_status === 'APPROVED')
@@ -203,7 +245,31 @@ const ReviewApproval: React.FC = () => {
 
           <div className="overflow-x-auto">
             <div className="min-w-[760px]">
+              {selected.size > 0 && (
+                <div className="flex items-center gap-3 border-b border-[#F6D4D5] bg-[#FFF8F8] px-[18px] py-2 text-[12.5px]">
+                  <span className="font-semibold text-[#1F2937]">{selected.size} selected</span>
+                  <button type="button" onClick={() => setSelected(new Set())} className="font-semibold text-[#6B7280] hover:text-[#1F2937]">Clear</button>
+                  <button
+                    type="button"
+                    onClick={() => void deleteSelected()}
+                    disabled={deleting}
+                    className="ml-auto flex h-8 items-center gap-1.5 rounded-[10px] border border-[#F0C2C0] bg-white px-3 text-[12.5px] font-bold text-[#A3231C] hover:bg-[#FEEBEC] disabled:opacity-50"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
+                    {deleting ? 'Deleting…' : `Delete ${selected.size}`}
+                  </button>
+                </div>
+              )}
               <div className={`${REQ} h-9 border-b-[#F6D4D5] bg-[#F4F5F7] text-[11px] font-semibold uppercase tracking-[0.12em] text-[#1F2937]`}>
+                <input
+                  type="checkbox"
+                  aria-label="Select all requests"
+                  title="Select all"
+                  checked={allOn}
+                  disabled={visible.length === 0}
+                  onChange={() => setSelected(allOn ? new Set() : new Set(visible.map((item) => item.request_id)))}
+                  className="h-4 w-4 accent-[#B71920]"
+                />
                 <span>Request</span><span>Cases</span><span>AI classification</span><span>Quality</span><span>Attention</span><span />
               </div>
               {loading && <div className="px-[18px] py-6 text-[13px] text-[#6B7280]">Loading requests…</div>}
@@ -213,7 +279,19 @@ const ReviewApproval: React.FC = () => {
                 const checked = item.automation + item.manual
                 const pending = PENDING.includes(item.overall_status)
                 return (
-                  <div key={item.request_id} className={`${REQ} py-3.5`}>
+                  <div key={item.request_id} className={`${REQ} py-3.5 ${selected.has(item.request_id) ? 'bg-[#FFF8F8]' : ''}`}>
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${item.request_id}`}
+                      checked={selected.has(item.request_id)}
+                      onChange={() => setSelected((current) => {
+                        const next = new Set(current)
+                        if (next.has(item.request_id)) next.delete(item.request_id)
+                        else next.add(item.request_id)
+                        return next
+                      })}
+                      className="h-4 w-4 accent-[#B71920]"
+                    />
                     <div className="flex min-w-0 items-center gap-3">
                       <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] border border-[#F6D4D5] bg-[#FFF5F5]"><DocIcon /></div>
                       <div className="min-w-0">
