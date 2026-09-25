@@ -21,6 +21,8 @@ export interface TopHeaderProps {
   actions?: React.ReactNode
   /** Controls placed before the search box, e.g. a page's tools menu. */
   leading?: React.ReactNode
+  /** A line above the title: a section name, or a breadcrumb. */
+  eyebrow?: React.ReactNode
   onMobileMenuOpen?: () => void
 }
 
@@ -41,6 +43,7 @@ const TopHeader: React.FC<TopHeaderProps> = ({
   onAssistantClick,
   actions,
   leading,
+  eyebrow,
   onMobileMenuOpen
 }) => {
   const { user } = useAuth()
@@ -52,7 +55,7 @@ const TopHeader: React.FC<TopHeaderProps> = ({
     return () => clearTimeout(id)
   }, [q, onSearch])
 
-  const hasTitle = !!(title || subtitle || welcomeText)
+  const hasTitle = !!(title || subtitle || welcomeText || eyebrow)
 
   /*
    * --- A control needs somewhere to go before it may appear ---------------
@@ -92,13 +95,18 @@ const TopHeader: React.FC<TopHeaderProps> = ({
 
         {hasTitle && (
           <div className="min-w-0 flex-1 lg:flex-none lg:pr-6">
+            {eyebrow && (
+              <div className="truncate text-[10px] font-semibold uppercase leading-tight tracking-[0.18em] text-[#941216]">
+                {eyebrow}
+              </div>
+            )}
             {welcomeText && (
               <div className="text-[12px] font-medium text-app-secondary leading-tight mb-0.5">
                 {welcomeText}
               </div>
             )}
             {title && (
-              <h1 className="truncate text-[22px] font-bold leading-tight tracking-tight text-app-primary sm:text-[26px]">
+              <h1 className={`truncate font-bold leading-tight tracking-tight text-app-primary ${eyebrow ? 'text-[18px] sm:text-[20px]' : 'text-[22px] sm:text-[26px]'}`}>
                 {title}
               </h1>
             )}

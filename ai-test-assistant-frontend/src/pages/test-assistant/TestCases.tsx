@@ -20,14 +20,18 @@ import userService from '../../services/userService'
 import RequestTrackerAPI from '../../utils/requestTrackerAPI'
 import { theme } from '../../styles/theme'
 import { useAIAction } from '../../hooks/useAIAction'
-import ReviewAndSendModal, { type ReviewDocumentItem } from '../../components/ReviewAndSendModal'
 import Notification from '../../components/Notification'
 import { authHeaderFor, isOwnBackend } from '../../utils/trackedFetchWithTokens'
 import api from '../../services/api'
 import SelectKB, { type KnowledgeBaseOption } from '../../components/test-assistant/SelectKB'
 import JourneyBar from '../../components/test-assistant/JourneyBar'
-import { CaseGrid, InputSummary, ProgressPanel, parseStreamingCases } from '../../components/test-assistant/GenerationOutput'
-import AIChecksPanel from '../../components/test-assistant/AIChecksPanel'
+import { CaseGrid, InputSummary, ProgressPanel, parseStreamingCases, removeCasesFromMarkdown } from '../../components/test-assistant/GenerationOutput'
+import AIChecksPanel, { isSettled } from '../../components/test-assistant/AIChecksPanel'
+import { useConfirm } from '../../components/ui/ConfirmDialog'
+import { ProjectChip, ProjectDialog } from '../../components/project/ProjectDetails'
+import SessionList from '../../components/project/SessionList'
+import { useProject } from '../../context/ProjectContext'
+import projectService, { projectLabel, type GenerationSnapshot, type Project, type SessionSummary } from '../../services/projectService'
 import StepEditor from '../../components/test-assistant/StepEditor'
 import aiChecksService, { type CheckBatch, type CheckItem, type EditedStep } from '../../services/aiChecksService'
 import { publishTokenUsage } from '../../components/test-assistant/TokenUsageChip'
@@ -41,6 +45,15 @@ interface FilePreviewData {
   // markdown/plain text (normalized) used by MarkdownViewer in expanded modal / processing
   markdown: string
   isDocx: boolean
+}
+
+// A document a request carries (brd_document): an upload, a Spark import, or
+// the prompt text.
+type ReviewDocumentItem = {
+  id: string
+  name: string
+  content: string
+  type: 'file' | 'spark'
 }
 
 const TestCases: React.FC = () => {
@@ -68,9 +81,6 @@ const TestCases: React.FC = () => {
   const [contents, setContents] = useState<string[]>([]);
   const [texts, setTexts] = useState<string[]>([]);
   const userAuth = useAuth();
-  const [isReviewOpen, setIsReviewOpen] = useState(false)
-  const [reviewTableData, setReviewTableData] = useState<Record<string, string>[]>([])
-  const [reviewDocuments, setReviewDocuments] = useState<ReviewDocumentItem[]>([])
   const [approvalNotification, setApprovalNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [submittedTestCaseCount, setSubmittedTestCaseCount] = useState<number | null>(null)
   const [workflowStageRequestId, setWorkflowStageRequestId] = useState<string | null>(null)
@@ -137,6 +147,43 @@ const TestCases: React.FC = () => {
   const [aiSaving, setAiSaving] = useState(false)
   const [aiEditError, setAiEditError] = useState('')
   const aiAutoSelectedRef = useRef<Set<number>>(new Set())
+  const [aiBusy, setAiBusy] = useState<'stop' | 'restart' | 'delete' | null>(null)
+  // Save & Run AI Checks saves the generated cases as a request first; Send
+  // for Approval later sends that same request. Saved test_case_id by the
+  // case's Test Case ID, so each sent row updates its own saved row.
+  const [savedRequestId, setSavedRequestIdState] = useState<string | null>(null)
+  // The id is needed straight after it is set (save, then start the checks).
+  const savedRequestIdRef = useRef<string | null>(null)
+  const setSavedRequestId = (id: string | null) => {
+    savedRequestIdRef.current = id
+    setSavedRequestIdState(id)
+  }
+  const savedCaseIdsRef = useRef<Map<string, string>>(new Map())
+  // Checks already sent; Send for Approval can run again for the rest.
+  const [aiSentIds, setAiSentIds] = useState<Set<number>>(() => new Set())
+  // --- Project and saved sessions --------------------------------------------
+  // Generated cases are saved as a session the moment generation ends, under
+  // the current project, and the page reopens the latest unfinished one when
+  // it is opened with nothing on it.
+  const { project, setProject } = useProject()
+  // Read at save time: Generate may be clicked in the same moment a project is
+  // chosen, before a re-render has put it in this render's closure.
+  const projectRef = useRef<Project | null>(project)
+  projectRef.current = project
+  const [projectDialog, setProjectDialog] = useState<null | 'gate' | 'edit'>(null)
+  const projectSkippedRef = useRef(false)
+  const [sessions, setSessions] = useState<SessionSummary[]>([])
+  const [sessionsLoading, setSessionsLoading] = useState(false)
+  const [restoredDocumentNames, setRestoredDocumentNames] = useState<string[]>([])
+  const restoreTriedRef = useRef(false)
+  // Generated cases ticked in the grid, by Test Case ID: AI Checks run on
+  // these (or on all when none are ticked), and Delete removes them.
+  const [gridSelected, setGridSelected] = useState<Set<string>>(() => new Set())
+  const confirm = useConfirm()
+  // Which check each sent row came from, by Test Case ID. Kept out of the rows
+  // themselves so the Review & Send table shows only the case's own columns;
+  // the server reads the check's results from this id (never scores we send).
+  const aiCheckIdsRef = useRef<Map<string, number>>(new Map())
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
 
   // Chat state
@@ -502,16 +549,6 @@ const TestCases: React.FC = () => {
     return docs.length > 0 ? docs : [{ id: 'no-docs', name: 'No attached document', content: 'No content available.', type: 'file' }]
   }
 
-  const openReviewWindow = () => {
-    const consolidated = extractAndConsolidateTestCases(response || output || '')
-    setReviewTableData(consolidated.rows)
-    setReviewDocuments(getReviewDocuments())
-    setIsReviewOpen(true)
-  }
-
-  const handleReviewTableChange = (nextRows: Record<string, string>[]) => {
-    setReviewTableData(nextRows)
-  }
 
   const getApprovalDocumentId = (documents: ReviewDocumentItem[]) => {
     if (inputType === 'text') {
@@ -556,16 +593,19 @@ const TestCases: React.FC = () => {
 
   const handleSendForApproval = async (rows: Record<string, string>[], documents: ReviewDocumentItem[] = getReviewDocuments()) => {
     try {
-      const requestId = `REQ-${Date.now()}`
+      // The request Save & Run AI Checks saved, when there is one.
+      const requestId = savedRequestId || `REQ-${Date.now()}`
       const requestBy = (authUser.user as any)?.username || (authUser.user as any)?.email || 'system'
       const documentId = getApprovalDocumentId(documents)
       const stageRequestId = workflowStageRequestId || requestId
       const uniqueRows = deduplicateTestCases(rows).map((row, index) => {
         const baseId = typeof row.id === 'string' && row.id.trim() ? row.id.trim() : `TC-${index + 1}`
+        const savedId = savedCaseIdsRef.current.get(String((row as Record<string, string>)['Test Case ID'] ?? '').trim())
+        const id = savedId || `${requestId}-TC-${savedRequestId ? `S${index + 1}` : index + 1}`
         return {
           ...row,
-          id: `${requestId}-TC-${index + 1}`,
-          test_case_id: `${requestId}-TC-${index + 1}`,
+          id,
+          test_case_id: id,
           sourceRowId: baseId
         }
       })
@@ -586,7 +626,12 @@ const TestCases: React.FC = () => {
         rows: uniqueRows.map((row, index) => ({
           test_case_id: row.test_case_id || `${requestId}-TC-${index + 1}`,
           request_id: requestId,
-          test_case_details: { ...row },
+          test_case_details: {
+            ...row,
+            ...(aiCheckIdsRef.current.has(String((row as Record<string, string>)['Test Case ID'] ?? ''))
+              ? { _ai_check_id: aiCheckIdsRef.current.get(String((row as Record<string, string>)['Test Case ID'] ?? '')) }
+              : {})
+          },
           status: 'PENDING',
           generated_by: requestBy
         })),
@@ -622,7 +667,14 @@ const TestCases: React.FC = () => {
       window.dispatchEvent(new CustomEvent('test-case-workflow-updated', {
         detail: { stageRequestId, documentName: getWorkflowDocumentName() }
       }))
-      setSubmittedTestCaseCount(uniqueRows.length)
+      const sentChecks = uniqueRows
+        .map((row) => aiCheckIdsRef.current.get(String((row as Record<string, string>)['Test Case ID'] ?? '')))
+        .filter((id): id is number => id !== undefined)
+      if (sentChecks.length) {
+        setAiSentIds((current) => new Set([...Array.from(current), ...sentChecks]))
+        setAiSelected((current) => new Set(Array.from(current).filter((id) => !sentChecks.includes(id))))
+      }
+      setSubmittedTestCaseCount((current) => (current ?? 0) + uniqueRows.length)
       setApprovalNotification({ message: `${uniqueRows.length} test case${uniqueRows.length === 1 ? '' : 's'} sent for approval`, type: 'success' })
       return true
     } catch (error) {
@@ -1403,6 +1455,7 @@ const TestCases: React.FC = () => {
       setGenStagesDone(5)
       if (fullText && fullText.trim().length > 0) {
         setTestCasesData(fullText);
+        await autosaveGeneration(fullText, stopRequestedRef.current)
         await startWorkflow(getWorkflowDocumentName(), {
           PROCESS_DOCUMENT: 'COMPLETED',
           GENERATE_TEST_CASES: 'COMPLETED',
@@ -1449,6 +1502,10 @@ const TestCases: React.FC = () => {
     setAiBatch(null)
     setAiError('')
     setAiSelected(new Set())
+    setAiBusy(null)
+    setSavedRequestId(null)
+    savedCaseIdsRef.current = new Map()
+    setAiSentIds(new Set())
     setAiEditing(null)
     setAiEditError('')
     aiAutoSelectedRef.current = new Set()
@@ -1457,7 +1514,10 @@ const TestCases: React.FC = () => {
   // Same rows Review & Send uses, so the checks start from exactly the table
   // the author sees.
   const handleRunAiChecks = async () => {
-    const rows = extractAndConsolidateTestCases(response || output || '').rows
+    const allRows = extractAndConsolidateTestCases(response || output || '').rows
+    const idOf = (row: Record<string, string>) =>
+      String(Object.entries(row).find(([key]) => /test\s*case\s*id/i.test(key))?.[1] ?? '').trim()
+    const rows = gridSelected.size ? allRows.filter((row) => gridSelected.has(idOf(row))) : allRows
     if (!rows.length) {
       setAiError('No test cases were found in the output to check.')
       return
@@ -1465,13 +1525,81 @@ const TestCases: React.FC = () => {
     setAiStarting(true)
     setAiError('')
     try {
-      const batchId = await aiChecksService.start(rows, selectedKnowledgeBaseOption.knowledgeBase || undefined)
+      // 1. Save: the generated cases are on record before any check runs.
+      //    Skipped when an earlier attempt saved them and only the checks failed.
+      if (!savedRequestIdRef.current) {
+        const saved = await saveGeneratedCases(allRows)
+        if (!saved) return
+      }
+      // 2. AI Checks.
+      const batchId = await aiChecksService.start(rows, selectedKnowledgeBaseOption.knowledgeBase || undefined, savedRequestIdRef.current || undefined)
       setAiBatchId(batchId)
       setAiBatch(await aiChecksService.get(batchId))
     } catch (error: any) {
       setAiError(error?.response?.data?.detail || error?.message || 'AI Checks could not be started.')
     } finally {
       setAiStarting(false)
+    }
+  }
+
+  const generationSnapshot = (outputText: string, stopped = false): GenerationSnapshot => ({
+    output: outputText,
+    input_type: inputType,
+    knowledge_base: selectedKnowledgeBase,
+    knowledge_base_label: selectedKnowledgeBaseOption.label,
+    environment: selectedEnvironment || '',
+    focus: selectedFocus || '',
+    document_text: inputType === 'text' ? '' : combinedContent,
+    document_names: fileInputs.map((file) => file.name),
+    text_input: inputType === 'text' ? textValue : '',
+    ppm_id: inputType === 'e2e-spark' ? ppmId.trim() : '',
+    stopped
+  })
+
+  // Called when generation ends (finished or stopped), so nothing generated
+  // exists only in this browser tab.
+  const autosaveGeneration = async (outputText: string, stopped: boolean) => {
+    const rows = extractAndConsolidateTestCases(outputText).rows
+    if (!rows.length) return
+    const saved = await saveGeneratedCases(rows, generationSnapshot(outputText, stopped))
+    if (saved) setApprovalNotification({ message: `${rows.length} test case${rows.length === 1 ? '' : 's'} saved${projectRef.current ? ` to ${projectRef.current.ppm_id}` : ''}`, type: 'success' })
+  }
+
+  const saveGeneratedCases = async (rows: Record<string, string>[], generation?: GenerationSnapshot): Promise<boolean> => {
+    const requestId = `REQ-${Date.now()}`
+    const requestBy = (authUser.user as any)?.username || (authUser.user as any)?.email || 'system'
+    const documents = getReviewDocuments()
+    const ids = new Map<string, string>()
+    const saveRows = rows.map((row, index) => {
+      const testCaseId = `${requestId}-TC-${index + 1}`
+      ids.set(String(row['Test Case ID'] ?? '').trim(), testCaseId)
+      return {
+        test_case_id: testCaseId,
+        request_id: requestId,
+        test_case_details: { ...row, id: testCaseId },
+        status: 'DRAFT',
+        generated_by: requestBy
+      }
+    })
+    try {
+      await api.post('/test-case-reviews/save', {
+        request_id: requestId,
+        stage_request_id: workflowStageRequestId || requestId,
+        source: inputType === 'e2e-spark' ? 'AZURE_DEVOPS' : inputType.toUpperCase(),
+        request_by: requestBy,
+        request_date_time: new Date().toISOString(),
+        document_id: getApprovalDocumentId(documents),
+        brd_document: documents,
+        rows: saveRows,
+        project_id: projectRef.current?.id ?? null,
+        generation: generation ?? generationSnapshot(response || output || '')
+      })
+      savedCaseIdsRef.current = ids
+      setSavedRequestId(requestId)
+      return true
+    } catch (error: any) {
+      setAiError(`The test cases could not be saved. ${error?.response?.data?.detail || error?.message || ''}`.trim())
+      return false
     }
   }
 
@@ -1489,12 +1617,14 @@ const TestCases: React.FC = () => {
           return next
         })
       }
-      // A failed case cannot be sent.
+      // Only a case nothing is working on can stay selected (Send takes the
+      // finished ones; Delete and Restart the rest too).
       setAiSelected((current) => {
-        const failed = batch.items.filter((item) => item.status !== 'done' && current.has(item.check_id))
-        if (!failed.length) return current
+        const present = new Map(batch.items.map((item) => [item.check_id, item]))
+        const drop = Array.from(current).filter((id) => !present.has(id) || !isSettled(present.get(id)!))
+        if (!drop.length) return current
         const next = new Set(current)
-        failed.forEach((item) => next.delete(item.check_id))
+        drop.forEach((id) => next.delete(id))
         return next
       })
     } catch (error) {
@@ -1510,6 +1640,155 @@ const TestCases: React.FC = () => {
       await refreshAiBatch(aiBatchId)
     } catch (error: any) {
       setAiError(error?.response?.data?.detail || 'Retry could not be started.')
+    }
+  }
+
+  const handleAiStop = async () => {
+    if (!aiBatchId) return
+    setAiBusy('stop')
+    try {
+      await aiChecksService.stop(aiBatchId)
+      await refreshAiBatch(aiBatchId)
+    } catch (error: any) {
+      setAiError(error?.response?.data?.detail || 'AI Checks could not be stopped.')
+    } finally {
+      setAiBusy(null)
+    }
+  }
+
+  const handleAiRestart = async () => {
+    if (!aiBatchId || !aiBatch) return
+    setAiBusy('restart')
+    setAiError('')
+    try {
+      await aiChecksService.restart(aiBatchId)
+      aiBatch.items
+        .filter((item) => item.status === 'stopped' || item.status === 'failed')
+        .forEach((item) => aiAutoSelectedRef.current.delete(item.check_id))
+      await refreshAiBatch(aiBatchId)
+    } catch (error: any) {
+      setAiError(error?.response?.data?.detail || 'AI Checks could not be restarted.')
+    } finally {
+      setAiBusy(null)
+    }
+  }
+
+  const handleAiDelete = async () => {
+    if (!aiBatchId || !aiBatch) return
+    const chosen = aiBatch.items.filter((item) => aiSelected.has(item.check_id) && isSettled(item))
+    if (!chosen.length) return
+    const count = chosen.length
+    const everything = count === aiBatch.items.length
+    const ok = await confirm({
+      title: count === 1 ? `Delete ${chosen[0].display_id}?` : `Delete ${count} test cases?`,
+      body: count === 1 ? chosen[0].title ?? '' : `${count} selected test cases will be removed from these AI Checks results.`,
+      consequences: [
+        'Their AI Checks results and refined steps are deleted too.',
+        everything ? 'That is every case here, so the AI Checks results close.' : 'The other cases are not affected.',
+        'This cannot be undone.'
+      ],
+      confirmLabel: count === 1 ? 'Delete test case' : `Delete ${count} test cases`
+    })
+    if (!ok) return
+    setAiBusy('delete')
+    setAiError('')
+    try {
+      await aiChecksService.remove(aiBatchId, chosen.map((item) => item.check_id))
+      if (savedRequestId) {
+        const savedIds = chosen
+          .map((item) => savedCaseIdsRef.current.get(String(item.display_id || item.source_row['Test Case ID'] || '').trim()))
+          .filter((id): id is string => Boolean(id))
+        if (savedIds.length) {
+          await api.post(`/test-case-reviews/saved/${encodeURIComponent(savedRequestId)}/remove`, { test_case_ids: savedIds })
+        }
+      }
+      if (everything) {
+        clearAiChecks()
+      } else {
+        setAiSelected((current) => {
+          const next = new Set(current)
+          chosen.forEach((item) => next.delete(item.check_id))
+          return next
+        })
+        await refreshAiBatch(aiBatchId)
+      }
+    } catch (error: any) {
+      setAiError(error?.response?.data?.detail || 'The test cases could not be deleted.')
+    } finally {
+      setAiBusy(null)
+    }
+  }
+
+  // Delete in the generated grid edits the output itself, so the full table,
+  // Use for Test Data, downloads and AI Checks all see the same cases.
+  const handleDeleteGenerated = async () => {
+    const ids = streamParse.cases.filter((item) => gridSelected.has(item.id))
+    if (!ids.length) return
+    const count = ids.length
+    const ok = await confirm({
+      title: count === 1 ? `Delete ${ids[0].id}?` : `Delete ${count} test cases?`,
+      body: count === 1 ? ids[0].title : `${count} selected test cases will be removed from the generated output.`,
+      consequences: ['Generate again to get them back.'],
+      confirmLabel: count === 1 ? 'Delete test case' : `Delete ${count} test cases`
+    })
+    if (!ok) return
+    const drop = new Set(ids.map((item) => item.id))
+    const next = removeCasesFromMarkdown(response || output || '', drop)
+    if (response) setResponse(next)
+    else setOutput(next)
+    setGridSelected(new Set())
+    if (savedRequestId) {
+      const savedIds = ids.map((item) => savedCaseIdsRef.current.get(item.id)).filter((id): id is string => Boolean(id))
+      try {
+        if (savedIds.length) await api.post(`/test-case-reviews/saved/${encodeURIComponent(savedRequestId)}/remove`, { test_case_ids: savedIds })
+        await projectService.updateSession(savedRequestId, { generation: { output: next } })
+      } catch (error: any) {
+        setAiError(`Removed here, but the saved session could not be updated. ${error?.response?.data?.detail || ''}`.trim())
+      }
+    }
+  }
+
+  const restoreSession = async (requestId: string) => {
+    try {
+      const session = await projectService.session(requestId)
+      const g = session.generation || {}
+      clearAiChecks()
+      setResponse(g.output || '')
+      setOutput('')
+      const types = ['text', 'file', 'e2e-spark', 'figma-pdf'] as const
+      setInputType((types as readonly string[]).includes(g.input_type || '') ? (g.input_type as typeof types[number]) : 'text')
+      setTextValue(g.text_input || '')
+      setCombinedContent(g.document_text || '')
+      setRestoredDocumentNames(g.document_names || [])
+      if (g.ppm_id) setPpmId(g.ppm_id)
+      if (knowledgeBaseOptions.some((option) => option.value === g.knowledge_base)) setSelectedKnowledgeBase(g.knowledge_base as KnowledgeBaseChoice)
+      setSelectedEnvironment((g.environment || '') as EnvironmentOption)
+      setSelectedFocus((g.focus || '') as FocusOption)
+      setGenerationError('')
+      setGenerationStopped(Boolean(g.stopped))
+      setGenStagesDone(6)
+      setInputsFolded(true)
+      setOutputOpen(true)
+      setShowFullTable(false)
+      if (session.project && session.project.id !== projectRef.current?.id) setProject(session.project)
+      setSavedRequestId(session.request_id)
+      savedCaseIdsRef.current = new Map(session.rows.map((row) => [row.display_id, row.test_case_id] as [string, string]))
+      const sentRows = session.rows.filter((row) => row.status !== 'DRAFT').length
+      setSubmittedTestCaseCount(sentRows > 0 ? sentRows : null)
+      if (session.ai_batch_id) {
+        const batch = await aiChecksService.get(session.ai_batch_id)
+        const sent = batch.items.filter((item) => item.sent).map((item) => item.check_id)
+        // A reopened session starts with its finished, unsent cases ticked.
+        aiAutoSelectedRef.current = new Set(batch.items.filter((item) => item.status === 'done').map((item) => item.check_id))
+        aiCheckIdsRef.current = new Map(batch.items.map((item) => [String(item.display_id || item.source_row['Test Case ID'] || ''), item.check_id] as [string, number]))
+        setAiSentIds(new Set(sent))
+        setAiSelected(new Set(batch.items.filter((item) => item.status === 'done' && !item.sent).map((item) => item.check_id)))
+        setAiBatchId(session.ai_batch_id)
+        setAiBatch(batch)
+      }
+      try { sessionStorage.removeItem('ta_closed_session') } catch { /* storage unavailable */ }
+    } catch (error: any) {
+      setAiError(error?.response?.data?.detail || 'The saved session could not be opened.')
     }
   }
 
@@ -1542,13 +1821,36 @@ const TestCases: React.FC = () => {
     }
   }
 
-  const aiSendable = aiBatch ? aiBatch.items.filter((item) => item.status === 'done' && aiSelected.has(item.check_id)) : []
+  const aiSendable = aiBatch ? aiBatch.items.filter((item) => item.status === 'done' && aiSelected.has(item.check_id) && !aiSentIds.has(item.check_id)) : []
 
-  const handleAiSend = () => {
+  // The AI Checks results are the review: cases go straight to the manager,
+  // not through the old Review & Send table, and a manager lands on Review &
+  // Approval to decide them.
+  const handleAiSend = async () => {
     if (!aiSendable.length) return
-    setReviewTableData(aiSendable.map(checkedRow))
-    setReviewDocuments(getReviewDocuments())
-    setIsReviewOpen(true)
+    const count = aiSendable.length
+    const automation = aiSendable.filter((item) => item.classification === 'automation').length
+    const dataPending = aiSendable.filter((item) => item.test_data_pending).length
+    const ok = await confirm({
+      title: `Send ${count} test case${count === 1 ? '' : 's'} for approval?`,
+      body: `${automation} Automation · ${count - automation} Manual${projectRef.current ? ` · ${projectLabel(projectRef.current)}` : ''}`,
+      consequences: [
+        'The manager sees each case with its AI Checks results and can approve or reject it.',
+        ...(dataPending ? [`${dataPending} still ${dataPending === 1 ? 'needs' : 'need'} test data; they are flagged for the manager.`] : []),
+        'Approved Automation cases go on to Automation Lab.'
+      ],
+      confirmLabel: `Send ${count} for Approval`
+    })
+    if (!ok) return
+    aiCheckIdsRef.current = new Map(
+      aiSendable.map((item) => [String(item.display_id || item.source_row['Test Case ID'] || ''), item.check_id] as [string, number])
+    )
+    // A saved session already holds its documents; sending them again would
+    // replace the uploaded files' record with whatever this page still has.
+    const sent = await handleSendForApproval(aiSendable.map(checkedRow), savedRequestIdRef.current ? [] : getReviewDocuments())
+    if (!sent) return
+    const roles: string[] = ([] as string[]).concat((authUser.user as any)?.roles ?? [])
+    if (roles.some((role) => role === 'manager' || role === 'admin')) navigate('/manager-review')
   }
 
   const handleAiDownload = () => {
@@ -1575,13 +1877,6 @@ const TestCases: React.FC = () => {
   const handleStopGeneration = () => {
     stopRequestedRef.current = true
     void streamReaderRef.current?.cancel().catch(() => undefined)
-  }
-
-  const handleUseForTestData = () => {
-    if (response) {
-      setTestCasesData(response)
-      navigate('/test-assistant/data')
-    }
   }
 
   async function exportToExcel() {
@@ -1630,6 +1925,9 @@ const TestCases: React.FC = () => {
   }
 
   const handleResetAll = () => {
+    // Reset closes the session on this page; it stays saved and listed.
+    try { if (savedRequestId) sessionStorage.setItem('ta_closed_session', savedRequestId) } catch { /* storage unavailable */ }
+    setRestoredDocumentNames([])
     clearAiChecks()
     setOutputOpen(false)
     setInputsFolded(false)
@@ -1659,6 +1957,28 @@ const TestCases: React.FC = () => {
     setWorkflowStageRequestId(null)
     setSelectedKnowledgeBase('default')
     window.dispatchEvent(new CustomEvent('test-case-workflow-updated'))
+  }
+
+  // A project is asked for before generating; the author may go on without.
+  const requestGenerate = () => {
+    if (!projectRef.current && !projectSkippedRef.current) {
+      setProjectDialog('gate')
+      return
+    }
+    void handleGenerate()
+  }
+
+  const handleProjectChosen = (chosen: Project | null) => {
+    const gate = projectDialog === 'gate'
+    setProjectDialog(null)
+    if (chosen) {
+      setProject(chosen)
+      projectRef.current = chosen
+      projectSkippedRef.current = false
+    } else {
+      projectSkippedRef.current = true
+    }
+    if (gate) void handleGenerate()
   }
 
   const getGenerateButtonLabel = () => {
@@ -1706,6 +2026,15 @@ const TestCases: React.FC = () => {
     [response, output, isGenerationStreaming]
   )
 
+  useEffect(() => {
+    setGridSelected((current) => {
+      if (!current.size) return current
+      const present = new Set(streamParse.cases.map((item) => item.id))
+      const next = new Set(Array.from(current).filter((id) => present.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [streamParse.cases])
+
   // Poll while any case is still being checked; the job runs on the server
   // and its progress lives in the database.
   const aiRunning = Boolean(aiBatch && aiBatch.items.some((item) => item.status === 'queued' || item.status === 'running'))
@@ -1730,12 +2059,42 @@ const TestCases: React.FC = () => {
     return () => window.clearInterval(id)
   }, [isGenerationStreaming])
 
+  const currentUsername = String((authUser.user as any)?.username || '')
+  const showEmptyOutput = !aiBatch && !hasOutput && !generationError
+
+  useEffect(() => {
+    if (!showEmptyOutput) return
+    let cancelled = false
+    setSessionsLoading(true)
+    projectService.sessions({ projectId: project?.id ?? null, limit: 8 })
+      .then((items) => { if (!cancelled) setSessions(items) })
+      .catch(() => { if (!cancelled) setSessions([]) })
+      .finally(() => { if (!cancelled) setSessionsLoading(false) })
+    return () => { cancelled = true }
+  }, [showEmptyOutput, project?.id])
+
+  // Opening the page with nothing on it reopens your latest unfinished
+  // session for this project -- unless you closed it with Reset.
+  useEffect(() => {
+    if (restoreTriedRef.current || !showEmptyOutput || loading) return
+    restoreTriedRef.current = true
+    let closed: string | null = null
+    try { closed = sessionStorage.getItem('ta_closed_session') } catch { /* storage unavailable */ }
+    projectService.sessions({ projectId: project?.id ?? null, mine: true, open: true, limit: 1 })
+      .then((items) => {
+        const latest = items[0]
+        if (latest && latest.restorable && latest.request_id !== closed) void restoreSession(latest.request_id)
+      })
+      .catch(() => undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showEmptyOutput])
+
   const inputSummarySource =
     inputType === 'text'
       ? `Text input · ${textValue.trim().length.toLocaleString()} chars`
       : inputType === 'e2e-spark'
         ? `e2e Spark · PPM ${ppmId.trim() || '—'}`
-        : fileInputs.map((file) => file.name).join(', ') || 'No files'
+        : fileInputs.map((file) => file.name).join(', ') || restoredDocumentNames.join(', ') || 'No files'
 
   useEffect(() => {
     if (isGenerationStreaming || response || output) setOutputOpen(true)
@@ -1809,6 +2168,7 @@ const TestCases: React.FC = () => {
             knowledgeBase={selectedKnowledgeBaseOption.label}
             environment={selectedEnvironment || undefined}
             focus={selectedFocus || undefined}
+            project={projectLabel(project) || undefined}
             onShowInputs={() => setInputsFolded(false)}
           />
         ) : (
@@ -1820,6 +2180,9 @@ const TestCases: React.FC = () => {
             <div>
               <h2 className="m-0 text-[16px] font-bold tracking-[-0.01em] text-[#1F2937]">Generate Test Cases</h2>
               <p className="mt-0.5 text-[12.5px] text-[#6B7280]">Generate test cases from BRDs, SDDs, ADO and e2e Spark</p>
+            </div>
+            <div className="ml-auto min-w-0">
+              <ProjectChip onOpen={() => setProjectDialog('edit')} />
             </div>
           </div>
 
@@ -2043,7 +2406,7 @@ const TestCases: React.FC = () => {
                     await handleProcessDocuments()
                     return
                   }
-                  handleGenerate()
+                  requestGenerate()
                 }}
                 data-audit-name={getGenerateButtonLabel()}
                 disabled={!isGenerateEnabled || loading || tokenLimitReached}
@@ -2094,12 +2457,17 @@ const TestCases: React.FC = () => {
             onEdit={(checkId) => { setAiEditError(''); setAiEditing(checkId) }}
             onSend={handleAiSend}
             onDownload={handleAiDownload}
+            onStop={handleAiStop}
+            onRestart={handleAiRestart}
+            onDelete={handleAiDelete}
+            busy={aiBusy}
+            savedAs={savedRequestId}
             sendCount={aiSendable.length}
-            sent={submittedTestCaseCount !== null}
-            sentCount={submittedTestCaseCount}
+            sentIds={aiSentIds}
           />
         ) : !hasOutput && !generationError ? (
-          <section className="flex flex-wrap items-center gap-2.5 rounded-[16px] border border-[#E8EAEE] bg-white px-[22px] py-3 shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]">
+          <section className="rounded-[16px] border border-[#E8EAEE] bg-white px-[22px] py-3 shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]">
+            <div className="flex flex-wrap items-center gap-2.5">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B71920" strokeWidth="1.8" aria-hidden><path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5" /></svg>
             <span className="text-[15px] font-bold text-[#1F2937]">Output</span>
             <span className="text-[12.5px] text-[#6B7280]">
@@ -2108,13 +2476,21 @@ const TestCases: React.FC = () => {
                 : 'Opens when you click Generate Test Cases — progress and test cases appear right here.'}
             </span>
             <div className="ml-auto flex items-center gap-2">
-              <button type="button" disabled title="AI Checks arrive in a later release" className="flex h-[34px] cursor-not-allowed items-center rounded-[12px] bg-[#F4F5F7] px-4 text-[13px] font-bold text-[#9CA3AF]">
-                Run AI Checks
+              <button type="button" disabled title="Generate test cases first" className="flex h-[34px] cursor-not-allowed items-center rounded-[12px] bg-[#F4F5F7] px-4 text-[13px] font-bold text-[#9CA3AF]">
+                Save &amp; Run AI Checks
               </button>
               <span className="box-border flex h-[34px] w-[34px] items-center justify-center rounded-[10px] border border-[#E8EAEE]" aria-hidden>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C4C8CF" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>
               </span>
             </div>
+            </div>
+            <SessionList
+              items={sessions}
+              loading={sessionsLoading}
+              scopeLabel={project ? projectLabel(project) : 'yours, without a project'}
+              currentUser={currentUsername}
+              onOpen={(requestId) => void restoreSession(requestId)}
+            />
           </section>
         ) : (
           <section className="flex flex-col overflow-hidden rounded-[20px] border border-[#E8EAEE] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]">
@@ -2144,7 +2520,7 @@ const TestCases: React.FC = () => {
                 ) : generationError ? (
                   <button
                     type="button"
-                    onClick={handleGenerate}
+                    onClick={requestGenerate}
                     data-audit-name="Retry generation"
                     className="flex h-[34px] items-center rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-4 text-[13px] font-bold text-white"
                   >
@@ -2152,6 +2528,17 @@ const TestCases: React.FC = () => {
                   </button>
                 ) : (
                   <>
+                    {gridSelected.size > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteGenerated()}
+                        data-audit-name="Delete generated test cases"
+                        className="flex h-[34px] items-center gap-1.5 rounded-[12px] border border-[#E8EAEE] bg-white px-3 text-[12.5px] font-bold text-[#A3231C] transition hover:border-[#F0C2C0]"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
+                        Delete {gridSelected.size}
+                      </button>
+                    )}
                     {streamParse.cases.length > 0 && (
                       <button
                         type="button"
@@ -2161,43 +2548,21 @@ const TestCases: React.FC = () => {
                         {showFullTable ? 'Summary' : 'Full table'}
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={handleUseForTestData}
-                      data-audit-name="Use for Test Data"
-                      disabled={!response}
-                      className="flex h-[34px] items-center rounded-[12px] border border-[#E8EAEE] bg-white px-3 text-[12.5px] font-semibold text-[#1F2937] transition hover:border-[#F6D4D5] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      Use for Test Data
-                    </button>
-                    <button
-                      type="button"
-                      onClick={openReviewWindow}
-                      data-audit-name="Review & Send"
-                      disabled={!(response || output) || submittedTestCaseCount !== null}
-                      className={`flex h-[34px] items-center rounded-[12px] px-3 text-[12.5px] font-bold transition ${
-                        submittedTestCaseCount !== null
-                          ? 'cursor-not-allowed border border-[#F1A4A6] bg-white text-[#B71920]'
-                          : 'bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] hover:opacity-95'
-                      }`}
-                    >
-                      {submittedTestCaseCount !== null ? `${submittedTestCaseCount} TCs Pending Approval` : 'Review & Send'}
-                    </button>
                   </>
                 )}
                 <button
                   type="button"
                   onClick={handleRunAiChecks}
-                  data-audit-name="Run AI Checks"
+                  data-audit-name="Save & Run AI Checks"
                   disabled={isGenerationStreaming || Boolean(generationError) || streamParse.cases.length === 0 || aiStarting || submittedTestCaseCount !== null}
-                  title={streamParse.cases.length === 0 ? 'Generate test cases first' : 'Refine, review, improve and classify every case before approval'}
+                  title={streamParse.cases.length === 0 ? 'Generate test cases first' : 'Save the test cases, then refine, review, improve and classify them before approval'}
                   className={`flex h-[34px] items-center rounded-[12px] px-4 text-[13px] font-bold transition ${
                     isGenerationStreaming || generationError || streamParse.cases.length === 0 || submittedTestCaseCount !== null
                       ? 'cursor-not-allowed bg-[#F4F5F7] text-[#9CA3AF]'
                       : 'bg-[#1F2937] text-white hover:bg-[#111827]'
                   }`}
                 >
-                  {aiStarting ? 'Starting…' : 'Run AI Checks'}
+                  {aiStarting ? 'Saving…' : gridSelected.size > 0 ? `Save & Run AI Checks on ${gridSelected.size}` : 'Save & Run AI Checks'}
                 </button>
                 {!isGenerationStreaming && !generationError && (
                   <button
@@ -2237,6 +2602,16 @@ const TestCases: React.FC = () => {
                 <CaseGrid
                   cases={streamParse.cases}
                   streaming={isGenerationStreaming}
+                  selection={submittedTestCaseCount !== null ? undefined : {
+                    selected: gridSelected,
+                    onToggle: (id) => setGridSelected((current) => {
+                      const next = new Set(current)
+                      if (next.has(id)) next.delete(id)
+                      else next.add(id)
+                      return next
+                    }),
+                    onToggleAll: (ids, on) => setGridSelected(on ? new Set(ids) : new Set())
+                  }}
                   footerNote={isGenerationStreaming ? 'You can switch testing tools — generation keeps running.' : undefined}
                 />
               ) : isGenerationStreaming ? (
@@ -2252,6 +2627,14 @@ const TestCases: React.FC = () => {
 
         <JourneyBar current={journeyStep} />
       </div>
+
+      <ProjectDialog
+        open={projectDialog !== null}
+        gate={projectDialog === 'gate'}
+        initialPpmId={inputType === 'e2e-spark' ? ppmId.trim() : ''}
+        onClose={() => setProjectDialog(null)}
+        onChosen={handleProjectChosen}
+      />
 
       {/* Expanded combined preview modal */}
       {expandedPreview && (
@@ -2279,14 +2662,6 @@ const TestCases: React.FC = () => {
         </div>
       )}
 
-      <ReviewAndSendModal
-        isOpen={isReviewOpen}
-        documents={reviewDocuments}
-        tableData={reviewTableData}
-        onClose={() => setIsReviewOpen(false)}
-        onTableDataChange={handleReviewTableChange}
-        onSendForApproval={handleSendForApproval}
-      />
       {approvalNotification && (
         <Notification
           message={approvalNotification.message}

@@ -439,6 +439,17 @@ def create_run(
     return {"run_key": run_key, "status": "queued", "poll": f"/automation/runs/{run_key}"}
 
 
+def _projects(db: Session) -> dict[int, dict]:
+    """Every project by id, in the shape the pages show: PPM ID and name."""
+    from ..models.database import Project
+
+    return {p.id: {"id": p.id, "ppm_id": p.ppm_id, "name": p.name} for p in db.query(Project).all()}
+
+
+def _case_project_id(case) -> Optional[int]:
+    return getattr(case, "project_id", None) if case is not None else None
+
+
 @router.get("/runs")
 def list_runs(
     db: Session = Depends(get_db),
@@ -452,6 +463,7 @@ def list_runs(
     finished = [r for r in runs if r.outcome in ("passed", "failed")]
     passed = sum(1 for r in finished if r.outcome == "passed")
     durations = [r.duration_seconds for r in runs if r.duration_seconds]
+    projects = _projects(db)
 
     return {
         "summary": {
@@ -461,8 +473,16 @@ def list_runs(
             "active": job_manager.active_count(),
             "capacity": job_manager.limit,
         },
-        "runs": [_run_summary(r) for r in runs],
+        "runs": [_with_run_project(_run_summary(r), r, projects) for r in runs],
     }
+
+
+def _with_run_project(summary: dict, run, projects: dict[int, dict]) -> dict:
+    case = getattr(run, "test_case", None)
+    if case is None and getattr(run, "script", None) is not None:
+        case = getattr(run.script, "test_case", None)
+    summary["project"] = projects.get(_case_project_id(case))
+    return summary
 
 
 @router.get("/runs/{run_key}")
@@ -1664,13 +1684,17 @@ def list_workbench_cases(
         ).fetchall()
     }
 
+    projects = _projects(db)
     rows = [
-        _workbench_case(
-            case,
-            source_missing=bool(
-                case.origin_test_case_id and case.origin_test_case_id not in known_sources
+        {
+            **_workbench_case(
+                case,
+                source_missing=bool(
+                    case.origin_test_case_id and case.origin_test_case_id not in known_sources
+                ),
             ),
-        )
+            "project": projects.get(case.project_id),
+        }
         for case in cases
     ]
 
@@ -2327,6 +2351,7 @@ def list_approved_automation_cases(
     for script in scripts:
         by_case.setdefault(script.test_case_id, []).append(_script_detail(script))
 
+    projects = _projects(db)
     counts: dict[str, int] = {name: 0 for name in compiler.FRAMEWORKS}
     for script in scripts:
         if script.framework in counts:
@@ -2345,6 +2370,7 @@ def list_approved_automation_cases(
                 "test_data_status": case.test_data_status,
                 "application_url": case.application_url,
                 "scripts": by_case.get(case.id, []),
+                "project": projects.get(case.project_id),
             }
             for case in cases
         ],
@@ -4215,31 +4241,6 @@ def run_case_review(
     case = _load_case(db, case_id)
     result = review_test_case(case, db=db)
     return result
-
-
-@router.post("/workbench/test-cases/review-all")
-def run_review_all(
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
-):
-    """Run Review Agent over all test cases in batch."""
-    from ..services.automation.review_agent import review_test_case
-    all_cases = db.query(AutomationTestCase).all()
-    case_map = {}
-    for c in all_cases:
-        if c.display_id not in case_map:
-            case_map[c.display_id] = c
-        elif c.source == "refined" and case_map[c.display_id].source != "refined":
-            case_map[c.display_id] = c
-    cases = list(case_map.values())
-    results = []
-    for case in cases:
-        try:
-            r = review_test_case(case, db=db)
-            results.append(r)
-        except Exception as e:
-            logger.warning("Review failed for %s: %s", case.display_id, e)
-    return {"reviewed_count": len(results), "reviews": results}
 
 
 @router.post("/workbench/test-cases/{case_id}/auto-improve")

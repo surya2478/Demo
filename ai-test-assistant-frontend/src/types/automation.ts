@@ -78,6 +78,8 @@ export interface RuntimeStatusResponse {
 
 export interface RunSummary {
   run_key: string
+  /** The project its test case was generated for (PPM ID and name). */
+  project?: { id: number; ppm_id: string; name: string } | null
   test_case_id?: number | null
   tc_display_id?: string | null
   tc_title?: string | null
@@ -336,6 +338,8 @@ export interface WorkbenchSource {
 }
 
 export interface WorkbenchCase extends StudioCase {
+  /** The project it was generated for (PPM ID and name). */
+  project?: { id: number; ppm_id: string; name: string } | null
   tc_display_id: string
   title: string
   objective: string | null
@@ -518,6 +522,8 @@ export interface ScriptAsset {
 
 export interface ScriptLabCase {
   id: number
+  /** The project it was generated for (PPM ID and name). */
+  project?: { id: number; ppm_id: string; name: string } | null
   tc_display_id: string
   title: string
   priority: string

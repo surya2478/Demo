@@ -19,6 +19,8 @@ import Team from './pages/Team'
 import Unauthorized from './pages/Unauthorized'
 import UserTimeSlots from './pages/UserTimeSlots'
 import ReviewAndApproval from './pages/ReviewAndApproval'
+import ReviewApprovalPage from './pages/review/ReviewApproval'
+import RequestReview from './pages/review/RequestReview'
 import ApprovedTestCases from './pages/ApprovedTestCases'
 
 // Test Assistant and tabs
@@ -55,6 +57,7 @@ const LayoutShell: React.FC = () => {
           welcomeText={meta.welcomeText}
           actions={meta.actions}
           leading={meta.leading}
+          eyebrow={meta.eyebrow}
           onSearch={meta.onSearch}
           searchPlaceholder={meta.searchPlaceholder}
           showSearch={meta.showSearch}
@@ -194,7 +197,25 @@ const AppRoutes: React.FC = () => {
           path="manager-review"
           element={
             <ProtectedRoute allowedRoles={['admin', 'manager']}>
+              <ReviewApprovalPage />
+            </ProtectedRoute>
+          }
+        />
+        {/* The previous Review & Approval page, kept reachable while the
+            redesign beds in. */}
+        <Route
+          path="manager-review/classic"
+          element={
+            <ProtectedRoute allowedRoles={['admin', 'manager']}>
               <ReviewAndApproval />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="manager-review/:requestId"
+          element={
+            <ProtectedRoute allowedRoles={['admin', 'manager']}>
+              <RequestReview />
             </ProtectedRoute>
           }
         />

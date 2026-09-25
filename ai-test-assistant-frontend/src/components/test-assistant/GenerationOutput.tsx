@@ -43,6 +43,34 @@ const countSteps = (steps: string) => {
   return steps.trim() ? 1 : 0
 }
 
+/**
+ * The output with the given cases' rows taken out of its table(s). Everything
+ * else -- headings, notes, other tables -- is left as it was, so the Full
+ * table view, Use for Test Data and AI Checks all see the same cases.
+ */
+export const removeCasesFromMarkdown = (text: string, ids: Set<string>): string => {
+  if (!ids.size) return text
+  let idIndex = -1
+  return (text || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .filter((line) => {
+      const trimmed = line.trim()
+      if (!trimmed.startsWith('|')) {
+        idIndex = -1 // a table ended; the next one brings its own header
+        return true
+      }
+      const cells = splitRow(trimmed)
+      if (isDivider(cells)) return true
+      if (idIndex < 0) {
+        idIndex = cells.findIndex((cell) => /test case id/i.test(cell))
+        return true
+      }
+      return !ids.has(cells[idIndex] ?? '')
+    })
+    .join('\n')
+}
+
 export interface StreamParse {
   headerSeen: boolean
   cases: StreamedCase[]
@@ -101,14 +129,16 @@ export const InputSummary: React.FC<{
   knowledgeBase: string
   environment?: string
   focus?: string
+  project?: string
   onShowInputs: () => void
-}> = ({ source, knowledgeBase, environment, focus, onShowInputs }) => (
+}> = ({ source, knowledgeBase, environment, focus, project, onShowInputs }) => (
   <section className="flex items-center gap-3 rounded-[16px] border border-[#E8EAEE] bg-white px-[18px] py-3 shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]">
     <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[10px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)]">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" aria-hidden><path d="M12 3l1.8 4.9L19 9.7l-4.2 3.1 1.5 5.2L12 15l-4.3 3 1.5-5.2L5 9.7l5.2-1.8z" /></svg>
     </div>
     <div className="flex-shrink-0 whitespace-nowrap text-[14px] font-bold text-[#1F2937]">Generate Test Cases</div>
     <div className="ml-2 flex min-w-0 gap-1.5 overflow-hidden">
+      {project && <Chip tone="brand" title={project}>{project}</Chip>}
       <Chip title={source}>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" className="flex-shrink-0" aria-hidden><path d="M7 3h7l5 5v13H7z" /></svg>
         <span className="truncate">{source}</span>
@@ -211,8 +241,24 @@ const TYPE_TONE: Record<CaseType, string> = {
 }
 
 const ROW = 'grid grid-cols-[88px_minmax(0,1fr)_130px_90px_64px] items-center gap-3 border-b border-[#F1F2F4] px-4'
+const ROW_SELECT = 'grid grid-cols-[22px_88px_minmax(0,1fr)_130px_90px_64px] items-center gap-3 border-b border-[#F1F2F4] px-4'
 
-export const CaseGrid: React.FC<{ cases: StreamedCase[]; streaming: boolean; footerNote?: string }> = ({ cases, streaming, footerNote }) => {
+interface CaseSelection {
+  selected: Set<string>
+  onToggle: (id: string) => void
+  onToggleAll: (ids: string[], on: boolean) => void
+}
+
+export const CaseGrid: React.FC<{
+  cases: StreamedCase[]
+  streaming: boolean
+  footerNote?: string
+  /** Checkboxes, once the cases are all written. */
+  selection?: CaseSelection
+}> = ({ cases, streaming, footerNote, selection }) => {
+  const row = selection && !streaming ? ROW_SELECT : ROW
+  const ids = cases.map((item) => item.id)
+  const allOn = Boolean(selection) && ids.length > 0 && ids.every((id) => selection!.selected.has(id))
   const counts = cases.reduce<Record<CaseType, number>>(
     (acc, item) => ({ ...acc, [item.type]: acc[item.type] + 1 }),
     { Positive: 0, Negative: 0, Boundary: 0 }
@@ -223,11 +269,31 @@ export const CaseGrid: React.FC<{ cases: StreamedCase[]; streaming: boolean; foo
   return (
     <div className="mx-[22px] mb-4 mt-3.5 overflow-hidden rounded-[16px] border border-[#E8EAEE]">
       <div className="max-h-[440px] overflow-y-auto">
-        <div className={`${ROW} sticky top-0 z-10 h-9 border-b-[#F6D4D5] bg-[#F4F5F7] text-[11px] font-semibold uppercase tracking-[0.12em] text-[#1F2937]`}>
+        <div className={`${row} sticky top-0 z-10 h-9 border-b-[#F6D4D5] bg-[#F4F5F7] text-[11px] font-semibold uppercase tracking-[0.12em] text-[#1F2937]`}>
+          {row === ROW_SELECT && (
+            <input
+              type="checkbox"
+              aria-label="Select all test cases"
+              title="Select all"
+              checked={allOn}
+              disabled={ids.length === 0}
+              onChange={() => selection!.onToggleAll(ids, !allOn)}
+              className="h-4 w-4 accent-[#B71920]"
+            />
+          )}
           <span>TC ID</span><span>Title</span><span title="Inferred from each case's description">Type</span><span>Priority</span><span>Steps</span>
         </div>
         {cases.map((item) => (
-          <div key={item.id} className={`${ROW} h-11 text-[13px] text-[#1F2937]`}>
+          <div key={item.id} className={`${row} h-11 text-[13px] text-[#1F2937] ${row === ROW_SELECT && selection!.selected.has(item.id) ? 'bg-[#FFF8F8]' : ''}`}>
+            {row === ROW_SELECT && (
+              <input
+                type="checkbox"
+                aria-label={`Select ${item.id}`}
+                checked={selection!.selected.has(item.id)}
+                onChange={() => selection!.onToggle(item.id)}
+                className="h-4 w-4 accent-[#B71920]"
+              />
+            )}
             <span className="font-semibold">{item.id}</span>
             <span className="truncate" title={item.title}>{item.title}</span>
             <span>

@@ -66,6 +66,21 @@ def _enter(batch_id: str) -> None:
         _active_workers[batch_id] = _active_workers.get(batch_id, 0) + 1
 
 
+# Batches the author asked to stop. Waiting cases are marked stopped at once; a
+# case already mid-step finishes that step (a model call cannot be cut off)
+# and stops before the next one.
+_stop_requested: set[str] = set()
+
+
+def _stopping(batch_id: str) -> bool:
+    with _active_lock:
+        return batch_id in _stop_requested
+
+
+class _Stopped(Exception):
+    pass
+
+
 def _leave(batch_id: str) -> None:
     with _active_lock:
         remaining = _active_workers.get(batch_id, 1) - 1
@@ -73,6 +88,7 @@ def _leave(batch_id: str) -> None:
             _active_workers[batch_id] = remaining
         else:
             _active_workers.pop(batch_id, None)
+            _stop_requested.discard(batch_id)
 
 
 _TODO = re.compile(r"<<TODO:[^>]*>>")
@@ -120,6 +136,7 @@ def start_batch(
     *,
     actor: Optional[str],
     knowledge_base: Optional[str] = None,
+    project_id: Optional[int] = None,
 ) -> str:
     """Create a draft case and a check per row, then run the batch in the background."""
     if not rows:
@@ -150,6 +167,7 @@ def start_batch(
             classification=wb.CLASSIFICATION_UNDECIDED,
             approval_status=wb.APPROVAL_DRAFT,
             created_by=actor,
+            project_id=project_id,
         )
         db.add(case)
         db.flush()
@@ -171,6 +189,8 @@ def start_batch(
 
 
 def _launch(batch_id: str, check_ids: Optional[list[int]] = None) -> None:
+    with _active_lock:
+        _stop_requested.discard(batch_id)
     thread = threading.Thread(
         target=_run_batch,
         args=(batch_id, check_ids),
@@ -226,8 +246,10 @@ def _run_check(check_id: int) -> None:
     try:
         check = db.get(AutomationAICheck, check_id)
         case = db.get(AutomationTestCase, check.case_id) if check else None
-        if check is None or case is None:
-            return
+        if check is None or case is None or check.status != "queued":
+            return  # deleted, or stopped while it waited
+        if _stopping(check.batch_id):
+            raise _Stopped()
         check.status = "running"
         check.error = None
         db.commit()
@@ -258,6 +280,8 @@ def _run_check(check_id: int) -> None:
         _set_step(db, check, step, "done")
 
         # 2. Quality Review, coverage against the generated text.
+        if _stopping(check.batch_id):
+            raise _Stopped()
         step = "review"
         _set_step(db, check, step, "running")
         from .review_agent import auto_improve_test_case, review_test_case
@@ -272,6 +296,8 @@ def _run_check(check_id: int) -> None:
         _set_step(db, check, step, "done")
 
         # 3. Auto-Improve, only when the review did not pass.
+        if _stopping(check.batch_id):
+            raise _Stopped()
         step = "improve"
         if case.review_verdict == "pass":
             check.score_after = case.review_score
@@ -285,12 +311,16 @@ def _run_check(check_id: int) -> None:
             _set_step(db, check, step, "done")
 
         # 4. AI Classify.
+        if _stopping(check.batch_id):
+            raise _Stopped()
         step = "classify"
         _classify(db, check, case)
 
         check.status = "done"
         check.finished_at = datetime.utcnow()
         db.commit()
+    except _Stopped:
+        _mark_stopped(db, check_id)
     except Exception as exc:  # noqa: BLE001 - one case must not stop the batch
         logger.warning("AI Checks failed for check %s at %s", check_id, step, exc_info=True)
         try:
@@ -301,6 +331,22 @@ def _run_check(check_id: int) -> None:
             logger.exception("Could not record the AI Checks failure for check %s", check_id)
     finally:
         db.close()
+
+
+def _mark_stopped(db: Session, check_id: int) -> None:
+    db.rollback()
+    check = db.get(AutomationAICheck, check_id)
+    if check is None:
+        return
+    # Steps already finished stay finished; the rest go back to waiting.
+    check.steps = {
+        name: (state if state in ("done", "skipped") else "pending")
+        for name, state in (check.steps or _pending_steps()).items()
+    }
+    check.status = "stopped"
+    check.error = "Stopped before this case finished. Restart to check it."
+    check.finished_at = None
+    db.commit()
 
 
 def _classify(db: Session, check: AutomationAICheck, case: AutomationTestCase) -> None:
@@ -334,14 +380,7 @@ def retry(db: Session, batch_id: str, check_id: int) -> None:
     check = _get_check(db, batch_id, check_id)
     if check.status in ("queued", "running") and _is_active(batch_id):
         raise ValueError("This case is still being checked.")
-    check.status = "queued"
-    check.steps = _pending_steps()
-    check.error = None
-    check.score_before = None
-    check.score_after = None
-    check.improved = False
-    check.classification_detail = None
-    check.finished_at = None
+    _reset(check)
     db.commit()
     _launch(batch_id, [check.id])
 
@@ -401,6 +440,86 @@ def save_edits(db: Session, batch_id: str, check_id: int, edits: dict[str, Any])
     thread = threading.Thread(target=_recheck, args=(batch_id, check.id), daemon=True, name=f"ai-recheck-{check.id}")
     _enter(batch_id)
     thread.start()
+
+
+def _reset(check: AutomationAICheck) -> None:
+    check.status = "queued"
+    check.steps = _pending_steps()
+    check.error = None
+    check.score_before = None
+    check.score_after = None
+    check.improved = False
+    check.classification_detail = None
+    check.finished_at = None
+
+
+# --- Stop, restart and delete ---------------------------------------------------
+
+def stop(db: Session, batch_id: str) -> int:
+    """Stop a batch. Returns how many waiting cases were stopped outright."""
+    checks = _batch_checks(db, batch_id)
+    if _is_active(batch_id):
+        with _active_lock:
+            _stop_requested.add(batch_id)
+    waiting = [c for c in checks if c.status == "queued"]
+    for check in waiting:
+        check.status = "stopped"
+        check.error = "Stopped before this case was checked. Restart to check it."
+    db.commit()
+    return len(waiting)
+
+
+def restart(db: Session, batch_id: str, check_ids: Optional[list[int]] = None) -> int:
+    """Run the batch's stopped and failed cases again, from their generated text.
+
+    Finished cases keep their results. Returns how many cases were queued.
+    """
+    checks = _batch_checks(db, batch_id)
+    if any(c.status in ("queued", "running") for c in checks) and _is_active(batch_id):
+        raise ValueError("AI Checks are still running on this batch. Stop them first.")
+    wanted = set(check_ids or [])
+    again = [
+        c for c in checks
+        if c.status in ("stopped", "failed") and c.case_id and (not wanted or c.id in wanted)
+    ]
+    if not again:
+        raise ValueError("There are no stopped or failed cases to restart.")
+    for check in again:
+        _reset(check)
+    db.commit()
+    _launch(batch_id, [c.id for c in again])
+    return len(again)
+
+
+def delete_checks(db: Session, batch_id: str, check_ids: list[int]) -> int:
+    """Remove cases from a batch, with their drafts. Returns how many went.
+
+    A case being checked right now, or already sent for approval, stays.
+    """
+    wanted = set(check_ids)
+    checks = [c for c in _batch_checks(db, batch_id) if c.id in wanted]
+    if not checks:
+        raise LookupError("None of those cases are in this batch.")
+    if any(c.status == "running" or (c.status == "queued" and _is_active(batch_id)) for c in checks):
+        raise ValueError("Stop AI Checks before deleting a case that is being checked.")
+    case_ids = [c.case_id for c in checks if c.case_id]
+    cases = db.query(AutomationTestCase).filter(AutomationTestCase.id.in_(case_ids)).all() if case_ids else []
+    if any(case.origin != ORIGIN or case.origin_request_id for case in cases):
+        raise ValueError("A case already sent for approval cannot be deleted here.")
+    for check in checks:
+        db.delete(check)
+    db.flush()
+    for case in cases:
+        db.delete(case)
+    db.commit()
+    return len(checks)
+
+
+def _batch_checks(db: Session, batch_id: str) -> list[AutomationAICheck]:
+    checks = db.query(AutomationAICheck).filter(AutomationAICheck.batch_id == batch_id).all()
+    if not checks:
+        raise LookupError("No such AI Checks batch.")
+    return checks
 
 
 def _recheck(batch_id: str, check_id: int) -> None:
@@ -524,6 +643,8 @@ def batch_view(db: Session, batch_id: str, *, include_steps: bool = False) -> di
                 "test_data": case.test_data if case else None,
                 "steps_structured": _step_list(case) if include_steps else None,
                 "source_row": check.source_row,
+                # Linked to a review row once sent for approval.
+                "sent": bool(case and case.origin_request_id),
             }
         )
 
@@ -536,10 +657,13 @@ def batch_view(db: Session, batch_id: str, *, include_steps: bool = False) -> di
     started = min((c.created_at for c in checks if c.created_at), default=None)
     finished = max((c.finished_at for c in checks if c.finished_at), default=None)
     running = any(item["status"] in ("queued", "running") for item in items)
+    stopped = any(item["status"] == "stopped" for item in items)
 
     return {
         "batch_id": batch_id,
-        "status": "running" if running else "complete",
+        "status": "running" if running else "stopped" if stopped else "complete",
+        # Stop was pressed and a case is finishing the step it was on.
+        "stopping": running and _stopping(batch_id),
         "total": len(items),
         "started_at": started.isoformat() if started else None,
         "finished_at": None if running or not finished else finished.isoformat(),
@@ -555,8 +679,80 @@ def batch_view(db: Session, batch_id: str, *, include_steps: bool = False) -> di
             "improved": sum(1 for item in items if item["improved"]),
             "test_data_pending": sum(1 for item in items if item["test_data_pending"]),
             "not_checked": sum(1 for item in items if item["status"] == "failed"),
+            "stopped": sum(1 for item in items if item["status"] == "stopped"),
             "avg_before": round(sum(scored_before) / len(scored_before), 1) if scored_before else None,
             "avg_after": round(sum(scored_after) / len(scored_after), 1) if scored_after else None,
         },
         "items": items,
     }
+
+
+# --- Handing a checked case to Review & Approval ---------------------------------
+
+def attach_to_review(
+    db: Session, check_id: Any, *, test_case_id: str, request_id: str
+) -> Optional[dict[str, Any]]:
+    """Link a checked draft to the review row it was sent as; return its AI results.
+
+    The results come from the check record, never from the browser: the scores
+    and classification a manager approves on have to be the ones the checks
+    produced. Returns None for an id that is not a finished check, so a case
+    sent without AI Checks simply carries no AI results.
+    """
+    try:
+        check = db.get(AutomationAICheck, int(check_id))
+    except (TypeError, ValueError):
+        return None
+    if check is None or check.status != "done":
+        return None
+    case = db.get(AutomationTestCase, check.case_id) if check.case_id else None
+    if case is None:
+        return None
+
+    case.origin_test_case_id = test_case_id
+    case.origin_request_id = request_id
+
+    return {
+        "check_id": check.id,
+        "case_id": case.id,
+        "classification": case.classification,
+        "classification_detail": check.classification_detail,
+        "classification_reason": case.classification_reason,
+        "score_before": check.score_before,
+        "score_after": check.score_after,
+        "improved": bool(check.improved),
+        "review_verdict": case.review_verdict,
+        "review_scores": case.review_scores,
+        "coverage_basis": (case.review_findings or {}).get("coverage_basis"),
+        "test_data_pending": case.test_data_status == "pending",
+        "test_data_notes": case.test_data_notes,
+        "test_type": case.test_type,
+        "steps": _step_list(case),
+        # The case as generated, for the manager's Compare view.
+        "original": check.source_row,
+    }
+
+
+# The origin a draft takes once a manager approves it: visible in Automation
+# Studio from then on, and still recognisable as having come through AI Checks.
+APPROVED_ORIGIN = "ai_checked"
+
+
+def promote_approved(
+    db: Session, case: AutomationTestCase, *, approved_by: Optional[str], approved_at: Optional[datetime]
+) -> bool:
+    """Approve a checked draft its review row was approved for. True if it changed.
+
+    Manager approval is the only approval these cases need: they were refined,
+    reviewed and classified before the manager saw them, which is what the
+    Workbench's own approval gate exists to ensure. Missing test data does not
+    block -- it was flagged on every screen and the case lands flagged.
+    """
+    if case.origin != ORIGIN:
+        return False
+    case.origin = APPROVED_ORIGIN
+    case.approval_status = wb.APPROVAL_APPROVED
+    case.approved_by = approved_by or "manager"
+    case.approved_at = approved_at or datetime.utcnow()
+    case.decision_reason = "Approved in Review & Approval after AI Checks."
+    return True

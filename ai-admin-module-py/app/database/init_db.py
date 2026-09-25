@@ -21,6 +21,37 @@ def _ensure_sqlite_dir(database_url: Optional[str]) -> None:
             if parent and not parent.exists():
                 parent.mkdir(parents=True, exist_ok=True)
 
+# Columns added after their table first shipped. create_all() never alters an
+# existing table, so without this a database created earlier would keep the
+# old shape and every query naming a new column would fail. Additive only:
+# nullable columns, nothing dropped or retyped, each checked before it is
+# added -- running this on every start is a no-op once they exist.
+_ADDED_COLUMNS = (
+    ("test_case_review_details", "project_id", "INTEGER"),
+    ("test_case_review_details", "ai_batch_id", "VARCHAR(32)"),
+    ("test_case_review_details", "generation", "JSON"),
+    ("automation_test_cases", "project_id", "INTEGER"),
+)
+
+
+def _ensure_columns(engine) -> None:
+    from sqlalchemy import text
+
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
+    with engine.begin() as connection:
+        for table, column, ddl in _ADDED_COLUMNS:
+            if table not in tables:
+                continue  # create_all builds it with the column
+            present = {item["name"] for item in inspector.get_columns(table)}
+            if column in present:
+                continue
+            connection.execute(text(f'ALTER TABLE {table} ADD COLUMN {column} {ddl}'))
+            if column.endswith("_id"):
+                connection.execute(text(f'CREATE INDEX IF NOT EXISTS ix_{table}_{column} ON {table} ({column})'))
+            print(f'[Database Init] Added column {table}.{column}')
+
+
 def init_db() -> None:
     """
     Initialize the database: ensure sqlite dirs, import models so they register with Base,
@@ -82,6 +113,14 @@ def init_db() -> None:
         import app.models.automation  # noqa: F401
     except ImportError:
         pass
+
+    try:
+        _ensure_columns(engine)
+    except Exception:
+        # Reported, not raised: the app still starts, and the columns can be
+        # added by hand. Every query naming them fails until they exist.
+        print('[Database Init] ERROR adding columns:')
+        traceback.print_exc()
 
     try:
         print(f'[Database Init] Creating tables with engine: {engine}')

@@ -99,6 +99,24 @@ class TestCaseReview(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, index=True)
 
 
+class Project(Base):
+    """A project test cases are generated for, named by its PPM ID.
+
+    Chosen on Generate Test Cases and carried by everything generated under
+    it: the saved request, its AI Checks drafts, and the cases Automation
+    Studio receives once approved. Shared -- everyone who opens a PPM ID sees
+    its sessions.
+    """
+    __tablename__ = "projects"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ppm_id = Column(String(100), nullable=False, unique=True, index=True)
+    name = Column(String(255), nullable=False)
+    created_by = Column(String(255), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class TestCaseReviewDetail(Base):
     """Parent row for a review request and summary counts."""
     __tablename__ = "test_case_review_details"
@@ -120,9 +138,20 @@ class TestCaseReviewDetail(Base):
     review_notes = Column(Text, nullable=True)
     reviewed_by = Column(String(255), nullable=True, index=True)
     reviewed_date_time = Column(DateTime, nullable=True)
+    # --- Generation session ------------------------------------------------
+    # Added in place by init_db._ensure_columns on existing databases.
+    # project_id: the Project it was generated for (None: no project chosen).
+    # ai_batch_id: its AI Checks batch, so the page can find it again.
+    # generation: what the Test Cases page needs to restore the session --
+    #   the generated output, input type, KB, environment, focus and the
+    #   processed document text.
+    project_id = Column(Integer, nullable=True, index=True)
+    ai_batch_id = Column(String(32), nullable=True, index=True)
+    generation = Column(JSON, nullable=True)
 
     __table_args__ = (
-        CheckConstraint("overall_status IN ('PENDING_REVIEW', 'APPROVED', 'REJECTED', 'PARTIALLY_APPROVED')", name='ck_test_case_review_overall_status'),
+        # AI_CHECKS: saved when AI Checks start, not yet sent for approval.
+        CheckConstraint("overall_status IN ('AI_CHECKS', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'PARTIALLY_APPROVED')", name='ck_test_case_review_overall_status'),
     )
 
 
@@ -143,7 +172,8 @@ class TestCaseDetail(Base):
     review_request = relationship('TestCaseReviewDetail', backref='test_cases')
 
     __table_args__ = (
-        CheckConstraint("status IN ('PENDING', 'APPROVED', 'REJECTED')", name='ck_test_case_detail_status'),
+        # DRAFT: saved with its request, not (yet) sent for approval.
+        CheckConstraint("status IN ('DRAFT', 'PENDING', 'APPROVED', 'REJECTED')", name='ck_test_case_detail_status'),
     )
 
 class TestCaseWorkflowStage(Base):

@@ -63,6 +63,7 @@ import {
   StepHint
 } from '../../components/automation/workbenchPresentation'
 import { isJobSettled } from '../../types/automation'
+import ProjectFilter, { matchesProject } from '../../components/project/ProjectFilter'
 import type {
   Classification,
   ClassificationReport,
@@ -162,6 +163,7 @@ const Workbench: React.FC = () => {
   const [job, setJob] = useState<GenerationJob | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | Classification>('all')
+  const [projectFilter, setProjectFilter] = useState('all')
 
   const [editing, setEditing] = useState<WorkbenchCase | null>(null)
   const [editError, setEditError] = useState<string | null>(null)
@@ -784,8 +786,8 @@ const Workbench: React.FC = () => {
     (testCase.classification !== 'undecided' && testCase.approval_status === 'approved')
 
   const visibleCases = useMemo(
-    () => (filter === 'all' ? cases : cases.filter(c => c.classification === filter)),
-    [cases, filter]
+    () => cases.filter(c => (filter === 'all' || c.classification === filter) && matchesProject(c, projectFilter)),
+    [cases, filter, projectFilter]
   )
 
   /** The group a row belongs to -- what its band's checkbox selects. */
@@ -1007,10 +1009,16 @@ const Workbench: React.FC = () => {
             </div>
           </div>
 
+          <ProjectFilter
+            items={cases}
+            value={projectFilter}
+            onChange={setProjectFilter}
+            className="app-input h-8 w-[190px] py-0 text-xs sm:ml-auto"
+          />
           <select
             value={filter}
             onChange={e => setFilter(e.target.value as 'all' | Classification)}
-            className="app-input h-8 w-[150px] py-0 text-xs sm:ml-auto"
+            className="app-input h-8 w-[150px] py-0 text-xs"
             aria-label="Filter by classification"
           >
             <option value="all">All classifications</option>

@@ -67,6 +67,9 @@ class AutomationTestCase(Base):
     # By value, not by foreign key -- see the module docstring.
     origin_test_case_id = Column(String(255), nullable=True, index=True)
     origin_request_id = Column(String(255), nullable=True, index=True)
+    # The Project (models.database.Project) the case was generated for, taken
+    # from its review request. None for cases from anywhere else.
+    project_id = Column(Integer, nullable=True, index=True)
     # Set on a refined case, pointing at the row it was derived from.
     parent_id = Column(Integer, ForeignKey("automation_test_cases.id"), nullable=True, index=True)
 

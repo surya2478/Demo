@@ -38,6 +38,7 @@ import {
 } from '../../components/automation/runPresentation'
 import { isTerminal } from '../../types/automation'
 import type { RunSummary, RunsSummary } from '../../types/automation'
+import ProjectFilter, { matchesProject } from '../../components/project/ProjectFilter'
 
 const POLL_MS = 3000
 
@@ -65,6 +66,7 @@ const Runs: React.FC = () => {
   const confirm = useConfirm()
 
   const [runs, setRuns] = useState<RunSummary[]>([])
+  const [projectFilter, setProjectFilter] = useState('all')
   const [summary, setSummary] = useState<RunsSummary>(EMPTY_SUMMARY)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -360,6 +362,12 @@ const Runs: React.FC = () => {
           </div>
         ) : null}
 
+        {!loading && runs.length > 0 && runs.some(run => run.project) ? (
+          <div className="flex items-center justify-end border-b border-app px-5 py-2">
+            <ProjectFilter items={runs} value={projectFilter} onChange={setProjectFilter} />
+          </div>
+        ) : null}
+
         {!loading && runs.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="app-table">
@@ -392,7 +400,7 @@ const Runs: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {runs.map(run => {
+                {runs.filter(run => matchesProject(run, projectFilter)).map(run => {
                   const live = !isTerminal(run.status)
                   const displayName =
                     run.tc_title || run.tc_display_id || run.file_name || run.run_key

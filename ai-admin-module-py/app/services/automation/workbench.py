@@ -55,10 +55,14 @@ CLASSIFICATION_PARTIAL = classification.CLASSIFICATION_PARTIAL
 CLASSIFICATION_MANUAL = classification.CLASSIFICATION_MANUAL
 CLASSIFICATION_UNDECIDED = classification.CLASSIFICATION_UNDECIDED
 
-# The classifications that mean "a script may be built from this". Partial is
-# in: its findings are edits an author makes, and blocking generation on them
-# would make the new bucket a dead end rather than a queue.
-CLASSIFICATIONS_AUTOMATABLE = (CLASSIFICATION_AUTOMATION, CLASSIFICATION_PARTIAL)
+# The classifications that mean "a script may be built from this": Automation
+# only. Partial used to be in, on the reasoning that its findings are edits an
+# author makes. Cases now reach Automation Lab after AI Checks, where Partial
+# is saved as Manual by decision -- a Lab queue of cases that fail on their
+# first run until someone edits them is the outcome that decision avoids.
+# Existing approved Partial cases leave the Lab with this change; reclassify
+# one as Automation in the Workbench to bring it back.
+CLASSIFICATIONS_AUTOMATABLE = (CLASSIFICATION_AUTOMATION,)
 
 APPROVAL_DRAFT = "draft"
 APPROVAL_APPROVED = "approved"
@@ -654,8 +658,8 @@ def sync_approved_test_cases(db: Session) -> int:
         # reviewed_datetime is naive DUBAI time; created_at is a UTC column.
         # See _dubai_naive_to_utc above for what the missing conversion did.
         created_at_dt = datetime.utcnow()
+        reviewed_dubai = None
         if row.reviewed_datetime:
-            reviewed_dubai = None
             if isinstance(row.reviewed_datetime, datetime):
                 reviewed_dubai = row.reviewed_datetime
             elif isinstance(row.reviewed_datetime, str):
@@ -710,6 +714,17 @@ def sync_approved_test_cases(db: Session) -> int:
             db.add(new_tc)
             synced += 1
         else:
+            # A case that went through AI Checks was linked to this row when it
+            # was sent. The manager approving the row approves the case; it
+            # was refined, reviewed and classified before they saw it.
+            if existing.origin == "ai_checks":
+                from .ai_checks import promote_approved
+
+                if promote_approved(
+                    db, existing, approved_by=row.reviewed_by, approved_at=created_at_dt
+                ):
+                    synced += 1
+
             if not existing.origin_test_case_id:
                 existing.origin_test_case_id = origin_id
             if not existing.origin_request_id:
@@ -738,6 +753,27 @@ def sync_approved_test_cases(db: Session) -> int:
             if existing.display_id == origin_id and display_id != origin_id:
                 existing.display_id = display_id
 
+            # Repair a row still carrying Dubai local time in a UTC column.
+            #
+            # _dubai_naive_to_utc above corrects the conversion only where the
+            # mirror CREATES a case, and the mirror creates each case once. So
+            # the fix landed for cases mirrored after it and for nobody else:
+            # every row already in the table kept the raw reviewed_datetime the
+            # old code copied in, and kept reading four hours into the future.
+            # On a deployment that has been running a while that is most of the
+            # grid, which is why the column still looked broken after the fix.
+            #
+            # The guard is the same shape as the display_id repair above: the
+            # stored value must BE the naive Dubai timestamp, to the second --
+            # the exact bytes the old code wrote. A row already converted sits
+            # four hours off that and is left alone, so the pass is idempotent
+            # and cannot walk a corrected row backwards on the next load. A
+            # created_at that came from anywhere else will not match either.
+            if reviewed_dubai is not None and existing.created_at is not None:
+                stored = existing.created_at.replace(microsecond=0)
+                if stored == reviewed_dubai.replace(microsecond=0):
+                    existing.created_at = created_at_dt
+
             better_description = detail_value(details, "description")
             if better_description:
                 if existing.description in (None, "", origin_id, existing.display_id):
@@ -745,9 +781,30 @@ def sync_approved_test_cases(db: Session) -> int:
                 if existing.objective in (None, "", origin_id, existing.display_id):
                     existing.objective = better_description
 
+    _carry_projects(db)
+
     # Commit unconditionally: the loop above also repairs existing rows, and
     # gating on `synced` meant a pass that created nothing threw those repairs
     # away when the session closed.
     db.commit()
     return synced
+
+
+def _carry_projects(db: Session) -> None:
+    """Give each mirrored case the project its review request was generated for."""
+    from ...models.database import TestCaseReviewDetail
+
+    projects = dict(
+        db.query(TestCaseReviewDetail.request_id, TestCaseReviewDetail.project_id)
+        .filter(TestCaseReviewDetail.project_id.isnot(None))
+        .all()
+    )
+    if not projects:
+        return
+    for case in (
+        db.query(AutomationTestCase)
+        .filter(AutomationTestCase.project_id.is_(None), AutomationTestCase.origin_request_id.in_(list(projects)))
+        .all()
+    ):
+        case.project_id = projects[case.origin_request_id]
 

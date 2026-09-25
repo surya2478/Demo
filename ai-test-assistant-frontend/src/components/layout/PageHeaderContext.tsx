@@ -13,6 +13,7 @@ export interface PageMeta {
   welcomeText?: string
   actions?: React.ReactNode
   leading?: React.ReactNode
+  eyebrow?: React.ReactNode
   /*
    * JSX is not part of the republish key (see usePageHeader). A page whose
    * `leading` or `actions` depend on data -- a menu filtered by permissions --

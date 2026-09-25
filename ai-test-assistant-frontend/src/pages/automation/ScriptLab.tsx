@@ -40,6 +40,7 @@ import { CodeViewer } from '../../components/automation/CodeViewer'
 import { StatTile } from '../../components/automation/workbenchPresentation'
 import { formatWhen } from '../../components/automation/runPresentation'
 import { isDryRunSettled, readSelectedApplicationId } from '../../types/automation'
+import ProjectFilter, { matchesProject } from '../../components/project/ProjectFilter'
 import type {
   DryRunStatus,
   FrameworkInfo,
@@ -258,11 +259,13 @@ const ScriptLab: React.FC = () => {
       return next
     })
 
+  const [projectFilter, setProjectFilter] = useState('all')
   const groupedCases = useMemo(() => {
-    const pending = cases.filter(testCase => !hasScript(testCase))
-    const generated = cases.filter(hasScript)
+    const shown = cases.filter(testCase => matchesProject(testCase, projectFilter))
+    const pending = shown.filter(testCase => !hasScript(testCase))
+    const generated = shown.filter(hasScript)
     return { pending, generated, rows: [...pending, ...generated] }
-  }, [cases])
+  }, [cases, projectFilter])
 
   const frameworkLabel = (name: string) =>
     frameworks.find(f => f.name === name)?.label ??
@@ -437,6 +440,8 @@ const ScriptLab: React.FC = () => {
             />
             New Script Version
           </label>
+
+          <ProjectFilter items={cases} value={projectFilter} onChange={setProjectFilter} className="app-input h-9 w-[190px] py-0 text-xs" />
 
           <button
             type="button"
@@ -702,9 +707,22 @@ const ScriptLab: React.FC = () => {
                         {testCase.tc_display_id}
                       </td>
                       <td>
-                        <p className="max-w-sm truncate font-medium text-app-primary">
-                          {testCase.title}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="max-w-sm truncate font-medium text-app-primary">
+                            {testCase.title}
+                          </p>
+                          {/* Approval does not wait for test data, so a case can
+                              land here with a value still to supply. Its first
+                              run would fail on the placeholder. */}
+                          {testCase.test_data_status === 'pending' && (
+                            <span
+                              className="inline-flex h-5 flex-shrink-0 items-center whitespace-nowrap rounded-full bg-[#FFF4E5] px-2 text-[10.5px] font-semibold text-[#8A5000]"
+                              title="A test data value is still missing. Fill it in before running this script."
+                            >
+                              Test data pending
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="text-app-secondary">{testCase.steps}</td>
                       {/* Same field and same order as the Workbench grid, so a

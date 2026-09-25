@@ -17,7 +17,7 @@ export interface CheckItem {
   case_id: number | null
   display_id: string | null
   title: string | null
-  status: 'queued' | 'running' | 'done' | 'failed'
+  status: 'queued' | 'running' | 'done' | 'failed' | 'stopped'
   steps: Record<CheckStepName, CheckStepState>
   error: string | null
   score_before: number | null
@@ -35,11 +35,15 @@ export interface CheckItem {
   test_data: string | null
   steps_structured: CheckedStep[] | null
   source_row: Record<string, string>
+  /** Already sent for approval. */
+  sent?: boolean
 }
 
 export interface CheckBatch {
   batch_id: string
-  status: 'running' | 'complete'
+  status: 'running' | 'stopped' | 'complete'
+  /** Stop was pressed; a case is finishing the step it was on. */
+  stopping: boolean
   total: number
   started_at: string | null
   finished_at: string | null
@@ -52,6 +56,7 @@ export interface CheckBatch {
     improved: number
     test_data_pending: number
     not_checked: number
+    stopped: number
     avg_before: number | null
     avg_after: number | null
   }
@@ -69,8 +74,8 @@ export interface EditedStep {
 const BASE = '/test-assistant/ai-checks'
 
 const aiChecksService = {
-  start: async (rows: Record<string, string>[], knowledgeBase?: string): Promise<string> => {
-    const res = await api.post(`${BASE}/start`, { rows, knowledge_base: knowledgeBase || null })
+  start: async (rows: Record<string, string>[], knowledgeBase?: string, requestId?: string): Promise<string> => {
+    const res = await api.post(`${BASE}/start`, { rows, knowledge_base: knowledgeBase || null, request_id: requestId || null })
     return res.data.batch_id
   },
   get: async (batchId: string): Promise<CheckBatch> => {
@@ -79,6 +84,18 @@ const aiChecksService = {
   },
   retry: async (batchId: string, checkId: number): Promise<void> => {
     await api.post(`${BASE}/${encodeURIComponent(batchId)}/checks/${checkId}/retry`)
+  },
+  stop: async (batchId: string): Promise<void> => {
+    await api.post(`${BASE}/${encodeURIComponent(batchId)}/stop`)
+  },
+  /** Re-runs the stopped and failed cases; finished ones keep their results. */
+  restart: async (batchId: string): Promise<number> => {
+    const res = await api.post(`${BASE}/${encodeURIComponent(batchId)}/restart`, { check_ids: [] })
+    return res.data.queued
+  },
+  remove: async (batchId: string, checkIds: number[]): Promise<number> => {
+    const res = await api.post(`${BASE}/${encodeURIComponent(batchId)}/delete`, { check_ids: checkIds })
+    return res.data.deleted
   },
   saveSteps: async (batchId: string, checkId: number, steps: EditedStep[]): Promise<void> => {
     await api.put(`${BASE}/${encodeURIComponent(batchId)}/checks/${checkId}/steps`, { steps })

@@ -6,6 +6,7 @@ import SessionWatcher from './components/SessionWatcher';
 import { AIProcessingProvider } from './context/AIProcessingContext';
 import { ToastProvider } from './components/ui/Toast';
 import { ConfirmProvider } from './components/ui/ConfirmDialog';
+import { ProjectProvider } from './context/ProjectContext';
 
 const App: React.FC = () => {
   return (
@@ -14,8 +15,10 @@ const App: React.FC = () => {
         <AIProcessingProvider>
           <ToastProvider>
             <ConfirmProvider>
-              <SessionWatcher />
-              <RoutesApp />
+              <ProjectProvider>
+                <SessionWatcher />
+                <RoutesApp />
+              </ProjectProvider>
             </ConfirmProvider>
           </ToastProvider>
         </AIProcessingProvider>
