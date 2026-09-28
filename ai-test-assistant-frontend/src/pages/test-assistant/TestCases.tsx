@@ -33,6 +33,7 @@ import SessionList from '../../components/project/SessionList'
 import { useProject } from '../../context/ProjectContext'
 import projectService, { projectLabel, type GenerationSnapshot, type Project, type SessionSummary } from '../../services/projectService'
 import StepEditor from '../../components/test-assistant/StepEditor'
+import { detectProject } from '../../utils/detectProject'
 import aiChecksService, { type CheckBatch, type CheckItem, type EditedStep } from '../../services/aiChecksService'
 import { publishTokenUsage } from '../../components/test-assistant/TokenUsageChip'
 
@@ -172,6 +173,27 @@ const TestCases: React.FC = () => {
   projectRef.current = project
   const [projectDialog, setProjectDialog] = useState<null | 'gate' | 'edit'>(null)
   const projectSkippedRef = useRef(false)
+  // A project nobody picked by hand is taken from the BRD: saved when it names
+  // a PPM ID, else its name waits in the dialog for one. Picking or correcting
+  // a project by hand ends this, so a BRD never overrides a choice.
+  // Remembered with the project, so a reload still knows it came from a BRD.
+  const [projectFromBrd, setProjectFromBrdState] = useState(() => {
+    try { return Boolean(project) && localStorage.getItem('current_project_from_brd') === String(project?.id) } catch { return false }
+  })
+  const projectFromBrdRef = useRef(projectFromBrd)
+  const setProjectFromBrd = (fromBrd: boolean, id?: number) => {
+    projectFromBrdRef.current = fromBrd
+    setProjectFromBrdState(fromBrd)
+    try {
+      if (fromBrd && id != null) localStorage.setItem('current_project_from_brd', String(id))
+      else localStorage.removeItem('current_project_from_brd')
+    } catch { /* storage unavailable */ }
+  }
+  const [brdProjectName, setBrdProjectName] = useState('')
+  const brdDetectedForRef = useRef('')
+  // File Upload and Figma pick and process documents in a window, so the
+  // page keeps its full width for the document preview.
+  const [uploadOpen, setUploadOpen] = useState(false)
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
   const [restoredDocumentNames, setRestoredDocumentNames] = useState<string[]>([])
@@ -1954,14 +1976,71 @@ const TestCases: React.FC = () => {
     setSparkImportLoading(false)
     setSparkImportError('')
     setIsGenerationStreaming(false)
+    setUploadOpen(false)
+    // A project taken from the BRD goes with it; one picked by hand stays.
+    if (projectFromBrdRef.current) {
+      setProject(null)
+      projectRef.current = null
+      setProjectFromBrd(false)
+    }
+    setBrdProjectName('')
+    brdDetectedForRef.current = ''
     setWorkflowStageRequestId(null)
     setSelectedKnowledgeBase('default')
     window.dispatchEvent(new CustomEvent('test-case-workflow-updated'))
   }
 
-  // A project is asked for before generating; the author may go on without.
-  const requestGenerate = () => {
+  // Takes the project from the BRD's text unless one was picked by hand. True
+  // when a project was saved from it; a BRD without a PPM ID only leaves its
+  // name for the dialog.
+  const applyBrdProject = async (text: string, fileNames: string[]): Promise<boolean> => {
+    if (projectRef.current && !projectFromBrdRef.current) return false
+    const found = detectProject(text, fileNames)
+    setBrdProjectName(found.name || '')
+    if (!found.ppmId) {
+      // The last BRD's project does not belong to this one.
+      if (projectFromBrdRef.current) {
+        setProject(null)
+        projectRef.current = null
+        setProjectFromBrd(false)
+      }
+      return false
+    }
+    try {
+      const chosen = await projectService.createOrOpen(found.ppmId, found.name || found.ppmId)
+      setProject(chosen)
+      projectRef.current = chosen
+      projectSkippedRef.current = false
+      setProjectFromBrd(true, chosen.id)
+      setApprovalNotification({
+        message: `Project ${chosen.existing ? 'found' : 'saved'} from the BRD: ${projectLabel(chosen)}. Click it to correct it.`,
+        type: 'success'
+      })
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  // Once documents are processed, read the project from them.
+  useEffect(() => {
+    if (!documentsProcessed || (inputType !== 'file' && inputType !== 'figma-pdf') || fileInputs.length === 0) return
+    const key = fileInputs.map((file) => `${file.name}:${file.size}`).join('|')
+    if (!combinedContent.trim() || brdDetectedForRef.current === key) return
+    brdDetectedForRef.current = key
+    void applyBrdProject(combinedContent, fileInputs.map((file) => file.name))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documentsProcessed, inputType, fileInputs])
+
+  // A project is asked for before generating -- from the BRD first, then the
+  // author, who may go on without.
+  const requestGenerate = async () => {
     if (!projectRef.current && !projectSkippedRef.current) {
+      const text = inputType === 'text' ? textValue : combinedContent
+      if (await applyBrdProject(text, fileInputs.map((file) => file.name))) {
+        void handleGenerate()
+        return
+      }
       setProjectDialog('gate')
       return
     }
@@ -1975,6 +2054,7 @@ const TestCases: React.FC = () => {
       setProject(chosen)
       projectRef.current = chosen
       projectSkippedRef.current = false
+      setProjectFromBrd(false)
     } else {
       projectSkippedRef.current = true
     }
@@ -2182,7 +2262,7 @@ const TestCases: React.FC = () => {
               <p className="mt-0.5 text-[12.5px] text-[#6B7280]">Generate test cases from BRDs, SDDs, ADO and e2e Spark</p>
             </div>
             <div className="ml-auto min-w-0">
-              <ProjectChip onOpen={() => setProjectDialog('edit')} />
+              <ProjectChip onOpen={() => setProjectDialog('edit')} fromBrd={projectFromBrd} />
             </div>
           </div>
 
@@ -2197,7 +2277,14 @@ const TestCases: React.FC = () => {
                   role="radio"
                   aria-checked={active}
                   data-audit-name={source.audit}
-                  onClick={() => setInputType(source.value)}
+                  onClick={() => {
+                    if (source.value !== inputType && (source.value === 'file' || source.value === 'figma-pdf') && (inputType === 'file' || inputType === 'figma-pdf')) {
+                      // Figma reads one PDF and File Upload many formats: files picked for one are not for the other.
+                      setFileInputs([]); setFilePreviews([]); setEditableContents({}); setCombinedContent(''); setCombinedPreviewHtml(''); setDocumentsProcessed(false)
+                    }
+                    setInputType(source.value)
+                    if (source.value === 'file' || source.value === 'figma-pdf') setUploadOpen(true)
+                  }}
                   className={`flex h-11 items-center gap-2 rounded-[12px] border px-3 text-[13px] font-semibold transition ${
                     active ? 'border-[#F6D4D5] bg-[#FFF5F5] text-[#7A0B0D]' : 'border-[#E8EAEE] bg-white text-[#1F2937] hover:border-[#F6D4D5]'
                   }`}
@@ -2210,13 +2297,25 @@ const TestCases: React.FC = () => {
           </div>
 
           {/* Compact input, expandable */}
-          <div className={`mt-3 grid gap-3 ${inputType === 'text' ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-[minmax(0,1fr)_300px]'}`}>
+          <div className={`mt-3 grid gap-3 ${inputType === 'e2e-spark' ? 'grid-cols-1 md:grid-cols-[minmax(0,1fr)_300px]' : 'grid-cols-1'}`}>
             <div className={`relative box-border overflow-hidden rounded-[16px] border border-[#E8EAEE] px-3.5 py-3 ${inputExpanded ? 'h-[360px]' : 'h-[116px]'}`}>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6B7280]">
-                  {inputType === 'text' ? 'Requirements' : 'Document preview'}
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6B7280]">
+                    {inputType === 'text' ? 'Requirements' : 'Document preview'}
+                  </span>
+                  {(inputType === 'file' || inputType === 'figma-pdf') && fileInputs.length > 0 && (
+                    <span className="truncate text-[11.5px] text-[#6B7280]" title={fileInputs.map((file) => file.name).join(', ')}>
+                      · {fileInputs.length === 1 ? fileInputs[0].name : `${fileInputs.length} documents`} · {documentsProcessed ? 'processed' : 'not processed yet'}
+                    </span>
+                  )}
                 </span>
-                <span className="flex items-center gap-3">
+                <span className="flex flex-shrink-0 items-center gap-3">
+                  {(inputType === 'file' || inputType === 'figma-pdf') && (
+                    <button type="button" onClick={() => setUploadOpen(true)} data-audit-name="Open document upload" className="text-[12px] font-semibold text-[#B71920] hover:text-[#941216]">
+                      {fileInputs.length > 0 ? 'Change documents' : 'Upload documents'}
+                    </button>
+                  )}
                   {inputType !== 'text' && documentsProcessed && (
                     <button type="button" onClick={() => setExpandedPreview(true)} className="text-[12px] font-semibold text-[#B71920] hover:text-[#941216]">
                       Full preview
@@ -2257,57 +2356,6 @@ const TestCases: React.FC = () => {
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 h-9 bg-[linear-gradient(180deg,rgba(255,255,255,0),#fff)]" />
               )}
             </div>
-
-            {(inputType === 'file' || inputType === 'figma-pdf') && (
-              <div
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  if (e.dataTransfer.files?.length) {
-                    handleFileChange({ target: { files: e.dataTransfer.files } } as unknown as ChangeEvent<HTMLInputElement>)
-                  }
-                }}
-                className="box-border flex max-h-[360px] flex-col gap-2 overflow-y-auto rounded-[16px] border-[1.5px] border-dashed border-[#F1A4A6] bg-[#FFF8F8] px-3.5 py-3"
-              >
-                <input
-                  type="file"
-                  onChange={handleFileChange}
-                  data-audit-name={inputType === 'figma-pdf' ? 'Figma Files (PDF)' : 'File Upload'}
-                  className="hidden"
-                  id="file-upload"
-                  accept={inputType === 'figma-pdf' ? '.pdf,application/pdf' : '.txt,.doc,.docx,.pdf,.xls,.xlsx,.ppt,.pptx'}
-                  multiple={inputType !== 'figma-pdf'}
-                />
-                {fileInputs.map((file, index) => (
-                  <div key={`${file.name}-${index}`} className="flex items-center gap-2.5">
-                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[8px] border border-[#F6D4D5] bg-white">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B71920" strokeWidth="1.8" aria-hidden><path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5" /></svg>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[12.5px] font-semibold text-[#1F2937]" title={file.name}>{file.name}</div>
-                      <div className={`text-[11px] font-semibold ${documentsProcessed ? 'text-[#136B34]' : 'text-[#6B7280]'}`}>
-                        {documentsProcessed ? 'Processed' : 'Ready to process'} · {Math.max(1, Math.round(file.size / 1024))} KB
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveFile(index)}
-                      title="Remove file"
-                      aria-label={`Remove ${file.name}`}
-                      className="flex-shrink-0 rounded-full p-1 text-[#B71920] transition hover:bg-white"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                  </div>
-                ))}
-                <div className="text-[12px] text-[#6B7280]">
-                  {fileInputs.length === 0
-                    ? inputType === 'figma-pdf' ? 'Drop Figma PDF exports here, or ' : 'Drop BRDs or SDDs here, or '
-                    : inputType === 'figma-pdf' ? 'Drop more Figma PDFs, or ' : 'Drop more BRDs or SDDs, or '}
-                  <label htmlFor="file-upload" className="cursor-pointer font-semibold text-[#B71920] hover:text-[#941216]">browse</label>
-                </div>
-              </div>
-            )}
 
             {inputType === 'e2e-spark' && (
               <div className="box-border flex flex-col gap-2 rounded-[16px] border-[1.5px] border-dashed border-[#F1A4A6] bg-[#FFF8F8] px-3.5 py-3">
@@ -2632,9 +2680,139 @@ const TestCases: React.FC = () => {
         open={projectDialog !== null}
         gate={projectDialog === 'gate'}
         initialPpmId={inputType === 'e2e-spark' ? ppmId.trim() : ''}
+        initialName={brdProjectName}
+        editCurrent={projectDialog === 'edit'}
         onClose={() => setProjectDialog(null)}
         onChosen={handleProjectChosen}
       />
+
+      {/* File Upload / Figma: pick documents, then Process Documents or Reset back to the page */}
+      {uploadOpen && (inputType === 'file' || inputType === 'figma-pdf') && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(17,24,39,0.45)] p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setUploadOpen(false) }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="upload-dialog-title" className="w-full max-w-[560px] overflow-hidden rounded-[20px] border border-[#E8EAEE] bg-white shadow-[0_24px_60px_rgba(16,24,40,0.22)]">
+            <div className="flex items-start gap-3 border-b border-[#F1F2F4] px-6 pb-4 pt-5">
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] bg-[#FDEBEC]">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B71920" strokeWidth="1.8" aria-hidden><path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5" /></svg>
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 id="upload-dialog-title" className="m-0 text-[16px] font-bold text-[#1F2937]">{inputType === 'figma-pdf' ? 'Upload Figma PDF' : 'Upload documents'}</h2>
+                <p className="mt-0.5 text-[12.5px] text-[#6B7280]">
+                  {inputType === 'figma-pdf'
+                    ? 'One Figma design export as PDF. Its visible text becomes the requirements.'
+                    : 'BRDs or SDDs: .docx, .pdf, .txt, .xlsx, .pptx. With no project chosen, the PPM ID and project name are read from them.'}
+                </p>
+              </div>
+              <button type="button" onClick={() => setUploadOpen(false)} aria-label="Close" className="flex h-8 w-8 items-center justify-center rounded-[10px] text-[#6B7280] hover:bg-[#F4F5F7]">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
+              </button>
+            </div>
+            <div className="px-6 py-5">
+              <div
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  if (e.dataTransfer.files?.length) {
+                    handleFileChange({ target: { files: e.dataTransfer.files } } as unknown as ChangeEvent<HTMLInputElement>)
+                  }
+                }}
+                // The whole drop zone opens the file picker; a file's own buttons (remove) do not.
+                role="button"
+                tabIndex={0}
+                aria-label={inputType === 'figma-pdf' ? 'Choose a Figma PDF' : 'Choose documents'}
+                onClick={(e) => {
+                  const target = e.target as HTMLElement
+                  if (target.closest('button') || target instanceof HTMLInputElement) return
+                  document.getElementById('file-upload')?.click()
+                }}
+                onKeyDown={(e) => {
+                  if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault()
+                    document.getElementById('file-upload')?.click()
+                  }
+                }}
+                className="box-border flex min-h-[150px] max-h-[320px] cursor-pointer flex-col gap-2 overflow-y-auto rounded-[16px] border-[1.5px] border-dashed border-[#F1A4A6] bg-[#FFF8F8] px-3.5 py-3 outline-none transition hover:border-[#B71920] hover:bg-[#FDEBEC] focus-visible:ring-2 focus-visible:ring-[#F1A4A6]"
+              >
+                <input
+                  type="file"
+                  onChange={handleFileChange}
+                  data-audit-name={inputType === 'figma-pdf' ? 'Figma Files (PDF)' : 'File Upload'}
+                  className="hidden"
+                  id="file-upload"
+                  accept={inputType === 'figma-pdf' ? '.pdf,application/pdf' : '.txt,.doc,.docx,.pdf,.xls,.xlsx,.ppt,.pptx'}
+                  multiple={inputType !== 'figma-pdf'}
+                />
+                {fileInputs.map((file, index) => (
+                  <div key={`${file.name}-${index}`} className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[8px] border border-[#F6D4D5] bg-white">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B71920" strokeWidth="1.8" aria-hidden><path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5" /></svg>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[12.5px] font-semibold text-[#1F2937]" title={file.name}>{file.name}</div>
+                      <div className={`text-[11px] font-semibold ${documentsProcessed ? 'text-[#136B34]' : 'text-[#6B7280]'}`}>
+                        {documentsProcessed ? 'Processed' : 'Ready to process'} · {Math.max(1, Math.round(file.size / 1024))} KB
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFile(index)}
+                      title="Remove file"
+                      aria-label={`Remove ${file.name}`}
+                      className="flex-shrink-0 rounded-full p-1 text-[#B71920] transition hover:bg-white"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+                ))}
+                <div className={`text-[12px] text-[#6B7280] ${fileInputs.length === 0 ? 'my-auto flex flex-col items-center gap-2 py-6 text-center text-[13px]' : ''}`}>
+                  {fileInputs.length === 0 && (
+                    <span className="flex h-11 w-11 items-center justify-center rounded-full border border-[#F6D4D5] bg-white">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#B71920" strokeWidth="1.8" aria-hidden><path d="M12 16V4M7 9l5-5 5 5M5 20h14" /></svg>
+                    </span>
+                  )}
+                  <span>
+                  {fileInputs.length === 0
+                    ? inputType === 'figma-pdf' ? 'Drop Figma PDF exports here, or ' : 'Drop BRDs or SDDs here, or '
+                    : inputType === 'figma-pdf' ? 'Drop more Figma PDFs, or ' : 'Drop more BRDs or SDDs, or '}
+                  <span className="font-semibold text-[#B71920] underline-offset-2 hover:underline">browse</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 border-t border-[#F1F2F4] bg-[#FCFCFD] px-6 py-3.5">
+              <button
+                type="button"
+                data-audit-name="Reset documents"
+                onClick={() => {
+                  setFileInputs([]); setFilePreviews([]); setEditableContents({}); setCombinedContent(''); setCombinedPreviewHtml('')
+                  setDocumentsProcessed(false); setNeedsReprocess(false); brdDetectedForRef.current = ''
+                  setUploadOpen(false)
+                }}
+                disabled={fileInputs.length === 0 || loading}
+                className="flex h-9 items-center rounded-[12px] border border-[#F1A4A6] bg-white px-4 text-[13px] font-bold text-[#B71920] transition hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Reset
+              </button>
+              <div className="ml-auto flex gap-2">
+                <button type="button" onClick={() => setUploadOpen(false)} className="flex h-9 items-center rounded-[12px] border border-[#E8EAEE] bg-white px-4 text-[13px] font-bold text-[#1F2937] hover:border-[#F6D4D5]">
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  data-audit-name="Process Documents"
+                  disabled={fileInputs.length === 0 || loading}
+                  onClick={() => {
+                    setUploadOpen(false)
+                    void (inputType === 'figma-pdf' ? handleProcessFigmaPdf() : handleProcessDocuments())
+                  }}
+                  className="flex h-9 items-center rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-4 text-[13px] font-bold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+                >
+                  {documentsProcessed && fileInputs.length > 0 ? 'Process again' : 'Process Documents'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Expanded combined preview modal */}
       {expandedPreview && (

@@ -13,11 +13,15 @@ export interface ProjectDialogProps {
   /** Asked before Generate: offers going on without a project. */
   gate?: boolean
   initialPpmId?: string
+  /** A name to start from, e.g. the one found in the BRD. */
+  initialName?: string
+  /** Opened to change the current project: starts from it and can rename it. */
+  editCurrent?: boolean
   onClose: () => void
   onChosen: (project: Project | null) => void
 }
 
-export const ProjectDialog: React.FC<ProjectDialogProps> = ({ open, gate, initialPpmId, onClose, onChosen }) => {
+export const ProjectDialog: React.FC<ProjectDialogProps> = ({ open, gate, initialPpmId, initialName, editCurrent, onClose, onChosen }) => {
   const { project: current } = useProject()
   const [ppmId, setPpmId] = useState('')
   const [name, setName] = useState('')
@@ -29,15 +33,17 @@ export const ProjectDialog: React.FC<ProjectDialogProps> = ({ open, gate, initia
 
   useEffect(() => {
     if (!open) return
-    setPpmId(initialPpmId || '')
-    setName('')
+    setPpmId(editCurrent && current ? current.ppm_id : initialPpmId || '')
+    setName(editCurrent && current ? current.name : initialName || '')
     setFound(null)
     setError('')
     projectService.list().then(setRecent).catch(() => setRecent([]))
     window.setTimeout(() => ppmRef.current?.focus(), 30)
-  }, [open, initialPpmId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialPpmId, initialName, editCurrent])
 
-  // An existing PPM ID fills its name, and the name is then its own.
+  // An existing PPM ID fills its name, and the name is then its own -- except
+  // the current project's, which can be corrected here.
   useEffect(() => {
     if (!open) return
     const value = ppmId.trim()
@@ -46,11 +52,12 @@ export const ProjectDialog: React.FC<ProjectDialogProps> = ({ open, gate, initia
       projectService.byPpm(value)
         .then((project) => {
           setFound(project)
-          if (project) setName(project.name)
+          if (project && project.id !== current?.id) setName(project.name)
         })
         .catch(() => setFound(null))
     }, 300)
     return () => window.clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ppmId, open])
 
   useEffect(() => {
@@ -61,6 +68,7 @@ export const ProjectDialog: React.FC<ProjectDialogProps> = ({ open, gate, initia
   }, [open, onClose])
 
   if (!open) return null
+  const isCurrent = Boolean(found && current && found.id === current.id)
 
   const submit = async (event?: React.FormEvent) => {
     event?.preventDefault()
@@ -71,6 +79,10 @@ export const ProjectDialog: React.FC<ProjectDialogProps> = ({ open, gate, initia
     setBusy(true)
     setError('')
     try {
+      if (isCurrent && found) {
+        onChosen(name.trim() === found.name ? found : await projectService.rename(found.id, found.ppm_id, name.trim()))
+        return
+      }
       onChosen(await projectService.createOrOpen(ppmId.trim(), name.trim()))
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'The project could not be saved.')
@@ -118,12 +130,12 @@ export const ProjectDialog: React.FC<ProjectDialogProps> = ({ open, gate, initia
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. B2B Portal Trade Licence"
-              disabled={Boolean(found)}
+              disabled={Boolean(found) && !isCurrent}
               className={`${FIELD} disabled:bg-[#F9FAFB] disabled:text-[#374151]`}
               maxLength={255}
             />
           </label>
-          {found && (
+          {found && !isCurrent && (
             <div className="rounded-[12px] border border-[#BBDFC8] bg-[#F5FBF7] px-3.5 py-2.5 text-[12.5px] text-[#136B34]">
               {found.ppm_id} already exists — you'll join it and see everyone's sessions for it.
             </div>
@@ -166,7 +178,7 @@ export const ProjectDialog: React.FC<ProjectDialogProps> = ({ open, gate, initia
               disabled={busy}
               className="flex h-9 items-center rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-4 text-[13px] font-bold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] disabled:opacity-60"
             >
-              {busy ? 'Saving…' : found ? `Use ${found.ppm_id}` : gate ? 'Save & Generate' : 'Save project'}
+              {busy ? 'Saving…' : found && !isCurrent ? `Use ${found.ppm_id}` : gate ? 'Save & Generate' : 'Save project'}
             </button>
           </div>
         </div>
@@ -176,7 +188,7 @@ export const ProjectDialog: React.FC<ProjectDialogProps> = ({ open, gate, initia
 }
 
 /** The chip, or the "+" to add one, for a page header. */
-export const ProjectChip: React.FC<{ onOpen: () => void; compact?: boolean }> = ({ onOpen, compact }) => {
+export const ProjectChip: React.FC<{ onOpen: () => void; compact?: boolean; fromBrd?: boolean }> = ({ onOpen, compact, fromBrd }) => {
   const { project } = useProject()
   if (!project) {
     return (
@@ -197,13 +209,14 @@ export const ProjectChip: React.FC<{ onOpen: () => void; compact?: boolean }> = 
     <button
       type="button"
       onClick={onOpen}
-      title="Change project"
+      title={fromBrd ? 'Found in the BRD · click to correct it' : 'Change project'}
       data-audit-name="Change project"
       className={`flex h-9 min-w-0 max-w-full items-center gap-2 rounded-[12px] border border-[#E8EAEE] bg-white px-3 text-[13px] transition hover:border-[#F6D4D5] ${compact ? '' : 'max-w-[420px]'}`}
     >
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B71920" strokeWidth="1.8" className="flex-shrink-0" aria-hidden><path d="M3 7h6l2 2h10v10H3z" /></svg>
       <span className="font-bold text-[#941216]">{project.ppm_id}</span>
       <span className="truncate text-[#374151]">{project.name}</span>
+      {fromBrd && <span className="flex-shrink-0 rounded-full bg-[#FFF4E5] px-1.5 py-0.5 text-[10.5px] font-semibold text-[#8A5000]">from BRD</span>}
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.8" className="flex-shrink-0" aria-hidden><path d="M4 20h4L19 9l-4-4L4 16z" /></svg>
     </button>
   )

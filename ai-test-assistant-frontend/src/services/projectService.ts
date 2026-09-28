@@ -70,6 +70,9 @@ const projectService = {
   },
   createOrOpen: async (ppmId: string, name: string): Promise<Project> =>
     (await api.post('/projects', { ppm_id: ppmId, name })).data,
+  /** Correct a project's name; its PPM ID stays. */
+  rename: async (id: number, ppmId: string, name: string): Promise<Project> =>
+    (await api.put(`/projects/${id}`, { ppm_id: ppmId, name })).data,
 
   sessions: async (params: { projectId?: number | null; mine?: boolean; open?: boolean; limit?: number }): Promise<SessionSummary[]> =>
     (await api.get('/test-case-reviews/sessions', {
