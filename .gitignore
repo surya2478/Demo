@@ -79,6 +79,8 @@ htmlcov/
 node_modules/
 .pnpm-store/
 dist/
+# Kept-aside copies of earlier builds: dist_bkp, dist_new, dist_04_09 ...
+dist_*/
 dist.zip
 dist-org.zip
 dist.tar
@@ -91,8 +93,7 @@ dist.tar.gz
 # ---------------------------------------------------------------------------
 # Materialised workspaces, generated specs and captured artifacts are run
 # output, not source. Regenerated on every run; large and non-reviewable.
-#storage/
-#ai-admin-module-py/storage/
+ai-admin-module-py/storage/
 #automation_workspace/
 #playwright-report/
 #test-results/
