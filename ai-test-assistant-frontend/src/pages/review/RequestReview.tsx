@@ -480,11 +480,21 @@ const RequestReview: React.FC = () => {
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A3231C" strokeWidth="2.6" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
                 Reject
               </button>
-              <button type="button" onClick={() => void approveCurrent()} disabled={busy}
-                className="flex h-9 items-center gap-2 rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-3.5 text-[13px] font-bold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] disabled:opacity-50">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.6" aria-hidden><path d="M5 12l5 5 9-10" /></svg>
-                Approve &amp; next
-              </button>
+              {cases.length > 0 && pendingCases.length === 0 ? (
+                // Every case is decided: nothing is next, so the way on is back to the list.
+                <button type="button" onClick={() => navigate('/manager-review')} disabled={busy}
+                  title="Every test case in this request is decided"
+                  className="flex h-9 items-center gap-2 rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-3.5 text-[13px] font-bold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] disabled:opacity-50">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.6" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
+                  Close &amp; back to Review
+                </button>
+              ) : (
+                <button type="button" onClick={() => void approveCurrent()} disabled={busy}
+                  className="flex h-9 items-center gap-2 rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-3.5 text-[13px] font-bold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] disabled:opacity-50">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.6" aria-hidden><path d="M5 12l5 5 9-10" /></svg>
+                  Approve &amp; next
+                </button>
+              )}
             </div>
           </section>
         ) : (

@@ -1,12 +1,13 @@
 /**
  * --- Runs (screens 7 and 7a) --------------------------------------------------
  *
- * Run history on the left; the selected run on the right, at /automation/runs
- * and /automation/runs/:runKey alike. A live run shows its execution pipeline,
+ * Run history across the whole page, grouped by project ("PPM ID - Project
+ * name"); a run opens in a drawer on the right at /automation/runs/:runKey,
+ * and ↑ / ↓ step through the list from there. A live run shows its execution pipeline,
  * the test case's steps as they pass, and the runner log streaming. A finished
  * run keeps the pipeline and steps and swaps the log for its evidence --
  * screenshot, video, trace, console, network and log -- with the failure and
- * the AI's suggestion under the steps, and Rerun / Heal & rerun above.
+ * the AI's suggestion under the steps, and Rerun / Heal & rerun at the foot.
  *
  * Runs can still be deleted: "Select" in the history turns on checkboxes.
  */
@@ -17,6 +18,8 @@ import useRunPolling from '../../hooks/useRunPolling'
 import { useAutomationContext } from '../../components/automation/AutomationContext'
 import { useConfirm } from '../../components/ui/ConfirmDialog'
 import { CodeViewer } from '../../components/automation/CodeViewer'
+import SideDrawer, { DrawerNav } from '../../components/automation/SideDrawer'
+import { OutcomeBar, ProjectBadge, StatusMark } from '../../components/automation/listPresentation'
 import { parseServerTime } from '../../components/automation/runPresentation'
 import { isTerminal } from '../../types/automation'
 import type { ArtifactKind, RunDetail, RunResultRow, RunSummary } from '../../types/automation'
@@ -45,6 +48,18 @@ const hhmm = (value: string | null | undefined) => {
 const dubaiDay = (value: string | null | undefined) => {
   const date = parseServerTime(value)
   return date ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dubai' }).format(date) : ''
+}
+
+/** "14:05" today, "Yesterday 14:05", else "26 Sep 14:05" -- Dubai time. */
+const when = (value: string | null | undefined) => {
+  const day = dubaiDay(value)
+  if (!day) return ''
+  const today = dubaiDay(new Date().toISOString())
+  const yesterday = dubaiDay(new Date(Date.now() - 86400000).toISOString())
+  if (day === today) return hhmm(value)
+  if (day === yesterday) return `Yesterday ${hhmm(value)}`
+  const date = parseServerTime(value)!
+  return `${new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dubai', day: 'numeric', month: 'short' }).format(date)} ${hhmm(value)}`
 }
 
 const elapsedSeconds = (run: RunSummary, now: number) => {
@@ -131,7 +146,10 @@ const specStepTitles = (code: string | null | undefined): string[] => {
   const titles: string[] = []
   const pattern = /test\.step\(\s*(['"`])((?:\\.|(?!\1).)*)\1/g
   let match: RegExpExecArray | null
-  while ((match = pattern.exec(code || ''))) titles.push(cleanTitle(match[2].replace(/\\(.)/g, '$1')))
+  while ((match = pattern.exec(code || ''))) {
+    const text = match[2].replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16))).replace(/\\(.)/g, '$1')
+    titles.push(cleanTitle(text))
+  }
   return titles
 }
 
@@ -535,16 +553,25 @@ const FailureBox: React.FC<{ run: RunDetail; rows: StepRow[]; result: RunResultR
   )
 }
 
-// --- The selected run ----------------------------------------------------------------
+// --- The selected run, in the drawer ---------------------------------------------------
 
-const RunPanel: React.FC<{ runKey: string; onChanged: () => void }> = ({ runKey, onChanged }) => {
+interface PanelNav {
+  index: number
+  total: number
+  onPrev: (() => void) | null
+  onNext: (() => void) | null
+  onClose: () => void
+}
+
+const RunPanel: React.FC<{ runKey: string; project: RunSummary['project']; onChanged: () => void; nav: PanelNav; onSpecOpen: (open: boolean) => void }> = ({ runKey, project, onChanged, nav, onSpecOpen }) => {
   const { canExecute } = useAutomationContext()
   const navigate = useNavigate()
   const { run, loading, error } = useRunPolling(runKey, { onSettled: onChanged })
   const [now, setNow] = useState(() => Date.now())
   const [busy, setBusy] = useState<'cancel' | 'rerun' | 'heal' | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [specOpen, setSpecOpen] = useState(false)
+  const [specOpen, setSpecOpenState] = useState(false)
+  const setSpecOpen = (open: boolean) => { setSpecOpenState(open); onSpecOpen(open) }
 
   const live = run ? !isTerminal(run.status) : false
   useEffect(() => {
@@ -553,8 +580,16 @@ const RunPanel: React.FC<{ runKey: string; onChanged: () => void }> = ({ runKey,
     return () => window.clearInterval(id)
   }, [live])
 
-  if (loading && !run) return <div className="p-6 text-[13px] text-[#6B7280]">Loading the run…</div>
-  if (!run) return <div className="p-6 text-[13px] text-[#A3231C]">{error ?? 'That run could not be found.'}</div>
+  const navBar = <DrawerNav index={nav.index} total={nav.total} onPrev={nav.onPrev} onNext={nav.onNext} onClose={nav.onClose} />
+
+  if (!run) {
+    return (
+      <>
+        <div className="flex items-center justify-end border-b border-[#E8EAEE] px-6 py-3.5">{navBar}</div>
+        <div className={`p-6 text-[13px] ${loading ? 'text-[#6B7280]' : 'text-[#A3231C]'}`}>{loading ? 'Loading the run…' : error ?? 'That run could not be found.'}</div>
+      </>
+    )
+  }
 
   const rows = stepRows(run)
   const result = run.results.find(r => r.status === 'fail' || r.status === 'error') ?? run.results[0] ?? null
@@ -599,50 +634,87 @@ const RunPanel: React.FC<{ runKey: string; onChanged: () => void }> = ({ runKey,
     }
   }
 
-  const head = [
-    run.run_key.toUpperCase(),
+  const facts = [
     frameworkLabel(run.framework),
     run.environment,
+    modeLabel(run.mode),
     live ? speedLabel(run.slow_mo_ms) : null,
-    run.triggered_by ? `triggered by ${run.triggered_by}` : null
-  ].filter(Boolean).join(' · ')
-  const tail = live
-    ? `started ${hhmm(run.started_at ?? run.created_at)} · ${clock(elapsedSeconds(run, now))} elapsed`
-    : `${hhmm(run.started_at ?? run.created_at)} · ${clock(run.duration_seconds)} · ${run.passed} of ${run.total_tests || 1} test${(run.total_tests || 1) === 1 ? '' : 's'} passed`
-
-  const specButton = (
-    <button type="button" onClick={() => setSpecOpen(true)} disabled={!run.spec?.code} className={`${BTN} text-[#1F2937]`}>
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><path d="M9 7L4.5 12 9 17M15 7l4.5 5-4.5 5" /></svg>
-      Spec
-    </button>
-  )
+    run.triggered_by ? `by ${run.triggered_by}` : null,
+    live
+      ? `started ${hhmm(run.started_at ?? run.created_at)} · ${clock(elapsedSeconds(run, now))} elapsed`
+      : `${when(run.started_at ?? run.created_at)} · ${clock(run.duration_seconds)}`,
+    live ? null : `${run.passed} of ${run.total_tests || 1} test${(run.total_tests || 1) === 1 ? '' : 's'} passed`
+  ].filter(Boolean) as string[]
 
   return (
-    <div className="flex min-w-0 flex-col gap-3.5 p-5">
-      <div className="flex flex-wrap items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <h2 className="m-0 min-w-0 truncate text-[18px] font-bold text-[#1F2937]" title={run.tc_title ?? undefined}>
-              {baseId(run.tc_display_id) || run.file_name || 'Run'}{run.tc_title ? ` · ${run.tc_title}` : ''}
-            </h2>
-            <StatusChip run={run} />
-            {run.is_healed && <span className={`${CHIP} bg-[#F3EEFF] text-[#6D28D9]`}>Healed</span>}
-          </div>
-          <div className="mt-1 text-[13px] text-[#6B7280]">{head} · {tail}</div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {live ? (
-            <>
-              {specButton}
-              {canExecute && run.is_active && (
-                <button type="button" onClick={() => void act('cancel')} disabled={busy !== null} className={`${BTN} text-[#B71920]`}>
-                  {busy === 'cancel' ? 'Cancelling…' : 'Cancel run'}
-                </button>
+    <>
+      {/* Header */}
+      <div className="flex-shrink-0 border-b border-[#E8EAEE] px-6 pb-3.5 pt-4">
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusChip run={run} />
+              {run.is_healed && <span className={`${CHIP} bg-[#F3EEFF] text-[#6D28D9]`}>Healed</span>}
+              <span className="font-mono text-[12.5px] text-[#9CA3AF]">{run.run_key.toUpperCase()}</span>
+              {project && (
+                <span className="truncate text-[12.5px] text-[#6B7280]" title={`${project.ppm_id} - ${project.name}`}>
+                  <span className="font-mono font-semibold text-[#941216]">{project.ppm_id}</span> - {project.name}
+                </span>
               )}
-            </>
+            </div>
+            <h2 className="m-0 mt-1.5 text-[19px] font-bold leading-[1.3] text-[#1F2937]">
+              <span className="text-[#B71920]">{baseId(run.tc_display_id) || run.file_name || 'Run'}</span>
+              {run.tc_title ? <span> · {run.tc_title}</span> : null}
+            </h2>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {facts.map(fact => (
+                <span key={fact} className="inline-flex h-6 items-center rounded-full bg-[#F4F5F7] px-2.5 text-[12px] font-medium text-[#374151]">{fact}</span>
+              ))}
+            </div>
+          </div>
+          {navBar}
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="app-scroll min-h-0 flex-1 overflow-y-auto bg-[#FAFAFB] px-6 py-4">
+        <div className="flex flex-col gap-3.5">
+          {actionError && <div role="alert" className="rounded-[12px] border border-[#F6D4D5] bg-[#FFF8F8] px-3.5 py-2 text-[12.5px] text-[#7A0B0D]">{actionError}</div>}
+
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-[11.5px] font-semibold uppercase tracking-[0.14em] text-[#6B7280]">Execution pipeline</span>
+              {live && <span className="text-[13px] text-[#6B7280]">Stage {Math.min(5, phase)} of 5</span>}
+            </div>
+            <Pipeline run={run} rows={rows} />
+          </div>
+
+          <div className={`grid grid-cols-1 gap-3.5 ${live ? 'xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]' : 'xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]'}`}>
+            <div className="flex min-w-0 flex-col gap-3.5">
+              <StepsCard rows={rows} />
+              {!live && failedLike && <FailureBox run={run} rows={rows} result={result} />}
+            </div>
+            {live ? <LiveLog runKey={run.run_key} live={live} /> : <Evidence run={run} result={result} />}
+          </div>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-t border-[#E8EAEE] bg-white px-6 py-3">
+        <button type="button" onClick={() => setSpecOpen(true)} disabled={!run.spec?.code} className={`${BTN} text-[#1F2937]`}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><path d="M9 7L4.5 12 9 17M15 7l4.5 5-4.5 5" /></svg>
+          Spec
+        </button>
+        <span className="hidden text-[12px] text-[#9CA3AF] md:inline">Esc to close · ↑ ↓ for other runs</span>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {live ? (
+            canExecute && run.is_active && (
+              <button type="button" onClick={() => void act('cancel')} disabled={busy !== null} className={`${BTN} text-[#B71920]`}>
+                {busy === 'cancel' ? 'Cancelling…' : 'Cancel run'}
+              </button>
+            )
           ) : (
             <>
-              {!failedLike && specButton}
               {canExecute && (
                 <button type="button" onClick={() => void act('rerun')} disabled={busy !== null || !run.spec?.code} className={`${BTN} text-[#1F2937]`}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M20 12a8 8 0 1 1-2.3-5.7" /><path d="M20 4v4h-4" /></svg>
@@ -660,24 +732,6 @@ const RunPanel: React.FC<{ runKey: string; onChanged: () => void }> = ({ runKey,
         </div>
       </div>
 
-      {actionError && <div role="alert" className="rounded-[12px] border border-[#F6D4D5] bg-[#FFF8F8] px-3.5 py-2 text-[12.5px] text-[#7A0B0D]">{actionError}</div>}
-
-      {live && (
-        <div className="-mb-1 flex items-center justify-between">
-          <span className="text-[11.5px] font-semibold uppercase tracking-[0.14em] text-[#6B7280]">Execution pipeline</span>
-          <span className="text-[13px] text-[#6B7280]">Stage {Math.min(5, phase)} of 5</span>
-        </div>
-      )}
-      <Pipeline run={run} rows={rows} />
-
-      <div className={`grid grid-cols-1 gap-3.5 ${live ? 'xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]' : 'xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]'}`}>
-        <div className="flex min-w-0 flex-col gap-3.5">
-          <StepsCard rows={rows} />
-          {!live && failedLike && <FailureBox run={run} rows={rows} result={result} />}
-        </div>
-        {live ? <LiveLog runKey={run.run_key} live={live} /> : <Evidence run={run} result={result} />}
-      </div>
-
       {specOpen && run.spec?.code ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[rgba(17,24,39,0.55)] p-4" onMouseDown={e => { if (e.target === e.currentTarget) setSpecOpen(false) }} role="dialog" aria-modal="true" aria-label="Spec">
           <div className="flex max-h-[88vh] w-full max-w-[980px] flex-col overflow-hidden rounded-[20px] border border-[#E8EAEE] bg-white shadow-[0_28px_70px_rgba(15,23,42,0.22)]">
@@ -693,13 +747,38 @@ const RunPanel: React.FC<{ runKey: string; onChanged: () => void }> = ({ runKey,
           </div>
         </div>
       ) : null}
-    </div>
+    </>
+  )
+}
+
+// --- A row's step bar -----------------------------------------------------------------
+
+/** One tick per step: green passed, red failed, blue running, grey not reached. */
+const StepBar: React.FC<{ run: RunSummary }> = ({ run }) => {
+  const progress = ((run.run_metadata as any)?.step_progress ?? null) as StepProgress | null
+  const history = new Map((progress?.history ?? []).map(h => [h.n, h]))
+  const total = Math.min(24, Math.max(progress?.total ?? 0, progress?.history?.length ?? 0))
+  if (!total) return <span className="text-[12.5px] text-[#9CA3AF]">—</span>
+  const live = !isTerminal(run.status)
+  const passed = (progress?.history ?? []).filter(h => h.ok !== false).length
+  const failed = (progress?.history ?? []).find(h => h.ok === false)
+  return (
+    <span className="flex items-center gap-2" title={failed ? `Failed at step ${failed.n} of ${progress?.total}` : `${passed} of ${progress?.total} steps passed`}>
+      <span className="flex items-center gap-[2px]">
+        {Array.from({ length: total }, (_, i) => {
+          const h = history.get(i + 1)
+          const color = h ? (h.ok === false ? 'bg-[#DC2626]' : 'bg-[#16A34A]') : live && i + 1 === progress?.current ? 'bg-[#3B82F6]' : 'bg-[#E5E7EB]'
+          return <span key={i} className={`h-3.5 w-[5px] rounded-[2px] ${color}`} />
+        })}
+      </span>
+      <span className="text-[12px] tabular-nums text-[#6B7280]">{passed}/{progress?.total}</span>
+    </span>
   )
 }
 
 // --- Page -------------------------------------------------------------------------------
 
-type Filter = 'all' | 'running' | 'failed' | 'passed' | 'blocked'
+const RUN_ROW = 'grid grid-cols-[28px_40px_112px_minmax(0,1fr)_150px_150px_130px_210px] items-center gap-3 pl-4 pr-5'
 
 const Runs: React.FC = () => {
   const { runKey } = useParams<{ runKey: string }>()
@@ -709,10 +788,10 @@ const Runs: React.FC = () => {
   const [runs, setRuns] = useState<RunSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState<Filter>('all')
   const [now, setNow] = useState(() => Date.now())
-  const [selecting, setSelecting] = useState(false)
   const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [specOpen, setSpecOpen] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -737,39 +816,37 @@ const Runs: React.FC = () => {
     return () => { window.clearInterval(poll); window.clearInterval(tick) }
   }, [anyLive, load])
 
-  const counts = useMemo(() => {
-    const c = { running: 0, failed: 0, passed: 0, blocked: 0 }
-    runs.forEach(r => {
-      const tone = toneOf(r)
-      if (tone === 'running' || tone === 'queued') c.running++
-      else if (tone === 'failed') c.failed++
-      else if (tone === 'passed') c.passed++
-      else if (tone === 'blocked') c.blocked++
-    })
-    return c
-  }, [runs])
-
   const visible = useMemo(
     () =>
       runs.filter(r => {
-        const tone = toneOf(r)
-        if (filter === 'running' && tone !== 'running' && tone !== 'queued') return false
-        if (filter !== 'all' && filter !== 'running' && tone !== filter) return false
         if (!query) return true
-        return [r.tc_display_id, r.tc_title, r.run_key, r.file_name, r.triggered_by].some(v => String(v ?? '').toLowerCase().includes(query))
+        return [r.tc_display_id, r.tc_title, r.run_key, r.file_name, r.triggered_by, r.project?.ppm_id, r.project?.name]
+          .some(v => String(v ?? '').toLowerCase().includes(query))
       }),
-    [runs, filter, query]
+    [runs, query]
   )
 
-  // Nothing chosen: the live run if there is one, else the latest.
-  useEffect(() => {
-    if (runKey || !runs.length) return
-    const pick = runs.find(r => !isTerminal(r.status)) ?? runs[0]
-    navigate(`/automation/runs/${pick.run_key}`, { replace: true })
-  }, [runKey, runs, navigate])
+  // Grouped by project -- "PPM ID - Project name" -- most recently run first;
+  // runs whose test case has no project come last.
+  const groups = useMemo(() => {
+    const byKey = new Map<string, { key: string; ppm: string | null; name: string; runs: RunSummary[] }>()
+    visible.forEach(run => {
+      const key = run.project ? String(run.project.id) : 'none'
+      if (!byKey.has(key)) byKey.set(key, { key, ppm: run.project?.ppm_id ?? null, name: run.project?.name ?? 'No project', runs: [] })
+      byKey.get(key)!.runs.push(run)
+    })
+    const list = Array.from(byKey.values())
+    return [...list.filter(g => g.key !== 'none'), ...list.filter(g => g.key === 'none')]
+  }, [visible])
 
-  const today = dubaiDay(new Date().toISOString())
-  const todayCount = runs.filter(r => dubaiDay(r.created_at) === today).length
+  // The order ↑ / ↓ walk in the drawer: the list as it reads, top to bottom.
+  const ordered = useMemo(() => groups.flatMap(g => g.runs), [groups])
+  const index = runKey ? ordered.findIndex(r => r.run_key === runKey) : -1
+  const go = useCallback((key: string) => navigate(`/automation/runs/${key}`, { replace: true }), [navigate])
+  const onPrev = index > 0 ? () => go(ordered[index - 1].run_key) : null
+  const onNext = index >= 0 && index < ordered.length - 1 ? () => go(ordered[index + 1].run_key) : null
+  const close = useCallback(() => navigate('/automation/runs'), [navigate])
+  const open = (key: string) => navigate(`/automation/runs/${key}`)
 
   const deletePicked = async () => {
     const keys = Array.from(picked)
@@ -784,7 +861,6 @@ const Runs: React.FC = () => {
     try {
       await automationService.deleteRuns(keys)
       setPicked(new Set())
-      setSelecting(false)
       if (runKey && keys.includes(runKey)) navigate('/automation/runs', { replace: true })
       await load()
     } catch (err: any) {
@@ -792,99 +868,177 @@ const Runs: React.FC = () => {
     }
   }
 
-  const filterChip = (key: Filter, label: string, tone: string, count?: number) => (
-    <button
-      key={key}
-      type="button"
-      onClick={() => setFilter(key)}
-      aria-pressed={filter === key}
-      className={`${CHIP} h-7 transition ${filter === key ? 'bg-[#1F2937] text-white' : tone}`}
-    >
-      {label}{count != null ? ` ${count}` : ''}
-    </button>
-  )
+  const togglePick = (keys: string[], on: boolean) =>
+    setPicked(prev => { const next = new Set(prev); keys.forEach(k => (on ? next.add(k) : next.delete(k))); return next })
+  const allOn = visible.length > 0 && visible.every(r => picked.has(r.run_key))
+  const toggleGroup = (key: string) =>
+    setCollapsed(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next })
 
   return (
-    <section className={`${CARD} grid min-h-[700px] grid-cols-1 overflow-hidden lg:grid-cols-[400px_minmax(0,1fr)]`}>
-      {/* History */}
-      <div className="flex min-w-0 flex-col border-b border-[#E8EAEE] lg:border-b-0 lg:border-r">
-        <div className="px-5 pb-3 pt-4">
-          <div className="flex items-center gap-2">
-            <span className="text-[17px] font-bold text-[#1F2937]">Run history</span>
-            <span className="ml-auto text-[13px] text-[#6B7280]">Today · {todayCount} run{todayCount === 1 ? '' : 's'}</span>
-            {canExecute && runs.length > 0 && (
-              <button
-                type="button"
-                onClick={() => { setSelecting(v => !v); setPicked(new Set()) }}
-                className="text-[12.5px] font-semibold text-[#B71920] hover:underline"
-              >
-                {selecting ? 'Done' : 'Select'}
-              </button>
+    <section className={`${CARD} overflow-hidden`}>
+      {/* Toolbar: the title, and selecting */}
+      <div className="flex min-h-[64px] flex-wrap items-center gap-3 px-6 py-3">
+        <span className="text-[17px] font-bold text-[#1F2937]">Run history</span>
+        <span className="text-[13px] text-[#9CA3AF]">{visible.length} run{visible.length === 1 ? '' : 's'}</span>
+        {canExecute && visible.length > 0 && (
+          <div className="ml-auto flex items-center gap-2">
+            <label className="flex h-9 cursor-pointer items-center gap-2 rounded-[10px] border border-[#E8EAEE] bg-white px-3 text-[13px] font-semibold text-[#1F2937] hover:border-[#F6D4D5]">
+              <input type="checkbox" checked={allOn} onChange={e => setPicked(e.target.checked ? new Set(visible.map(r => r.run_key)) : new Set())} className="h-4 w-4 accent-[#B71920]" />
+              Select all
+            </label>
+            {picked.size > 0 && (
+              <>
+                <span className="text-[13px] font-semibold text-[#1F2937]">{picked.size} selected</span>
+                <button type="button" onClick={() => setPicked(new Set())} className="h-9 rounded-[10px] px-2 text-[13px] font-semibold text-[#6B7280] hover:text-[#1F2937]">Clear</button>
+                <button type="button" onClick={() => void deletePicked()} className="flex h-9 items-center gap-1.5 rounded-[10px] border border-[#F6D4D5] bg-[#FFF8F8] px-3 text-[13px] font-bold text-[#B71920] hover:bg-[#FEEBEC]">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
+                  Delete {picked.size}
+                </button>
+              </>
             )}
           </div>
-          <div className="mt-2.5 flex flex-wrap gap-1.5">
-            {filterChip('all', 'All', 'bg-[#F4F5F7] text-[#1F2937]')}
-            {counts.running > 0 && filterChip('running', 'Running', TONE_CHIP.running, counts.running)}
-            {counts.failed > 0 && filterChip('failed', 'Failed', TONE_CHIP.failed, counts.failed)}
-            {counts.passed > 0 && filterChip('passed', 'Passed', TONE_CHIP.passed, counts.passed)}
-            {counts.blocked > 0 && filterChip('blocked', 'Blocked', TONE_CHIP.blocked, counts.blocked)}
-          </div>
-          {selecting && (
-            <div className="mt-2.5 flex items-center gap-2 rounded-[12px] bg-[#FCFCFD] px-2 py-1.5 text-[12.5px]">
-              <input
-                type="checkbox"
-                aria-label="Select all runs"
-                checked={visible.length > 0 && visible.every(r => picked.has(r.run_key))}
-                onChange={e => setPicked(e.target.checked ? new Set(visible.map(r => r.run_key)) : new Set())}
-                className="h-4 w-4 accent-[#B71920]"
-              />
-              <span className="font-semibold text-[#1F2937]">{picked.size ? `${picked.size} selected` : 'Select all'}</span>
-              <button type="button" onClick={() => void deletePicked()} disabled={!picked.size} className="ml-auto font-bold text-[#B71920] disabled:opacity-40">
-                Delete{picked.size ? ` ${picked.size}` : ''}
-              </button>
-            </div>
-          )}
-        </div>
-        {error && <div role="alert" className="mx-5 mb-2 rounded-[12px] border border-[#F6D4D5] bg-[#FFF8F8] px-3 py-2 text-[12.5px] text-[#7A0B0D]">{error}</div>}
-        <div className="app-scroll min-h-0 flex-1 overflow-y-auto border-t border-[#E8EAEE] lg:max-h-[780px]">
+        )}
+      </div>
+
+      {error && <div role="alert" className="mx-6 mb-3 rounded-[12px] border border-[#F6D4D5] bg-[#FFF8F8] px-3 py-2 text-[12.5px] text-[#7A0B0D]">{error}</div>}
+
+      {/* The list: one card per project */}
+      <div className="app-scroll overflow-x-auto bg-[#F8F9FA] px-4 pb-4 pt-1">
+        <div className="flex min-w-[1060px] flex-col gap-3.5">
           {loading ? (
-            <div className="px-5 py-6 text-[13px] text-[#6B7280]">Loading runs…</div>
+            <div className="rounded-[16px] bg-white px-6 py-8 text-[13px] text-[#6B7280]">Loading runs…</div>
           ) : visible.length === 0 ? (
-            <div className="px-5 py-8 text-center text-[13px] text-[#6B7280]">{runs.length ? 'No runs match.' : 'No runs yet. Dry run a script in the Automation Lab and it appears here.'}</div>
+            <div className="rounded-[16px] bg-white px-6 py-10 text-center text-[13px] text-[#6B7280]">{runs.length ? 'No runs match.' : 'No runs yet. Dry run a script in the Automation Lab and it appears here.'}</div>
           ) : (
-            visible.map(run => {
-              const active = run.run_key === runKey
-              const tone = toneOf(run)
+            groups.map(group => {
+              const shut = collapsed.has(group.key)
+              const tones = group.runs.map(toneOf)
+              const passedHere = tones.filter(t => t === 'passed').length
+              const failedHere = tones.filter(t => t === 'failed').length
+              const blockedHere = tones.filter(t => t === 'blocked').length
+              const liveHere = tones.filter(t => t === 'running' || t === 'queued').length
+              const n = group.runs.length
+              const groupKeys = group.runs.map(r => r.run_key)
+              const groupOn = groupKeys.every(k => picked.has(k))
               return (
-                <div
-                  key={run.run_key}
-                  onClick={() => navigate(`/automation/runs/${run.run_key}`)}
-                  className={`flex cursor-pointer gap-2.5 border-b border-[#F1F2F4] px-5 py-3.5 ${active ? 'bg-[#FFF5F5] shadow-[inset_3px_0_0_#B71920]' : 'hover:bg-[#FCFCFD]'}`}
-                >
-                  {selecting && (
-                    <input
-                      type="checkbox"
-                      aria-label={`Select ${run.run_key}`}
-                      checked={picked.has(run.run_key)}
-                      onClick={e => e.stopPropagation()}
-                      onChange={() => setPicked(prev => { const next = new Set(prev); if (next.has(run.run_key)) next.delete(run.run_key); else next.add(run.run_key); return next })}
-                      className="mt-1 h-4 w-4 flex-shrink-0 accent-[#B71920]"
-                    />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="truncate text-[15px] font-bold text-[#1F2937]">{baseId(run.tc_display_id) || run.file_name || run.run_key}</span>
-                      <StatusChip run={run} />
-                      {run.is_healed && <span className={`${CHIP} bg-[#F3EEFF] text-[#6D28D9]`}>Healed</span>}
-                      <span className="ml-auto whitespace-nowrap text-[12.5px] tabular-nums text-[#6B7280]">
-                        {tone === 'running' || tone === 'queued' ? `${clock(elapsedSeconds(run, now))} so far` : `${clock(run.duration_seconds)} · ${hhmm(run.started_at ?? run.created_at)}`}
+                <div key={group.key} className="overflow-hidden rounded-[16px] border border-[#E8EAEE] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+                  {/* Project header */}
+                  <div className="flex items-center gap-3 border-b border-[#F1F2F4] py-3 pl-4 pr-5">
+                    <span className="flex w-[28px] justify-center">
+                      {canExecute && (
+                        <input type="checkbox" aria-label={`Select every run in ${group.name}`} checked={groupOn} onChange={e => togglePick(groupKeys, e.target.checked)} className="h-4 w-4 accent-[#B71920]" />
+                      )}
+                    </span>
+                    <button type="button" onClick={() => toggleGroup(group.key)} aria-expanded={!shut} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                      <ProjectBadge name={group.name} hasProject={Boolean(group.ppm)} />
+                      <span className="min-w-0">
+                        <span className="block truncate text-[15px] font-bold text-[#1F2937]">
+                          {group.ppm ? <><span className="font-mono text-[#941216]">{group.ppm}</span> - {group.name}</> : <span className="text-[#6B7280]">{group.name}</span>}
+                        </span>
+                        <span className="block text-[12.5px] text-[#6B7280]">
+                          {n} run{n === 1 ? '' : 's'} · latest {when(group.runs[0].started_at ?? group.runs[0].created_at)}
+                        </span>
                       </span>
-                    </div>
-                    <div className="mt-1 truncate text-[14px] text-[#374151]" title={run.tc_title ?? undefined}>{run.tc_title || run.file_name || '—'}</div>
-                    <div className="mt-0.5 truncate text-[12.5px] text-[#9CA3AF]">
-                      {[frameworkLabel(run.framework), run.environment, modeLabel(run.mode), run.triggered_by].filter(Boolean).join(' · ')}
-                    </div>
+                    </button>
+                    {/* How the project's runs went, as one bar */}
+                    <OutcomeBar
+                      total={n}
+                      parts={[
+                        { label: 'passed', count: passedHere, bar: 'bg-[#16A34A]', text: 'text-[#136B34]' },
+                        { label: 'failed', count: failedHere, bar: 'bg-[#DC2626]', text: 'text-[#A3231C]' },
+                        { label: 'blocked', count: blockedHere, bar: 'bg-[#D97706]', text: 'text-[#8A5000]' },
+                        { label: 'running', count: liveHere, bar: 'bg-[#3B82F6]', text: 'text-[#1D4ED8]' }
+                      ]}
+                    />
+                    <button type="button" onClick={() => toggleGroup(group.key)} aria-label={shut ? 'Show runs' : 'Hide runs'} className="flex h-8 w-8 items-center justify-center rounded-[10px] text-[#6B7280] hover:bg-[#F4F5F7]">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden className={`transition ${shut ? '-rotate-90' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
+                    </button>
                   </div>
+
+                  {!shut && (
+                    <>
+                      <div className={`${RUN_ROW} h-8 bg-[#FCFCFD] text-[11px] font-semibold uppercase tracking-[0.12em] text-[#9CA3AF]`}>
+                        <span />
+                        <span />
+                        <span>TC ID</span>
+                        <span>Title</span>
+                        <span>Result</span>
+                        <span>Steps</span>
+                        <span>Duration</span>
+                        <span>Runner</span>
+                      </div>
+                      {group.runs.map(run => {
+                        const active = run.run_key === runKey
+                        const tone = toneOf(run)
+                        const progress = ((run.run_metadata as any)?.step_progress ?? null) as StepProgress | null
+                        const failedAt = (progress?.history ?? []).find(h => h.ok === false)?.n
+                        const detail = [run.environment, modeLabel(run.mode), run.triggered_by].filter(Boolean).join(' · ')
+                        return (
+                          <div
+                            key={run.run_key}
+                            onClick={() => open(run.run_key)}
+                            className={`group ${RUN_ROW} min-h-[64px] cursor-pointer border-t border-[#F1F2F4] py-2 transition ${
+                              active ? 'bg-[#FFF5F5] shadow-[inset_3px_0_0_#B71920]' : picked.has(run.run_key) ? 'bg-[#FFFAFA]' : 'hover:bg-[#FAFAFB]'
+                            }`}
+                          >
+                            <span className="flex justify-center">
+                              {canExecute && (
+                                <input
+                                  type="checkbox"
+                                  aria-label={`Select ${run.run_key}`}
+                                  checked={picked.has(run.run_key)}
+                                  onClick={e => e.stopPropagation()}
+                                  onChange={e => togglePick([run.run_key], e.target.checked)}
+                                  className="h-4 w-4 accent-[#B71920]"
+                                />
+                              )}
+                            </span>
+                            <StatusMark tone={tone} />
+                            <span>
+                              <span className="inline-flex h-7 max-w-full items-center truncate rounded-[8px] bg-[#F4F5F7] px-2 font-mono text-[12.5px] font-bold text-[#1F2937]" title={run.tc_display_id ?? undefined}>
+                                {baseId(run.tc_display_id) || run.file_name || '—'}
+                              </span>
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block truncate text-[14px] font-semibold text-[#1F2937] group-hover:text-[#B71920]" title={run.tc_title ?? undefined}>{run.tc_title || run.file_name || '—'}</span>
+                              <span className="block truncate font-mono text-[11.5px] text-[#9CA3AF]">{run.run_key}</span>
+                            </span>
+                            <span className="flex flex-wrap items-center gap-1">
+                              <span className={`${CHIP} ${TONE_CHIP[tone]}`}>
+                                {TONE_LABEL[tone]}{tone === 'failed' && failedAt ? ` · step ${failedAt}` : ''}
+                              </span>
+                              {run.is_healed && <span className={`${CHIP} bg-[#F3EEFF] text-[#6D28D9]`}>Healed</span>}
+                            </span>
+                            <StepBar run={run} />
+                            <span className="min-w-0">
+                              <span className="block text-[13.5px] font-semibold tabular-nums text-[#1F2937]">
+                                {tone === 'running' || tone === 'queued' ? `${clock(elapsedSeconds(run, now))} so far` : clock(run.duration_seconds)}
+                              </span>
+                              <span className="block text-[12px] text-[#9CA3AF]">{when(run.started_at ?? run.created_at)}</span>
+                            </span>
+                            <span className="flex min-w-0 flex-col items-start gap-0.5">
+                              {/* The framework is the way into the run: it opens the drawer. */}
+                              <button
+                                type="button"
+                                onClick={e => { e.stopPropagation(); open(run.run_key) }}
+                                title="Open this run"
+                                className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[12.5px] font-bold transition ${
+                                  active
+                                    ? 'border-[#B71920] bg-[#B71920] text-white'
+                                    : 'border-[#F6D4D5] bg-[#FFF5F5] text-[#B71920] group-hover:border-[#B71920] group-hover:bg-[#B71920] group-hover:text-white'
+                                }`}
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M8 5.5v13l10.5-6.5z" /></svg>
+                                {frameworkLabel(run.framework)}
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden><path d="M9 6l6 6-6 6" /></svg>
+                              </button>
+                              {detail && <span className="max-w-full truncate text-[12px] text-[#6B7280]" title={detail}>{detail}</span>}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </>
+                  )}
                 </div>
               )
             })
@@ -892,14 +1046,19 @@ const Runs: React.FC = () => {
         </div>
       </div>
 
-      {/* The selected run */}
-      <div className="min-w-0">
-        {runKey ? (
-          <RunPanel key={runKey} runKey={runKey} onChanged={() => void load()} />
-        ) : (
-          <div className="flex h-full items-center justify-center p-8 text-[13px] text-[#6B7280]">{loading ? 'Loading…' : 'Select a run to see its progress and evidence.'}</div>
-        )}
-      </div>
+      {/* The chosen run */}
+      {runKey && (
+        <SideDrawer label="Run" width="lg:w-[72vw] lg:max-w-[1320px]" onClose={close} onPrev={onPrev} onNext={onNext} paused={specOpen}>
+          <RunPanel
+            key={runKey}
+            runKey={runKey}
+            project={index >= 0 ? ordered[index].project : runs.find(r => r.run_key === runKey)?.project}
+            onChanged={() => void load()}
+            onSpecOpen={setSpecOpen}
+            nav={{ index, total: ordered.length, onPrev, onNext, onClose: close }}
+          />
+        </SideDrawer>
+      )}
     </section>
   )
 }

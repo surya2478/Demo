@@ -1,10 +1,10 @@
 /**
  * --- Automation Script Lab (screen 6) -------------------------------------
  *
- * Manager-approved Automation cases on the left; the selected case's script on
- * the right -- what the static gate and the Knowledge Base said before it ran,
- * the code, and what its last dry run did -- with Heal with AI and Dry run
- * beside it.
+ * Manager-approved Automation cases across the whole page; a case opens in a
+ * drawer on the right with Heal with AI, Dry run, edit and download first,
+ * then what its last dry run did, what the static gate and the Knowledge Base
+ * said before it ran, and the code. Up / down step through the list from there.
  *
  * The working set is only cases that are both approved AND classified
  * Automation: generating from anything else produces a script nobody agreed
@@ -19,6 +19,8 @@ import { Link } from 'react-router-dom'
 import automationService from '../../services/automationService'
 import { useAutomationContext } from '../../components/automation/AutomationContext'
 import { useConfirm } from '../../components/ui/ConfirmDialog'
+import SideDrawer, { DrawerNav } from '../../components/automation/SideDrawer'
+import { OutcomeBar, ProjectBadge, StatusMark, type MarkTone } from '../../components/automation/listPresentation'
 import { readSelectedApplicationId } from '../../types/automation'
 import testDataService, { environmentLabel, readableName, type ScriptDataCheck } from '../../services/testDataService'
 import type { DryRunBrief, FrameworkInfo, ScriptAsset, ScriptLabCase } from '../../types/automation'
@@ -26,9 +28,8 @@ import type { DryRunBrief, FrameworkInfo, ScriptAsset, ScriptLabCase } from '../
 const CARD = 'rounded-[20px] border border-[#E8EAEE] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]'
 const CHIP = 'inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-[12.5px] font-semibold'
 const ICON_BTN = 'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[12px] border border-[#E8EAEE] bg-white text-[#6B7280] transition hover:border-[#F6D4D5] hover:text-[#B71920] disabled:cursor-not-allowed disabled:opacity-40'
-const ROW = 'grid grid-cols-[36px_84px_minmax(0,1fr)_52px_116px_190px] items-center gap-2 px-4'
+const ROW = 'grid grid-cols-[28px_40px_112px_minmax(0,1fr)_140px_170px_70px_170px] items-center gap-3 pl-4 pr-5'
 
-const FW_SHORT: Record<string, string> = { playwright: 'PW', katalon: 'KT', appium: 'AP' }
 
 function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
@@ -174,6 +175,15 @@ const PanelStatus: React.FC<{ script: ScriptAsset }> = ({ script }) => {
   return <span className={`${CHIP} flex-shrink-0 ${tone}`}>{label}</span>
 }
 
+/** The row's status mark: the last dry run, else whether the static gate held. */
+const markOf = (script: ScriptAsset | null): MarkTone => {
+  if (!script) return 'none'
+  const status = script.dry_run_status
+  if (status === 'passed' || status === 'failed' || status === 'blocked' || status === 'running' || status === 'queued') return status
+  if (script.static_gate_result && !script.static_gate_result.passed) return 'blocked'
+  return 'none'
+}
+
 // --- Code, with the failing step marked ----------------------------------------
 
 const CodeBlock: React.FC<{ code: string; highlight: Set<number> }> = ({ code, highlight }) => {
@@ -196,7 +206,7 @@ const CodeBlock: React.FC<{ code: string; highlight: Set<number> }> = ({ code, h
     box.scrollTop = Math.max(0, offset - (Number.isFinite(marked) ? 120 : 12))
   }, [first, marked, code])
   return (
-    <div ref={ref} className="app-scroll h-[360px] flex-1 overflow-auto bg-[#1B1B1F] py-3 font-mono text-[12.5px] leading-[1.75] xl:h-auto xl:min-h-0">
+    <div ref={ref} className="app-scroll min-h-[320px] flex-1 overflow-auto bg-[#1B1B1F] py-3 font-mono text-[12.5px] leading-[1.75]">
       {lines.map((line, i) => {
         const comment = line.trim().startsWith('//')
         const keyword = /^\s*(test\(|import |export |const |await expect)/.test(line)
@@ -303,15 +313,35 @@ const ScriptLab: React.FC = () => {
     [cases, projectFilter, query]
   )
 
-  // Open the case most worth looking at: a failed dry run, else any script.
+  // Grouped by project -- "PPM ID - Project name" -- in the order the listing
+  // gives them; cases with no project come last.
+  const groups = useMemo(() => {
+    const byKey = new Map<string, { key: string; ppm: string | null; name: string; cases: ScriptLabCase[] }>()
+    visible.forEach(c => {
+      const key = c.project ? String(c.project.id) : 'none'
+      if (!byKey.has(key)) byKey.set(key, { key, ppm: c.project?.ppm_id ?? null, name: c.project?.name ?? 'No project', cases: [] })
+      byKey.get(key)!.cases.push(c)
+    })
+    const list = Array.from(byKey.values())
+    return [...list.filter(g => g.key !== 'none'), ...list.filter(g => g.key === 'none')]
+  }, [visible])
+  // The order the list reads in, which is the order up / down walk in the drawer.
+  const ordered = useMemo(() => groups.flatMap(g => g.cases), [groups])
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const toggleGroup = (key: string) =>
+    setCollapsed(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next })
+
+  // A case opens when its row is clicked; one that drops out of the list closes.
   useEffect(() => {
-    if (openId !== null && visible.some(c => c.id === openId)) return
-    const failed = visible.find(c => scriptOf(c)?.dry_run_status === 'failed')
-    const withScript = visible.find(c => scriptOf(c))
-    setOpenId((failed ?? withScript ?? visible[0])?.id ?? null)
-  }, [visible, openId, scriptOf])
+    if (openId !== null && !loading && !visible.some(c => c.id === openId)) setOpenId(null)
+  }, [visible, openId, loading])
 
   const openCase = visible.find(c => c.id === openId) ?? null
+  const openIndex = openCase ? ordered.indexOf(openCase) : -1
+  const openAt = (i: number) => { setOpenId(ordered[i].id); setHeal(null) }
+  const onPrev = openIndex > 0 ? () => openAt(openIndex - 1) : null
+  const onNext = openIndex >= 0 && openIndex < ordered.length - 1 ? () => openAt(openIndex + 1) : null
+  const closeCase = () => { setOpenId(null); setHeal(null) }
   const openScript = openCase ? scriptOf(openCase) : null
 
   // What the open script needs from Test Data, in its application's environment.
@@ -426,6 +456,8 @@ const ScriptLab: React.FC = () => {
       else next.add(id)
       return next
     })
+  const pickMany = (ids: number[], on: boolean) =>
+    setSelected(prev => { const next = new Set(prev); ids.forEach(id => (on ? next.add(id) : next.delete(id))); return next })
 
   const filterLabel = projectFilter === 'all' ? 'All' : projectFilter === 'none' ? 'No project' : projects.find(p => String(p.id) === projectFilter)?.ppm_id ?? 'All'
   const code = healing ? healing.code : openScript?.code ?? ''
@@ -433,9 +465,9 @@ const ScriptLab: React.FC = () => {
   const failed = openScript?.dry_run_status === 'failed' || openScript?.dry_run_status === 'blocked'
 
   return (
-    <section className={`${CARD} grid grid-cols-1 overflow-hidden xl:h-[760px] xl:grid-cols-[minmax(0,1fr)_minmax(420px,556px)]`}>
+    <section className={`${CARD} overflow-hidden`}>
       {/* Cases */}
-      <div className="flex min-h-0 min-w-0 flex-col">
+      <div className="flex min-w-0 flex-col">
         <div className="flex flex-wrap items-center gap-3 px-5 py-4">
           <div className="min-w-0">
             <div className="whitespace-nowrap text-[16px] font-bold text-[#1F2937]">Automation cases</div>
@@ -470,6 +502,10 @@ const ScriptLab: React.FC = () => {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
+            <label className="flex h-10 cursor-pointer items-center gap-2 whitespace-nowrap rounded-[12px] border border-[#E8EAEE] bg-white px-3 text-[13.5px] font-semibold text-[#1F2937] hover:border-[#F6D4D5]">
+              <input type="checkbox" aria-label="Select all cases" checked={allOn} disabled={!visible.length} onChange={() => setSelected(allOn ? new Set() : new Set(visible.map(c => c.id)))} className="h-4 w-4 accent-[#B71920]" />
+              {selected.size ? `${selected.size} selected` : 'Select all'}
+            </label>
             <Link
               to="/test-data"
               title="Logins, OTPs and other values scripts read, and the environment each application runs against"
@@ -533,73 +569,149 @@ const ScriptLab: React.FC = () => {
           </div>
         )}
 
-        <div className="app-scroll max-h-[640px] min-h-0 flex-1 overflow-auto xl:max-h-none">
-          <div className="min-w-[700px]">
-            <div className={`${ROW} sticky top-0 z-10 h-12 border-y border-[#E8EAEE] bg-[#F4F5F7] text-[11.5px] font-semibold uppercase tracking-[0.12em] text-[#1F2937]`}>
-              <input type="checkbox" aria-label="Select all cases" title="Select all" checked={allOn} disabled={!visible.length} onChange={() => setSelected(allOn ? new Set() : new Set(visible.map(c => c.id)))} className="h-4 w-4 accent-[#B71920]" />
-              <span>TC ID</span>
-              <span>Title</span>
-              <span>Steps</span>
-              <span className="leading-tight">Created by · PPM ID</span>
-              <span>Script</span>
-            </div>
+        <div className="app-scroll overflow-x-auto border-t border-[#E8EAEE] bg-[#F8F9FA] px-4 pb-4 pt-3.5">
+          <div className="flex min-w-[1060px] flex-col gap-3.5">
             {loading ? (
-              <div className="px-5 py-8 text-[13px] text-[#6B7280]">Loading the Automation Lab…</div>
+              <div className="rounded-[16px] bg-white px-6 py-8 text-[13px] text-[#6B7280]">Loading the Automation Lab…</div>
             ) : visible.length === 0 ? (
-              <div className="px-5 py-10 text-center text-[13px] text-[#6B7280]">
+              <div className="rounded-[16px] bg-white px-6 py-10 text-center text-[13px] text-[#6B7280]">
                 {cases.length
                   ? 'No cases match this filter.'
                   : <>No approved Automation cases yet. Cases arrive here once a manager approves them in Review &amp; Approval. Cases from other sources are prepared in the <Link to="/automation/workbench" className="font-semibold text-[#B71920] hover:underline">Automation Workspace</Link>.</>}
               </div>
             ) : (
-              visible.map(testCase => {
-                const script = scriptOf(testCase)
-                const open = testCase.id === openId
-                const request = String(testCase.request_id ?? '')
+              groups.map(group => {
+                const shut = collapsed.has(group.key)
+                const marks = group.cases.map(c => markOf(scriptOf(c)))
+                const count = (tone: MarkTone) => marks.filter(m => m === tone).length
+                const scripted = group.cases.filter(c => scriptOf(c)).length
+                const ids = group.cases.map(c => c.id)
+                const groupOn = ids.every(id => selected.has(id))
+                const n = group.cases.length
                 return (
-                  <div
-                    key={testCase.id}
-                    onClick={() => { setOpenId(testCase.id); setHeal(null) }}
-                    className={`${ROW} min-h-[68px] cursor-pointer border-b border-[#F1F2F4] py-2 text-[14px] text-[#1F2937] ${
-                      open ? 'bg-[#FFF5F5] shadow-[inset_3px_0_0_#B71920]' : 'hover:bg-[#FCFCFD]'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      aria-label={`Select ${baseId(testCase.tc_display_id)}`}
-                      checked={selected.has(testCase.id)}
-                      onClick={e => e.stopPropagation()}
-                      onChange={() => toggle(testCase.id)}
-                      className="h-4 w-4 accent-[#B71920]"
-                    />
-                    <span className="font-bold" title={testCase.tc_display_id}>{baseId(testCase.tc_display_id)}</span>
-                    <span className="min-w-0">
-                      <span className="block truncate" title={testCase.title}>{testCase.title}</span>
-                      {testCase.test_data_status === 'pending' && (
-                        <span className="block text-[12.5px] font-semibold text-[#B45309]" title="A test data value is still missing; fill it in before running.">Test data pending</span>
-                      )}
-                    </span>
-                    <span className="text-[#374151]">{testCase.steps}</span>
-                    <span
-                      className="min-w-0 truncate text-[12.5px] text-[#6B7280]"
-                      title={[testCase.created_by && `Created by ${testCase.created_by}`, testCase.project && `${testCase.project.ppm_id} · ${testCase.project.name}`, request && `${testCase.source_group ? `${testCase.source_group} · ` : ''}${request}`].filter(Boolean).join('\n')}
-                    >
-                      <span className="text-[#374151]">{testCase.created_by || '—'}</span>
-                      {' · '}
-                      <span className="font-mono text-[12px] font-semibold text-[#941216]">{testCase.project?.ppm_id || '—'}</span>
-                    </span>
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      {script ? (
-                        <>
-                          <span className={`${CHIP} bg-[#F4F5F7] text-[#1F2937]`} title={script.file_name}>
-                            {FW_SHORT[script.framework] ?? script.framework} v{script.version}
+                  <div key={group.key} className="overflow-hidden rounded-[16px] border border-[#E8EAEE] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+                    {/* Project header */}
+                    <div className="flex items-center gap-3 border-b border-[#F1F2F4] py-3 pl-4 pr-5">
+                      <span className="flex w-[28px] justify-center">
+                        <input type="checkbox" aria-label={`Select every case in ${group.name}`} checked={groupOn} onChange={e => pickMany(ids, e.target.checked)} className="h-4 w-4 accent-[#B71920]" />
+                      </span>
+                      <button type="button" onClick={() => toggleGroup(group.key)} aria-expanded={!shut} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                        <ProjectBadge name={group.name} hasProject={Boolean(group.ppm)} />
+                        <span className="min-w-0">
+                          <span className="block truncate text-[15px] font-bold text-[#1F2937]">
+                            {group.ppm ? <><span className="font-mono text-[#941216]">{group.ppm}</span> - {group.name}</> : <span className="text-[#6B7280]">{group.name}</span>}
                           </span>
-                          <ScriptStatus script={script} />
-                        </>
-                      ) : (
-                        <span className="text-[13px] text-[#9CA3AF]">Not generated</span>
-                      )}
-                    </span>
+                          <span className="block text-[12.5px] text-[#6B7280]">
+                            {n} case{n === 1 ? '' : 's'} · {scripted} with a {activeFramework?.label ?? framework} script
+                          </span>
+                        </span>
+                      </button>
+                      {/* How the project's dry runs went, as one bar */}
+                      <OutcomeBar
+                        total={n}
+                        parts={[
+                          { label: 'passed', count: count('passed'), bar: 'bg-[#16A34A]', text: 'text-[#136B34]' },
+                          { label: 'failed', count: count('failed'), bar: 'bg-[#DC2626]', text: 'text-[#A3231C]' },
+                          { label: 'blocked', count: count('blocked'), bar: 'bg-[#D97706]', text: 'text-[#8A5000]' },
+                          { label: 'running', count: count('running') + count('queued'), bar: 'bg-[#3B82F6]', text: 'text-[#1D4ED8]' },
+                          { label: 'not run', count: count('none'), bar: 'bg-[#D6D9DF]', text: 'text-[#374151]' }
+                        ]}
+                      />
+                      <button type="button" onClick={() => toggleGroup(group.key)} aria-label={shut ? 'Show cases' : 'Hide cases'} className="flex h-8 w-8 items-center justify-center rounded-[10px] text-[#6B7280] hover:bg-[#F4F5F7]">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden className={`transition ${shut ? '-rotate-90' : ''}`}><path d="M6 9l6 6 6-6" /></svg>
+                      </button>
+                    </div>
+
+                    {!shut && (
+                      <>
+                        <div className={`${ROW} h-8 bg-[#FCFCFD] text-[11px] font-semibold uppercase tracking-[0.12em] text-[#9CA3AF]`}>
+                          <span />
+                          <span />
+                          <span>TC ID</span>
+                          <span>Title</span>
+                          <span>Created by</span>
+                          <span>Last dry run</span>
+                          <span className="text-right">Steps</span>
+                          <span>Script</span>
+                        </div>
+                        {group.cases.map(testCase => {
+                          const script = scriptOf(testCase)
+                          const open = testCase.id === openId
+                          const request = String(testCase.request_id ?? '')
+                          const openRow = () => { setOpenId(testCase.id); setHeal(null) }
+                          return (
+                            <div
+                              key={testCase.id}
+                              onClick={openRow}
+                              className={`group ${ROW} min-h-[64px] cursor-pointer border-t border-[#F1F2F4] py-2 text-[14px] text-[#1F2937] transition ${
+                                open ? 'bg-[#FFF5F5] shadow-[inset_3px_0_0_#B71920]' : selected.has(testCase.id) ? 'bg-[#FFFAFA]' : 'hover:bg-[#FAFAFB]'
+                              }`}
+                            >
+                              <span className="flex justify-center">
+                                <input
+                                  type="checkbox"
+                                  aria-label={`Select ${baseId(testCase.tc_display_id)}`}
+                                  checked={selected.has(testCase.id)}
+                                  onClick={e => e.stopPropagation()}
+                                  onChange={() => toggle(testCase.id)}
+                                  className="h-4 w-4 accent-[#B71920]"
+                                />
+                              </span>
+                              <StatusMark tone={markOf(script)} title={script ? undefined : 'No script yet'} />
+                              <span>
+                                <span className="inline-flex h-7 max-w-full items-center truncate rounded-[8px] bg-[#F4F5F7] px-2 font-mono text-[12.5px] font-bold text-[#1F2937]" title={testCase.tc_display_id}>
+                                  {baseId(testCase.tc_display_id)}
+                                </span>
+                              </span>
+                              <span className="min-w-0">
+                                <span className="block truncate font-semibold group-hover:text-[#B71920]" title={testCase.title}>{testCase.title}</span>
+                                {testCase.test_data_status === 'pending' ? (
+                                  <span className="block text-[12px] font-semibold text-[#B45309]" title="A test data value is still missing; fill it in before running.">Test data pending</span>
+                                ) : script ? (
+                                  <span className="block truncate font-mono text-[11.5px] text-[#9CA3AF]">{script.file_name}</span>
+                                ) : null}
+                              </span>
+                              <span
+                                className="min-w-0 truncate text-[13px] text-[#374151]"
+                                title={[testCase.created_by && `Created by ${testCase.created_by}`, testCase.project && `${testCase.project.ppm_id} · ${testCase.project.name}`, request && `${testCase.source_group ? `${testCase.source_group} · ` : ''}${request}`].filter(Boolean).join('\n')}
+                              >
+                                {testCase.created_by || '—'}
+                              </span>
+                              <span className="flex min-w-0 flex-col items-start gap-0.5">
+                                {script ? <ScriptStatus script={script} /> : <span className="text-[13px] text-[#9CA3AF]">—</span>}
+                                {script?.dry_run?.failed_step && script.dry_run_status === 'failed' ? (
+                                  <span className="text-[12px] text-[#A3231C]">at step {script.dry_run.failed_step}</span>
+                                ) : script?.dry_run?.duration_seconds != null && script.dry_run_status === 'passed' ? (
+                                  <span className="text-[12px] tabular-nums text-[#6B7280]">{clock(script.dry_run.duration_seconds)}</span>
+                                ) : null}
+                              </span>
+                              <span className="text-right text-[13.5px] font-semibold tabular-nums text-[#1F2937]">{testCase.steps}</span>
+                              <span className="min-w-0">
+                                {script ? (
+                                  // The script is the way into the case: it opens the drawer.
+                                  <button
+                                    type="button"
+                                    onClick={e => { e.stopPropagation(); openRow() }}
+                                    title="Open this script"
+                                    className={`inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-[12.5px] font-bold transition ${
+                                      open
+                                        ? 'border-[#B71920] bg-[#B71920] text-white'
+                                        : 'border-[#F6D4D5] bg-[#FFF5F5] text-[#B71920] group-hover:border-[#B71920] group-hover:bg-[#B71920] group-hover:text-white'
+                                    }`}
+                                  >
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden><path d="M9 7L4.5 12 9 17M15 7l4.5 5-4.5 5" /></svg>
+                                    {activeFramework?.label ?? script.framework} v{script.version}
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden><path d="M9 6l6 6-6 6" /></svg>
+                                  </button>
+                                ) : (
+                                  <span className="inline-flex h-7 items-center rounded-full border border-dashed border-[#D6D9DF] px-2.5 text-[12.5px] font-semibold text-[#9CA3AF]">Not generated</span>
+                                )}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </>
+                    )}
                   </div>
                 )
               })
@@ -608,18 +720,38 @@ const ScriptLab: React.FC = () => {
         </div>
       </div>
 
-      {/* The selected case's script */}
-      <aside className="flex min-h-[640px] min-w-0 flex-col border-t border-[#E8EAEE] xl:min-h-0 xl:border-l xl:border-t-0">
-        {!openCase ? (
-          <div className="m-auto px-6 text-center text-[13px] text-[#6B7280]">Select a case to see its script.</div>
-        ) : !openScript ? (
-          <div className="m-auto max-w-[320px] px-6 text-center">
+      {/* The chosen case's script */}
+      {openCase && (
+      <SideDrawer label={`${baseId(openCase.tc_display_id)} script`} width="lg:w-[56vw] lg:min-w-[720px] lg:max-w-[1040px]" onClose={closeCase} onPrev={onPrev} onNext={onNext} paused={Boolean(editingScript)}>
+        <div className="flex-shrink-0 border-b border-[#E8EAEE] px-6 pb-3.5 pt-4">
+          <div className="flex items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-[#6B7280]">
+                <span className="text-[15px] font-bold text-[#B71920]">{baseId(openCase.tc_display_id)}</span>
+                {openCase.project && (
+                  <span className="truncate" title={`${openCase.project.ppm_id} - ${openCase.project.name}`}>
+                    <span className="font-mono font-semibold text-[#941216]">{openCase.project.ppm_id}</span> - {openCase.project.name}
+                  </span>
+                )}
+                {openCase.created_by && <span>· by {openCase.created_by}</span>}
+                <span>· {openCase.steps} step{openCase.steps === 1 ? '' : 's'}</span>
+              </div>
+              <h2 className="m-0 mt-1 text-[18px] font-bold leading-[1.3] text-[#1F2937]">{openCase.title}</h2>
+              {openCase.test_data_status === 'pending' && (
+                <div className="mt-1 text-[12.5px] font-semibold text-[#B45309]">Test data pending — fill it in before running.</div>
+              )}
+            </div>
+            <DrawerNav index={openIndex} total={ordered.length} onPrev={onPrev} onNext={onNext} onClose={closeCase} />
+          </div>
+        </div>
+        {!openScript ? (
+          <div className="m-auto max-w-[360px] px-6 text-center">
             <div className="text-[15px] font-bold text-[#1F2937]">{baseId(openCase.tc_display_id)} has no {activeFramework?.label ?? framework} script yet</div>
-            <p className="mt-1.5 text-[13px] text-[#6B7280]">Tick it and press Generate. The script is checked by the static gate before anything runs.</p>
+            <p className="mt-1.5 text-[13px] text-[#6B7280]">Tick it in the list and press Generate. The script is checked by the static gate before anything runs.</p>
           </div>
         ) : (
           <>
-            <div className="flex items-start gap-3 border-b border-[#E8EAEE] px-5 py-3.5">
+            <div className="flex flex-shrink-0 items-start gap-3 border-b border-[#E8EAEE] bg-[#FCFCFD] px-6 py-3">
               <span className="mt-0.5 text-[#B71920]">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><path d="M9 7L4.5 12 9 17M15 7l4.5 5-4.5 5" /></svg>
               </span>
@@ -635,7 +767,7 @@ const ScriptLab: React.FC = () => {
             </div>
 
             {/* Actions sit under the script's name, where the eye already is. */}
-            <div className="border-b border-[#E8EAEE] px-5 py-3">
+            <div className="flex-shrink-0 border-b border-[#E8EAEE] px-6 py-3">
               <div className="mb-2.5 flex flex-wrap items-center gap-1.5 text-[13px] text-[#6B7280]">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><circle cx="12" cy="12" r="8.5" /><path d="M10.5 9l4.5 3-4.5 3z" /></svg>
                 {healing ? (
@@ -659,7 +791,7 @@ const ScriptLab: React.FC = () => {
               <div className="flex items-center gap-2">
                 {healing ? (
                   <>
-                    <button type="button" onClick={keepHeal} disabled={busy !== null || !canExecute} className="flex h-10 flex-1 items-center justify-center gap-2 rounded-[12px] bg-[#6D28D9] px-4 text-[14px] font-bold text-white shadow-[0_8px_20px_rgba(109,40,217,0.22)] disabled:opacity-50">
+                    <button type="button" onClick={keepHeal} disabled={busy !== null || !canExecute} className="flex h-10 items-center justify-center gap-2 rounded-[12px] bg-[#6D28D9] px-4 text-[14px] font-bold text-white shadow-[0_8px_20px_rgba(109,40,217,0.22)] disabled:opacity-50">
                       {busy === 'keep-heal' ? 'Saving…' : 'Keep fix'}
                     </button>
                     <button type="button" onClick={() => setHeal(null)} className="flex h-10 items-center rounded-[12px] border border-[#E8EAEE] bg-white px-4 text-[14px] font-bold text-[#1F2937] hover:border-[#F6D4D5]">
@@ -673,7 +805,7 @@ const ScriptLab: React.FC = () => {
                         type="button"
                         onClick={() => handleHeal(openScript)}
                         disabled={busy !== null || !canExecute}
-                        className="flex h-10 flex-1 items-center justify-center gap-2 rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-4 text-[14px] font-bold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] disabled:opacity-50"
+                        className="flex h-10 items-center justify-center gap-2 rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-4 text-[14px] font-bold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] disabled:opacity-50"
                       >
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M12 3l1.8 4.9L19 9.7l-4.2 3.1 1.5 5.2L12 15l-4.3 3 1.5-5.2L5 9.7l5.2-1.8z" /></svg>
                         {busy === 'heal' ? 'Healing…' : 'Heal with AI'}
@@ -687,7 +819,7 @@ const ScriptLab: React.FC = () => {
                       className={
                         failed
                           ? 'flex h-10 items-center gap-2 rounded-[12px] border border-[#E8EAEE] bg-white px-4 text-[14px] font-bold text-[#1F2937] transition hover:border-[#F6D4D5] disabled:opacity-50'
-                          : 'flex h-10 flex-1 items-center justify-center gap-2 rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-4 text-[14px] font-bold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] disabled:opacity-50'
+                          : 'flex h-10 items-center justify-center gap-2 rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-4 text-[14px] font-bold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] disabled:opacity-50'
                       }
                     >
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><circle cx="12" cy="12" r="8.5" /><path d="M10.5 9l4.5 3-4.5 3z" /></svg>
@@ -700,26 +832,26 @@ const ScriptLab: React.FC = () => {
                   onClick={() => { setEditingScript(openScript); setEditCode(openScript.code || ''); setEditError(null) }}
                   disabled={!canExecute || busy !== null || Boolean(healing)}
                   title="Edit the script"
-                  aria-label="Edit the script"
-                  className={`${ICON_BTN} h-10 w-10`}
+                  className="flex h-10 items-center gap-2 whitespace-nowrap rounded-[12px] border border-[#E8EAEE] bg-white px-3.5 text-[14px] font-bold text-[#1F2937] transition hover:border-[#F6D4D5] hover:text-[#B71920] disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><path d="M4 20h4L19 9l-4-4L4 16z" /></svg>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><path d="M4 20h4L19 9l-4-4L4 16z" /></svg>
+                  Edit
                 </button>
                 <button
                   type="button"
                   onClick={() => runAction('download-one', async () => saveBlob(await automationService.downloadScript(openScript.id), openScript.file_name))}
                   disabled={busy !== null}
                   title="Download the script"
-                  aria-label="Download the script"
-                  className={`${ICON_BTN} h-10 w-10`}
+                  className="flex h-10 items-center gap-2 whitespace-nowrap rounded-[12px] border border-[#E8EAEE] bg-white px-3.5 text-[14px] font-bold text-[#1F2937] transition hover:border-[#F6D4D5] hover:text-[#B71920] disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><path d="M12 4v11M7 10l5 5 5-5M5 19h14" /></svg>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><path d="M12 4v11M7 10l5 5 5-5M5 19h14" /></svg>
+                  {busy === 'download-one' ? 'Downloading…' : 'Download'}
                 </button>
               </div>
             </div>
 
             {healing ? (
-              <div className="border-b border-[#D9CCF5] bg-[#F6F2FF] px-5 py-3">
+              <div className="flex-shrink-0 border-b border-[#D9CCF5] bg-[#F6F2FF] px-6 py-3">
                 <div className="text-[11.5px] font-semibold uppercase tracking-[0.12em] text-[#6D28D9]">AI fix ready</div>
                 <p className="mt-1 text-[13px] text-[#4C1D95]">{healing.diagnosis}</p>
                 {healing.changes.length > 0 && (
@@ -729,7 +861,7 @@ const ScriptLab: React.FC = () => {
                 )}
               </div>
             ) : (
-              <div className="px-5 py-3.5">
+              <div className="flex-shrink-0 px-6 py-3.5">
                 <div className="mb-2 text-[11.5px] font-semibold uppercase tracking-[0.14em] text-[#6B7280]">Before running</div>
                 <ul className="flex flex-col gap-2">
                   {beforeRunning(openScript).map((check, i) => (
@@ -764,7 +896,8 @@ const ScriptLab: React.FC = () => {
 
           </>
         )}
-      </aside>
+      </SideDrawer>
+      )}
 
       {editingScript ? (
         <div

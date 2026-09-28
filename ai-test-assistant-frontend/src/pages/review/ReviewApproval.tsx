@@ -180,18 +180,28 @@ const ReviewApproval: React.FC = () => {
     }
   }
 
-  const tabButton = (key: Tab, label: string) => (
-    <button
-      key={key}
-      type="button"
-      onClick={() => setTab(key)}
-      aria-pressed={tab === key}
-      className={`flex h-10 items-center gap-1.5 border-b-2 px-1 text-[13.5px] font-semibold transition ${tab === key ? 'border-[#B71920] text-[#B71920]' : 'border-transparent text-[#6B7280] hover:text-[#1F2937]'}`}
-    >
-      {label}
-      <span className={`rounded-full px-[7px] py-px text-[11px] font-bold ${key === 'pending' ? 'bg-[#FDEBEC] text-[#941216]' : 'bg-[#F4F5F7] text-[#6B7280]'}`}>{counts[key]}</span>
-    </button>
-  )
+  // Approved reads green and Rejected red whether or not their tab is open.
+  const TAB_TONE: Partial<Record<Tab, { on: string; off: string; badge: string }>> = {
+    approved: { on: 'border-[#15803D] text-[#136B34]', off: 'border-transparent text-[#15803D] hover:text-[#136B34]', badge: 'bg-[#EAF7EF] text-[#136B34]' },
+    rejected: { on: 'border-[#DC2626] text-[#A3231C]', off: 'border-transparent text-[#DC2626] hover:text-[#A3231C]', badge: 'bg-[#FEEBEC] text-[#A3231C]' }
+  }
+  const tabButton = (key: Tab, label: string) => {
+    const tone = TAB_TONE[key]
+    return (
+      <button
+        key={key}
+        type="button"
+        onClick={() => setTab(key)}
+        aria-pressed={tab === key}
+        className={`flex h-10 items-center gap-1.5 border-b-2 px-1 text-[13.5px] font-semibold transition ${
+          tone ? (tab === key ? tone.on : tone.off) : tab === key ? 'border-[#B71920] text-[#B71920]' : 'border-transparent text-[#6B7280] hover:text-[#1F2937]'
+        }`}
+      >
+        {label}
+        <span className={`rounded-full px-[7px] py-px text-[11px] font-bold ${tone ? tone.badge : key === 'pending' ? 'bg-[#FDEBEC] text-[#941216]' : 'bg-[#F4F5F7] text-[#6B7280]'}`}>{counts[key]}</span>
+      </button>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-4">
