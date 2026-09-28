@@ -43,6 +43,11 @@ ALL_ENVIRONMENTS = "*"
 DEFAULT_ENVIRONMENTS = ("SIT", "QA", "UAT", "RC", "PREPRODUCTION")
 
 
+def environment_label(env: Optional[str]) -> str:
+    """How an environment is named in messages; matches the page's labels."""
+    return {ALL_ENVIRONMENTS: "all environments", "PREPRODUCTION": "Preproduction"}.get((env or "").upper(), env or "")
+
+
 def ordered_environments(extra=()) -> list[str]:
     """The default environments in release order, then any others alphabetically."""
     others = sorted({e for e in extra if e and e != ALL_ENVIRONMENTS} - set(DEFAULT_ENVIRONMENTS))
@@ -345,10 +350,10 @@ def missing_message(report: dict[str, Any]) -> Optional[str]:
     where = report["application"]["name"] if report.get("application") else "this application"
     if not report.get("application"):
         return (
-            f"No test data is set for this application ({report['environment']}). It needs: {readable}. "
+            f"No test data is set for this application ({environment_label(report['environment'])}). It needs: {readable}. "
             "Add the application and its values in AI Test Automation > Test Data."
         )
-    return f"Test data missing for {where} ({report['environment']}): {readable}. Add it in AI Test Automation > Test Data."
+    return f"Test data missing for {where} ({environment_label(report['environment'])}): {readable}. Add it in AI Test Automation > Test Data."
 
 
 # --- Keeping secrets out of what is saved ------------------------------------------------

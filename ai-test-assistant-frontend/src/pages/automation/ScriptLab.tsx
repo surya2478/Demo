@@ -20,7 +20,7 @@ import automationService from '../../services/automationService'
 import { useAutomationContext } from '../../components/automation/AutomationContext'
 import { useConfirm } from '../../components/ui/ConfirmDialog'
 import { readSelectedApplicationId } from '../../types/automation'
-import testDataService, { readableName, type ScriptDataCheck } from '../../services/testDataService'
+import testDataService, { environmentLabel, readableName, type ScriptDataCheck } from '../../services/testDataService'
 import type { DryRunBrief, FrameworkInfo, ScriptAsset, ScriptLabCase } from '../../types/automation'
 
 const CARD = 'rounded-[20px] border border-[#E8EAEE] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]'
@@ -627,7 +627,7 @@ const ScriptLab: React.FC = () => {
                 <div className="truncate font-mono text-[14px] font-semibold text-[#1F2937]" title={openScript.file_name}>{openScript.file_name}</div>
                 <div className="text-[12.5px] text-[#6B7280]">
                   {activeFramework?.label ?? openScript.framework} · v{openScript.version} · generated {stamp(openScript.created_at)}
-                  {openCase.environment ? <> · runs on <span className="font-semibold text-[#1F2937]">{openCase.environment}</span></> : ''}
+                  {openCase.environment ? <> · runs on <span className="font-semibold text-[#1F2937]">{environmentLabel(openCase.environment)}</span></> : ''}
                   {openScript.edited_by_user ? ' · edited' : ''}
                 </div>
               </div>
@@ -744,12 +744,12 @@ const ScriptLab: React.FC = () => {
                       <span className="leading-[1.3]">
                         {dataCheck.missing.length ? (
                           <>
-                            Test data missing for {dataCheck.environment}: {dataCheck.missing.map(readableName).join(', ')} —{' '}
+                            Test data missing for {environmentLabel(dataCheck.environment)}: {dataCheck.missing.map(readableName).join(', ')} —{' '}
                             <Link to={dataCheck.application ? `/test-data?app=${dataCheck.application.id}` : '/test-data'} className="font-semibold text-[#B71920] hover:underline">set it in Test Data</Link>
                           </>
                         ) : (
                           <>
-                            {dataCheck.needed.length} test data value{dataCheck.needed.length === 1 ? '' : 's'} found for {dataCheck.environment}
+                            {dataCheck.needed.length} test data value{dataCheck.needed.length === 1 ? '' : 's'} found for {environmentLabel(dataCheck.environment)}
                             {dataCheck.application ? ` in ${dataCheck.application.name}` : ''}
                           </>
                         )}

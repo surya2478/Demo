@@ -19,7 +19,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useConfirm } from '../../components/ui/ConfirmDialog'
 import testDataService, {
-  ALL_ENVIRONMENTS, isSecretVariable, keyForVariable, readableName,
+  ALL_ENVIRONMENTS, environmentLabel, isSecretVariable, keyForVariable, readableName,
   type DataApp, type EntryInput, type KbApp, type KbUsage
 } from '../../services/testDataService'
 
@@ -60,7 +60,7 @@ const rowsOf = (app: DataApp): Row[] =>
     aliases: e.aliases
   }))
 
-const envLabel = (env: string) => (env === ALL_ENVIRONMENTS ? 'All environments' : env)
+const envLabel = environmentLabel
 
 // Editing is automation.execute; the server enforces it, this only shapes the page.
 const canEdit = (user: any): boolean => {
@@ -230,7 +230,7 @@ const TestData: React.FC = () => {
     ])
     setEnv(runEnv)
     setDirty(true)
-    setNotice(`Added ${next.length} value${next.length === 1 ? '' : 's'} for ${runEnv}. Fill ${next.length === 1 ? 'it' : 'them'} in and save.`)
+    setNotice(`Added ${next.length} value${next.length === 1 ? '' : 's'} for ${envLabel(runEnv)}. Fill ${next.length === 1 ? 'it' : 'them'} in and save.`)
   }
 
   const tabs = useMemo(() => {
@@ -379,7 +379,7 @@ const TestData: React.FC = () => {
                 >
                   <div className="truncate text-[14px] font-bold text-[#1F2937]">{a.name}</div>
                   <div className="truncate font-mono text-[11.5px] text-[#9CA3AF]">{a.url_prefix || a.kb_app_id || 'no address'}</div>
-                  <div className="mt-0.5 text-[12px] text-[#6B7280]">{set} of {a.entries.length} values set · default {a.run_environment || 'SIT'}</div>
+                  <div className="mt-0.5 text-[12px] text-[#6B7280]">{set} of {a.entries.length} values set · default {envLabel(a.run_environment || 'SIT')}</div>
                 </button>
               )
             })
@@ -414,7 +414,7 @@ const TestData: React.FC = () => {
               <label className="flex flex-col gap-1" title="A test case runs against the environment chosen when it was generated. This is used only for older cases that have none.">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#6B7280]">Default environment</span>
                 <select value={runEnv} onChange={e => { setRunEnv(e.target.value); setDirty(true) }} disabled={!canExecute} className={FIELD}>
-                  {Array.from(new Set([...environments, runEnv])).map(e => <option key={e} value={e}>{e}</option>)}
+                  {Array.from(new Set([...environments, runEnv])).map(e => <option key={e} value={e}>{envLabel(e)}</option>)}
                 </select>
               </label>
               {canExecute && (
@@ -458,7 +458,7 @@ const TestData: React.FC = () => {
             <div className="px-5 pb-2 pt-2 text-[12px] text-[#6B7280]">
               {env === ALL_ENVIRONMENTS
                 ? 'Used in every environment unless an environment sets its own — e.g. the OTP 123456.'
-                : `Used when a script runs against ${env}. Values in All environments fill any gap.`}
+                : `Used when a script runs against ${envLabel(env)}. Values in All environments fill any gap.`}
             </div>
 
             <div className="app-scroll min-h-0 flex-1 overflow-x-auto px-5">
@@ -523,7 +523,7 @@ const TestData: React.FC = () => {
                 <div className="mb-4 overflow-hidden rounded-[14px] border border-[#E8EAEE]">
                   <div className="flex flex-wrap items-center gap-2 border-b border-[#F1F2F4] bg-[#FCFCFD] px-3.5 py-2.5">
                     <span className="text-[13px] font-bold text-[#1F2937]">Used by the Knowledge Base</span>
-                    <span className="text-[12px] text-[#6B7280]">{kbUsage.journey_app.name} · data profiles its journeys need, checked for {runEnv}</span>
+                    <span className="text-[12px] text-[#6B7280]">{kbUsage.journey_app.name} · data profiles its journeys need, checked for {envLabel(runEnv)}</span>
                   </div>
                   {kbUsage.profiles.map(profile => {
                     const cell = profile.cells[runEnv] ?? { status: profile.kind === 'external' ? 'external' : 'missing', missing: profile.fields.map(f => f.variable).filter(Boolean) as string[] }
@@ -546,7 +546,7 @@ const TestData: React.FC = () => {
                           )}
                         </div>
                         {canExecute && cell.status === 'missing' && cell.missing.length > 0 && (
-                          <button type="button" onClick={() => addMissing(cell.missing)} className={BTN}>+ Add missing to {runEnv}</button>
+                          <button type="button" onClick={() => addMissing(cell.missing)} className={BTN}>+ Add missing to {envLabel(runEnv)}</button>
                         )}
                       </div>
                     )

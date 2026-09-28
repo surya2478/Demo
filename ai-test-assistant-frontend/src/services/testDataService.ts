@@ -8,6 +8,11 @@ import api from './api'
 
 export const ALL_ENVIRONMENTS = '*'
 
+// How an environment is shown. Stored names are upper case (SIT, RC,
+// PREPRODUCTION); this matches the Generate Test Cases dropdown's labels.
+const ENVIRONMENT_LABELS: Record<string, string> = { [ALL_ENVIRONMENTS]: 'All environments', PREPRODUCTION: 'Preproduction' }
+export const environmentLabel = (env: string | null | undefined) => (env ? ENVIRONMENT_LABELS[env.toUpperCase()] ?? env : '')
+
 export interface TestDataEntry {
   id: number
   environment: string
