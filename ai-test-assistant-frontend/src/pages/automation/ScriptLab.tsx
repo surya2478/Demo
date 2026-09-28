@@ -20,7 +20,7 @@ import automationService from '../../services/automationService'
 import { useAutomationContext } from '../../components/automation/AutomationContext'
 import { useConfirm } from '../../components/ui/ConfirmDialog'
 import { readSelectedApplicationId } from '../../types/automation'
-import testDataService, { readEnvironment, readableName, writeEnvironment, type ScriptDataCheck } from '../../services/testDataService'
+import testDataService, { readableName, type ScriptDataCheck } from '../../services/testDataService'
 import type { DryRunBrief, FrameworkInfo, ScriptAsset, ScriptLabCase } from '../../types/automation'
 
 const CARD = 'rounded-[20px] border border-[#E8EAEE] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]'
@@ -253,18 +253,9 @@ const ScriptLab: React.FC = () => {
   const [editCode, setEditCode] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
-  // The environment dry runs go to, and whose test data they use.
-  const [environment, setEnvironmentState] = useState(readEnvironment)
-  const [environments, setEnvironments] = useState<string[]>(['SIT', 'UAT'])
+  // What the open script needs from Test Data. The environment is not picked
+  // here: each application's Test Data says which one its scripts run against.
   const [dataCheck, setDataCheck] = useState<ScriptDataCheck | null>(null)
-  const setEnvironment = (value: string) => {
-    setEnvironmentState(value)
-    writeEnvironment(value)
-  }
-
-  useEffect(() => {
-    testDataService.apps().then(data => { if (data.environments.length) setEnvironments(data.environments) }).catch(() => undefined)
-  }, [])
 
   const load = useCallback(async () => {
     try {
@@ -275,7 +266,7 @@ const ScriptLab: React.FC = () => {
       setLabCount(listing.cases?.length ?? 0)
       setError(null)
     } catch (err: any) {
-      setError(err?.message ?? 'The Script Lab could not be loaded.')
+      setError(err?.message ?? 'The Automation Lab could not be loaded.')
     } finally {
       setLoading(false)
     }
@@ -325,7 +316,7 @@ const ScriptLab: React.FC = () => {
   const openCase = visible.find(c => c.id === openId) ?? null
   const openScript = openCase ? scriptOf(openCase) : null
 
-  // What the open script needs from Test data in this environment.
+  // What the open script needs from Test Data, in its application's environment.
   const openScriptId = openScript?.id ?? null
   const openScriptCode = openScript?.code ?? ''
   useEffect(() => {
@@ -333,11 +324,11 @@ const ScriptLab: React.FC = () => {
     if (openScriptId === null) return
     let cancelled = false
     testDataService
-      .check(openScriptId, environment)
+      .check(openScriptId)
       .then(result => { if (!cancelled) setDataCheck(result) })
       .catch(() => undefined)
     return () => { cancelled = true }
-  }, [openScriptId, openScriptCode, environment])
+  }, [openScriptId, openScriptCode])
   const healing = heal && openScript && heal.scriptId === openScript.id ? heal : null
   const brief = openScript ? briefOf(openScript) : null
   const activeFramework = frameworks.find(f => f.name === framework)
@@ -378,7 +369,7 @@ const ScriptLab: React.FC = () => {
     const count = chosen.length
     const ok = await confirm({
       title: count === 1 ? `Delete ${baseId(chosen[0].tc_display_id)}?` : `Delete ${count} test cases?`,
-      body: count === 1 ? chosen[0].title : `${count} selected test cases will be removed from the Script Lab.`,
+      body: count === 1 ? chosen[0].title : `${count} selected test cases will be removed from the Automation Lab.`,
       consequences: [
         `Every script generated from ${count === 1 ? 'it' : 'them'} is deleted too.`,
         'This cannot be undone.'
@@ -395,7 +386,7 @@ const ScriptLab: React.FC = () => {
 
   const handleDryRun = (script: ScriptAsset) =>
     runAction('dry-run', async () => {
-      const res = await automationService.dryRunScripts({ script_ids: [script.id], environment, base_url: null, slow_mo_ms: 1000 })
+      const res = await automationService.dryRunScripts({ script_ids: [script.id], environment: null, base_url: null, slow_mo_ms: 1000 })
       if (res.refused?.length) setNotice(`Dry run refused — ${res.refused.map((r: any) => r.reason).join(' · ')}`)
     })
 
@@ -485,25 +476,13 @@ const ScriptLab: React.FC = () => {
 
           <div className="ml-auto flex items-center gap-2">
             <Link
-              to="/automation/test-data"
-              title="Logins, OTPs and other values scripts read"
-              className="flex h-10 items-center gap-1.5 rounded-[12px] border border-[#E8EAEE] bg-white px-3 text-[13.5px] font-semibold text-[#1F2937] transition hover:border-[#F6D4D5]"
+              to="/test-data"
+              title="Logins, OTPs and other values scripts read, and the environment each application runs against"
+              className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-[12px] border border-[#E8EAEE] bg-white px-3 text-[13.5px] font-semibold text-[#1F2937] transition hover:border-[#F6D4D5]"
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#B71920" strokeWidth="1.9" aria-hidden><circle cx="8" cy="15" r="4" /><path d="M11 12l9-9M17 6l3 3M15 8l2 2" /></svg>
-              Test data
+              Test Data
             </Link>
-            <div className="relative">
-              <select
-                value={environment}
-                onChange={e => setEnvironment(e.target.value)}
-                aria-label="Environment"
-                title="The environment dry runs go to, and whose test data they use"
-                className="h-10 appearance-none rounded-[12px] border border-[#E8EAEE] bg-white pl-3 pr-8 text-[13.5px] font-semibold text-[#1F2937] outline-none focus:border-[#F1A4A6]"
-              >
-                {environments.map(env => <option key={env} value={env}>{env}</option>)}
-              </select>
-              <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" aria-hidden><path d="M6 9l6 6 6-6" /></svg>
-            </div>
             <div className="relative">
               <select
                 value={framework}
@@ -570,7 +549,7 @@ const ScriptLab: React.FC = () => {
               <span>Script</span>
             </div>
             {loading ? (
-              <div className="px-5 py-8 text-[13px] text-[#6B7280]">Loading the Script Lab…</div>
+              <div className="px-5 py-8 text-[13px] text-[#6B7280]">Loading the Automation Lab…</div>
             ) : visible.length === 0 ? (
               <div className="px-5 py-10 text-center text-[13px] text-[#6B7280]">
                 {cases.length
@@ -648,10 +627,95 @@ const ScriptLab: React.FC = () => {
                 <div className="truncate font-mono text-[14px] font-semibold text-[#1F2937]" title={openScript.file_name}>{openScript.file_name}</div>
                 <div className="text-[12.5px] text-[#6B7280]">
                   {activeFramework?.label ?? openScript.framework} · v{openScript.version} · generated {stamp(openScript.created_at)}
+                  {openCase.environment ? <> · runs on <span className="font-semibold text-[#1F2937]">{openCase.environment}</span></> : ''}
                   {openScript.edited_by_user ? ' · edited' : ''}
                 </div>
               </div>
               <PanelStatus script={openScript} />
+            </div>
+
+            {/* Actions sit under the script's name, where the eye already is. */}
+            <div className="border-b border-[#E8EAEE] px-5 py-3">
+              <div className="mb-2.5 flex flex-wrap items-center gap-1.5 text-[13px] text-[#6B7280]">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><circle cx="12" cy="12" r="8.5" /><path d="M10.5 9l4.5 3-4.5 3z" /></svg>
+                {healing ? (
+                  <span>Review the fix, then keep it and dry run again.</span>
+                ) : brief && (openScript.dry_run_status === 'running' || openScript.dry_run_status === 'queued') ? (
+                  <>Dry run in progress · <Link to={`/automation/runs/${brief.run_key}`} className="font-semibold text-[#B71920] hover:underline">Watch it</Link></>
+                ) : brief ? (
+                  <>
+                    {openScript.dry_run_status === 'passed'
+                      ? 'Last dry run passed'
+                      : brief.failed_step
+                        ? `Last dry run failed at step ${brief.failed_step}`
+                        : 'Last dry run failed'}
+                    {brief.duration_seconds != null ? ` · ${clock(brief.duration_seconds)}` : ''} ·{' '}
+                    <Link to={`/automation/runs/${brief.run_key}`} className="font-semibold text-[#B71920] hover:underline">Open evidence</Link>
+                  </>
+                ) : (
+                  <span>Not dry-run yet.</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {healing ? (
+                  <>
+                    <button type="button" onClick={keepHeal} disabled={busy !== null || !canExecute} className="flex h-10 flex-1 items-center justify-center gap-2 rounded-[12px] bg-[#6D28D9] px-4 text-[14px] font-bold text-white shadow-[0_8px_20px_rgba(109,40,217,0.22)] disabled:opacity-50">
+                      {busy === 'keep-heal' ? 'Saving…' : 'Keep fix'}
+                    </button>
+                    <button type="button" onClick={() => setHeal(null)} className="flex h-10 items-center rounded-[12px] border border-[#E8EAEE] bg-white px-4 text-[14px] font-bold text-[#1F2937] hover:border-[#F6D4D5]">
+                      Discard
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {failed ? (
+                      <button
+                        type="button"
+                        onClick={() => handleHeal(openScript)}
+                        disabled={busy !== null || !canExecute}
+                        className="flex h-10 flex-1 items-center justify-center gap-2 rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-4 text-[14px] font-bold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] disabled:opacity-50"
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M12 3l1.8 4.9L19 9.7l-4.2 3.1 1.5 5.2L12 15l-4.3 3 1.5-5.2L5 9.7l5.2-1.8z" /></svg>
+                        {busy === 'heal' ? 'Healing…' : 'Heal with AI'}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => handleDryRun(openScript)}
+                      disabled={busy !== null || !canExecute || !runnable || openScript.dry_run_status === 'running' || openScript.dry_run_status === 'queued'}
+                      title={!runnable ? `${activeFramework?.label} is generate-only — no runner exists for it.` : 'Run the script once on this host; the run appears in Runs'}
+                      className={
+                        failed
+                          ? 'flex h-10 items-center gap-2 rounded-[12px] border border-[#E8EAEE] bg-white px-4 text-[14px] font-bold text-[#1F2937] transition hover:border-[#F6D4D5] disabled:opacity-50'
+                          : 'flex h-10 flex-1 items-center justify-center gap-2 rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-4 text-[14px] font-bold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] disabled:opacity-50'
+                      }
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><circle cx="12" cy="12" r="8.5" /><path d="M10.5 9l4.5 3-4.5 3z" /></svg>
+                      {busy === 'dry-run' ? 'Queueing…' : 'Dry run'}
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => { setEditingScript(openScript); setEditCode(openScript.code || ''); setEditError(null) }}
+                  disabled={!canExecute || busy !== null || Boolean(healing)}
+                  title="Edit the script"
+                  aria-label="Edit the script"
+                  className={`${ICON_BTN} h-10 w-10`}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><path d="M4 20h4L19 9l-4-4L4 16z" /></svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => runAction('download-one', async () => saveBlob(await automationService.downloadScript(openScript.id), openScript.file_name))}
+                  disabled={busy !== null}
+                  title="Download the script"
+                  aria-label="Download the script"
+                  className={`${ICON_BTN} h-10 w-10`}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><path d="M12 4v11M7 10l5 5 5-5M5 19h14" /></svg>
+                </button>
+              </div>
             </div>
 
             {healing ? (
@@ -680,12 +744,12 @@ const ScriptLab: React.FC = () => {
                       <span className="leading-[1.3]">
                         {dataCheck.missing.length ? (
                           <>
-                            Test data missing for {environment}: {dataCheck.missing.map(readableName).join(', ')} —{' '}
-                            <Link to="/automation/test-data" className="font-semibold text-[#B71920] hover:underline">set it in Test data</Link>
+                            Test data missing for {dataCheck.environment}: {dataCheck.missing.map(readableName).join(', ')} —{' '}
+                            <Link to={dataCheck.application ? `/test-data?app=${dataCheck.application.id}` : '/test-data'} className="font-semibold text-[#B71920] hover:underline">set it in Test Data</Link>
                           </>
                         ) : (
                           <>
-                            {dataCheck.needed.length} test data value{dataCheck.needed.length === 1 ? '' : 's'} found for {environment}
+                            {dataCheck.needed.length} test data value{dataCheck.needed.length === 1 ? '' : 's'} found for {dataCheck.environment}
                             {dataCheck.application ? ` in ${dataCheck.application.name}` : ''}
                           </>
                         )}
@@ -698,88 +762,6 @@ const ScriptLab: React.FC = () => {
 
             <CodeBlock code={code} highlight={highlight} />
 
-            <div className="border-t border-[#E8EAEE] px-5 py-3">
-              <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[13px] text-[#6B7280]">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><circle cx="12" cy="12" r="8.5" /><path d="M10.5 9l4.5 3-4.5 3z" /></svg>
-                {healing ? (
-                  <span>Review the fix, then keep it and dry run again.</span>
-                ) : brief && (openScript.dry_run_status === 'running' || openScript.dry_run_status === 'queued') ? (
-                  <>Dry run in progress · <Link to={`/automation/runs/${brief.run_key}`} className="font-semibold text-[#B71920] hover:underline">Watch it</Link></>
-                ) : brief ? (
-                  <>
-                    {openScript.dry_run_status === 'passed'
-                      ? 'Last dry run passed'
-                      : brief.failed_step
-                        ? `Last dry run failed at step ${brief.failed_step}`
-                        : 'Last dry run failed'}
-                    {brief.duration_seconds != null ? ` · ${clock(brief.duration_seconds)}` : ''} ·{' '}
-                    <Link to={`/automation/runs/${brief.run_key}`} className="font-semibold text-[#B71920] hover:underline">Open evidence</Link>
-                  </>
-                ) : (
-                  <span>Not dry-run yet.</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {healing ? (
-                  <>
-                    <button type="button" onClick={keepHeal} disabled={busy !== null || !canExecute} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-[12px] bg-[#6D28D9] px-4 text-[14px] font-bold text-white shadow-[0_8px_20px_rgba(109,40,217,0.22)] disabled:opacity-50">
-                      {busy === 'keep-heal' ? 'Saving…' : 'Keep fix'}
-                    </button>
-                    <button type="button" onClick={() => setHeal(null)} className="flex h-11 items-center rounded-[12px] border border-[#E8EAEE] bg-white px-4 text-[14px] font-bold text-[#1F2937] hover:border-[#F6D4D5]">
-                      Discard
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    {failed ? (
-                      <button
-                        type="button"
-                        onClick={() => handleHeal(openScript)}
-                        disabled={busy !== null || !canExecute}
-                        className="flex h-11 flex-1 items-center justify-center gap-2 rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-4 text-[14px] font-bold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] disabled:opacity-50"
-                      >
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M12 3l1.8 4.9L19 9.7l-4.2 3.1 1.5 5.2L12 15l-4.3 3 1.5-5.2L5 9.7l5.2-1.8z" /></svg>
-                        {busy === 'heal' ? 'Healing…' : 'Heal with AI'}
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => handleDryRun(openScript)}
-                      disabled={busy !== null || !canExecute || !runnable || openScript.dry_run_status === 'running' || openScript.dry_run_status === 'queued'}
-                      title={!runnable ? `${activeFramework?.label} is generate-only — no runner exists for it.` : 'Run the script once on this host; the run appears in Runs'}
-                      className={
-                        failed
-                          ? 'flex h-11 items-center gap-2 rounded-[12px] border border-[#E8EAEE] bg-white px-4 text-[14px] font-bold text-[#1F2937] transition hover:border-[#F6D4D5] disabled:opacity-50'
-                          : 'flex h-11 flex-1 items-center justify-center gap-2 rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-4 text-[14px] font-bold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] disabled:opacity-50'
-                      }
-                    >
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><circle cx="12" cy="12" r="8.5" /><path d="M10.5 9l4.5 3-4.5 3z" /></svg>
-                      {busy === 'dry-run' ? 'Queueing…' : 'Dry run'}
-                    </button>
-                  </>
-                )}
-                <button
-                  type="button"
-                  onClick={() => { setEditingScript(openScript); setEditCode(openScript.code || ''); setEditError(null) }}
-                  disabled={!canExecute || busy !== null || Boolean(healing)}
-                  title="Edit the script"
-                  aria-label="Edit the script"
-                  className={`${ICON_BTN} h-11 w-11`}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><path d="M4 20h4L19 9l-4-4L4 16z" /></svg>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => runAction('download-one', async () => saveBlob(await automationService.downloadScript(openScript.id), openScript.file_name))}
-                  disabled={busy !== null}
-                  title="Download the script"
-                  aria-label="Download the script"
-                  className={`${ICON_BTN} h-11 w-11`}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><path d="M12 4v11M7 10l5 5 5-5M5 19h14" /></svg>
-                </button>
-              </div>
-            </div>
           </>
         )}
       </aside>

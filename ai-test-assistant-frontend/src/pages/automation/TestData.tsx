@@ -1,19 +1,27 @@
 /**
- * --- Automation Studio > Test data ----------------------------------------------
+ * --- AI Test Automation > Test Data (Beta) --------------------------------------
  *
- * Applications and the values their scripts read -- logins, passwords, OTPs,
- * record names -- per environment. A run finds its application by URL or
- * Knowledge Base id and each TESTDATA_* variable by meaning, so a value is
- * entered once and every script for the application uses it.
+ * The one data source for automation test cases: applications and the values
+ * their scripts read -- logins, passwords, OTPs, record names -- per
+ * environment. A run finds its application by URL or Knowledge Base id and each
+ * TESTDATA_* variable by meaning, so a value is entered once and every script
+ * for the application uses it. Each application names the environment its
+ * scripts run against, so the Automation Lab never asks.
+ *
+ * The Knowledge Base holds no values: its data profiles (which user, which
+ * fields) are checked against this page, which shows what they still need.
  *
  * Secrets are encrypted by the server on save and never sent back: a stored
  * one shows as set, and typing replaces it.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useAutomationContext } from '../../components/automation/AutomationContext'
+import { useAuth } from '../../hooks/useAuth'
 import { useConfirm } from '../../components/ui/ConfirmDialog'
-import testDataService, { ALL_ENVIRONMENTS, type DataApp, type EntryInput, type KbApp } from '../../services/testDataService'
+import testDataService, {
+  ALL_ENVIRONMENTS, isSecretVariable, keyForVariable, readableName,
+  type DataApp, type EntryInput, type KbApp, type KbUsage
+} from '../../services/testDataService'
 
 const CARD = 'rounded-[20px] border border-[#E8EAEE] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]'
 const FIELD = 'h-9 w-full rounded-[10px] border border-[#E8EAEE] bg-white px-3 text-[13px] text-[#1F2937] outline-none transition focus:border-[#F1A4A6] focus:ring-2 focus:ring-[#FDEBEC] disabled:bg-[#F9FAFB]'
@@ -53,6 +61,20 @@ const rowsOf = (app: DataApp): Row[] =>
   }))
 
 const envLabel = (env: string) => (env === ALL_ENVIRONMENTS ? 'All environments' : env)
+
+// Editing is automation.execute; the server enforces it, this only shapes the page.
+const canEdit = (user: any): boolean => {
+  if (!user) return false
+  const roles: string[] = (user.roles as string[]) || (user.role ? [user.role] : [])
+  if (roles.some(r => String(r).toLowerCase() === 'admin')) return true
+  return ((user.permissions as string[]) || []).includes('automation.execute')
+}
+
+const STATUS_CHIP: Record<string, string> = {
+  ready: 'bg-[#EAF7EF] text-[#136B34]',
+  missing: 'bg-[#FFF4E5] text-[#8A5000]',
+  external: 'bg-[#F4F5F7] text-[#374151]'
+}
 
 // --- Add application --------------------------------------------------------------
 
@@ -131,11 +153,12 @@ const AddAppDialog: React.FC<{
 // --- Page ----------------------------------------------------------------------------
 
 const TestData: React.FC = () => {
-  const { canExecute } = useAutomationContext()
+  const { user } = useAuth()
+  const canExecute = canEdit(user)
   const confirm = useConfirm()
   const [params, setParams] = useSearchParams()
   const [apps, setApps] = useState<DataApp[]>([])
-  const [environments, setEnvironments] = useState<string[]>(['SIT', 'UAT'])
+  const [environments, setEnvironments] = useState<string[]>(['SIT', 'QA', 'UAT', 'RC', 'PREPRODUCTION'])
   const [kbApps, setKbApps] = useState<KbApp[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -150,6 +173,8 @@ const TestData: React.FC = () => {
   const [name, setName] = useState('')
   const [kbId, setKbId] = useState('')
   const [prefix, setPrefix] = useState('')
+  const [runEnv, setRunEnv] = useState('SIT')
+  const [kbUsage, setKbUsage] = useState<KbUsage | null>(null)
   const [rows, setRows] = useState<Row[]>([])
   const [deleted, setDeleted] = useState<number[]>([])
   const [env, setEnv] = useState('SIT')
@@ -160,7 +185,7 @@ const TestData: React.FC = () => {
     try {
       const [data, kb] = await Promise.all([testDataService.apps(), testDataService.kbApps()])
       setApps(data.apps)
-      setEnvironments(data.environments.length ? data.environments : ['SIT', 'UAT'])
+      setEnvironments(data.environments.length ? data.environments : ['SIT', 'QA', 'UAT', 'RC', 'PREPRODUCTION'])
       setKbApps(kb)
       setError('')
     } catch (err: any) {
@@ -176,12 +201,37 @@ const TestData: React.FC = () => {
     setName(next?.name ?? '')
     setKbId(next?.kb_app_id ?? '')
     setPrefix(next?.url_prefix ?? '')
+    setRunEnv(next?.run_environment || 'SIT')
     setRows(next ? rowsOf(next) : [])
     setDeleted([])
     setDirty(false)
   }, [])
 
   useEffect(() => { reset(app) }, [app, reset])
+
+  // What the Knowledge Base's data profiles need from this application.
+  useEffect(() => {
+    if (!app?.kb_app_id) { setKbUsage(null); return }
+    let cancelled = false
+    testDataService.knowledgeBase(app.id)
+      .then(usage => { if (!cancelled) setKbUsage(usage) })
+      .catch(() => { if (!cancelled) setKbUsage(null) })
+    return () => { cancelled = true }
+  }, [app])
+
+  // Rows for the variables a KB profile still misses in the run environment.
+  const addMissing = (variables: string[]) => {
+    const have = new Set(rows.filter(r => r.environment === runEnv).map(r => r.key.trim().toLowerCase()))
+    const next = Array.from(new Set(variables)).map(v => ({ v, key: keyForVariable(v) })).filter(({ key }) => !have.has(key))
+    if (!next.length) return
+    setRows(current => [
+      ...current,
+      ...next.map(({ v, key }) => ({ uid: uid(), environment: runEnv, key, value: '', shown: '', has_value: false, is_secret: isSecretVariable(v), stored_secret: false, aliases: '' }))
+    ])
+    setEnv(runEnv)
+    setDirty(true)
+    setNotice(`Added ${next.length} value${next.length === 1 ? '' : 's'} for ${runEnv}. Fill ${next.length === 1 ? 'it' : 'them'} in and save.`)
+  }
 
   const tabs = useMemo(() => {
     const present = new Set(rows.map(r => r.environment))
@@ -227,8 +277,8 @@ const TestData: React.FC = () => {
     setBusy(true)
     setError('')
     try {
-      if (name !== app.name || (kbId || null) !== app.kb_app_id || (prefix || null) !== app.url_prefix) {
-        await testDataService.updateApp(app.id, { name: name.trim(), kb_app_id: kbId || null, url_prefix: prefix.trim() || null })
+      if (name !== app.name || (kbId || null) !== app.kb_app_id || (prefix || null) !== app.url_prefix || runEnv !== app.run_environment) {
+        await testDataService.updateApp(app.id, { name: name.trim(), kb_app_id: kbId || null, url_prefix: prefix.trim() || null, run_environment: runEnv })
       }
       const entries: EntryInput[] = rows.map(row => ({
         id: row.id,
@@ -245,6 +295,7 @@ const TestData: React.FC = () => {
       }))
       await testDataService.saveEntries(app.id, entries, deleted)
       await load()
+      if (app.kb_app_id) testDataService.knowledgeBase(app.id).then(setKbUsage).catch(() => undefined)
       setNotice('Saved. Secret values are encrypted.')
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'The test data could not be saved.')
@@ -285,12 +336,24 @@ const TestData: React.FC = () => {
   const secretsCount = rows.filter(r => r.is_secret).length
 
   return (
+    <div className="flex flex-col gap-3">
+    <section className={`${CARD} px-6 py-5`}>
+      <p className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-[#B71920]">AI Test Automation</p>
+      <div className="mt-1 flex flex-wrap items-center gap-2.5">
+        <h1 className="m-0 text-[27px] font-extrabold leading-tight tracking-[-0.02em] text-[#1F2937]">Test Data</h1>
+        <span className="rounded-full border border-[#F1A4A6] bg-[#FFF5F5] px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#B71920]">Beta</span>
+      </div>
+      <p className="mt-2 max-w-[760px] text-[13.5px] leading-[1.6] text-[#4B5563]">
+        The one source of test data for automation test cases. Scripts, dry runs and runs read their logins, OTPs and records
+        from here, for the environment chosen when each test case was generated; the Knowledge Base says which data its journeys need and checks it against this page.
+      </p>
+    </section>
     <section className={`${CARD} grid min-h-[620px] grid-cols-1 overflow-hidden lg:grid-cols-[300px_minmax(0,1fr)]`}>
       {/* Applications */}
       <aside className="flex flex-col border-b border-[#E8EAEE] lg:border-b-0 lg:border-r">
         <div className="flex items-center gap-2 px-5 pb-3 pt-4">
           <div className="min-w-0 flex-1">
-            <div className="text-[16px] font-bold text-[#1F2937]">Test data</div>
+            <div className="text-[16px] font-bold text-[#1F2937]">Applications</div>
             <div className="text-[12.5px] text-[#6B7280]">Logins, OTPs and values scripts read</div>
           </div>
           {canExecute && (
@@ -316,7 +379,7 @@ const TestData: React.FC = () => {
                 >
                   <div className="truncate text-[14px] font-bold text-[#1F2937]">{a.name}</div>
                   <div className="truncate font-mono text-[11.5px] text-[#9CA3AF]">{a.url_prefix || a.kb_app_id || 'no address'}</div>
-                  <div className="mt-0.5 text-[12px] text-[#6B7280]">{set} of {a.entries.length} values set</div>
+                  <div className="mt-0.5 text-[12px] text-[#6B7280]">{set} of {a.entries.length} values set · default {a.run_environment || 'SIT'}</div>
                 </button>
               )
             })
@@ -332,7 +395,7 @@ const TestData: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-3 border-b border-[#E8EAEE] px-5 py-4 md:grid-cols-[minmax(0,1fr)_220px_minmax(0,1.2fr)_auto] md:items-end">
+            <div className="grid grid-cols-1 gap-3 border-b border-[#E8EAEE] px-5 py-4 md:grid-cols-[minmax(0,1fr)_200px_minmax(0,1.2fr)_150px_auto] md:items-end">
               <label className="flex flex-col gap-1">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#6B7280]">Application</span>
                 <input value={name} onChange={e => { setName(e.target.value); setDirty(true) }} disabled={!canExecute} className={FIELD} />
@@ -347,6 +410,12 @@ const TestData: React.FC = () => {
               <label className="flex flex-col gap-1">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#6B7280]">Address it runs at</span>
                 <input value={prefix} onChange={e => { setPrefix(e.target.value); setDirty(true) }} disabled={!canExecute} className={`${FIELD} font-mono`} placeholder="https://host/path" />
+              </label>
+              <label className="flex flex-col gap-1" title="A test case runs against the environment chosen when it was generated. This is used only for older cases that have none.">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#6B7280]">Default environment</span>
+                <select value={runEnv} onChange={e => { setRunEnv(e.target.value); setDirty(true) }} disabled={!canExecute} className={FIELD}>
+                  {Array.from(new Set([...environments, runEnv])).map(e => <option key={e} value={e}>{e}</option>)}
+                </select>
               </label>
               {canExecute && (
                 <button type="button" onClick={() => void removeApp()} className="h-9 text-[12.5px] font-semibold text-[#A3231C] hover:underline">Delete</button>
@@ -449,6 +518,41 @@ const TestData: React.FC = () => {
                 Scripts are matched by meaning: <code className="font-mono">TESTDATA_ADMIN_PASSWORD</code> uses <code className="font-mono">admin.password</code>, else <code className="font-mono">password</code>;
                 email, login and user id all count as the username. Name a role with a prefix (<code className="font-mono">admin.</code>, <code className="font-mono">customer.</code>), and list any other name a script uses under Also known as.
               </p>
+
+              {kbUsage?.journey_app && kbUsage.profiles.length > 0 && (
+                <div className="mb-4 overflow-hidden rounded-[14px] border border-[#E8EAEE]">
+                  <div className="flex flex-wrap items-center gap-2 border-b border-[#F1F2F4] bg-[#FCFCFD] px-3.5 py-2.5">
+                    <span className="text-[13px] font-bold text-[#1F2937]">Used by the Knowledge Base</span>
+                    <span className="text-[12px] text-[#6B7280]">{kbUsage.journey_app.name} · data profiles its journeys need, checked for {runEnv}</span>
+                  </div>
+                  {kbUsage.profiles.map(profile => {
+                    const cell = profile.cells[runEnv] ?? { status: profile.kind === 'external' ? 'external' : 'missing', missing: profile.fields.map(f => f.variable).filter(Boolean) as string[] }
+                    return (
+                      <div key={profile.profile_id} className="flex flex-wrap items-start gap-3 border-t border-[#F1F2F4] px-3.5 py-2.5 first:border-t-0">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[13px] font-semibold text-[#1F2937]">{profile.name}</span>
+                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${profile.kind === 'file' ? STATUS_CHIP.external : STATUS_CHIP[cell.status] ?? STATUS_CHIP.missing}`}>
+                              {profile.kind === 'file' ? 'Document · not a value' : cell.status === 'ready' ? 'Ready' : cell.status === 'external' ? 'Held outside' : `${cell.missing.length || 'Values'} missing`}
+                            </span>
+                          </div>
+                          <div className="mt-0.5 text-[12px] text-[#6B7280]">
+                            {profile.fields.map(f => f.variable ? `${f.name} (${readableName(f.variable)})` : f.name).join(' · ')}
+                          </div>
+                          {profile.used_by.length > 0 && (
+                            <div className="mt-0.5 truncate text-[11.5px] text-[#9CA3AF]" title={profile.used_by.join('\n')}>
+                              Used by {profile.used_by.length} scenario{profile.used_by.length === 1 ? '' : 's'}: {profile.used_by.slice(0, 2).join(', ')}{profile.used_by.length > 2 ? '…' : ''}
+                            </div>
+                          )}
+                        </div>
+                        {canExecute && cell.status === 'missing' && cell.missing.length > 0 && (
+                          <button type="button" onClick={() => addMissing(cell.missing)} className={BTN}>+ Add missing to {runEnv}</button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-3 border-t border-[#E8EAEE] bg-[#FCFCFD] px-5 py-3">
@@ -475,6 +579,7 @@ const TestData: React.FC = () => {
         />
       )}
     </section>
+    </div>
   )
 }
 

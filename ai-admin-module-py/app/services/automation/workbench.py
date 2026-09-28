@@ -782,6 +782,7 @@ def sync_approved_test_cases(db: Session) -> int:
                     existing.objective = better_description
 
     _carry_projects(db)
+    _carry_environments(db)
 
     # Commit unconditionally: the loop above also repairs existing rows, and
     # gating on `synced` meant a pass that created nothing threw those repairs
@@ -807,4 +808,33 @@ def _carry_projects(db: Session) -> None:
         .all()
     ):
         case.project_id = projects[case.origin_request_id]
+
+
+def _carry_environments(db: Session) -> None:
+    """Give each mirrored case the environment chosen when it was generated.
+
+    Generate Test Cases saves the choice with the session (generation JSON);
+    a case that reached Automation without AI Checks learns it here. A case
+    that already has one keeps it.
+    """
+    from ...models.database import TestCaseReviewDetail
+
+    pending = (
+        db.query(AutomationTestCase)
+        .filter(AutomationTestCase.environment.is_(None), AutomationTestCase.origin_request_id.isnot(None))
+        .all()
+    )
+    if not pending:
+        return
+    wanted = {case.origin_request_id for case in pending}
+    environments = {
+        request_id: ((generation or {}).get("environment") or "").strip().upper()
+        for request_id, generation in db.query(TestCaseReviewDetail.request_id, TestCaseReviewDetail.generation)
+        .filter(TestCaseReviewDetail.request_id.in_(list(wanted)))
+        .all()
+        if isinstance(generation, dict)
+    }
+    for case in pending:
+        if environments.get(case.origin_request_id):
+            case.environment = environments[case.origin_request_id]
 

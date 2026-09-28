@@ -10,6 +10,8 @@ interface MenuItem {
   label: string
   permission?: string
   badge?: number | string
+  /** Shown as a "Beta" tag: usable, still settling. */
+  beta?: boolean
 }
 
 interface MenuGroup {
@@ -52,8 +54,9 @@ const aiTestGenerationItems: MenuItem[] = [
   
 const aiTestAutomationtems: MenuItem[] = [
     { path: '/automation', label: 'Automation Studio', permission: 'automation.view' },
-    { path: '/automation/knowledge-base', label: 'Knowledge Base', permission: 'automation.view' }
-     
+    { path: '/automation/knowledge-base', label: 'Knowledge Base', permission: 'automation.view' },
+    // The one source of test data for automation cases; the KB refers to it.
+    { path: '/test-data', label: 'Test Data', permission: 'automation.view', beta: true }
     ]
     
  
@@ -238,6 +241,9 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileClose }) 
                   <NavLink key={item.path} to={item.path} className={linkClass} onClick={onMobileClose}>
                     {IconComponent && <IconComponent className="h-[18px] w-[18px] flex-shrink-0" />}
                     <span className="truncate">{item.label}</span>
+                    {item.beta && (
+                      <span className="ml-auto rounded-full border border-white/40 px-1.5 py-px text-[9.5px] font-bold uppercase tracking-[0.08em] text-white/90">Beta</span>
+                    )}
                   </NavLink>
                 )
               })}

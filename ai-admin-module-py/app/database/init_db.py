@@ -32,6 +32,8 @@ _ADDED_COLUMNS = (
     ("test_case_review_details", "generation", "JSON"),
     ("automation_test_cases", "project_id", "INTEGER"),
     ("automation_test_cases", "journey_diff", "JSON"),
+    ("automation_data_apps", "run_environment", "VARCHAR(40)"),
+    ("automation_test_cases", "environment", "VARCHAR(40)"),
 )
 
 

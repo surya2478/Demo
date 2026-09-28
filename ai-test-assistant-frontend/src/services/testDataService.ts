@@ -1,8 +1,10 @@
 import api from './api'
 
-// Automation Studio > Test data: the values generated scripts read from
+// AI Test Automation > Test Data: the values generated scripts read from
 // TESTDATA_* (usernames, passwords, OTPs, record names), per application and
-// environment. Secret values are encrypted by the server and never returned.
+// environment -- the one data source for automation test cases, which the
+// Knowledge Base's data profiles are checked against. Secret values are
+// encrypted by the server and never returned.
 
 export const ALL_ENVIRONMENTS = '*'
 
@@ -24,8 +26,31 @@ export interface DataApp {
   name: string
   kb_app_id: string | null
   url_prefix: string | null
+  /** The environment its scripts run against and read values for. */
+  run_environment: string
   created_by: string | null
   entries: TestDataEntry[]
+}
+
+/** A Knowledge Base data profile (roles.json), checked against the values. */
+export interface KbProfile {
+  profile_id: string
+  name: string
+  description: string | null
+  /** vault: values live here; external: held outside (e.g. a UAE PASS app). */
+  kind: 'vault' | 'file' | 'external' | string
+  fields: { name: string; variable?: string }[]
+  state: string | null
+  used_by: string[]
+  cells: Record<string, { status: 'ready' | 'missing' | 'external'; missing: string[]; matched_keys?: Record<string, string> }>
+}
+
+export interface KbUsage {
+  journey_app: { id: string; name: string } | null
+  run_environment: string
+  environments: string[]
+  profiles: KbProfile[]
+  totals: Partial<Record<'ready' | 'missing' | 'external', number>>
 }
 
 export interface KbApp {
@@ -59,39 +84,32 @@ const BASE = '/automation/test-data'
 const testDataService = {
   apps: async (): Promise<{ apps: DataApp[]; environments: string[] }> => (await api.get(`${BASE}/apps`)).data,
   kbApps: async (): Promise<KbApp[]> => (await api.get(`${BASE}/kb-apps`)).data.apps,
-  createApp: async (body: { name: string; kb_app_id?: string | null; url_prefix?: string | null }): Promise<DataApp> =>
+  createApp: async (body: { name: string; kb_app_id?: string | null; url_prefix?: string | null; run_environment?: string | null }): Promise<DataApp> =>
     (await api.post(`${BASE}/apps`, body)).data,
-  updateApp: async (id: number, body: { name: string; kb_app_id?: string | null; url_prefix?: string | null }): Promise<DataApp> =>
+  updateApp: async (id: number, body: { name: string; kb_app_id?: string | null; url_prefix?: string | null; run_environment?: string | null }): Promise<DataApp> =>
     (await api.put(`${BASE}/apps/${id}`, body)).data,
   deleteApp: async (id: number): Promise<void> => {
     await api.delete(`${BASE}/apps/${id}`)
   },
   saveEntries: async (id: number, entries: EntryInput[], deletedIds: number[]): Promise<DataApp> =>
     (await api.put(`${BASE}/apps/${id}/entries`, { entries, deleted_ids: deletedIds })).data,
-  check: async (scriptId: number, environment: string): Promise<ScriptDataCheck> =>
-    (await api.get(`${BASE}/check`, { params: { script_id: scriptId, environment } })).data
+  /** No environment: the application's own, which is what a dry run uses. */
+  check: async (scriptId: number): Promise<ScriptDataCheck> =>
+    (await api.get(`${BASE}/check`, { params: { script_id: scriptId } })).data,
+  knowledgeBase: async (appId: number): Promise<KbUsage> => (await api.get(`${BASE}/apps/${appId}/knowledge-base`)).data
 }
+
+/** A stored key for a KB variable: TESTDATA_DEFAULT_ORG_EMAIL -> default_org.email. */
+export const keyForVariable = (variable: string) => {
+  const parts = variable.replace(/^TESTDATA_/, '').toLowerCase().split('_').filter(Boolean)
+  return parts.length > 1 ? `${parts.slice(0, -1).join('_')}.${parts[parts.length - 1]}` : parts[0] || variable.toLowerCase()
+}
+
+/** Whether a variable holds a secret, by its name. */
+export const isSecretVariable = (variable: string) => /PASSWORD|SECRET|TOKEN|PIN/i.test(variable)
 
 /** "TESTDATA_ADMIN_PASSWORD" -> "admin password". */
 export const readableName = (name: string) =>
   name.replace(/^TESTDATA_/, '').toLowerCase().split('_').filter(Boolean).join(' ')
-
-const ENV_KEY = 'automation_environment'
-
-export const readEnvironment = (): string => {
-  try {
-    return localStorage.getItem(ENV_KEY) || 'SIT'
-  } catch {
-    return 'SIT'
-  }
-}
-
-export const writeEnvironment = (environment: string) => {
-  try {
-    localStorage.setItem(ENV_KEY, environment)
-  } catch {
-    /* storage unavailable: the choice lasts for this visit */
-  }
-}
 
 export default testDataService

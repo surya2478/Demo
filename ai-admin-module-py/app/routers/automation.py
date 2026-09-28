@@ -395,15 +395,17 @@ def create_run(
         raise HTTPException(status_code=429, detail=reason)
 
     case = db.get(AutomationTestCase, body.test_case_id) if body.test_case_id else None
-    missing_data = test_data.missing_message(
-        test_data.for_code(
-            db,
-            body.code,
-            environment=body.environment,
-            case_url=case.application_url if case else None,
-            base_url=body.base_url,
-        )
+    data_report = test_data.for_code(
+        db,
+        body.code,
+        environment=body.environment,
+        case_url=case.application_url if case else None,
+        base_url=body.base_url,
+        case_environment=case.environment if case else None,
     )
+    # No environment asked for: the case's own, else its application's (Test Data).
+    run_environment = data_report["environment"]
+    missing_data = test_data.missing_message(data_report)
     if missing_data:
         raise HTTPException(status_code=409, detail=missing_data)
 
@@ -421,7 +423,7 @@ def create_run(
         run_key=run_key,
         test_case_id=body.test_case_id,
         framework="playwright",
-        environment=body.environment,
+        environment=run_environment,
         status="queued",
         run_config={
             "headless": is_headless,
@@ -446,11 +448,11 @@ def create_run(
         action="execute",
         resource_type="automation_run",
         resource_id=run_key,
-        resource_name=f"Playwright run ({body.environment or 'no environment'})",
+        resource_name=f"Playwright run ({run_environment})",
         status="success",
         details={
             "description": f"{username} started automation run {run_key}",
-            "environment": body.environment,
+            "environment": run_environment,
             "base_url": body.base_url,
         },
     )
@@ -2450,6 +2452,7 @@ def list_approved_automation_cases(
                 "created_at": case.created_at.isoformat() if case.created_at else None,
                 "test_data_status": case.test_data_status,
                 "application_url": case.application_url,
+                "environment": case.environment,
                 "scripts": by_case.get(case.id, []),
                 "project": projects.get(case.project_id),
                 "request_id": case.origin_request_id,
@@ -2796,15 +2799,15 @@ def dry_run_scripts(
 
         # Refused here, by name, rather than run and failed at the login step
         # with "<set TESTDATA_...>" typed into the page.
-        missing_data = test_data.missing_message(
-            test_data.for_code(
-                db,
-                script.code or "",
-                environment=body.environment,
-                case_url=script.test_case.application_url if script.test_case else None,
-                base_url=body.base_url,
-            )
+        data_report = test_data.for_code(
+            db,
+            script.code or "",
+            environment=body.environment,
+            case_url=script.test_case.application_url if script.test_case else None,
+            base_url=body.base_url,
+            case_environment=script.test_case.environment if script.test_case else None,
         )
+        missing_data = test_data.missing_message(data_report)
         if missing_data:
             refused.append({"script_id": script_id, "reason": missing_data})
             continue
@@ -2827,7 +2830,8 @@ def dry_run_scripts(
             test_case_id=script.test_case_id,
             script_id=script.id,
             framework=script.framework,
-            environment=body.environment,
+            # No environment asked for: the case's own, else its application's.
+            environment=data_report["environment"],
             status="queued",
             run_config={
                 "headless": is_headless,

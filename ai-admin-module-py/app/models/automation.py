@@ -157,6 +157,9 @@ class AutomationTestCase(Base):
     # Resolved at refinement time and frozen, so a later change to the
     # application does not silently invalidate steps already written.
     application_url = Column(Text, nullable=True)
+    # The environment the case targets (SIT, UAT...), chosen on Generate Test
+    # Cases. Runs of its scripts use it and read that environment's Test Data.
+    environment = Column(String(40), nullable=True)
 
     application_id = Column(Integer, ForeignKey("automation_applications.id"), nullable=True, index=True)
 
@@ -768,6 +771,9 @@ class AutomationDataApp(Base):
     kb_app_id = Column(String(100), nullable=True, index=True)
     # e.g. https://devnew-sas.etisalat.ae/b2bportal -- the longest match wins.
     url_prefix = Column(Text, nullable=True)
+    # The environment its scripts run against and read values for. Set here,
+    # once per application, instead of picked on every dry run. Null = SIT.
+    run_environment = Column(String(40), nullable=True)
     created_by = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

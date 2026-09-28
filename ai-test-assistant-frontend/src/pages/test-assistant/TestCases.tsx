@@ -85,11 +85,15 @@ const TestCases: React.FC = () => {
   const [approvalNotification, setApprovalNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [submittedTestCaseCount, setSubmittedTestCaseCount] = useState<number | null>(null)
   const [workflowStageRequestId, setWorkflowStageRequestId] = useState<string | null>(null)
+  // Mandatory before Generate: the cases carry it to Automation, where their
+  // scripts run against it and read that environment's Test Data.
   const environmentOptions = [
     { label: 'Select', value: '' },
     { label: 'SIT', value: 'SIT' },
     { label: 'QA', value: 'QA' },
-    { label: 'UAT', value: 'UAT' }
+    { label: 'UAT', value: 'UAT' },
+    { label: 'RC', value: 'RC' },
+    { label: 'Preproduction', value: 'PREPRODUCTION' }
   ] as const
   const focusOptions = [
     { label: 'Select', value: '' },
@@ -102,6 +106,8 @@ const TestCases: React.FC = () => {
   type FocusOption = (typeof focusOptions)[number]['value']
   const [selectedEnvironment, setSelectedEnvironment] = useState<EnvironmentOption>('')
   const [selectedFocus, setSelectedFocus] = useState<FocusOption>('')
+  // Shown once Generate was attempted without an environment.
+  const [environmentMissing, setEnvironmentMissing] = useState(false)
   // Select KB. Default KB is the default application route (BASE_URL). The
   // other two are served by the admin backend and answered by the Squad KB's
   // model; `knowledgeBase` is the form value the backend expects.
@@ -1555,7 +1561,7 @@ const TestCases: React.FC = () => {
         if (!saved) return
       }
       // 2. AI Checks.
-      const batchId = await aiChecksService.start(rows, selectedKnowledgeBaseOption.knowledgeBase || undefined, savedRequestIdRef.current || undefined)
+      const batchId = await aiChecksService.start(rows, selectedKnowledgeBaseOption.knowledgeBase || undefined, savedRequestIdRef.current || undefined, selectedEnvironment || undefined)
       setAiBatchId(batchId)
       setAiBatch(await aiChecksService.get(batchId))
     } catch (error: any) {
@@ -2036,6 +2042,10 @@ const TestCases: React.FC = () => {
   // A project is asked for before generating -- from the BRD first, then the
   // author, who may go on without.
   const requestGenerate = async () => {
+    if (!selectedEnvironment) {
+      setEnvironmentMissing(true)
+      return
+    }
     if (!projectRef.current && !projectSkippedRef.current) {
       const text = inputType === 'text' ? textValue : combinedContent
       if (await applyBrdProject(text, fileInputs.map((file) => file.name))) {
@@ -2402,14 +2412,19 @@ const TestCases: React.FC = () => {
               onChange={setSelectedKnowledgeBase}
               disabled={loading}
             />
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6B7280]">Environment</span>
+            <label className="relative flex flex-col gap-1.5" title="The environment these test cases target. Their scripts run against it and use its Test Data.">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6B7280]">Environment <span className="text-[#B71920]">*</span></span>
               <span className="relative">
                 <select
                   value={selectedEnvironment}
                   data-audit-name="Environment"
-                  onChange={(event: ChangeEvent<HTMLSelectElement>) => setSelectedEnvironment(event.target.value as EnvironmentOption)}
-                  className="h-10 w-40 appearance-none rounded-[12px] border border-[#E8EAEE] bg-white pl-3 pr-8 text-[13px] font-semibold text-[#1F2937] outline-none focus:border-[#B71920] focus:ring-2 focus:ring-[#FDEBEC]"
+                  required
+                  aria-required="true"
+                  aria-invalid={environmentMissing && !selectedEnvironment}
+                  onChange={(event: ChangeEvent<HTMLSelectElement>) => { setSelectedEnvironment(event.target.value as EnvironmentOption); setEnvironmentMissing(false) }}
+                  className={`h-10 w-40 appearance-none rounded-[12px] border bg-white pl-3 pr-8 text-[13px] font-semibold text-[#1F2937] outline-none focus:border-[#B71920] focus:ring-2 focus:ring-[#FDEBEC] ${
+                    environmentMissing && !selectedEnvironment ? 'border-[#B71920] ring-2 ring-[#FDEBEC]' : 'border-[#E8EAEE]'
+                  }`}
                 >
                   {environmentOptions.map((option) => (
                     <option key={option.label} value={option.value}>{option.label}</option>
@@ -2417,6 +2432,9 @@ const TestCases: React.FC = () => {
                 </select>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" aria-hidden><path d="M6 9l6 6 6-6" /></svg>
               </span>
+              {environmentMissing && !selectedEnvironment && (
+                <span role="alert" className="absolute left-0 top-full mt-1 whitespace-nowrap text-[11.5px] font-semibold text-[#B71920]">Choose the environment first</span>
+              )}
             </label>
             <label className="flex flex-col gap-1.5">
               <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6B7280]">Focus</span>
@@ -2459,7 +2477,7 @@ const TestCases: React.FC = () => {
                 }}
                 data-audit-name={getGenerateButtonLabel()}
                 disabled={!isGenerateEnabled || loading || tokenLimitReached}
-                title={tokenLimitReached ? 'Token allocation limit reached' : ''}
+                title={tokenLimitReached ? 'Token allocation limit reached' : !selectedEnvironment ? 'Choose the environment these test cases target first' : ''}
                 className={`flex h-10 items-center gap-2 rounded-[12px] px-4 text-[13px] font-bold transition ${
                   isGenerateEnabled && !loading && !tokenLimitReached
                     ? 'bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] hover:opacity-95'

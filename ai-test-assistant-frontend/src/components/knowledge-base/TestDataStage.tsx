@@ -41,7 +41,7 @@ const TestDataStage: React.FC<{ appKey: string }> = ({ appKey }) => {
             <Chip tone="good">Ready {coverage.totals.ready}</Chip>
             <Chip tone="bad">Missing {coverage.totals.missing}</Chip>
             <Chip tone="info">External {coverage.totals.external}</Chip>
-            <Link to="/automation/test-data" className="ml-2 flex h-[34px] items-center rounded-[12px] border border-[#E8EAEE] bg-white px-3.5 text-[13px] font-bold text-[#1F2937] hover:border-[#F6D4D5]">Open vault</Link>
+            <Link to="/test-data" className="ml-2 flex h-[34px] items-center rounded-[12px] border border-[#E8EAEE] bg-white px-3.5 text-[13px] font-bold text-[#1F2937] hover:border-[#F6D4D5]">Open vault</Link>
           </div>
         )}
       </div>
@@ -119,7 +119,7 @@ const TestDataStage: React.FC<{ appKey: string }> = ({ appKey }) => {
               <span className="text-[11px] font-bold tracking-[0.1em] text-[#6B7280]">USED BY</span>
               {profile.used_by.map(u => <span key={u}>{u}</span>)}
             </div>
-            <Link to="/automation/test-data" className="flex h-[38px] items-center justify-center rounded-[12px] bg-[#B71920] text-[13px] font-bold text-white hover:opacity-95">
+            <Link to="/test-data" className="flex h-[38px] items-center justify-center rounded-[12px] bg-[#B71920] text-[13px] font-bold text-white hover:opacity-95">
               Set values in vault
             </Link>
           </Card>

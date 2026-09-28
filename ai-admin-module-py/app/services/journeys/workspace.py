@@ -234,7 +234,7 @@ def test_data_coverage(kb: store.JourneyKB, db) -> Dict[str, Any]:
 
     app = vault.find_app(db, kb_app_id=kb.automation_app_id) if db is not None else None
     entries = list(app.entries) if app else []
-    environments = sorted({e.environment for e in entries if e.environment != vault.ALL_ENVIRONMENTS} | set(vault.DEFAULT_ENVIRONMENTS))
+    environments = vault.ordered_environments(e.environment for e in entries)
 
     rows = []
     totals = {"ready": 0, "missing": 0, "external": 0}

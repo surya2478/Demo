@@ -983,7 +983,7 @@ const Workbench: React.FC = () => {
               type="button"
               onClick={handleApprove}
               disabled={!anySelected || !canExecute || busy !== null}
-              title="Approve the selected test cases and send them to the Script Lab"
+              title="Approve the selected test cases and send them to the Automation Lab"
               className="app-spark app-spark-primary app-btn app-btn-primary inline-flex items-center gap-2 !px-4 !py-2 text-sm font-semibold"
             >
               <HiOutlineBadgeCheck className="h-[18px] w-[18px]" />

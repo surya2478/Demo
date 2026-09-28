@@ -169,7 +169,7 @@ const Automation: React.FC = () => {
   const tabs = [
     {
       to: 'script-lab',
-      label: 'Automation Script Lab',
+      label: 'Automation Lab',
       detail: 'Generate, dry run, heal and download',
       Icon: ScriptLabGlyph,
       badge:

@@ -564,7 +564,7 @@ const ClassifyProgressModal: React.FC<ClassifyProgressModalProps> = ({
                 */}
               {status === 'done' && onApprove && hasAutomation ? (
                 <p className="text-[11px] leading-snug text-app-secondary">
-                  Next: approve them, and the Script Lab can generate.
+                  Next: approve them, and the Automation Lab can generate.
                 </p>
               ) : (
                 <span />
@@ -584,7 +584,7 @@ const ClassifyProgressModal: React.FC<ClassifyProgressModalProps> = ({
                     disabled={!canApprove}
                     title={
                       canApprove
-                        ? 'Approve these test cases for the Script Lab'
+                        ? 'Approve these test cases for the Automation Lab'
                         : 'Your role can review these test cases but not approve them'
                     }
                     className="inline-flex items-center gap-1.5 rounded-app bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-3.5 py-2 text-xs font-bold text-white shadow-[0_8px_20px_rgba(183,25,32,0.28)] transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"

@@ -34,6 +34,9 @@ class StartChecksRequest(BaseModel):
     # The saved session these cases belong to (test-case-reviews/save). The
     # batch is recorded on it, so the page can find the checks again.
     request_id: Optional[str] = None
+    # SIT, UAT...: chosen on Generate Test Cases. The saved session's own
+    # choice is used when this is left out.
+    environment: Optional[str] = Field(default=None, max_length=40)
 
 
 class EditedStep(BaseModel):
@@ -74,6 +77,7 @@ def start_checks(
             actor=_actor(current_user),
             knowledge_base=body.knowledge_base,
             project_id=session.project_id if session is not None else None,
+            environment=body.environment or ((session.generation or {}).get("environment") if session is not None else None),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

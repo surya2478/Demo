@@ -39,7 +39,14 @@ from ...models.automation import AutomationDataApp, AutomationTestData
 logger = logging.getLogger(__name__)
 
 ALL_ENVIRONMENTS = "*"
-DEFAULT_ENVIRONMENTS = ("SIT", "UAT")
+# In release order; the lists on Test Data and Generate Test Cases follow it.
+DEFAULT_ENVIRONMENTS = ("SIT", "QA", "UAT", "RC", "PREPRODUCTION")
+
+
+def ordered_environments(extra=()) -> list[str]:
+    """The default environments in release order, then any others alphabetically."""
+    others = sorted({e for e in extra if e and e != ALL_ENVIRONMENTS} - set(DEFAULT_ENVIRONMENTS))
+    return [*DEFAULT_ENVIRONMENTS, *others]
 PREFIX = "TESTDATA_"
 
 # --- Encryption ---------------------------------------------------------------
@@ -271,6 +278,21 @@ def find_app(db: Session, *, urls: Iterable[Optional[str]] = (), kb_app_id: Opti
     return None
 
 
+def run_environment(
+    app: Optional[AutomationDataApp], requested: Optional[str] = None, case_environment: Optional[str] = None
+) -> str:
+    """The environment a run uses.
+
+    The one asked for; else the test case's own, chosen on Generate Test Cases;
+    else the application's default in Test Data (for cases made before cases
+    carried one); else SIT.
+    """
+    for value in (requested, case_environment, getattr(app, "run_environment", None)):
+        if (value or "").strip():
+            return value.strip().upper()
+    return "SIT"
+
+
 def for_code(
     db: Session,
     code: str,
@@ -278,10 +300,18 @@ def for_code(
     environment: Optional[str],
     case_url: Optional[str] = None,
     base_url: Optional[str] = None,
+    case_environment: Optional[str] = None,
 ) -> dict[str, Any]:
-    """What a script needs, where it would come from, and what is missing."""
+    """What a script needs, where it would come from, and what is missing.
+
+    `environment` None means the case's own (`case_environment`, chosen on
+    Generate Test Cases), else its application's default in Test Data. That is
+    the normal case -- the Automation Lab no longer asks -- and an explicit
+    value is only for a caller that wants another.
+    """
     names = required_names(code)
-    environment = (environment or "SIT").upper()
+    app = find_app(db, urls=(base_url, case_url, *spec_urls(code), spec_base_url(code))) if names or not environment else None
+    environment = run_environment(app, environment, case_environment)
     report: dict[str, Any] = {
         "environment": environment,
         "application": None,
@@ -293,7 +323,6 @@ def for_code(
     }
     if not names:
         return report
-    app = find_app(db, urls=(base_url, case_url, *spec_urls(code), spec_base_url(code)))
     if app is None:
         report["missing"] = list(names)
         return report
@@ -317,9 +346,9 @@ def missing_message(report: dict[str, Any]) -> Optional[str]:
     if not report.get("application"):
         return (
             f"No test data is set for this application ({report['environment']}). It needs: {readable}. "
-            "Add the application and its values in Automation Studio > Test data."
+            "Add the application and its values in AI Test Automation > Test Data."
         )
-    return f"Test data missing for {where} ({report['environment']}): {readable}. Add it in Automation Studio > Test data."
+    return f"Test data missing for {where} ({report['environment']}): {readable}. Add it in AI Test Automation > Test Data."
 
 
 # --- Keeping secrets out of what is saved ------------------------------------------------

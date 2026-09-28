@@ -285,6 +285,18 @@ const AppRoutes: React.FC = () => {
           }
         />
 
+        {/* Test Data: its own page under AI Test Automation (Beta) -- the one
+            data source for automation test cases, which the Knowledge Base
+            refers to. It used to be a tab inside Automation Studio. */}
+        <Route
+          path="test-data"
+          element={
+            <ProtectedRoute allowedPermissions={['automation.view']}>
+              <TestData />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Automation Studio with nested tab routes */}
         <Route
           path="automation"
@@ -298,7 +310,7 @@ const AppRoutes: React.FC = () => {
           <Route path="candidates" element={<Navigate to="../workbench" replace />} />
           <Route path="workbench" element={<Workbench />} />
           <Route path="script-lab" element={<ScriptLab />} />
-          <Route path="test-data" element={<TestData />} />
+          <Route path="test-data" element={<Navigate to="/test-data" replace />} />
           <Route path="runs" element={<Runs />} />
           <Route path="runs/:runKey" element={<Runs />} />
         </Route>

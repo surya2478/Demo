@@ -212,6 +212,7 @@ def start_batch(
     actor: Optional[str],
     knowledge_base: Optional[str] = None,
     project_id: Optional[int] = None,
+    environment: Optional[str] = None,
 ) -> str:
     """Create a draft case and a check per row, then run the batch in the background."""
     if not rows:
@@ -243,6 +244,7 @@ def start_batch(
             approval_status=wb.APPROVAL_DRAFT,
             created_by=actor,
             project_id=project_id,
+            environment=(environment or "").strip().upper() or None,
         )
         db.add(case)
         db.flush()

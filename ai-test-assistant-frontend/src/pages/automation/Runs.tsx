@@ -850,7 +850,7 @@ const Runs: React.FC = () => {
           {loading ? (
             <div className="px-5 py-6 text-[13px] text-[#6B7280]">Loading runs…</div>
           ) : visible.length === 0 ? (
-            <div className="px-5 py-8 text-center text-[13px] text-[#6B7280]">{runs.length ? 'No runs match.' : 'No runs yet. Dry run a script in the Script Lab and it appears here.'}</div>
+            <div className="px-5 py-8 text-center text-[13px] text-[#6B7280]">{runs.length ? 'No runs match.' : 'No runs yet. Dry run a script in the Automation Lab and it appears here.'}</div>
           ) : (
             visible.map(run => {
               const active = run.run_key === runKey

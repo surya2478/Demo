@@ -551,6 +551,8 @@ export interface ScriptLabCase {
   steps: number
   test_data_status: TestDataStatus
   application_url: string | null
+  /** SIT, UAT...: chosen on Generate Test Cases; its runs use it. */
+  environment?: string | null
   /** When the case landed in the automation module; the Lab is sorted on it. */
   created_at: string | null
   scripts: ScriptAsset[]

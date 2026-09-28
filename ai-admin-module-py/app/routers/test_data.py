@@ -1,9 +1,12 @@
 """
---- Automation Studio: Test data ---------------------------------------------
+--- Test Data ------------------------------------------------------------------
 
 Applications and the values their tests read -- usernames, passwords, OTPs,
-record names -- per environment. See services/automation/test_data.py for how
-a run finds and uses them.
+record names -- per environment: the one data source for automation test
+cases. Each application names the environment its scripts run against, and
+the Knowledge Base's data profiles (roles.json test_data_profiles) are checked
+against these values rather than holding any of their own. See
+services/automation/test_data.py for how a run finds and uses them.
 
 Secret values are encrypted on save and never returned: the page shows that
 one is set, and a new value replaces it.
@@ -57,6 +60,7 @@ def _app(app: AutomationDataApp) -> dict[str, Any]:
         "name": app.name,
         "kb_app_id": app.kb_app_id,
         "url_prefix": app.url_prefix,
+        "run_environment": test_data.run_environment(app),
         "created_by": app.created_by,
         "entries": [_entry(e) for e in sorted(app.entries, key=lambda e: (e.environment != "*", e.environment, e.key))],
     }
@@ -66,6 +70,15 @@ class AppIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     kb_app_id: Optional[str] = Field(default=None, max_length=100)
     url_prefix: Optional[str] = Field(default=None, max_length=2000)
+    # The environment its scripts run against; omitted keeps the current one.
+    run_environment: Optional[str] = Field(default=None, max_length=40)
+
+
+def _run_environment(value: Optional[str]) -> Optional[str]:
+    value = (value or "").strip().upper()
+    if value in ("*", "ALL"):
+        raise HTTPException(status_code=400, detail="Scripts run against one environment, not all of them.")
+    return value or None
 
 
 class EntryIn(BaseModel):
@@ -86,10 +99,7 @@ class EntriesIn(BaseModel):
 @router.get("/apps")
 def list_apps(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(PERM_VIEW))):
     apps = db.query(AutomationDataApp).order_by(AutomationDataApp.name).all()
-    environments = sorted(
-        {e for (e,) in db.query(AutomationTestData.environment).distinct() if e and e != "*"}
-        | set(test_data.DEFAULT_ENVIRONMENTS)
-    )
+    environments = test_data.ordered_environments(e for (e,) in db.query(AutomationTestData.environment).distinct())
     return {"apps": [_app(app) for app in apps], "environments": environments}
 
 
@@ -127,6 +137,7 @@ def create_app(
         name=name,
         kb_app_id=(body.kb_app_id or "").strip() or None,
         url_prefix=(body.url_prefix or "").strip().rstrip("/") or None,
+        run_environment=_run_environment(body.run_environment) or "SIT",
         created_by=_actor(current_user),
     )
     db.add(app)
@@ -152,6 +163,8 @@ def update_app(
     app.name = name
     app.kb_app_id = (body.kb_app_id or "").strip() or None
     app.url_prefix = (body.url_prefix or "").strip().rstrip("/") or None
+    if body.run_environment is not None:
+        app.run_environment = _run_environment(body.run_environment) or "SIT"
     db.commit()
     return _app(app)
 
@@ -224,11 +237,14 @@ def save_entries(
 @router.get("/check")
 def check_script(
     script_id: int = Query(...),
-    environment: str = Query(default="SIT"),
+    environment: Optional[str] = Query(default=None),
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission(PERM_VIEW)),
 ):
-    """What a script needs from Test data in an environment, and what is missing."""
+    """What a script needs from Test data, and what is missing.
+
+    No environment means the application's own -- what a dry run will use.
+    """
     script = db.get(AutomationScript, script_id)
     if script is None:
         raise HTTPException(status_code=404, detail="Script not found.")
@@ -237,5 +253,42 @@ def check_script(
         script.code or "",
         environment=environment,
         case_url=script.test_case.application_url if script.test_case else None,
+        case_environment=script.test_case.environment if script.test_case else None,
     )
     return {**test_data.public(report), "message": test_data.missing_message(report)}
+
+
+@router.get("/apps/{app_id}/knowledge-base")
+def knowledge_base_profiles(
+    app_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+):
+    """The Knowledge Base's data profiles for this application, checked against its values.
+
+    The Journey KB says which data its journeys need (roles.json
+    test_data_profiles, by TESTDATA_* variable) and never holds a value; this is
+    where those needs meet the values. Names and statuses only -- never a value.
+    """
+    from ..services.journeys import store as journey_store
+    from ..services.journeys import workspace
+
+    app = db.get(AutomationDataApp, app_id)
+    if app is None:
+        raise HTTPException(status_code=404, detail="Application not found.")
+    if not app.kb_app_id:
+        return {"journey_app": None, "profiles": [], "environments": [], "totals": {}, "run_environment": test_data.run_environment(app)}
+    kb = None
+    for journey_app in journey_store.list_apps():
+        candidate = journey_store.load(journey_app)
+        if candidate is not None and (candidate.automation_app_id == app.kb_app_id or candidate.app_id == app.kb_app_id):
+            kb = candidate
+            break
+    if kb is None:
+        return {"journey_app": None, "profiles": [], "environments": [], "totals": {}, "run_environment": test_data.run_environment(app)}
+    coverage = workspace.test_data_coverage(kb, db)
+    return {
+        "journey_app": {"id": kb.app_id, "name": kb.app_name},
+        "run_environment": test_data.run_environment(app),
+        **coverage,
+    }
