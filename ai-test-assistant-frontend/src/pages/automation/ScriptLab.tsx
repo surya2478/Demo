@@ -440,7 +440,7 @@ const ScriptLab: React.FC = () => {
       <div className="flex min-h-0 min-w-0 flex-col">
         <div className="flex flex-wrap items-center gap-3 px-5 py-4">
           <div className="min-w-0">
-            <div className="text-[16px] font-bold text-[#1F2937]">Approved Automation cases</div>
+            <div className="whitespace-nowrap text-[16px] font-bold text-[#1F2937]">Automation cases</div>
             <div className="text-[12.5px] text-[#6B7280]">
               {cases.length} from {requestCount} approved request{requestCount === 1 ? '' : 's'}
             </div>
@@ -545,7 +545,7 @@ const ScriptLab: React.FC = () => {
               <span>TC ID</span>
               <span>Title</span>
               <span>Steps</span>
-              <span className="leading-tight">From request</span>
+              <span className="leading-tight">Created by · PPM ID</span>
               <span>Script</span>
             </div>
             {loading ? (
@@ -585,8 +585,13 @@ const ScriptLab: React.FC = () => {
                       )}
                     </span>
                     <span className="text-[#374151]">{testCase.steps}</span>
-                    <span className="truncate font-mono text-[12px] text-[#6B7280]" title={request}>
-                      {testCase.source_group ? `${testCase.source_group} · ` : ''}{request ? request.replace(/^.*?(\w{6})$/, '$1') : '—'}
+                    <span
+                      className="min-w-0 truncate text-[12.5px] text-[#6B7280]"
+                      title={[testCase.created_by && `Created by ${testCase.created_by}`, testCase.project && `${testCase.project.ppm_id} · ${testCase.project.name}`, request && `${testCase.source_group ? `${testCase.source_group} · ` : ''}${request}`].filter(Boolean).join('\n')}
+                    >
+                      <span className="text-[#374151]">{testCase.created_by || '—'}</span>
+                      {' · '}
+                      <span className="font-mono text-[12px] font-semibold text-[#941216]">{testCase.project?.ppm_id || '—'}</span>
                     </span>
                     <span className="flex min-w-0 items-center gap-1.5">
                       {script ? (

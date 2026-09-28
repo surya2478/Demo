@@ -510,6 +510,21 @@ def _request_sources(db: Session, request_ids: set) -> dict[str, str]:
     return {detail.request_id: _source_group(detail) for detail in details}
 
 
+def _request_authors(db: Session, request_ids: set) -> dict[str, str]:
+    """Who generated each review request (its request_by)."""
+    if not request_ids:
+        return {}
+    from ..models.database import TestCaseReviewDetail
+
+    return {
+        request_id: request_by
+        for request_id, request_by in db.query(TestCaseReviewDetail.request_id, TestCaseReviewDetail.request_by)
+        .filter(TestCaseReviewDetail.request_id.in_(list(request_ids)))
+        .all()
+        if request_by
+    }
+
+
 def _case_project_id(case) -> Optional[int]:
     return getattr(case, "project_id", None) if case is not None else None
 
@@ -2430,6 +2445,7 @@ def list_approved_automation_cases(
 
     projects = _projects(db)
     requests = _request_sources(db, {case.origin_request_id for case in cases if case.origin_request_id})
+    authors = _request_authors(db, {case.origin_request_id for case in cases if case.origin_request_id})
     counts: dict[str, int] = {name: 0 for name in compiler.FRAMEWORKS}
     for script in scripts:
         if script.framework in counts:
@@ -2457,6 +2473,9 @@ def list_approved_automation_cases(
                 "project": projects.get(case.project_id),
                 "request_id": case.origin_request_id,
                 "source_group": requests.get(case.origin_request_id),
+                # Who generated the request -- not who approved it, which is
+                # what a mirrored case's own created_by holds.
+                "created_by": authors.get(case.origin_request_id) or case.created_by,
             }
             for case in cases
         ],
