@@ -237,7 +237,6 @@ const ScriptLab: React.FC = () => {
   const confirm = useConfirm()
 
   const [cases, setCases] = useState<ScriptLabCase[]>([])
-  const [requestCount, setRequestCount] = useState(0)
   const [frameworks, setFrameworks] = useState<FrameworkInfo[]>([])
   const [framework, setFramework] = useState('playwright')
   const [loading, setLoading] = useState(true)
@@ -261,7 +260,6 @@ const ScriptLab: React.FC = () => {
     try {
       const [listing, fw] = await Promise.all([automationService.listScriptLabCases(), automationService.listFrameworks()])
       setCases(listing.cases ?? [])
-      setRequestCount(listing.counts?.requests ?? 0)
       setFrameworks(fw.frameworks ?? [])
       setLabCount(listing.cases?.length ?? 0)
       setError(null)
@@ -441,9 +439,6 @@ const ScriptLab: React.FC = () => {
         <div className="flex flex-wrap items-center gap-3 px-5 py-4">
           <div className="min-w-0">
             <div className="whitespace-nowrap text-[16px] font-bold text-[#1F2937]">Automation cases</div>
-            <div className="text-[12.5px] text-[#6B7280]">
-              {cases.length} from {requestCount} approved request{requestCount === 1 ? '' : 's'}
-            </div>
           </div>
           <div className="relative">
             <button
