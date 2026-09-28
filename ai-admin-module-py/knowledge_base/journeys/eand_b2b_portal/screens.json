@@ -1,0 +1,968 @@
+{
+  "_purpose": "Screen catalogue (design): every distinct page/modal, its elements with their exact labels, and its transitions. Test cases quote labels from here verbatim. No locators live here -- `automation_ref` points into the Automation KB profile, and services/journeys/diff.py follows it.",
+  "_fields": {
+    "basis": "explicit = visible in a design document; qa_observed = known only from the Automation KB / QA recording; inferred = implied",
+    "locator_hint": "role + accessible name the crawl should look for when capturing this element (Playwright getByRole form). Search guidance, never an execution target.",
+    "automation_ref": "dotted path into the Automation KB app_profile.json (e.g. selectors.authentication.username_field). null = not yet captured by a crawl."
+  },
+  "_scope": "Screens of journeys B2B.REG.EXISTING.SIGNIN.OTP and B2B.REG.EXISTING.SIGNIN.SELECT_ORG. SCR_LOGIN also lists the password-tab and UAE PASS controls because they share the screen.",
+  "screens": [
+    {
+      "screen_id": "SCR_LOGIN",
+      "name": "Sign in to Business Online (Login)",
+      "route": "/b2bportal/login.html?rdr=home&locale=en",
+      "route_ref": "endpoints.login",
+      "sources": [
+        "Sign-in using OTP.pdf p1",
+        "Sign-in using Password.pdf p1",
+        "Sign-in using UAE Pass.pdf p1",
+        "Registering on B2B Portal.pdf p1"
+      ],
+      "functional_purpose": "Single entry point for unauthenticated users. Offers three authentication methods (OTP tab, e& Password tab, UAE PASS) and a route to self-registration.",
+      "layout_regions": [
+        "Public header (Product, Solutions, Business App Store, Resources, My Account)",
+        "Left: SIGN IN TO BUSINESS ONLINE panel with two tabs",
+        "Right: BENEFITS OF OUR BUSINESS ONLINE ACCOUNT with REGISTER"
+      ],
+      "elements": [
+        {
+          "element_id": "tab_otp",
+          "label": "Sign in using OTP",
+          "type": "tab",
+          "default_state": "selected",
+          "used_by_journeys": [
+            "B2B.REG.EXISTING.SIGNIN.OTP"
+          ],
+          "basis": "explicit",
+          "locator_hint": "tab \"Sign in using OTP\"",
+          "automation_ref": null,
+          "aliases": [
+            "otp tab"
+          ]
+        },
+        {
+          "element_id": "tab_password",
+          "label": "e& Password",
+          "type": "tab",
+          "used_by_journeys": [
+            "B2B.REG.EXISTING.SIGNIN.PASSWORD"
+          ],
+          "basis": "explicit",
+          "locator_hint": "tab \"e& Password\"",
+          "automation_ref": null,
+          "aliases": [
+            "password tab"
+          ]
+        },
+        {
+          "element_id": "otp_heading",
+          "label": "Enter your email.",
+          "type": "heading",
+          "basis": "explicit",
+          "automation_ref": null
+        },
+        {
+          "element_id": "username",
+          "label": "Username or email*",
+          "type": "text_input",
+          "mandatory": true,
+          "format": "registered username or email address",
+          "basis": "explicit",
+          "locator_hint": "textbox \"Username or email\"",
+          "automation_ref": "selectors.authentication.username_field",
+          "note": "Whether the e& Password tab reuses the same input is unconfirmed.",
+          "aliases": [
+            "email address",
+            "username",
+            "user email",
+            "email field"
+          ]
+        },
+        {
+          "element_id": "otp_continue",
+          "label": "CONTINUE",
+          "type": "button",
+          "default_state": "disabled until username entered",
+          "basis": "explicit",
+          "locator_hint": "button /CONTINUE|RECEIVE OTP/",
+          "automation_ref": "selectors.authentication.receive_otp_button",
+          "note": "Design label is CONTINUE; the crawled application labels it RECEIVE OTP. diff.py reports this as LABEL_DRIFT until the business confirms which is intended.",
+          "aliases": [
+            "receive otp",
+            "request the one-time password",
+            "request otp"
+          ]
+        },
+        {
+          "element_id": "no_customer_banner",
+          "label": "No Customer assosiated",
+          "type": "inline_error",
+          "basis": "explicit",
+          "locator_hint": "alert containing \"No Customer\"",
+          "automation_ref": null,
+          "note": "Spelling 'assosiated' is the application's own; assert it verbatim or with a tolerant contains('No Customer').",
+          "aliases": [
+            "no customer",
+            "unregistered email error"
+          ]
+        },
+        {
+          "element_id": "password",
+          "label": "Password*",
+          "type": "password_input",
+          "mandatory": true,
+          "has_visibility_toggle": true,
+          "used_by_journeys": [
+            "B2B.REG.EXISTING.SIGNIN.PASSWORD"
+          ],
+          "basis": "explicit",
+          "locator_hint": "textbox \"Password\"",
+          "automation_ref": null
+        },
+        {
+          "element_id": "remember_me",
+          "label": "Remember me",
+          "type": "checkbox",
+          "default_state": "unchecked",
+          "used_by_journeys": [
+            "B2B.REG.EXISTING.SIGNIN.PASSWORD"
+          ],
+          "basis": "explicit",
+          "locator_hint": "checkbox \"Remember me\"",
+          "automation_ref": null
+        },
+        {
+          "element_id": "forgot_password",
+          "label": "FORGOT PASSWORD?",
+          "type": "link",
+          "used_by_journeys": [
+            "B2B.REG.EXISTING.SIGNIN.PASSWORD"
+          ],
+          "basis": "explicit",
+          "locator_hint": "link \"FORGOT PASSWORD?\"",
+          "automation_ref": null
+        },
+        {
+          "element_id": "sign_in",
+          "label": "SIGN IN",
+          "type": "button",
+          "default_state": "disabled until username and password entered",
+          "used_by_journeys": [
+            "B2B.REG.EXISTING.SIGNIN.PASSWORD"
+          ],
+          "basis": "explicit",
+          "locator_hint": "button \"SIGN IN\"",
+          "automation_ref": null
+        },
+        {
+          "element_id": "uaepass_signin",
+          "label": "Sign in with UAE PASS",
+          "type": "button",
+          "used_by_journeys": [
+            "B2B.REG.EXISTING.SIGNIN.UAEPASS"
+          ],
+          "basis": "explicit",
+          "locator_hint": "button \"Sign in with UAE PASS\"",
+          "automation_ref": null
+        },
+        {
+          "element_id": "register",
+          "label": "REGISTER",
+          "type": "button",
+          "used_by_journeys": [
+            "B2B.REG.EXISTING.REGISTER"
+          ],
+          "basis": "explicit",
+          "locator_hint": "button \"REGISTER\"",
+          "automation_ref": null
+        }
+      ],
+      "transitions": [
+        {
+          "on": "otp_continue",
+          "condition": "username is a registered B2B user",
+          "to": "SCR_OTP_ENTRY",
+          "rule": "BR-AUTH-02"
+        },
+        {
+          "on": "otp_continue",
+          "condition": "username not associated with any customer",
+          "to": "SCR_LOGIN",
+          "effect": "no_customer_banner shown",
+          "rule": "BR-AUTH-01"
+        },
+        {
+          "on": "sign_in",
+          "condition": "valid credentials",
+          "to": "SCR_SELECT_ORG | SCR_ORG_DASHBOARD",
+          "rule": "BR-AUTH-06"
+        },
+        {
+          "on": "uaepass_signin",
+          "to": "EXT_UAEPASS_LOGIN",
+          "note": "external; catalogued in the UAE PASS cycle"
+        },
+        {
+          "on": "register",
+          "to": "SCR_REGISTER_ONLINE",
+          "note": "catalogued in the Registration cycle"
+        }
+      ],
+      "aliases": [
+        "login page",
+        "login screen",
+        "sign in page"
+      ]
+    },
+    {
+      "screen_id": "SCR_OTP_ENTRY",
+      "name": "Enter your One Time Password",
+      "route": null,
+      "route_ref": null,
+      "sources": [
+        "Sign-in using OTP.pdf p1-2",
+        "existing KB flow_b2b_login_otp"
+      ],
+      "functional_purpose": "Collects the 6-digit OTP sent to the user's registered e-mail and mobile, with masked destinations shown for confirmation and a resend option.",
+      "elements": [
+        {
+          "element_id": "otp_heading",
+          "label": "Enter your One Time Password.",
+          "type": "heading",
+          "basis": "explicit",
+          "automation_ref": null
+        },
+        {
+          "element_id": "otp_sent_notice",
+          "label": "We have sent the OTP to your E-mail and Mobile number",
+          "type": "text",
+          "basis": "explicit",
+          "automation_ref": null
+        },
+        {
+          "element_id": "masked_email",
+          "label": "Email ID : p*********@e***.com",
+          "type": "text",
+          "format": "first char + asterisks + @ + first char + *** + TLD",
+          "basis": "explicit",
+          "automation_ref": null,
+          "aliases": [
+            "masked destinations",
+            "masked email"
+          ]
+        },
+        {
+          "element_id": "masked_mobile",
+          "label": "Mobile Number : 0******32",
+          "type": "text",
+          "format": "first digit + asterisks + last two digits",
+          "basis": "explicit",
+          "automation_ref": null
+        },
+        {
+          "element_id": "otp_digit_1_6",
+          "label": "OTP digit boxes (6)",
+          "type": "otp_input_group",
+          "mandatory": true,
+          "format": "exactly 6 numeric digits, one per box",
+          "basis": "explicit",
+          "automation_ref": "selectors.authentication.otp_digit_field_all",
+          "note": "'opt-field' is the application's own spelling.",
+          "aliases": [
+            "six-digit otp",
+            "6-digit otp",
+            "otp digits",
+            "otp boxes",
+            "digit boxes"
+          ]
+        },
+        {
+          "element_id": "otp_valid_tick",
+          "label": "(green check icon)",
+          "type": "status_icon",
+          "basis": "explicit",
+          "automation_ref": null,
+          "note": "Shown after 6 digits are entered."
+        },
+        {
+          "element_id": "resend",
+          "label": "Resend",
+          "type": "link",
+          "context_text": "Didn't receive the OTP on your email?",
+          "basis": "explicit",
+          "locator_hint": "link \"Resend\"",
+          "automation_ref": null
+        },
+        {
+          "element_id": "proceed",
+          "label": "Proceed",
+          "type": "button",
+          "basis": "explicit",
+          "locator_hint": "button \"Proceed\"",
+          "automation_ref": null,
+          "note": "PDF text says 'Enter the OTP and click the Proceed button' but the p1 capture shows no button (it may render after the 6th digit, or verification may auto-submit as the existing KB assumes). The crawl must settle this.",
+          "aliases": [
+            "submit the code"
+          ]
+        }
+      ],
+      "transitions": [
+        {
+          "on": "proceed",
+          "condition": "OTP correct and unexpired; user has a default organization",
+          "to": "SCR_ORG_DASHBOARD",
+          "rule": "BR-AUTH-06"
+        },
+        {
+          "on": "proceed",
+          "condition": "OTP correct; user has no default organization",
+          "to": "SCR_SELECT_ORG",
+          "rule": "BR-AUTH-06"
+        },
+        {
+          "on": "proceed",
+          "condition": "OTP wrong or expired",
+          "to": "SCR_OTP_ERROR_DIALOG",
+          "rule": "BR-AUTH-04"
+        },
+        {
+          "on": "resend",
+          "to": "SCR_OTP_ENTRY",
+          "effect": "new OTP issued; previous OTP invalidated (inferred)",
+          "rule": "BR-AUTH-05"
+        }
+      ],
+      "aliases": [
+        "otp panel",
+        "otp screen",
+        "one time password screen"
+      ]
+    },
+    {
+      "screen_id": "SCR_OTP_ERROR_DIALOG",
+      "name": "OTP error dialog",
+      "route": null,
+      "route_ref": null,
+      "sources": [
+        "existing KB flow_b2b_login_otp (QA-recorded)"
+      ],
+      "functional_purpose": "Tells the user the OTP was rejected and returns them to OTP entry.",
+      "elements": [
+        {
+          "element_id": "okay",
+          "label": "OKAY",
+          "type": "button",
+          "basis": "qa_observed",
+          "automation_ref": "selectors.authentication.error_dialog_ok_button",
+          "aliases": [
+            "error dialog"
+          ]
+        }
+      ],
+      "transitions": [
+        {
+          "on": "okay",
+          "to": "SCR_OTP_ENTRY",
+          "rule": "BR-AUTH-04"
+        }
+      ],
+      "aliases": [
+        "otp error dialog",
+        "error dialog"
+      ]
+    },
+    {
+      "screen_id": "SCR_SELECT_ORG",
+      "name": "Select a Organization to continue",
+      "route": null,
+      "route_ref": null,
+      "sources": [
+        "Sign-in using OTP.pdf p2",
+        "Sign-in using Password.pdf p1",
+        "Sign-in using UAE Pass.pdf p5-6"
+      ],
+      "functional_purpose": "Shown after authentication only when the user has no default organization. Lists every organization linked to the user so one can be chosen as the working context.",
+      "elements": [
+        {
+          "element_id": "title",
+          "label": "Select a Organization to continue",
+          "type": "heading",
+          "basis": "explicit",
+          "automation_ref": null,
+          "note": "'a Organization' is the application's own wording.",
+          "aliases": [
+            "organization chooser"
+          ]
+        },
+        {
+          "element_id": "subtitle",
+          "label": "You can view your Cost centers(Party IDs) under each organization and set as default.",
+          "type": "text",
+          "basis": "explicit",
+          "automation_ref": null
+        },
+        {
+          "element_id": "info_icon",
+          "label": "(info icon)",
+          "type": "icon_button",
+          "basis": "explicit",
+          "automation_ref": null
+        },
+        {
+          "element_id": "org_card",
+          "label": "Organization card (repeating)",
+          "type": "card_list",
+          "fields": [
+            {
+              "name": "organization_name",
+              "example": "Com1"
+            },
+            {
+              "name": "user_role_in_org",
+              "example": "Customer Representative"
+            },
+            {
+              "name": "trade_license_no",
+              "label": "Trade License No",
+              "example": "991098",
+              "format": "numeric"
+            },
+            {
+              "name": "status_badge",
+              "example": "ACTIVE",
+              "domain": [
+                "ACTIVE",
+                "(others unconfirmed -- see STM_ORG_STATUS)"
+              ]
+            },
+            {
+              "name": "cost_centers_link",
+              "label": "N COST CENTERS (PARTY IDS) >",
+              "example": "2 COST CENTERS (PARTY IDS)"
+            }
+          ],
+          "basis": "explicit",
+          "locator_hint": "listitem/card containing the organization name",
+          "automation_ref": null,
+          "aliases": [
+            "organization card",
+            "organization cards"
+          ]
+        },
+        {
+          "element_id": "welcome_panel",
+          "label": "Welcome to e&, Scale with ease. Advance and grow.",
+          "type": "static_panel",
+          "basis": "explicit",
+          "automation_ref": null
+        }
+      ],
+      "transitions": [
+        {
+          "on": "org_card",
+          "to": "SCR_ORG_DASHBOARD",
+          "effect": "selected organization becomes session context",
+          "rule": "BR-ORG-01"
+        },
+        {
+          "on": "org_card.cost_centers_link",
+          "to": "SCR_COST_CENTERS_MODAL",
+          "rule": "BR-ORG-03"
+        }
+      ],
+      "aliases": [
+        "organization chooser",
+        "organization selection"
+      ]
+    },
+    {
+      "screen_id": "SCR_COST_CENTERS_MODAL",
+      "name": "Cost centers (Party IDs) in your Organization",
+      "route": null,
+      "route_ref": null,
+      "sources": [
+        "Sign-in using UAE Pass.pdf p5"
+      ],
+      "functional_purpose": "Read-only overlay listing the cost centres (Party IDs) that belong to one organization.",
+      "elements": [
+        {
+          "element_id": "title",
+          "label": "N Cost centers(Party IDs) in your Organization",
+          "type": "heading",
+          "basis": "explicit",
+          "automation_ref": null
+        },
+        {
+          "element_id": "party_id_tile",
+          "label": "<PartyID> - <Party name>",
+          "type": "tile_list",
+          "format": "8-digit numeric Party ID, ' - ', name (e.g. 39014574 - ...)",
+          "basis": "explicit",
+          "automation_ref": null,
+          "aliases": [
+            "party id",
+            "party ids"
+          ]
+        }
+      ],
+      "transitions": [
+        {
+          "on": "dismiss (click outside / close -- mechanism not shown)",
+          "to": "SCR_SELECT_ORG"
+        }
+      ],
+      "aliases": [
+        "cost centers overlay",
+        "cost centers list",
+        "party ids list"
+      ]
+    },
+    {
+      "screen_id": "SCR_ORG_DASHBOARD",
+      "name": "Organization Dashboard",
+      "route": "/b2bportal/home.html?locale=en",
+      "route_ref": "endpoints.home",
+      "sources": [
+        "Sign-in using OTP.pdf p2",
+        "Sign-in using Password.pdf p2",
+        "Sign-in using UAE Pass.pdf p4, p6"
+      ],
+      "functional_purpose": "Landing page of the selected organization: account summary, quick access shortcuts, dues, recent orders and tickets. Hub for every authenticated journey via the top navigation.",
+      "elements": [
+        {
+          "element_id": "nav_dashboard",
+          "label": "Dashboard",
+          "type": "nav_link",
+          "default_state": "active (underlined)",
+          "basis": "explicit",
+          "locator_hint": "link \"Dashboard\"",
+          "automation_ref": null
+        },
+        {
+          "element_id": "nav_manage",
+          "label": "Manage",
+          "type": "nav_link",
+          "basis": "explicit",
+          "automation_ref": "selectors.navigation.manage_link"
+        },
+        {
+          "element_id": "nav_pay",
+          "label": "Pay",
+          "type": "nav_link",
+          "basis": "explicit",
+          "locator_hint": "link \"Pay\"",
+          "automation_ref": null
+        },
+        {
+          "element_id": "nav_order",
+          "label": "Order",
+          "type": "nav_link",
+          "basis": "explicit",
+          "locator_hint": "link \"Order\"",
+          "automation_ref": null
+        },
+        {
+          "element_id": "nav_services",
+          "label": "Services",
+          "type": "nav_link",
+          "basis": "explicit",
+          "locator_hint": "link \"Services\"",
+          "automation_ref": null
+        },
+        {
+          "element_id": "nav_support",
+          "label": "Support",
+          "type": "nav_link",
+          "basis": "explicit",
+          "locator_hint": "link \"Support\"",
+          "automation_ref": null
+        },
+        {
+          "element_id": "notifications",
+          "label": "(bell icon)",
+          "type": "icon_button",
+          "basis": "explicit",
+          "automation_ref": null
+        },
+        {
+          "element_id": "profile_menu",
+          "label": "<Display name> (<Full name>)",
+          "type": "menu_trigger",
+          "basis": "explicit",
+          "automation_ref": "selectors.session.profile_menu",
+          "note": "Presence proves an authenticated session.",
+          "aliases": [
+            "profile menu",
+            "profile control"
+          ]
+        },
+        {
+          "element_id": "sign_out",
+          "label": "Sign Out",
+          "type": "menu_item",
+          "basis": "explicit",
+          "automation_ref": "selectors.session.sign_out_button",
+          "aliases": [
+            "log out",
+            "logout"
+          ]
+        },
+        {
+          "element_id": "org_title",
+          "label": "<Organization / user name>",
+          "type": "heading",
+          "basis": "explicit",
+          "automation_ref": null
+        },
+        {
+          "element_id": "cost_center_switcher",
+          "label": "N COST CENTERS (PARTY IDS)",
+          "type": "dropdown",
+          "basis": "explicit",
+          "automation_ref": null
+        },
+        {
+          "element_id": "search_accounts",
+          "label": "Search Accounts",
+          "type": "search_input",
+          "basis": "explicit",
+          "locator_hint": "searchbox \"Search Accounts\"",
+          "automation_ref": null
+        },
+        {
+          "element_id": "accounts_widget",
+          "label": "ACCOUNTS",
+          "type": "widget",
+          "fields": [
+            "'N Active' count",
+            "donut total",
+            "per-category rows e.g. 'Internet and Data 2 >'",
+            "VIEW ALL >"
+          ],
+          "basis": "explicit",
+          "automation_ref": null,
+          "aliases": [
+            "dashboard widgets"
+          ]
+        },
+        {
+          "element_id": "quick_access_widget",
+          "label": "QUICK ACCESS",
+          "type": "widget",
+          "fields": [
+            "Buy Fixed Service",
+            "Manage my Companies",
+            "Pay Accounts",
+            "Technical Support",
+            "Get Premium Support"
+          ],
+          "basis": "explicit",
+          "automation_ref": null
+        },
+        {
+          "element_id": "total_due_widget",
+          "label": "TOTAL DUE",
+          "type": "widget",
+          "empty_state": "No pending dues. All bills are paid up to date. Once new bills are generated, your total due will appear here.",
+          "basis": "explicit",
+          "automation_ref": null
+        },
+        {
+          "element_id": "orders_widget",
+          "label": "ORDERS (Last 30 Days)",
+          "type": "widget",
+          "empty_state": "You don't have any orders yet to track.",
+          "cta": "ORDER NOW >",
+          "basis": "explicit",
+          "automation_ref": null
+        },
+        {
+          "element_id": "tickets_widget",
+          "label": "SUPPORT TICKETS (Last 30 Days)",
+          "type": "widget",
+          "empty_state": "You don't have any support tickets yet to track.",
+          "cta": "NEED HELP >",
+          "basis": "explicit",
+          "automation_ref": null
+        },
+        {
+          "element_id": "popular_solutions",
+          "label": "POPULAR SOLUTIONS",
+          "type": "carousel",
+          "fields": [
+            "card title e.g. Business landline, Business Internet Plans, Care Plus",
+            "optional NEW badge",
+            "prev/next arrows"
+          ],
+          "basis": "explicit",
+          "automation_ref": null
+        },
+        {
+          "element_id": "old_portal_link",
+          "label": "For old portal click here",
+          "type": "link",
+          "basis": "explicit",
+          "automation_ref": null
+        }
+      ],
+      "transitions": [
+        {
+          "on": "nav_manage",
+          "to": "SCR_MANAGE",
+          "note": "continues in flow_b2b_manage_trade_license"
+        },
+        {
+          "on": "nav_pay|nav_order|nav_services|nav_support",
+          "to": "(chapter entry points -- see journey_taxonomy chapter_entry_points)"
+        },
+        {
+          "on": "profile_menu > sign_out",
+          "to": "SCR_LOGIN",
+          "rule": "BR-AUTH-08"
+        }
+      ],
+      "aliases": [
+        "organization dashboard",
+        "dashboard",
+        "home page"
+      ]
+    },
+    {
+      "screen_id": "SCR_UAEPASS_IN_PROGRESS",
+      "name": "UAE PASS Authentication · Authentication in Progress",
+      "route": null,
+      "route_ref": null,
+      "sources": [
+        "Sign-in using UAE Pass.pdf p3"
+      ],
+      "functional_purpose": "B2B page shown after the request is approved, while the portal authenticates the user via UAE PASS.",
+      "elements": [
+        {
+          "element_id": "authentication_in_progress",
+          "label": "Authentication in Progress",
+          "type": "heading",
+          "basis": "explicit",
+          "locator_hint": "heading \"Authentication in Progress\"",
+          "automation_ref": null,
+          "sources": [
+            "Sign-in using UAE Pass.pdf p3"
+          ],
+          "note": "Added by the reviewer from Sign-in using UAE Pass.pdf p3.",
+          "used_by_journeys": [
+            "B2B.REG.EXISTING.SIGNIN.UAEPASS"
+          ]
+        },
+        {
+          "element_id": "you_are_being_authenticated_via_uae_pass",
+          "label": "You are being authenticated via UAE PASS.",
+          "type": "text",
+          "basis": "explicit",
+          "locator_hint": null,
+          "automation_ref": null,
+          "sources": [
+            "Sign-in using UAE Pass.pdf p3"
+          ],
+          "note": "Added by the reviewer from Sign-in using UAE Pass.pdf p3."
+        }
+      ],
+      "basis": "explicit",
+      "note": "Added by the reviewer from Sign-in using UAE Pass.pdf p3."
+    },
+    {
+      "screen_id": "SCR_UAEPASS_CANCELLED",
+      "name": "UAE PASS Authentication · User Cancelled the login",
+      "route": null,
+      "route_ref": null,
+      "sources": [
+        "Sign-in using UAE Pass.pdf p2"
+      ],
+      "functional_purpose": "B2B page shown when the UAE PASS login request is cancelled; offers UAE PASS again or the login page.",
+      "elements": [
+        {
+          "element_id": "user_cancelled_the_login",
+          "label": "User Cancelled the login",
+          "type": "heading",
+          "basis": "explicit",
+          "locator_hint": "heading \"User Cancelled the login\"",
+          "automation_ref": null,
+          "sources": [
+            "Sign-in using UAE Pass.pdf p2"
+          ],
+          "note": "Added by the reviewer from Sign-in using UAE Pass.pdf p2."
+        },
+        {
+          "element_id": "please_retry_logging_in_using_uae_pass_or_alternative_login_",
+          "label": "Please retry logging in using UAE PASS or alternative login methods",
+          "type": "text",
+          "basis": "explicit",
+          "locator_hint": null,
+          "automation_ref": null,
+          "sources": [
+            "Sign-in using UAE Pass.pdf p2"
+          ],
+          "note": "Added by the reviewer from Sign-in using UAE Pass.pdf p2."
+        },
+        {
+          "element_id": "sign_in_with_uae_pass",
+          "label": "Sign in with UAE PASS",
+          "type": "button",
+          "basis": "explicit",
+          "locator_hint": "button \"Sign in with UAE PASS\"",
+          "automation_ref": null,
+          "sources": [
+            "Sign-in using UAE Pass.pdf p2"
+          ],
+          "note": "Added by the reviewer from Sign-in using UAE Pass.pdf p2."
+        },
+        {
+          "element_id": "back_to_login_page",
+          "label": "BACK TO LOGIN PAGE",
+          "type": "button",
+          "basis": "explicit",
+          "locator_hint": "button \"BACK TO LOGIN PAGE\"",
+          "automation_ref": null,
+          "sources": [
+            "Sign-in using UAE Pass.pdf p2"
+          ],
+          "note": "Added by the reviewer from Sign-in using UAE Pass.pdf p2.",
+          "used_by_journeys": [
+            "B2B.REG.EXISTING.SIGNIN.UAEPASS"
+          ]
+        }
+      ],
+      "basis": "explicit",
+      "note": "Added by the reviewer from Sign-in using UAE Pass.pdf p2."
+    },
+    {
+      "screen_id": "SCR_UAEPASS_CONFIRM",
+      "name": "Approve Login Request",
+      "route": null,
+      "route_ref": null,
+      "sources": [
+        "Sign-in using UAE Pass.pdf p2-3"
+      ],
+      "functional_purpose": "UAE PASS page (external) asking the user to open the UAE PASS app, select the number shown and confirm.",
+      "elements": [
+        {
+          "element_id": "confirmation_instruction",
+          "label": "Open your UAE PASS app, select the number shown and confirm to login",
+          "type": "text",
+          "basis": "explicit",
+          "locator_hint": null,
+          "automation_ref": null,
+          "sources": [
+            "Sign-in using UAE Pass.pdf p2"
+          ],
+          "note": "Label corrected by the reviewer."
+        },
+        {
+          "element_id": "cancel_request_button",
+          "label": "Cancel Request",
+          "type": "button",
+          "basis": "explicit",
+          "locator_hint": "button \"Cancel Request\"",
+          "automation_ref": null,
+          "sources": [
+            "Sign-in using UAE Pass.pdf p2"
+          ],
+          "used_by_journeys": [
+            "B2B.REG.EXISTING.SIGNIN.UAEPASS"
+          ]
+        },
+        {
+          "element_id": "displayed_number",
+          "label": "<number shown>",
+          "type": "text",
+          "basis": "explicit",
+          "locator_hint": null,
+          "automation_ref": null,
+          "sources": [
+            "Sign-in using UAE Pass.pdf p2"
+          ],
+          "note": "The number itself is not specified; it is shown on the screen. Label corrected by the reviewer.",
+          "used_by_journeys": [
+            "B2B.REG.EXISTING.SIGNIN.UAEPASS"
+          ]
+        }
+      ],
+      "basis": "explicit"
+    },
+    {
+      "screen_id": "SCR_UAEPASS_LOGIN",
+      "name": "Login to UAE PASS",
+      "route": null,
+      "route_ref": null,
+      "sources": [
+        "Sign-in using UAE Pass.pdf p1"
+      ],
+      "functional_purpose": "UAE PASS's own login page (external): the user identifies with Emirates ID, email address or UAE mobile number.",
+      "elements": [
+        {
+          "element_id": "uaepass_identifier_input",
+          "label": "Emirates ID or email address or UAE mobile number",
+          "type": "text_input",
+          "basis": "explicit",
+          "locator_hint": "textbox \"Emirates ID or email address or UAE mobile number\"",
+          "automation_ref": null,
+          "sources": [
+            "Sign-in using UAE Pass.pdf p1"
+          ],
+          "used_by_journeys": [
+            "B2B.REG.EXISTING.SIGNIN.UAEPASS"
+          ]
+        },
+        {
+          "element_id": "uaepass_login_button",
+          "label": "Login",
+          "type": "button",
+          "basis": "explicit",
+          "locator_hint": "button \"Login\"",
+          "automation_ref": null,
+          "sources": [
+            "Sign-in using UAE Pass.pdf p1"
+          ],
+          "used_by_journeys": [
+            "B2B.REG.EXISTING.SIGNIN.UAEPASS"
+          ]
+        },
+        {
+          "element_id": "remember_me",
+          "label": "Remember me",
+          "type": "checkbox",
+          "basis": "explicit",
+          "locator_hint": "checkbox \"Remember me\"",
+          "automation_ref": null,
+          "sources": [
+            "Sign-in using UAE Pass.pdf p1"
+          ],
+          "note": "Added by the reviewer from Sign-in using UAE Pass.pdf p1."
+        },
+        {
+          "element_id": "create_new_account",
+          "label": "Create new account",
+          "type": "link",
+          "basis": "explicit",
+          "locator_hint": "link \"Create new account\"",
+          "automation_ref": null,
+          "sources": [
+            "Sign-in using UAE Pass.pdf p1"
+          ],
+          "note": "Added by the reviewer from Sign-in using UAE Pass.pdf p1."
+        },
+        {
+          "element_id": "recover_your_account",
+          "label": "Recover your account",
+          "type": "link",
+          "basis": "explicit",
+          "locator_hint": "link \"Recover your account\"",
+          "automation_ref": null,
+          "sources": [
+            "Sign-in using UAE Pass.pdf p1"
+          ],
+          "note": "Added by the reviewer from Sign-in using UAE Pass.pdf p1."
+        }
+      ],
+      "basis": "explicit"
+    }
+  ]
+}

@@ -1,0 +1,338 @@
+{
+  "journey_id": "B2B.REG.EXISTING.SIGNIN.OTP",
+  "name": "B2B Portal Authentication (Email + 6-digit OTP)",
+  "journey_path": [
+    "REGISTERING & LOGGING-ON TO B2B PORTAL",
+    "Existing Business Customer Registering & Logging-on to B2B Portal",
+    "Sign-In to the Portal",
+    "Sign-in using OTP"
+  ],
+  "sources": [
+    "Sign-in using OTP.pdf p1-2",
+    "Registering on B2B Portal.pdf p1 (error banner)"
+  ],
+  "roles": [
+    "ROLE_B2B_USER"
+  ],
+  "prerequisite_journeys": [],
+  "next_journeys": [
+    "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+  ],
+  "automation_flow_ids": [
+    "flow_b2b_login_otp"
+  ],
+  "screens": [
+    "SCR_LOGIN",
+    "SCR_OTP_ENTRY",
+    "SCR_OTP_ERROR_DIALOG"
+  ],
+  "business_rules": [
+    "BR-AUTH-01",
+    "BR-AUTH-02",
+    "BR-AUTH-03",
+    "BR-AUTH-04",
+    "BR-AUTH-05",
+    "BR-AUTH-06",
+    "BR-AUTH-09"
+  ],
+  "state_model": "STM_AUTH_SESSION",
+  "match_keywords": [
+    "b2b portal",
+    "business online portal",
+    "b2bportal",
+    "login",
+    "log in",
+    "sign in",
+    "sign in using otp",
+    "login using otp",
+    "authentication",
+    "otp",
+    "one-time password",
+    "one time password",
+    "receive otp",
+    "resend otp",
+    "no customer assosiated"
+  ],
+  "automation_boundary": {
+    "automated_scope": "Login page -> OTP tab -> enter registered username/email -> CONTINUE (live label RECEIVE OTP) -> fill the six OTP boxes -> Proceed -> land on Select Organization or the Organization Dashboard.",
+    "external_boundary": "OTP delivery (e-mail and SMS) is external. The run must be handed the code; reading a mailbox or SMS inbox is out of scope."
+  },
+  "steps": [
+    {
+      "step_number": 1,
+      "action": "Navigate to the B2B Portal login page",
+      "expected_result": "The login page loads with the SIGN IN TO BUSINESS ONLINE panel and the email address field visible",
+      "screen_id": "SCR_LOGIN"
+    },
+    {
+      "step_number": 2,
+      "action": "Confirm the OTP tab is the active tab of the credentials panel",
+      "expected_result": "'Sign in using OTP' is selected and the heading reads 'Enter your email.'",
+      "screen_id": "SCR_LOGIN",
+      "element_id": "tab_otp"
+    },
+    {
+      "step_number": 3,
+      "action": "Enter the registered Organization Administrator email address",
+      "expected_result": "The email is accepted and the CONTINUE button becomes actionable",
+      "screen_id": "SCR_LOGIN",
+      "element_id": "username"
+    },
+    {
+      "step_number": 4,
+      "action": "Click CONTINUE to request the one-time password",
+      "expected_result": "The 'Enter your One Time Password.' panel opens stating the OTP was sent to the E-mail and Mobile number",
+      "screen_id": "SCR_LOGIN",
+      "element_id": "otp_continue",
+      "rule": "BR-AUTH-02"
+    },
+    {
+      "step_number": 5,
+      "action": "Check the masked destinations shown under the OTP panel heading",
+      "expected_result": "Email ID and Mobile Number are shown masked (e.g. p*********@e***.com, 0******32)",
+      "screen_id": "SCR_OTP_ENTRY",
+      "element_id": "masked_email",
+      "rule": "BR-AUTH-09"
+    },
+    {
+      "step_number": 6,
+      "action": "Enter the six-digit OTP, one digit per box, using boxes 1 to 6 in order",
+      "expected_result": "All six boxes are filled and the green confirmation tick appears",
+      "screen_id": "SCR_OTP_ENTRY",
+      "element_id": "otp_digit_1_6",
+      "rule": "BR-AUTH-03"
+    },
+    {
+      "step_number": 7,
+      "action": "Click Proceed to submit the code",
+      "expected_result": "The code is verified and the portal leaves the OTP panel",
+      "screen_id": "SCR_OTP_ENTRY",
+      "element_id": "proceed",
+      "note": "Existing KB observed verification without a separate button. Skip this step if the crawl confirms auto-submit."
+    },
+    {
+      "step_number": 8,
+      "action": "Dismiss the error dialog with OKAY when the OTP is rejected",
+      "expected_result": "The dialog closes and the user is returned to OTP entry without losing the session",
+      "screen_id": "SCR_OTP_ERROR_DIALOG",
+      "element_id": "okay",
+      "rule": "BR-AUTH-04",
+      "branch": "negative_only"
+    },
+    {
+      "step_number": 9,
+      "action": "Verify the post-authentication landing screen",
+      "expected_result": "Either 'Select a Organization to continue' (no default organization) or the Organization Dashboard (default organization) is displayed",
+      "screen_id": "SCR_SELECT_ORG|SCR_ORG_DASHBOARD",
+      "rule": "BR-AUTH-06"
+    }
+  ],
+  "conditional_branches": [
+    {
+      "branch_id": "OTP-B1",
+      "at_step": 3,
+      "condition": "identifier not associated with a customer",
+      "outcome": "stay on SCR_LOGIN with 'No Customer assosiated'",
+      "rule": "BR-AUTH-01"
+    },
+    {
+      "branch_id": "OTP-B2",
+      "at_step": 7,
+      "condition": "wrong or expired OTP",
+      "outcome": "SCR_OTP_ERROR_DIALOG -> step 8 -> back to step 6",
+      "rule": "BR-AUTH-04"
+    },
+    {
+      "branch_id": "OTP-B3",
+      "at_step": 5,
+      "condition": "OTP not received",
+      "outcome": "click Resend; new OTP issued",
+      "rule": "BR-AUTH-05"
+    },
+    {
+      "branch_id": "OTP-B4",
+      "at_step": 9,
+      "condition": "no default organization",
+      "outcome": "continue with flow_b2b_select_organization",
+      "rule": "BR-AUTH-06"
+    },
+    {
+      "branch_id": "OTP-B5",
+      "at_step": 9,
+      "condition": "default organization set",
+      "outcome": "Organization Dashboard directly",
+      "rule": "BR-AUTH-06"
+    }
+  ],
+  "test_scenarios": [
+    {
+      "scenario_id": "TS-OTP-01",
+      "type": "positive",
+      "title": "Registered user with default org signs in by OTP and lands on the Organization Dashboard",
+      "steps": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        9
+      ],
+      "branch": "OTP-B5",
+      "test_data": "USER_SINGLE_DEFAULT_ORG",
+      "rules": [
+        "BR-AUTH-02",
+        "BR-AUTH-06"
+      ]
+    },
+    {
+      "scenario_id": "TS-OTP-02",
+      "type": "positive",
+      "title": "Registered multi-org user without default signs in by OTP and is asked to select an organization",
+      "steps": [
+        1,
+        3,
+        4,
+        6,
+        7,
+        9
+      ],
+      "branch": "OTP-B4",
+      "test_data": "USER_MULTI_ORG_NO_DEFAULT",
+      "rules": [
+        "BR-AUTH-06"
+      ],
+      "continues_with": "flow_b2b_select_organization"
+    },
+    {
+      "scenario_id": "TS-OTP-03",
+      "type": "negative",
+      "title": "Unregistered email shows 'No Customer assosiated' and no OTP panel",
+      "steps": [
+        1,
+        3,
+        4
+      ],
+      "branch": "OTP-B1",
+      "test_data": "USER_UNREGISTERED_EMAIL",
+      "rules": [
+        "BR-AUTH-01"
+      ]
+    },
+    {
+      "scenario_id": "TS-OTP-04",
+      "type": "negative",
+      "title": "Wrong OTP raises the error dialog; OKAY returns to OTP entry",
+      "steps": [
+        1,
+        3,
+        4,
+        6,
+        7,
+        8
+      ],
+      "branch": "OTP-B2",
+      "rules": [
+        "BR-AUTH-04"
+      ]
+    },
+    {
+      "scenario_id": "TS-OTP-05",
+      "type": "negative",
+      "title": "Expired OTP is rejected",
+      "steps": [
+        1,
+        3,
+        4,
+        6,
+        7,
+        8
+      ],
+      "branch": "OTP-B2",
+      "rules": [
+        "BR-AUTH-04"
+      ],
+      "precondition": "wait beyond the OTP validity window (value to be confirmed)"
+    },
+    {
+      "scenario_id": "TS-OTP-06",
+      "type": "boundary",
+      "title": "Five digits entered -- verification cannot be submitted",
+      "steps": [
+        1,
+        3,
+        4,
+        6
+      ],
+      "rules": [
+        "BR-AUTH-03"
+      ]
+    },
+    {
+      "scenario_id": "TS-OTP-07",
+      "type": "boundary",
+      "title": "Non-numeric character typed into an OTP box is not accepted",
+      "steps": [
+        1,
+        3,
+        4,
+        6
+      ],
+      "rules": [
+        "BR-AUTH-03"
+      ],
+      "basis": "inferred"
+    },
+    {
+      "scenario_id": "TS-OTP-08",
+      "type": "alternate",
+      "title": "Resend issues a new OTP; the new code signs the user in",
+      "steps": [
+        1,
+        3,
+        4,
+        5,
+        6,
+        7,
+        9
+      ],
+      "branch": "OTP-B3",
+      "rules": [
+        "BR-AUTH-05"
+      ]
+    },
+    {
+      "scenario_id": "TS-OTP-09",
+      "type": "security",
+      "title": "OTP destinations are masked on the entry panel",
+      "steps": [
+        1,
+        3,
+        4,
+        5
+      ],
+      "rules": [
+        "BR-AUTH-09"
+      ]
+    },
+    {
+      "scenario_id": "TS-OTP-10",
+      "type": "negative",
+      "title": "CONTINUE stays disabled while the username field is empty",
+      "steps": [
+        1,
+        2
+      ],
+      "rules": [
+        "BR-AUTH-01"
+      ],
+      "basis": "inferred from disabled CONTINUE in Sign-in using UAE Pass.pdf p1"
+    }
+  ],
+  "open_questions": [
+    "Live button label: RECEIVE OTP (QA XPath) or CONTINUE (design PDF)?",
+    "Is there a Proceed button after the 6 digits, or does verification auto-submit?",
+    "OTP validity period, resend cooldown and maximum wrong attempts for sign-in."
+  ]
+}

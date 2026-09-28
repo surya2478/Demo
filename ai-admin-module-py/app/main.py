@@ -217,7 +217,7 @@ app.add_middleware(
 )
 
 # Import routers
-from .routers import ado_api, audit, auth, dashboard, users, settings as settings_router, session as session_router, request_tracker, oslc_rqm_rtc, solutions_proxy, test_case_reviews, test_case_workflows, automation, generate, ai_checks, projects
+from .routers import ado_api, audit, auth, dashboard, users, settings as settings_router, session as session_router, request_tracker, oslc_rqm_rtc, solutions_proxy, test_case_reviews, test_case_workflows, automation, generate, ai_checks, projects, test_data as test_data_router, knowledge_base_page
 
 # Include routers
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
@@ -250,6 +250,8 @@ app.include_router(ai_checks.router, prefix="/test-assistant/ai-checks", tags=["
 app.include_router(projects.router, prefix="/projects", tags=["Projects"])
 app.include_router(ado_api.router, prefix="/ado-api", tags=["ADO API"])
 # --- Automation Module: the module's single mount point -----------------------
+app.include_router(test_data_router.router, prefix="/automation/test-data", tags=["Automation Studio: Test data"])
+app.include_router(knowledge_base_page.router, prefix="/automation/knowledge-base", tags=["Automation Studio: Knowledge Base"])
 app.include_router(automation.router, prefix="/automation", tags=["Automation Studio"])
 # --- Generation: the paths the external AI service used to serve --------------
 # The prefix reproduces ai_config.ENDPOINTS, which are all rooted at /generate.

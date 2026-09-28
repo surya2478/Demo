@@ -1,0 +1,6309 @@
+{
+  "_generated_by": "python -m app.services.journeys.taxonomy -- do not edit by hand",
+  "_status_legend": {
+    "detailed": "journey file authored; usable for test generation",
+    "source_available": "screen-level design document analysed, journey file not yet authored",
+    "awaiting_source": "only the master-list title is known; needs a BRD or screen-flow document",
+    "automation_only": "exists in the Automation KB (crawled) with no design source yet",
+    "partial": "group or chapter whose journeys are at different stages"
+  },
+  "_composition": "An authenticated journey runs as its prerequisite_journeys, in order, then its own steps. SIGNIN is satisfied by any one of its variants.",
+  "app_id": "eand_b2b_portal",
+  "summary": {
+    "total_nodes": 253,
+    "journey_status_counts": {
+      "source_available": 3,
+      "detailed": 4,
+      "awaiting_source": 199,
+      "automation_only": 1
+    }
+  },
+  "roots": [
+    "B2B.RELEASE",
+    "B2B.INTRO",
+    "B2B.REG",
+    "B2B.DASH",
+    "B2B.TEAM",
+    "B2B.ORG",
+    "B2B.RENEW",
+    "B2B.CNAP",
+    "B2B.MOB",
+    "B2B.FIX",
+    "B2B.DIG",
+    "B2B.APPSTORE",
+    "B2B.ENT",
+    "B2B.BILL",
+    "B2B.SVC",
+    "B2B.NONAUTO",
+    "B2B.SUPPORT",
+    "B2B.TRACK"
+  ],
+  "nodes": [
+    {
+      "id": "B2B.RELEASE",
+      "title": "WHAT'S NEW IN B2B PORTAL - RELEASE NOTES",
+      "kind": "chapter",
+      "level": 1,
+      "chapter": "RELEASE",
+      "parent": null,
+      "path": [
+        "WHAT'S NEW IN B2B PORTAL - RELEASE NOTES"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ]
+    },
+    {
+      "id": "B2B.INTRO",
+      "title": "INTRODUCTION TO B2B PORTAL",
+      "kind": "chapter",
+      "level": 1,
+      "chapter": "INTRO",
+      "parent": null,
+      "path": [
+        "INTRODUCTION TO B2B PORTAL"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ]
+    },
+    {
+      "id": "B2B.REG",
+      "title": "REGISTERING & LOGGING-ON TO B2B PORTAL",
+      "kind": "chapter",
+      "level": 1,
+      "chapter": "REG",
+      "parent": null,
+      "path": [
+        "REGISTERING & LOGGING-ON TO B2B PORTAL"
+      ],
+      "children": [
+        "B2B.REG.EXISTING",
+        "B2B.REG.NEW",
+        "B2B.REG.REGISTER_CUSTOMERS_DUL"
+      ],
+      "status": "partial",
+      "sources": [
+        "master topic list"
+      ]
+    },
+    {
+      "id": "B2B.REG.EXISTING",
+      "title": "Existing Business Customer Registering & Logging-on to B2B Portal",
+      "kind": "group",
+      "level": 2,
+      "chapter": "REG",
+      "parent": "B2B.REG",
+      "path": [
+        "REGISTERING & LOGGING-ON TO B2B PORTAL",
+        "Existing Business Customer Registering & Logging-on to B2B Portal"
+      ],
+      "children": [
+        "B2B.REG.EXISTING.REGISTER",
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.ERROR_MESSAGES",
+        "B2B.REG.EXISTING.CONTACT_VERIFICATION_UPON_LOGIN"
+      ],
+      "status": "partial",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "anonymous",
+      "prerequisite_journeys": []
+    },
+    {
+      "id": "B2B.REG.EXISTING.REGISTER",
+      "title": "Registering to the B2B Portal",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "REG",
+      "parent": "B2B.REG.EXISTING",
+      "path": [
+        "REGISTERING & LOGGING-ON TO B2B PORTAL",
+        "Existing Business Customer Registering & Logging-on to B2B Portal",
+        "Registering to the B2B Portal"
+      ],
+      "children": [
+        "B2B.REG.EXISTING.REGISTER.OWNER",
+        "B2B.REG.EXISTING.REGISTER.POA",
+        "B2B.REG.EXISTING.REGISTER.DELEGATE"
+      ],
+      "status": "source_available",
+      "sources": [
+        "master topic list",
+        "Registering on B2B Portal.pdf p1-11"
+      ],
+      "audience": "anonymous",
+      "prerequisite_journeys": [],
+      "note": "Screen-level PDF analysed; journey file not yet authored."
+    },
+    {
+      "id": "B2B.REG.EXISTING.REGISTER.OWNER",
+      "title": "Register via UAE PASS - Owner/Company Manager Name on Trade License",
+      "kind": "variant",
+      "level": 4,
+      "chapter": "REG",
+      "parent": "B2B.REG.EXISTING.REGISTER",
+      "path": [
+        "REGISTERING & LOGGING-ON TO B2B PORTAL",
+        "Existing Business Customer Registering & Logging-on to B2B Portal",
+        "Registering to the B2B Portal",
+        "Register via UAE PASS - Owner/Company Manager Name on Trade License"
+      ],
+      "children": [],
+      "status": "source_available",
+      "sources": [
+        "master topic list",
+        "Registering on B2B Portal.pdf p10"
+      ],
+      "audience": "anonymous",
+      "prerequisite_journeys": []
+    },
+    {
+      "id": "B2B.REG.EXISTING.REGISTER.POA",
+      "title": "Register via UAE PASS - Register with Power of Attorney",
+      "kind": "variant",
+      "level": 4,
+      "chapter": "REG",
+      "parent": "B2B.REG.EXISTING.REGISTER",
+      "path": [
+        "REGISTERING & LOGGING-ON TO B2B PORTAL",
+        "Existing Business Customer Registering & Logging-on to B2B Portal",
+        "Registering to the B2B Portal",
+        "Register via UAE PASS - Register with Power of Attorney"
+      ],
+      "children": [],
+      "status": "source_available",
+      "sources": [
+        "master topic list",
+        "Registering on B2B Portal.pdf p10"
+      ],
+      "audience": "anonymous",
+      "prerequisite_journeys": []
+    },
+    {
+      "id": "B2B.REG.EXISTING.REGISTER.DELEGATE",
+      "title": "Register via UAE PASS - Company Representative (Delegate)",
+      "kind": "variant",
+      "level": 4,
+      "chapter": "REG",
+      "parent": "B2B.REG.EXISTING.REGISTER",
+      "path": [
+        "REGISTERING & LOGGING-ON TO B2B PORTAL",
+        "Existing Business Customer Registering & Logging-on to B2B Portal",
+        "Registering to the B2B Portal",
+        "Register via UAE PASS - Company Representative (Delegate)"
+      ],
+      "children": [],
+      "status": "source_available",
+      "sources": [
+        "master topic list",
+        "Registering on B2B Portal.pdf p11"
+      ],
+      "audience": "anonymous",
+      "prerequisite_journeys": []
+    },
+    {
+      "id": "B2B.REG.EXISTING.SIGNIN",
+      "title": "Sign-In to the Portal",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "REG",
+      "parent": "B2B.REG.EXISTING",
+      "path": [
+        "REGISTERING & LOGGING-ON TO B2B PORTAL",
+        "Existing Business Customer Registering & Logging-on to B2B Portal",
+        "Sign-In to the Portal"
+      ],
+      "children": [
+        "B2B.REG.EXISTING.SIGNIN.OTP",
+        "B2B.REG.EXISTING.SIGNIN.PASSWORD",
+        "B2B.REG.EXISTING.SIGNIN.UAEPASS",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "status": "detailed",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "anonymous",
+      "prerequisite_journeys": [],
+      "description": "An existing, registered B2B user authenticates to Business Online. Three interchangeable methods (variants) all converge on SELECT_ORG / Organization Dashboard.",
+      "roles": [
+        "ROLE_B2B_USER"
+      ],
+      "entry_point": "Login page (/b2bportal/login.html)"
+    },
+    {
+      "id": "B2B.REG.EXISTING.SIGNIN.OTP",
+      "title": "Sign-in using OTP",
+      "kind": "variant",
+      "level": 4,
+      "chapter": "REG",
+      "parent": "B2B.REG.EXISTING.SIGNIN",
+      "path": [
+        "REGISTERING & LOGGING-ON TO B2B PORTAL",
+        "Existing Business Customer Registering & Logging-on to B2B Portal",
+        "Sign-In to the Portal",
+        "Sign-in using OTP"
+      ],
+      "children": [],
+      "status": "detailed",
+      "sources": [
+        "master topic list",
+        "Sign-in using OTP.pdf p1-2"
+      ],
+      "audience": "anonymous",
+      "prerequisite_journeys": [],
+      "journey_file": "journeys/signin_otp.json",
+      "automation_flow_ids": [
+        "flow_b2b_login_otp"
+      ],
+      "next_journeys": [
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "roles": [
+        "ROLE_B2B_USER"
+      ],
+      "entry_point": "Login page, 'Sign in using OTP' tab (default tab)"
+    },
+    {
+      "id": "B2B.REG.EXISTING.SIGNIN.PASSWORD",
+      "title": "Sign-in using Password",
+      "kind": "variant",
+      "level": 4,
+      "chapter": "REG",
+      "parent": "B2B.REG.EXISTING.SIGNIN",
+      "path": [
+        "REGISTERING & LOGGING-ON TO B2B PORTAL",
+        "Existing Business Customer Registering & Logging-on to B2B Portal",
+        "Sign-In to the Portal",
+        "Sign-in using Password"
+      ],
+      "children": [],
+      "status": "detailed",
+      "sources": [
+        "master topic list",
+        "Sign-in using Password.pdf p1-2"
+      ],
+      "audience": "anonymous",
+      "prerequisite_journeys": [],
+      "next_journeys": [
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "journey_file": "journeys/signin_password.json"
+    },
+    {
+      "id": "B2B.REG.EXISTING.SIGNIN.UAEPASS",
+      "title": "Sign-in using UAE Pass",
+      "kind": "variant",
+      "level": 4,
+      "chapter": "REG",
+      "parent": "B2B.REG.EXISTING.SIGNIN",
+      "path": [
+        "REGISTERING & LOGGING-ON TO B2B PORTAL",
+        "Existing Business Customer Registering & Logging-on to B2B Portal",
+        "Sign-In to the Portal",
+        "Sign-in using UAE Pass"
+      ],
+      "children": [],
+      "status": "detailed",
+      "sources": [
+        "master topic list",
+        "Sign-in using UAE Pass.pdf p1-6"
+      ],
+      "audience": "anonymous",
+      "prerequisite_journeys": [],
+      "next_journeys": [
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "journey_file": "journeys/signin_uaepass.json"
+    },
+    {
+      "id": "B2B.REG.EXISTING.SIGNIN.SELECT_ORG",
+      "title": "Select Organization after Sign-in",
+      "kind": "shared",
+      "level": 4,
+      "chapter": "REG",
+      "parent": "B2B.REG.EXISTING.SIGNIN",
+      "path": [
+        "REGISTERING & LOGGING-ON TO B2B PORTAL",
+        "Existing Business Customer Registering & Logging-on to B2B Portal",
+        "Sign-In to the Portal",
+        "Select Organization after Sign-in"
+      ],
+      "children": [],
+      "status": "detailed",
+      "sources": [
+        "master topic list",
+        "Sign-in using OTP.pdf p2",
+        "Sign-in using Password.pdf p1-2",
+        "Sign-in using UAE Pass.pdf p4-6"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN"
+      ],
+      "journey_file": "journeys/select_organization.json",
+      "roles": [
+        "ROLE_B2B_USER"
+      ],
+      "description": "Shared post-authentication step. Shown only when the user has no default organization; otherwise the default organization's dashboard opens directly."
+    },
+    {
+      "id": "B2B.REG.EXISTING.ERROR_MESSAGES",
+      "title": "Error Messages",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "REG",
+      "parent": "B2B.REG.EXISTING",
+      "path": [
+        "REGISTERING & LOGGING-ON TO B2B PORTAL",
+        "Existing Business Customer Registering & Logging-on to B2B Portal",
+        "Error Messages"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "anonymous",
+      "prerequisite_journeys": []
+    },
+    {
+      "id": "B2B.REG.EXISTING.CONTACT_VERIFICATION_UPON_LOGIN",
+      "title": "Contact Verification upon Login",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "REG",
+      "parent": "B2B.REG.EXISTING",
+      "path": [
+        "REGISTERING & LOGGING-ON TO B2B PORTAL",
+        "Existing Business Customer Registering & Logging-on to B2B Portal",
+        "Contact Verification upon Login"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "anonymous",
+      "prerequisite_journeys": []
+    },
+    {
+      "id": "B2B.REG.NEW",
+      "title": "New Business Customer Registering & Logging-on to B2B Portal",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "REG",
+      "parent": "B2B.REG",
+      "path": [
+        "REGISTERING & LOGGING-ON TO B2B PORTAL",
+        "New Business Customer Registering & Logging-on to B2B Portal"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "anonymous",
+      "prerequisite_journeys": []
+    },
+    {
+      "id": "B2B.REG.REGISTER_CUSTOMERS_DUL",
+      "title": "Register Customers via DUL",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "REG",
+      "parent": "B2B.REG",
+      "path": [
+        "REGISTERING & LOGGING-ON TO B2B PORTAL",
+        "Register Customers via DUL"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "anonymous",
+      "prerequisite_journeys": []
+    },
+    {
+      "id": "B2B.DASH",
+      "title": "DASHBOARD 360 / ACCOUNT INQUIRY",
+      "kind": "chapter",
+      "level": 1,
+      "chapter": "DASH",
+      "parent": null,
+      "path": [
+        "DASHBOARD 360 / ACCOUNT INQUIRY"
+      ],
+      "children": [
+        "B2B.DASH.VIEWING_ALL_ACCOUNTS",
+        "B2B.DASH.VIEWING_ACTIVE_ACCOUNTS",
+        "B2B.DASH.VIEWING_SUSPENDED_ACCOUNTS",
+        "B2B.DASH.VIEWING_INACTIVE_ACCOUNTS",
+        "B2B.DASH.VIEW_COMPANIES_ORGANIZATION",
+        "B2B.DASH.VIEW_COMPANY_NO_ACCOUNTS",
+        "B2B.DASH.VIEW_QUICK_ACCESS",
+        "B2B.DASH.VIEW_OUTSTANDING_DUES",
+        "B2B.DASH.VIEW_POPULAR_SOLUTIONS",
+        "B2B.DASH.VIEW_MONTHLY_BILL",
+        "B2B.DASH.SEARCHING_ACCOUNTS_SMART_SEARCH",
+        "B2B.DASH.SEARCH_INDIVIDUAL_ACCOUNTS",
+        "B2B.DASH.PERFORMING_ACCOUNT_INQUIRY_POSTPAID",
+        "B2B.DASH.PERFORMING_ACCOUNT_INQUIRY_PREPAID",
+        "B2B.DASH.ACCOUNT_INQUIRY_FIXED",
+        "B2B.DASH.CONFIGURING_TAGS_ACCOUNT",
+        "B2B.DASH.VIEWING_RECENT_ALL_ORDERS",
+        "B2B.DASH.CREATING_TICKET",
+        "B2B.DASH.GENERATING_LEAD",
+        "B2B.DASH.TRACKING_SUPPORT_TICKETS",
+        "B2B.DASH.VIEWING_PRODUCT_SPECIFIC_ACCOUNT"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ]
+    },
+    {
+      "id": "B2B.DASH.VIEWING_ALL_ACCOUNTS",
+      "title": "Viewing All Accounts",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DASH",
+      "parent": "B2B.DASH",
+      "path": [
+        "DASHBOARD 360 / ACCOUNT INQUIRY",
+        "Viewing All Accounts"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DASH.VIEWING_ACTIVE_ACCOUNTS",
+      "title": "Viewing Active Accounts",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DASH",
+      "parent": "B2B.DASH",
+      "path": [
+        "DASHBOARD 360 / ACCOUNT INQUIRY",
+        "Viewing Active Accounts"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DASH.VIEWING_SUSPENDED_ACCOUNTS",
+      "title": "Viewing Suspended Accounts",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DASH",
+      "parent": "B2B.DASH",
+      "path": [
+        "DASHBOARD 360 / ACCOUNT INQUIRY",
+        "Viewing Suspended Accounts"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DASH.VIEWING_INACTIVE_ACCOUNTS",
+      "title": "Viewing Inactive Accounts",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DASH",
+      "parent": "B2B.DASH",
+      "path": [
+        "DASHBOARD 360 / ACCOUNT INQUIRY",
+        "Viewing Inactive Accounts"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DASH.VIEW_COMPANIES_ORGANIZATION",
+      "title": "View Companies under an Organization",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DASH",
+      "parent": "B2B.DASH",
+      "path": [
+        "DASHBOARD 360 / ACCOUNT INQUIRY",
+        "View Companies under an Organization"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DASH.VIEW_COMPANY_NO_ACCOUNTS",
+      "title": "View a Company with No Accounts",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DASH",
+      "parent": "B2B.DASH",
+      "path": [
+        "DASHBOARD 360 / ACCOUNT INQUIRY",
+        "View a Company with No Accounts"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DASH.VIEW_QUICK_ACCESS",
+      "title": "View Quick Access",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DASH",
+      "parent": "B2B.DASH",
+      "path": [
+        "DASHBOARD 360 / ACCOUNT INQUIRY",
+        "View Quick Access"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DASH.VIEW_OUTSTANDING_DUES",
+      "title": "View Outstanding Dues",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DASH",
+      "parent": "B2B.DASH",
+      "path": [
+        "DASHBOARD 360 / ACCOUNT INQUIRY",
+        "View Outstanding Dues"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DASH.VIEW_POPULAR_SOLUTIONS",
+      "title": "View Popular Solutions",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DASH",
+      "parent": "B2B.DASH",
+      "path": [
+        "DASHBOARD 360 / ACCOUNT INQUIRY",
+        "View Popular Solutions"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DASH.VIEW_MONTHLY_BILL",
+      "title": "View Monthly Bill",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DASH",
+      "parent": "B2B.DASH",
+      "path": [
+        "DASHBOARD 360 / ACCOUNT INQUIRY",
+        "View Monthly Bill"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DASH.SEARCHING_ACCOUNTS_SMART_SEARCH",
+      "title": "Searching for Accounts Using Smart Search and Filters",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DASH",
+      "parent": "B2B.DASH",
+      "path": [
+        "DASHBOARD 360 / ACCOUNT INQUIRY",
+        "Searching for Accounts Using Smart Search and Filters"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DASH.SEARCH_INDIVIDUAL_ACCOUNTS",
+      "title": "Search Individual Accounts",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DASH",
+      "parent": "B2B.DASH",
+      "path": [
+        "DASHBOARD 360 / ACCOUNT INQUIRY",
+        "Search Individual Accounts"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DASH.PERFORMING_ACCOUNT_INQUIRY_POSTPAID",
+      "title": "Performing Account Inquiry for Postpaid Accounts",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DASH",
+      "parent": "B2B.DASH",
+      "path": [
+        "DASHBOARD 360 / ACCOUNT INQUIRY",
+        "Performing Account Inquiry for Postpaid Accounts"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DASH.PERFORMING_ACCOUNT_INQUIRY_PREPAID",
+      "title": "Performing Account Inquiry for Prepaid Accounts",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DASH",
+      "parent": "B2B.DASH",
+      "path": [
+        "DASHBOARD 360 / ACCOUNT INQUIRY",
+        "Performing Account Inquiry for Prepaid Accounts"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DASH.ACCOUNT_INQUIRY_FIXED",
+      "title": "Account Inquiry - Fixed",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DASH",
+      "parent": "B2B.DASH",
+      "path": [
+        "DASHBOARD 360 / ACCOUNT INQUIRY",
+        "Account Inquiry - Fixed"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DASH.CONFIGURING_TAGS_ACCOUNT",
+      "title": "Configuring Tags for the Account",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DASH",
+      "parent": "B2B.DASH",
+      "path": [
+        "DASHBOARD 360 / ACCOUNT INQUIRY",
+        "Configuring Tags for the Account"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DASH.VIEWING_RECENT_ALL_ORDERS",
+      "title": "Viewing Recent and All Orders",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DASH",
+      "parent": "B2B.DASH",
+      "path": [
+        "DASHBOARD 360 / ACCOUNT INQUIRY",
+        "Viewing Recent and All Orders"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DASH.CREATING_TICKET",
+      "title": "Creating a Ticket",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DASH",
+      "parent": "B2B.DASH",
+      "path": [
+        "DASHBOARD 360 / ACCOUNT INQUIRY",
+        "Creating a Ticket"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DASH.GENERATING_LEAD",
+      "title": "Generating a Lead",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DASH",
+      "parent": "B2B.DASH",
+      "path": [
+        "DASHBOARD 360 / ACCOUNT INQUIRY",
+        "Generating a Lead"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DASH.TRACKING_SUPPORT_TICKETS",
+      "title": "Tracking Support Tickets",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DASH",
+      "parent": "B2B.DASH",
+      "path": [
+        "DASHBOARD 360 / ACCOUNT INQUIRY",
+        "Tracking Support Tickets"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DASH.VIEWING_PRODUCT_SPECIFIC_ACCOUNT",
+      "title": "Viewing Product Specific Account Details",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DASH",
+      "parent": "B2B.DASH",
+      "path": [
+        "DASHBOARD 360 / ACCOUNT INQUIRY",
+        "Viewing Product Specific Account Details"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM",
+      "title": "TEAM MANAGEMENT",
+      "kind": "chapter",
+      "level": 1,
+      "chapter": "TEAM",
+      "parent": null,
+      "path": [
+        "TEAM MANAGEMENT"
+      ],
+      "children": [
+        "B2B.TEAM.VIEWING_DETAILS_ALL_USERS",
+        "B2B.TEAM.ADMIN_USERS_MANAGEMENT",
+        "B2B.TEAM.EMPLOYEE_USER_MANAGEMENT",
+        "B2B.TEAM.DELIVERY_ADDRESS_MANAGEMENT",
+        "B2B.TEAM.ADDING_DELETING_VSAAS_USERS"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ]
+    },
+    {
+      "id": "B2B.TEAM.VIEWING_DETAILS_ALL_USERS",
+      "title": "Viewing details of all B2B users of the organization",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Viewing details of all B2B users of the organization"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM.ADMIN_USERS_MANAGEMENT",
+      "title": "Admin Users Management",
+      "kind": "group",
+      "level": 2,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Admin Users Management"
+      ],
+      "children": [
+        "B2B.TEAM.ADMIN_USERS_MANAGEMENT.ADDING_ADMIN_USER",
+        "B2B.TEAM.ADMIN_USERS_MANAGEMENT.SEARCHING_ADMIN_USERS",
+        "B2B.TEAM.ADMIN_USERS_MANAGEMENT.ADD_BUSINESS_REPRESENTATIVE",
+        "B2B.TEAM.ADMIN_USERS_MANAGEMENT.ASSIGNING_SERVICES",
+        "B2B.TEAM.ADMIN_USERS_MANAGEMENT.EDITING_USERS",
+        "B2B.TEAM.ADMIN_USERS_MANAGEMENT.SUSPENDING_USER",
+        "B2B.TEAM.ADMIN_USERS_MANAGEMENT.ACTIVATING_USER",
+        "B2B.TEAM.ADMIN_USERS_MANAGEMENT.DELETE_USER"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM.ADMIN_USERS_MANAGEMENT.ADDING_ADMIN_USER",
+      "title": "Adding an Admin User",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM.ADMIN_USERS_MANAGEMENT",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Admin Users Management",
+        "Adding an Admin User"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM.ADMIN_USERS_MANAGEMENT.SEARCHING_ADMIN_USERS",
+      "title": "Searching Admin Users",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM.ADMIN_USERS_MANAGEMENT",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Admin Users Management",
+        "Searching Admin Users"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM.ADMIN_USERS_MANAGEMENT.ADD_BUSINESS_REPRESENTATIVE",
+      "title": "Add Business Representative",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM.ADMIN_USERS_MANAGEMENT",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Admin Users Management",
+        "Add Business Representative"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM.ADMIN_USERS_MANAGEMENT.ASSIGNING_SERVICES",
+      "title": "Assigning Services",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM.ADMIN_USERS_MANAGEMENT",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Admin Users Management",
+        "Assigning Services"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM.ADMIN_USERS_MANAGEMENT.EDITING_USERS",
+      "title": "Editing Users",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM.ADMIN_USERS_MANAGEMENT",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Admin Users Management",
+        "Editing Users"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM.ADMIN_USERS_MANAGEMENT.SUSPENDING_USER",
+      "title": "Suspending a User",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM.ADMIN_USERS_MANAGEMENT",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Admin Users Management",
+        "Suspending a User"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM.ADMIN_USERS_MANAGEMENT.ACTIVATING_USER",
+      "title": "Activating a User",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM.ADMIN_USERS_MANAGEMENT",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Admin Users Management",
+        "Activating a User"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM.ADMIN_USERS_MANAGEMENT.DELETE_USER",
+      "title": "Delete User",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM.ADMIN_USERS_MANAGEMENT",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Admin Users Management",
+        "Delete User"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM.EMPLOYEE_USER_MANAGEMENT",
+      "title": "Employee User Management",
+      "kind": "group",
+      "level": 2,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Employee User Management"
+      ],
+      "children": [
+        "B2B.TEAM.EMPLOYEE_USER_MANAGEMENT.ADDING_EMPLOYEE",
+        "B2B.TEAM.EMPLOYEE_USER_MANAGEMENT.SEARCHING_EMPLOYEE_USERS",
+        "B2B.TEAM.EMPLOYEE_USER_MANAGEMENT.ASSIGNING_SERVICES",
+        "B2B.TEAM.EMPLOYEE_USER_MANAGEMENT.EDITING_USERS"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM.EMPLOYEE_USER_MANAGEMENT.ADDING_EMPLOYEE",
+      "title": "Adding an Employee",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM.EMPLOYEE_USER_MANAGEMENT",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Employee User Management",
+        "Adding an Employee"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM.EMPLOYEE_USER_MANAGEMENT.SEARCHING_EMPLOYEE_USERS",
+      "title": "Searching Employee Users",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM.EMPLOYEE_USER_MANAGEMENT",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Employee User Management",
+        "Searching Employee Users"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM.EMPLOYEE_USER_MANAGEMENT.ASSIGNING_SERVICES",
+      "title": "Assigning Services",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM.EMPLOYEE_USER_MANAGEMENT",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Employee User Management",
+        "Assigning Services"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM.EMPLOYEE_USER_MANAGEMENT.EDITING_USERS",
+      "title": "Editing Users",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM.EMPLOYEE_USER_MANAGEMENT",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Employee User Management",
+        "Editing Users"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM.DELIVERY_ADDRESS_MANAGEMENT",
+      "title": "Delivery Address Management",
+      "kind": "group",
+      "level": 2,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Delivery Address Management"
+      ],
+      "children": [
+        "B2B.TEAM.DELIVERY_ADDRESS_MANAGEMENT.ADDING_DELIVERY_ADDRESS",
+        "B2B.TEAM.DELIVERY_ADDRESS_MANAGEMENT.EDITING_DELIVERY_ADDRESS",
+        "B2B.TEAM.DELIVERY_ADDRESS_MANAGEMENT.DELETING_DELIVERY_ADDRESS"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM.DELIVERY_ADDRESS_MANAGEMENT.ADDING_DELIVERY_ADDRESS",
+      "title": "Adding a Delivery Address",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM.DELIVERY_ADDRESS_MANAGEMENT",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Delivery Address Management",
+        "Adding a Delivery Address"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM.DELIVERY_ADDRESS_MANAGEMENT.EDITING_DELIVERY_ADDRESS",
+      "title": "Editing a Delivery Address",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM.DELIVERY_ADDRESS_MANAGEMENT",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Delivery Address Management",
+        "Editing a Delivery Address"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM.DELIVERY_ADDRESS_MANAGEMENT.DELETING_DELIVERY_ADDRESS",
+      "title": "Deleting a Delivery Address",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM.DELIVERY_ADDRESS_MANAGEMENT",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Delivery Address Management",
+        "Deleting a Delivery Address"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM.ADDING_DELETING_VSAAS_USERS",
+      "title": "Adding/Deleting VSaaS Users in B2B",
+      "kind": "group",
+      "level": 2,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Adding/Deleting VSaaS Users in B2B"
+      ],
+      "children": [
+        "B2B.TEAM.ADDING_DELETING_VSAAS_USERS.ADDING_NEW_USER",
+        "B2B.TEAM.ADDING_DELETING_VSAAS_USERS.DELETING_USER",
+        "B2B.TEAM.ADDING_DELETING_VSAAS_USERS.ADDING_EXISTING_USER"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM.ADDING_DELETING_VSAAS_USERS.ADDING_NEW_USER",
+      "title": "Adding a New User",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM.ADDING_DELETING_VSAAS_USERS",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Adding/Deleting VSaaS Users in B2B",
+        "Adding a New User"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM.ADDING_DELETING_VSAAS_USERS.DELETING_USER",
+      "title": "Deleting a User",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM.ADDING_DELETING_VSAAS_USERS",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Adding/Deleting VSaaS Users in B2B",
+        "Deleting a User"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TEAM.ADDING_DELETING_VSAAS_USERS.ADDING_EXISTING_USER",
+      "title": "Adding an Existing User",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "TEAM",
+      "parent": "B2B.TEAM.ADDING_DELETING_VSAAS_USERS",
+      "path": [
+        "TEAM MANAGEMENT",
+        "Adding/Deleting VSaaS Users in B2B",
+        "Adding an Existing User"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ORG",
+      "title": "MANAGING MULTIPLE ORGANIZATIONS IN B2B PORTAL",
+      "kind": "chapter",
+      "level": 1,
+      "chapter": "ORG",
+      "parent": null,
+      "path": [
+        "MANAGING MULTIPLE ORGANIZATIONS IN B2B PORTAL"
+      ],
+      "children": [
+        "B2B.ORG.VIEWING_MULTIPLE_ORGANIZATIONS",
+        "B2B.ORG.SETTING_DEFAULT_ORGANIZATION",
+        "B2B.ORG.RENAMING_EXISTING_ORGANIZATION",
+        "B2B.ORG.SWITCHING_ORGANIZATIONS",
+        "B2B.ORG.ADDING_ADMIN_USER_ASSIGNING",
+        "B2B.ORG.ASSIGNING_ORGANIZATIONS_EXISTING_USERS",
+        "B2B.ORG.VIEW_ORGANIZATIONAL_DETAILS_TRADE"
+      ],
+      "status": "partial",
+      "sources": [
+        "master topic list"
+      ]
+    },
+    {
+      "id": "B2B.ORG.VIEWING_MULTIPLE_ORGANIZATIONS",
+      "title": "Viewing Multiple Organizations",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "ORG",
+      "parent": "B2B.ORG",
+      "path": [
+        "MANAGING MULTIPLE ORGANIZATIONS IN B2B PORTAL",
+        "Viewing Multiple Organizations"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ORG.SETTING_DEFAULT_ORGANIZATION",
+      "title": "Setting a Default Organization",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "ORG",
+      "parent": "B2B.ORG",
+      "path": [
+        "MANAGING MULTIPLE ORGANIZATIONS IN B2B PORTAL",
+        "Setting a Default Organization"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ORG.RENAMING_EXISTING_ORGANIZATION",
+      "title": "Renaming an Existing Organization",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "ORG",
+      "parent": "B2B.ORG",
+      "path": [
+        "MANAGING MULTIPLE ORGANIZATIONS IN B2B PORTAL",
+        "Renaming an Existing Organization"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ORG.SWITCHING_ORGANIZATIONS",
+      "title": "Switching Organizations",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "ORG",
+      "parent": "B2B.ORG",
+      "path": [
+        "MANAGING MULTIPLE ORGANIZATIONS IN B2B PORTAL",
+        "Switching Organizations"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ORG.ADDING_ADMIN_USER_ASSIGNING",
+      "title": "Adding an Admin User and Assigning Organizations",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "ORG",
+      "parent": "B2B.ORG",
+      "path": [
+        "MANAGING MULTIPLE ORGANIZATIONS IN B2B PORTAL",
+        "Adding an Admin User and Assigning Organizations"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ORG.ASSIGNING_ORGANIZATIONS_EXISTING_USERS",
+      "title": "Assigning Organizations to Existing Users",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "ORG",
+      "parent": "B2B.ORG",
+      "path": [
+        "MANAGING MULTIPLE ORGANIZATIONS IN B2B PORTAL",
+        "Assigning Organizations to Existing Users"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.RENEW",
+      "title": "REGISTRATION RENEWAL",
+      "kind": "chapter",
+      "level": 1,
+      "chapter": "RENEW",
+      "parent": null,
+      "path": [
+        "REGISTRATION RENEWAL"
+      ],
+      "children": [
+        "B2B.RENEW.REGISTRATION_RENEWAL_MOBILE_BUSINESS",
+        "B2B.RENEW.REGISTRATION_RENEWAL_FIXED_BUSINESS",
+        "B2B.RENEW.RE_REGISTRATION_ADMIN_LEAD"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ]
+    },
+    {
+      "id": "B2B.RENEW.REGISTRATION_RENEWAL_MOBILE_BUSINESS",
+      "title": "Registration Renewal of Mobile Business Accounts",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "RENEW",
+      "parent": "B2B.RENEW",
+      "path": [
+        "REGISTRATION RENEWAL",
+        "Registration Renewal of Mobile Business Accounts"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.RENEW.REGISTRATION_RENEWAL_FIXED_BUSINESS",
+      "title": "Registration Renewal of Fixed Business Accounts",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "RENEW",
+      "parent": "B2B.RENEW",
+      "path": [
+        "REGISTRATION RENEWAL",
+        "Registration Renewal of Fixed Business Accounts"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.RENEW.RE_REGISTRATION_ADMIN_LEAD",
+      "title": "Re - Registration by Admin-Lead with Expired LOA",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "RENEW",
+      "parent": "B2B.RENEW",
+      "path": [
+        "REGISTRATION RENEWAL",
+        "Re - Registration by Admin-Lead with Expired LOA"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Manage",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.CNAP",
+      "title": "MANAGING CNAP SERVICE THROUGH DIGITAL CHANNELS",
+      "kind": "chapter",
+      "level": 1,
+      "chapter": "CNAP",
+      "parent": null,
+      "path": [
+        "MANAGING CNAP SERVICE THROUGH DIGITAL CHANNELS"
+      ],
+      "children": [
+        "B2B.CNAP.MANAGING_CNAP_PARTY_LEVEL",
+        "B2B.CNAP.MANAGING_CNAP_ACCOUNT_LEVEL",
+        "B2B.CNAP.MANAGING_CNAP_PARTY_LEVEL_2"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ]
+    },
+    {
+      "id": "B2B.CNAP.MANAGING_CNAP_PARTY_LEVEL",
+      "title": "Managing CNAP at Party Level by Government Entity",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "CNAP",
+      "parent": "B2B.CNAP",
+      "path": [
+        "MANAGING CNAP SERVICE THROUGH DIGITAL CHANNELS",
+        "Managing CNAP at Party Level by Government Entity"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Services",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.CNAP.MANAGING_CNAP_ACCOUNT_LEVEL",
+      "title": "Managing CNAP at Account Level for Government Entity",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "CNAP",
+      "parent": "B2B.CNAP",
+      "path": [
+        "MANAGING CNAP SERVICE THROUGH DIGITAL CHANNELS",
+        "Managing CNAP at Account Level for Government Entity"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Services",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.CNAP.MANAGING_CNAP_PARTY_LEVEL_2",
+      "title": "Managing CNAP at Party Level for Business Customer",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "CNAP",
+      "parent": "B2B.CNAP",
+      "path": [
+        "MANAGING CNAP SERVICE THROUGH DIGITAL CHANNELS",
+        "Managing CNAP at Party Level for Business Customer"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Services",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB",
+      "title": "MANAGING ORDERS - MOBILE PRODUCTS",
+      "kind": "chapter",
+      "level": 1,
+      "chapter": "MOB",
+      "parent": null,
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS"
+      ],
+      "children": [
+        "B2B.MOB.SUBSCRIBING_MOBILE_PLANS_EXISTING",
+        "B2B.MOB.SUBSCRIBING_MOBILE_PLANS_EXISTING_2",
+        "B2B.MOB.SUBSCRIBING_MOBILE_PLANS_NEW",
+        "B2B.MOB.SUBSCRIBING_ADD_ONS",
+        "B2B.MOB.SUBSCRIBING_MOBILE_DATA_PLANS",
+        "B2B.MOB.SUBSCRIBING_SMART_PHONES",
+        "B2B.MOB.SUBSCRIBING_PREPAID_PLANS",
+        "B2B.MOB.PURCHASING_SUBSIDIZED_DEVICES",
+        "B2B.MOB.PREORDER_MOBILE_DEVICES",
+        "B2B.MOB.MANAGING_SUBSCRIPTIONS",
+        "B2B.MOB.CLOSING_ACCOUNT",
+        "B2B.MOB.MANAGING_SETTINGS"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ]
+    },
+    {
+      "id": "B2B.MOB.SUBSCRIBING_MOBILE_PLANS_EXISTING",
+      "title": "Subscribing to Mobile Plans - Existing Customer registered on B2B Portal",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "MOB",
+      "parent": "B2B.MOB",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Subscribing to Mobile Plans - Existing Customer registered on B2B Portal"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.SUBSCRIBING_MOBILE_PLANS_EXISTING_2",
+      "title": "Subscribing to Mobile Plans - Existing Customer not registered on B2B Portal",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "MOB",
+      "parent": "B2B.MOB",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Subscribing to Mobile Plans - Existing Customer not registered on B2B Portal"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "anonymous",
+      "prerequisite_journeys": []
+    },
+    {
+      "id": "B2B.MOB.SUBSCRIBING_MOBILE_PLANS_NEW",
+      "title": "Subscribing to Mobile Plans - New Customer not registered on B2B Portal",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "MOB",
+      "parent": "B2B.MOB",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Subscribing to Mobile Plans - New Customer not registered on B2B Portal"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "anonymous",
+      "prerequisite_journeys": []
+    },
+    {
+      "id": "B2B.MOB.SUBSCRIBING_ADD_ONS",
+      "title": "Subscribing to Add-Ons",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "MOB",
+      "parent": "B2B.MOB",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Subscribing to Add-Ons"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.SUBSCRIBING_MOBILE_DATA_PLANS",
+      "title": "Subscribing to Mobile Data Plans",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "MOB",
+      "parent": "B2B.MOB",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Subscribing to Mobile Data Plans"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.SUBSCRIBING_SMART_PHONES",
+      "title": "Subscribing to Smart Phones",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "MOB",
+      "parent": "B2B.MOB",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Subscribing to Smart Phones"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.SUBSCRIBING_PREPAID_PLANS",
+      "title": "Subscribing to Prepaid Plans",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "MOB",
+      "parent": "B2B.MOB",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Subscribing to Prepaid Plans"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.PURCHASING_SUBSIDIZED_DEVICES",
+      "title": "Purchasing Subsidized Devices",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "MOB",
+      "parent": "B2B.MOB",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Purchasing Subsidized Devices"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.PREORDER_MOBILE_DEVICES",
+      "title": "Preorder Mobile Devices",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "MOB",
+      "parent": "B2B.MOB",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Preorder Mobile Devices"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SUBSCRIPTIONS",
+      "title": "Managing Subscriptions",
+      "kind": "group",
+      "level": 2,
+      "chapter": "MOB",
+      "parent": "B2B.MOB",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Subscriptions"
+      ],
+      "children": [
+        "B2B.MOB.MANAGING_SUBSCRIPTIONS.CHANGE_MOBILE_PLAN",
+        "B2B.MOB.MANAGING_SUBSCRIPTIONS.CHANGE_DATA_PLAN",
+        "B2B.MOB.MANAGING_SUBSCRIPTIONS.REQUEST_BLANK_SIM_CARDS",
+        "B2B.MOB.MANAGING_SUBSCRIPTIONS.ADDING_DELETING_CLONE_OR",
+        "B2B.MOB.MANAGING_SUBSCRIPTIONS.CHANGE_BILLING_DETAILS",
+        "B2B.MOB.MANAGING_SUBSCRIPTIONS.PERFORM_SIM_REPLACEMENT",
+        "B2B.MOB.MANAGING_SUBSCRIPTIONS.SUBSCRIBING_ADD_ONS_INDIVIDUAL",
+        "B2B.MOB.MANAGING_SUBSCRIPTIONS.SUBSCRIBING_ADD_ONS_MULTIPLE",
+        "B2B.MOB.MANAGING_SUBSCRIPTIONS.PERFORM_PREPAID_POSTPAID_MIGRATION",
+        "B2B.MOB.MANAGING_SUBSCRIPTIONS.PERFORM_POSTPAID_PREPAID_MIGRATION",
+        "B2B.MOB.MANAGING_SUBSCRIPTIONS.PERFORM_TRANSFER_OWNERSHIP_CORPORATE",
+        "B2B.MOB.MANAGING_SUBSCRIPTIONS.PERFORM_TRANSFER_OWNERSHIP_CORPORATE_2",
+        "B2B.MOB.MANAGING_SUBSCRIPTIONS.PERFORM_TRANSFER_OWNERSHIP_PERSONAL",
+        "B2B.MOB.MANAGING_SUBSCRIPTIONS.PERFORM_MOBILE_RE_REGISTRATION",
+        "B2B.MOB.MANAGING_SUBSCRIPTIONS.SWITCH_NUMBER_E",
+        "B2B.MOB.MANAGING_SUBSCRIPTIONS.REMOVE_SPECIAL_SUBSCRIPTIONS",
+        "B2B.MOB.MANAGING_SUBSCRIPTIONS.REMOVING_ADD_SUBSCRIPTION",
+        "B2B.MOB.MANAGING_SUBSCRIPTIONS.REMOVING_ADD_SUBSCRIPTION_SINGLE",
+        "B2B.MOB.MANAGING_SUBSCRIPTIONS.REACTIVATE_CEASED_ACCOUNT",
+        "B2B.MOB.MANAGING_SUBSCRIPTIONS.BULK_MIGRATION_CHANGE_PLAN"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SUBSCRIPTIONS.CHANGE_MOBILE_PLAN",
+      "title": "Change Mobile Plan",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Subscriptions",
+        "Change Mobile Plan"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SUBSCRIPTIONS.CHANGE_DATA_PLAN",
+      "title": "Change Data Plan",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Subscriptions",
+        "Change Data Plan"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SUBSCRIPTIONS.REQUEST_BLANK_SIM_CARDS",
+      "title": "Request Blank SIM Cards",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Subscriptions",
+        "Request Blank SIM Cards"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SUBSCRIPTIONS.ADDING_DELETING_CLONE_OR",
+      "title": "Adding/Deleting a Clone or Multi SIM",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Subscriptions",
+        "Adding/Deleting a Clone or Multi SIM"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SUBSCRIPTIONS.CHANGE_BILLING_DETAILS",
+      "title": "Change Billing Details",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Subscriptions",
+        "Change Billing Details"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SUBSCRIPTIONS.PERFORM_SIM_REPLACEMENT",
+      "title": "Perform SIM Replacement",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Subscriptions",
+        "Perform SIM Replacement"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SUBSCRIPTIONS.SUBSCRIBING_ADD_ONS_INDIVIDUAL",
+      "title": "Subscribing to Add-Ons on an Individual Account",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Subscriptions",
+        "Subscribing to Add-Ons on an Individual Account"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SUBSCRIPTIONS.SUBSCRIBING_ADD_ONS_MULTIPLE",
+      "title": "Subscribing to Add-Ons on Multiple Accounts",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Subscriptions",
+        "Subscribing to Add-Ons on Multiple Accounts"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SUBSCRIPTIONS.PERFORM_PREPAID_POSTPAID_MIGRATION",
+      "title": "Perform Prepaid to Postpaid Migration",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Subscriptions",
+        "Perform Prepaid to Postpaid Migration"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SUBSCRIPTIONS.PERFORM_POSTPAID_PREPAID_MIGRATION",
+      "title": "Perform Postpaid to Prepaid Migration",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Subscriptions",
+        "Perform Postpaid to Prepaid Migration"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SUBSCRIPTIONS.PERFORM_TRANSFER_OWNERSHIP_CORPORATE",
+      "title": "Perform Transfer of Ownership (From Corporate to Personal)",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Subscriptions",
+        "Perform Transfer of Ownership (From Corporate to Personal)"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SUBSCRIPTIONS.PERFORM_TRANSFER_OWNERSHIP_CORPORATE_2",
+      "title": "Perform Transfer of Ownership (From Corporate to Corporate)",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Subscriptions",
+        "Perform Transfer of Ownership (From Corporate to Corporate)"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SUBSCRIPTIONS.PERFORM_TRANSFER_OWNERSHIP_PERSONAL",
+      "title": "Perform Transfer of Ownership (From Personal to Corporate)",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Subscriptions",
+        "Perform Transfer of Ownership (From Personal to Corporate)"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SUBSCRIPTIONS.PERFORM_MOBILE_RE_REGISTRATION",
+      "title": "Perform Mobile Re-Registration",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Subscriptions",
+        "Perform Mobile Re-Registration"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SUBSCRIPTIONS.SWITCH_NUMBER_E",
+      "title": "Switch Number to e&",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Subscriptions",
+        "Switch Number to e&"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SUBSCRIPTIONS.REMOVE_SPECIAL_SUBSCRIPTIONS",
+      "title": "Remove Special Subscriptions",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Subscriptions",
+        "Remove Special Subscriptions"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SUBSCRIPTIONS.REMOVING_ADD_SUBSCRIPTION",
+      "title": "Removing Add-on Subscription",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Subscriptions",
+        "Removing Add-on Subscription"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SUBSCRIPTIONS.REMOVING_ADD_SUBSCRIPTION_SINGLE",
+      "title": "Removing Add-on Subscription (Single Screen Deletion Flow)",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Subscriptions",
+        "Removing Add-on Subscription (Single Screen Deletion Flow)"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SUBSCRIPTIONS.REACTIVATE_CEASED_ACCOUNT",
+      "title": "Reactivate Ceased Account",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Subscriptions",
+        "Reactivate Ceased Account"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SUBSCRIPTIONS.BULK_MIGRATION_CHANGE_PLAN",
+      "title": "Bulk Migration for Change Plan",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Subscriptions",
+        "Bulk Migration for Change Plan"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.CLOSING_ACCOUNT",
+      "title": "Closing an Account",
+      "kind": "group",
+      "level": 2,
+      "chapter": "MOB",
+      "parent": "B2B.MOB",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Closing an Account"
+      ],
+      "children": [
+        "B2B.MOB.CLOSING_ACCOUNT.CLOSING_MANAGED_POSTPAID_ACCOUNT",
+        "B2B.MOB.CLOSING_ACCOUNT.CLOSING_UNMANAGED_POSTPAID_ACCOUNT",
+        "B2B.MOB.CLOSING_ACCOUNT.CLOSING_PREPAID_ACCOUNT",
+        "B2B.MOB.CLOSING_ACCOUNT.TRACKING_REQUEST"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.CLOSING_ACCOUNT.CLOSING_MANAGED_POSTPAID_ACCOUNT",
+      "title": "Closing a Managed Postpaid Account",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.CLOSING_ACCOUNT",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Closing an Account",
+        "Closing a Managed Postpaid Account"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.CLOSING_ACCOUNT.CLOSING_UNMANAGED_POSTPAID_ACCOUNT",
+      "title": "Closing an Unmanaged Postpaid Account",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.CLOSING_ACCOUNT",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Closing an Account",
+        "Closing an Unmanaged Postpaid Account"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.CLOSING_ACCOUNT.CLOSING_PREPAID_ACCOUNT",
+      "title": "Closing a Prepaid Account",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.CLOSING_ACCOUNT",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Closing an Account",
+        "Closing a Prepaid Account"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.CLOSING_ACCOUNT.TRACKING_REQUEST",
+      "title": "Tracking the Request",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.CLOSING_ACCOUNT",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Closing an Account",
+        "Tracking the Request"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SETTINGS",
+      "title": "Managing Settings",
+      "kind": "group",
+      "level": 2,
+      "chapter": "MOB",
+      "parent": "B2B.MOB",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Settings"
+      ],
+      "children": [
+        "B2B.MOB.MANAGING_SETTINGS.MANAGE_USAGE_LIMIT",
+        "B2B.MOB.MANAGING_SETTINGS.MANAGE_DATA_CAP",
+        "B2B.MOB.MANAGING_SETTINGS.MANAGE_NETWORK_SETTINGS",
+        "B2B.MOB.MANAGING_SETTINGS.MANAGE_APP_STORE_USAGE",
+        "B2B.MOB.MANAGING_SETTINGS.UPDATE_CREDIT_LIMIT"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SETTINGS.MANAGE_USAGE_LIMIT",
+      "title": "Manage Usage Limit",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SETTINGS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Settings",
+        "Manage Usage Limit"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SETTINGS.MANAGE_DATA_CAP",
+      "title": "Manage Data Cap",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SETTINGS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Settings",
+        "Manage Data Cap"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SETTINGS.MANAGE_NETWORK_SETTINGS",
+      "title": "Manage Network Settings",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SETTINGS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Settings",
+        "Manage Network Settings"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SETTINGS.MANAGE_APP_STORE_USAGE",
+      "title": "Manage App Store Usage Settings",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SETTINGS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Settings",
+        "Manage App Store Usage Settings"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.MOB.MANAGING_SETTINGS.UPDATE_CREDIT_LIMIT",
+      "title": "Update Credit Limit",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "MOB",
+      "parent": "B2B.MOB.MANAGING_SETTINGS",
+      "path": [
+        "MANAGING ORDERS - MOBILE PRODUCTS",
+        "Managing Settings",
+        "Update Credit Limit"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX",
+      "title": "MANAGING ORDERS - FIXED SERVICES",
+      "kind": "chapter",
+      "level": 1,
+      "chapter": "FIX",
+      "parent": null,
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES"
+      ],
+      "children": [
+        "B2B.FIX.SUBSCRIBING_OFFICE_PRESENCE",
+        "B2B.FIX.SUBSCRIBING_BUSINESS_PRO",
+        "B2B.FIX.SUBSCRIBING_BUSINESS_PRO_L2O",
+        "B2B.FIX.COMMUNICATIONS",
+        "B2B.FIX.DEDICATED_INTERNET",
+        "B2B.FIX.TOLL_FREE_SERVICES",
+        "B2B.FIX.WI_FI",
+        "B2B.FIX.LANDLINE",
+        "B2B.FIX.MANAGING_SUBSCRIPTIONS",
+        "B2B.FIX.CLOSING_ACCOUNT"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ]
+    },
+    {
+      "id": "B2B.FIX.SUBSCRIBING_OFFICE_PRESENCE",
+      "title": "Subscribing to Office Presence",
+      "kind": "group",
+      "level": 2,
+      "chapter": "FIX",
+      "parent": "B2B.FIX",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Subscribing to Office Presence"
+      ],
+      "children": [
+        "B2B.FIX.SUBSCRIBING_OFFICE_PRESENCE.NON_LOGGED_USER_SUBSCRIBING",
+        "B2B.FIX.SUBSCRIBING_OFFICE_PRESENCE.LOGGED_USER_SUBSCRIBING_OFFICE"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.SUBSCRIBING_OFFICE_PRESENCE.NON_LOGGED_USER_SUBSCRIBING",
+      "title": "Non-Logged in User Subscribing to Office Presence",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "FIX",
+      "parent": "B2B.FIX.SUBSCRIBING_OFFICE_PRESENCE",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Subscribing to Office Presence",
+        "Non-Logged in User Subscribing to Office Presence"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "anonymous",
+      "prerequisite_journeys": []
+    },
+    {
+      "id": "B2B.FIX.SUBSCRIBING_OFFICE_PRESENCE.LOGGED_USER_SUBSCRIBING_OFFICE",
+      "title": "Logged in User Subscribing to Office Presence",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "FIX",
+      "parent": "B2B.FIX.SUBSCRIBING_OFFICE_PRESENCE",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Subscribing to Office Presence",
+        "Logged in User Subscribing to Office Presence"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.SUBSCRIBING_BUSINESS_PRO",
+      "title": "Subscribing to Business Pro",
+      "kind": "group",
+      "level": 2,
+      "chapter": "FIX",
+      "parent": "B2B.FIX",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Subscribing to Business Pro"
+      ],
+      "children": [
+        "B2B.FIX.SUBSCRIBING_BUSINESS_PRO.NON_LOGGED_USER_SUBSCRIBING",
+        "B2B.FIX.SUBSCRIBING_BUSINESS_PRO.LOGGED_USER_SUBSCRIBING_BUSINESS",
+        "B2B.FIX.SUBSCRIBING_BUSINESS_PRO.LIMITING_UNMANAGED_PARTY_IDS",
+        "B2B.FIX.SUBSCRIBING_BUSINESS_PRO.NEED_HELP"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.SUBSCRIBING_BUSINESS_PRO.NON_LOGGED_USER_SUBSCRIBING",
+      "title": "Non-Logged in User Subscribing to Business Pro",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "FIX",
+      "parent": "B2B.FIX.SUBSCRIBING_BUSINESS_PRO",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Subscribing to Business Pro",
+        "Non-Logged in User Subscribing to Business Pro"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "anonymous",
+      "prerequisite_journeys": []
+    },
+    {
+      "id": "B2B.FIX.SUBSCRIBING_BUSINESS_PRO.LOGGED_USER_SUBSCRIBING_BUSINESS",
+      "title": "Logged in User Subscribing to Business Pro",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "FIX",
+      "parent": "B2B.FIX.SUBSCRIBING_BUSINESS_PRO",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Subscribing to Business Pro",
+        "Logged in User Subscribing to Business Pro"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.SUBSCRIBING_BUSINESS_PRO.LIMITING_UNMANAGED_PARTY_IDS",
+      "title": "Limiting_Unmanaged_Party_IDs",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "FIX",
+      "parent": "B2B.FIX.SUBSCRIBING_BUSINESS_PRO",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Subscribing to Business Pro",
+        "Limiting_Unmanaged_Party_IDs"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.SUBSCRIBING_BUSINESS_PRO.NEED_HELP",
+      "title": "Need_Help",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "FIX",
+      "parent": "B2B.FIX.SUBSCRIBING_BUSINESS_PRO",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Subscribing to Business Pro",
+        "Need_Help"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.SUBSCRIBING_BUSINESS_PRO_L2O",
+      "title": "Subscribing to Business Pro - L2O Process",
+      "kind": "group",
+      "level": 2,
+      "chapter": "FIX",
+      "parent": "B2B.FIX",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Subscribing to Business Pro - L2O Process"
+      ],
+      "children": [
+        "B2B.FIX.SUBSCRIBING_BUSINESS_PRO_L2O.NON_LOGGED_USER",
+        "B2B.FIX.SUBSCRIBING_BUSINESS_PRO_L2O.LOGGED_USER"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.SUBSCRIBING_BUSINESS_PRO_L2O.NON_LOGGED_USER",
+      "title": "Non-Logged in User",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "FIX",
+      "parent": "B2B.FIX.SUBSCRIBING_BUSINESS_PRO_L2O",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Subscribing to Business Pro - L2O Process",
+        "Non-Logged in User"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "anonymous",
+      "prerequisite_journeys": []
+    },
+    {
+      "id": "B2B.FIX.SUBSCRIBING_BUSINESS_PRO_L2O.LOGGED_USER",
+      "title": "Logged in User",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "FIX",
+      "parent": "B2B.FIX.SUBSCRIBING_BUSINESS_PRO_L2O",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Subscribing to Business Pro - L2O Process",
+        "Logged in User"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.COMMUNICATIONS",
+      "title": "Communications",
+      "kind": "group",
+      "level": 2,
+      "chapter": "FIX",
+      "parent": "B2B.FIX",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Communications"
+      ],
+      "children": [
+        "B2B.FIX.COMMUNICATIONS.UNIFIED_COMMUNICATIONS",
+        "B2B.FIX.COMMUNICATIONS.CLOUD_TALK_MEETING"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.COMMUNICATIONS.UNIFIED_COMMUNICATIONS",
+      "title": "Unified Communications",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "FIX",
+      "parent": "B2B.FIX.COMMUNICATIONS",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Communications",
+        "Unified Communications"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.COMMUNICATIONS.CLOUD_TALK_MEETING",
+      "title": "Cloud Talk Meeting",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "FIX",
+      "parent": "B2B.FIX.COMMUNICATIONS",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Communications",
+        "Cloud Talk Meeting"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.DEDICATED_INTERNET",
+      "title": "Dedicated Internet",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "FIX",
+      "parent": "B2B.FIX",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Dedicated Internet"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.TOLL_FREE_SERVICES",
+      "title": "Toll Free Services",
+      "kind": "group",
+      "level": 2,
+      "chapter": "FIX",
+      "parent": "B2B.FIX",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Toll Free Services"
+      ],
+      "children": [
+        "B2B.FIX.TOLL_FREE_SERVICES.SERVICE_600",
+        "B2B.FIX.TOLL_FREE_SERVICES.800_TOLL_FREE_SERVICE"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.TOLL_FREE_SERVICES.SERVICE_600",
+      "title": "Service 600",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "FIX",
+      "parent": "B2B.FIX.TOLL_FREE_SERVICES",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Toll Free Services",
+        "Service 600"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.TOLL_FREE_SERVICES.800_TOLL_FREE_SERVICE",
+      "title": "800 Toll Free Service",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "FIX",
+      "parent": "B2B.FIX.TOLL_FREE_SERVICES",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Toll Free Services",
+        "800 Toll Free Service"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.WI_FI",
+      "title": "Wi-Fi",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "FIX",
+      "parent": "B2B.FIX",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Wi-Fi"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.LANDLINE",
+      "title": "Landline",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "FIX",
+      "parent": "B2B.FIX",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Landline"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.MANAGING_SUBSCRIPTIONS",
+      "title": "Managing Subscriptions",
+      "kind": "group",
+      "level": 2,
+      "chapter": "FIX",
+      "parent": "B2B.FIX",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Managing Subscriptions"
+      ],
+      "children": [
+        "B2B.FIX.MANAGING_SUBSCRIPTIONS.CHANGE_PLAN",
+        "B2B.FIX.MANAGING_SUBSCRIPTIONS.SHIFTING",
+        "B2B.FIX.MANAGING_SUBSCRIPTIONS.ADD_SUBSCRIPTIONS",
+        "B2B.FIX.MANAGING_SUBSCRIPTIONS.CHANGE_INTERNET_PASSWORD",
+        "B2B.FIX.MANAGING_SUBSCRIPTIONS.TRANSFER_OWNERSHIP",
+        "B2B.FIX.MANAGING_SUBSCRIPTIONS.CHANGE_BILLING_SETTINGS",
+        "B2B.FIX.MANAGING_SUBSCRIPTIONS.REMOVE_SUBSCRIPTION"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.MANAGING_SUBSCRIPTIONS.CHANGE_PLAN",
+      "title": "Change Plan",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "FIX",
+      "parent": "B2B.FIX.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Managing Subscriptions",
+        "Change Plan"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.MANAGING_SUBSCRIPTIONS.SHIFTING",
+      "title": "Shifting",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "FIX",
+      "parent": "B2B.FIX.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Managing Subscriptions",
+        "Shifting"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.MANAGING_SUBSCRIPTIONS.ADD_SUBSCRIPTIONS",
+      "title": "Add Subscriptions",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "FIX",
+      "parent": "B2B.FIX.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Managing Subscriptions",
+        "Add Subscriptions"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.MANAGING_SUBSCRIPTIONS.CHANGE_INTERNET_PASSWORD",
+      "title": "Change Internet Password",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "FIX",
+      "parent": "B2B.FIX.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Managing Subscriptions",
+        "Change Internet Password"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.MANAGING_SUBSCRIPTIONS.TRANSFER_OWNERSHIP",
+      "title": "Transfer Ownership",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "FIX",
+      "parent": "B2B.FIX.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Managing Subscriptions",
+        "Transfer Ownership"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.MANAGING_SUBSCRIPTIONS.CHANGE_BILLING_SETTINGS",
+      "title": "Change Billing Settings",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "FIX",
+      "parent": "B2B.FIX.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Managing Subscriptions",
+        "Change Billing Settings"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.MANAGING_SUBSCRIPTIONS.REMOVE_SUBSCRIPTION",
+      "title": "Remove Subscription",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "FIX",
+      "parent": "B2B.FIX.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Managing Subscriptions",
+        "Remove Subscription"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.CLOSING_ACCOUNT",
+      "title": "Closing an Account",
+      "kind": "group",
+      "level": 2,
+      "chapter": "FIX",
+      "parent": "B2B.FIX",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Closing an Account"
+      ],
+      "children": [
+        "B2B.FIX.CLOSING_ACCOUNT.CLOSING_MANAGED_FIXED_ACCOUNT",
+        "B2B.FIX.CLOSING_ACCOUNT.CLOSING_UNMANAGED_FIXED_ACCOUNT"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.CLOSING_ACCOUNT.CLOSING_MANAGED_FIXED_ACCOUNT",
+      "title": "Closing a Managed Fixed Account",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "FIX",
+      "parent": "B2B.FIX.CLOSING_ACCOUNT",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Closing an Account",
+        "Closing a Managed Fixed Account"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.FIX.CLOSING_ACCOUNT.CLOSING_UNMANAGED_FIXED_ACCOUNT",
+      "title": "Closing an Unmanaged Fixed Account",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "FIX",
+      "parent": "B2B.FIX.CLOSING_ACCOUNT",
+      "path": [
+        "MANAGING ORDERS - FIXED SERVICES",
+        "Closing an Account",
+        "Closing an Unmanaged Fixed Account"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DIG",
+      "title": "MANAGING ORDERS - DIGITAL SOLUTIONS",
+      "kind": "chapter",
+      "level": 1,
+      "chapter": "DIG",
+      "parent": null,
+      "path": [
+        "MANAGING ORDERS - DIGITAL SOLUTIONS"
+      ],
+      "children": [
+        "B2B.DIG.SMART_MESSAGING",
+        "B2B.DIG.VIDEO_SURVEILLANCE",
+        "B2B.DIG.CLOUD_SERVER_STORAGE",
+        "B2B.DIG.MULTI_CLOUD",
+        "B2B.DIG.PAYMENT_SOLUTIONS",
+        "B2B.DIG.SECURITY",
+        "B2B.DIG.EASY_INSURANCE_BUSINESS",
+        "B2B.DIG.MANAGE_SUBSCRIPTIONS"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ]
+    },
+    {
+      "id": "B2B.DIG.SMART_MESSAGING",
+      "title": "Smart Messaging",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DIG",
+      "parent": "B2B.DIG",
+      "path": [
+        "MANAGING ORDERS - DIGITAL SOLUTIONS",
+        "Smart Messaging"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DIG.VIDEO_SURVEILLANCE",
+      "title": "Video Surveillance",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DIG",
+      "parent": "B2B.DIG",
+      "path": [
+        "MANAGING ORDERS - DIGITAL SOLUTIONS",
+        "Video Surveillance"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DIG.CLOUD_SERVER_STORAGE",
+      "title": "Cloud Server and Storage",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DIG",
+      "parent": "B2B.DIG",
+      "path": [
+        "MANAGING ORDERS - DIGITAL SOLUTIONS",
+        "Cloud Server and Storage"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DIG.MULTI_CLOUD",
+      "title": "Multi Cloud",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DIG",
+      "parent": "B2B.DIG",
+      "path": [
+        "MANAGING ORDERS - DIGITAL SOLUTIONS",
+        "Multi Cloud"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DIG.PAYMENT_SOLUTIONS",
+      "title": "Payment Solutions",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DIG",
+      "parent": "B2B.DIG",
+      "path": [
+        "MANAGING ORDERS - DIGITAL SOLUTIONS",
+        "Payment Solutions"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DIG.SECURITY",
+      "title": "Security",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "DIG",
+      "parent": "B2B.DIG",
+      "path": [
+        "MANAGING ORDERS - DIGITAL SOLUTIONS",
+        "Security"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DIG.EASY_INSURANCE_BUSINESS",
+      "title": "Easy Insurance for Business",
+      "kind": "group",
+      "level": 2,
+      "chapter": "DIG",
+      "parent": "B2B.DIG",
+      "path": [
+        "MANAGING ORDERS - DIGITAL SOLUTIONS",
+        "Easy Insurance for Business"
+      ],
+      "children": [
+        "B2B.DIG.EASY_INSURANCE_BUSINESS.NON_LOGGED_USER_INQUIRING",
+        "B2B.DIG.EASY_INSURANCE_BUSINESS.LOGGED_USER_INQUIRING_BUSINESS"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DIG.EASY_INSURANCE_BUSINESS.NON_LOGGED_USER_INQUIRING",
+      "title": "Non-Logged-in User Inquiring a Business Insurance Plan",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "DIG",
+      "parent": "B2B.DIG.EASY_INSURANCE_BUSINESS",
+      "path": [
+        "MANAGING ORDERS - DIGITAL SOLUTIONS",
+        "Easy Insurance for Business",
+        "Non-Logged-in User Inquiring a Business Insurance Plan"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "anonymous",
+      "prerequisite_journeys": []
+    },
+    {
+      "id": "B2B.DIG.EASY_INSURANCE_BUSINESS.LOGGED_USER_INQUIRING_BUSINESS",
+      "title": "Logged-in User Inquiring a Business Insurance Plan",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "DIG",
+      "parent": "B2B.DIG.EASY_INSURANCE_BUSINESS",
+      "path": [
+        "MANAGING ORDERS - DIGITAL SOLUTIONS",
+        "Easy Insurance for Business",
+        "Logged-in User Inquiring a Business Insurance Plan"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DIG.MANAGE_SUBSCRIPTIONS",
+      "title": "Manage Subscriptions",
+      "kind": "group",
+      "level": 2,
+      "chapter": "DIG",
+      "parent": "B2B.DIG",
+      "path": [
+        "MANAGING ORDERS - DIGITAL SOLUTIONS",
+        "Manage Subscriptions"
+      ],
+      "children": [
+        "B2B.DIG.MANAGE_SUBSCRIPTIONS.CHANGE_PACKAGE",
+        "B2B.DIG.MANAGE_SUBSCRIPTIONS.REMOVE_SUBSCRIPTION"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DIG.MANAGE_SUBSCRIPTIONS.CHANGE_PACKAGE",
+      "title": "Change Package",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "DIG",
+      "parent": "B2B.DIG.MANAGE_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - DIGITAL SOLUTIONS",
+        "Manage Subscriptions",
+        "Change Package"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.DIG.MANAGE_SUBSCRIPTIONS.REMOVE_SUBSCRIPTION",
+      "title": "Remove Subscription",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "DIG",
+      "parent": "B2B.DIG.MANAGE_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - DIGITAL SOLUTIONS",
+        "Manage Subscriptions",
+        "Remove Subscription"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.APPSTORE",
+      "title": "MANAGING ORDERS - BUSINESS APP STORE",
+      "kind": "chapter",
+      "level": 1,
+      "chapter": "APPSTORE",
+      "parent": null,
+      "path": [
+        "MANAGING ORDERS - BUSINESS APP STORE"
+      ],
+      "children": [
+        "B2B.APPSTORE.SUBSCRIBING_SAAS_PACKAGE_LOGGED",
+        "B2B.APPSTORE.SUBSCRIBING_SAAS_PACKAGE_NON",
+        "B2B.APPSTORE.ACTIVATING_MS_OFFICE_SUBSCRIPTION",
+        "B2B.APPSTORE.MANAGING_SUBSCRIPTIONS"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ]
+    },
+    {
+      "id": "B2B.APPSTORE.SUBSCRIBING_SAAS_PACKAGE_LOGGED",
+      "title": "Subscribing to a SaaS Package - Logged In User",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "APPSTORE",
+      "parent": "B2B.APPSTORE",
+      "path": [
+        "MANAGING ORDERS - BUSINESS APP STORE",
+        "Subscribing to a SaaS Package - Logged In User"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.APPSTORE.SUBSCRIBING_SAAS_PACKAGE_NON",
+      "title": "Subscribing to a SaaS Package - Non-Logged In User",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "APPSTORE",
+      "parent": "B2B.APPSTORE",
+      "path": [
+        "MANAGING ORDERS - BUSINESS APP STORE",
+        "Subscribing to a SaaS Package - Non-Logged In User"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "anonymous",
+      "prerequisite_journeys": []
+    },
+    {
+      "id": "B2B.APPSTORE.ACTIVATING_MS_OFFICE_SUBSCRIPTION",
+      "title": "Activating a MS Office Subscription",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "APPSTORE",
+      "parent": "B2B.APPSTORE",
+      "path": [
+        "MANAGING ORDERS - BUSINESS APP STORE",
+        "Activating a MS Office Subscription"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.APPSTORE.MANAGING_SUBSCRIPTIONS",
+      "title": "Managing Subscriptions",
+      "kind": "group",
+      "level": 2,
+      "chapter": "APPSTORE",
+      "parent": "B2B.APPSTORE",
+      "path": [
+        "MANAGING ORDERS - BUSINESS APP STORE",
+        "Managing Subscriptions"
+      ],
+      "children": [
+        "B2B.APPSTORE.MANAGING_SUBSCRIPTIONS.MANAGING_CONTROL_PANEL",
+        "B2B.APPSTORE.MANAGING_SUBSCRIPTIONS.MANAGING_SHOP",
+        "B2B.APPSTORE.MANAGING_SUBSCRIPTIONS.MANAGING_ORDER_HISTORY"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.APPSTORE.MANAGING_SUBSCRIPTIONS.MANAGING_CONTROL_PANEL",
+      "title": "Managing Control Panel",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "APPSTORE",
+      "parent": "B2B.APPSTORE.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - BUSINESS APP STORE",
+        "Managing Subscriptions",
+        "Managing Control Panel"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.APPSTORE.MANAGING_SUBSCRIPTIONS.MANAGING_SHOP",
+      "title": "Managing Shop",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "APPSTORE",
+      "parent": "B2B.APPSTORE.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - BUSINESS APP STORE",
+        "Managing Subscriptions",
+        "Managing Shop"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.APPSTORE.MANAGING_SUBSCRIPTIONS.MANAGING_ORDER_HISTORY",
+      "title": "Managing Order History",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "APPSTORE",
+      "parent": "B2B.APPSTORE.MANAGING_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - BUSINESS APP STORE",
+        "Managing Subscriptions",
+        "Managing Order History"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ENT",
+      "title": "MANAGING ORDERS - ENTERPRISE SOLUTIONS",
+      "kind": "chapter",
+      "level": 1,
+      "chapter": "ENT",
+      "parent": null,
+      "path": [
+        "MANAGING ORDERS - ENTERPRISE SOLUTIONS"
+      ],
+      "children": [
+        "B2B.ENT.NEW_SUBSCRIPTIONS",
+        "B2B.ENT.MANAGE_SUBSCRIPTIONS"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ]
+    },
+    {
+      "id": "B2B.ENT.NEW_SUBSCRIPTIONS",
+      "title": "New Subscriptions",
+      "kind": "group",
+      "level": 2,
+      "chapter": "ENT",
+      "parent": "B2B.ENT",
+      "path": [
+        "MANAGING ORDERS - ENTERPRISE SOLUTIONS",
+        "New Subscriptions"
+      ],
+      "children": [
+        "B2B.ENT.NEW_SUBSCRIPTIONS.DIGITAL_INTERNET",
+        "B2B.ENT.NEW_SUBSCRIPTIONS.MANAGED_VOICE",
+        "B2B.ENT.NEW_SUBSCRIPTIONS.MANAGED_INTERNET",
+        "B2B.ENT.NEW_SUBSCRIPTIONS.MANAGED_CONNECTIVITY",
+        "B2B.ENT.NEW_SUBSCRIPTIONS.MANAGED_SECURITY",
+        "B2B.ENT.NEW_SUBSCRIPTIONS.MANAGED_LAN",
+        "B2B.ENT.NEW_SUBSCRIPTIONS.MANAGED_WI_FI"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ENT.NEW_SUBSCRIPTIONS.DIGITAL_INTERNET",
+      "title": "Digital Internet",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "ENT",
+      "parent": "B2B.ENT.NEW_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - ENTERPRISE SOLUTIONS",
+        "New Subscriptions",
+        "Digital Internet"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ENT.NEW_SUBSCRIPTIONS.MANAGED_VOICE",
+      "title": "Managed Voice",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "ENT",
+      "parent": "B2B.ENT.NEW_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - ENTERPRISE SOLUTIONS",
+        "New Subscriptions",
+        "Managed Voice"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ENT.NEW_SUBSCRIPTIONS.MANAGED_INTERNET",
+      "title": "Managed Internet",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "ENT",
+      "parent": "B2B.ENT.NEW_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - ENTERPRISE SOLUTIONS",
+        "New Subscriptions",
+        "Managed Internet"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ENT.NEW_SUBSCRIPTIONS.MANAGED_CONNECTIVITY",
+      "title": "Managed Connectivity",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "ENT",
+      "parent": "B2B.ENT.NEW_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - ENTERPRISE SOLUTIONS",
+        "New Subscriptions",
+        "Managed Connectivity"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ENT.NEW_SUBSCRIPTIONS.MANAGED_SECURITY",
+      "title": "Managed Security",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "ENT",
+      "parent": "B2B.ENT.NEW_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - ENTERPRISE SOLUTIONS",
+        "New Subscriptions",
+        "Managed Security"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ENT.NEW_SUBSCRIPTIONS.MANAGED_LAN",
+      "title": "Managed LAN",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "ENT",
+      "parent": "B2B.ENT.NEW_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - ENTERPRISE SOLUTIONS",
+        "New Subscriptions",
+        "Managed LAN"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ENT.NEW_SUBSCRIPTIONS.MANAGED_WI_FI",
+      "title": "Managed Wi-Fi",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "ENT",
+      "parent": "B2B.ENT.NEW_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - ENTERPRISE SOLUTIONS",
+        "New Subscriptions",
+        "Managed Wi-Fi"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ENT.MANAGE_SUBSCRIPTIONS",
+      "title": "Manage Subscriptions",
+      "kind": "group",
+      "level": 2,
+      "chapter": "ENT",
+      "parent": "B2B.ENT",
+      "path": [
+        "MANAGING ORDERS - ENTERPRISE SOLUTIONS",
+        "Manage Subscriptions"
+      ],
+      "children": [
+        "B2B.ENT.MANAGE_SUBSCRIPTIONS.MIGRATING_DIGITAL_INTERNET",
+        "B2B.ENT.MANAGE_SUBSCRIPTIONS.UPGRADING_DIGITAL_INTERNET_BUNDLE",
+        "B2B.ENT.MANAGE_SUBSCRIPTIONS.DOWNGRADING_DIGITAL_INTERNET_BUNDLE",
+        "B2B.ENT.MANAGE_SUBSCRIPTIONS.DIGITAL_INTERNET_ADD_DELETE",
+        "B2B.ENT.MANAGE_SUBSCRIPTIONS.DIGITAL_INTERNET_ORDER_TRACKING",
+        "B2B.ENT.MANAGE_SUBSCRIPTIONS.CHANGE_PACKAGE",
+        "B2B.ENT.MANAGE_SUBSCRIPTIONS.REMOVE_SUBSCRIPTION",
+        "B2B.ENT.MANAGE_SUBSCRIPTIONS.DIGITAL_INTERNET_EXTERNAL_SHIFT"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ENT.MANAGE_SUBSCRIPTIONS.MIGRATING_DIGITAL_INTERNET",
+      "title": "Migrating to Digital Internet",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "ENT",
+      "parent": "B2B.ENT.MANAGE_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - ENTERPRISE SOLUTIONS",
+        "Manage Subscriptions",
+        "Migrating to Digital Internet"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ENT.MANAGE_SUBSCRIPTIONS.UPGRADING_DIGITAL_INTERNET_BUNDLE",
+      "title": "Upgrading Digital Internet Bundle",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "ENT",
+      "parent": "B2B.ENT.MANAGE_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - ENTERPRISE SOLUTIONS",
+        "Manage Subscriptions",
+        "Upgrading Digital Internet Bundle"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ENT.MANAGE_SUBSCRIPTIONS.DOWNGRADING_DIGITAL_INTERNET_BUNDLE",
+      "title": "Downgrading Digital Internet Bundle",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "ENT",
+      "parent": "B2B.ENT.MANAGE_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - ENTERPRISE SOLUTIONS",
+        "Manage Subscriptions",
+        "Downgrading Digital Internet Bundle"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ENT.MANAGE_SUBSCRIPTIONS.DIGITAL_INTERNET_ADD_DELETE",
+      "title": "Digital Internet - Add/Delete/Modify Add-ons",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "ENT",
+      "parent": "B2B.ENT.MANAGE_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - ENTERPRISE SOLUTIONS",
+        "Manage Subscriptions",
+        "Digital Internet - Add/Delete/Modify Add-ons"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ENT.MANAGE_SUBSCRIPTIONS.DIGITAL_INTERNET_ORDER_TRACKING",
+      "title": "Digital Internet - Order Tracking, Amendment and Cancellation",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "ENT",
+      "parent": "B2B.ENT.MANAGE_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - ENTERPRISE SOLUTIONS",
+        "Manage Subscriptions",
+        "Digital Internet - Order Tracking, Amendment and Cancellation"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ENT.MANAGE_SUBSCRIPTIONS.CHANGE_PACKAGE",
+      "title": "Change Package",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "ENT",
+      "parent": "B2B.ENT.MANAGE_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - ENTERPRISE SOLUTIONS",
+        "Manage Subscriptions",
+        "Change Package"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ENT.MANAGE_SUBSCRIPTIONS.REMOVE_SUBSCRIPTION",
+      "title": "Remove Subscription",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "ENT",
+      "parent": "B2B.ENT.MANAGE_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - ENTERPRISE SOLUTIONS",
+        "Manage Subscriptions",
+        "Remove Subscription"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ENT.MANAGE_SUBSCRIPTIONS.DIGITAL_INTERNET_EXTERNAL_SHIFT",
+      "title": "Digital Internet - External Shift",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "ENT",
+      "parent": "B2B.ENT.MANAGE_SUBSCRIPTIONS",
+      "path": [
+        "MANAGING ORDERS - ENTERPRISE SOLUTIONS",
+        "Manage Subscriptions",
+        "Digital Internet - External Shift"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Order",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL",
+      "title": "BILLS & PAYMENTS DASHBOARD",
+      "kind": "chapter",
+      "level": 1,
+      "chapter": "BILL",
+      "parent": null,
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD"
+      ],
+      "children": [
+        "B2B.BILL.VIEWING_BILLS_INFORMATION_ACCOUNT",
+        "B2B.BILL.VIEWING_DOWNLOADING_SAVING_E",
+        "B2B.BILL.BILL_PAYMENT_SINGLE_ACCOUNT",
+        "B2B.BILL.BILL_PAYMENT_ACCOUNTS_BULK",
+        "B2B.BILL.BILL_PAYMENTS_PAY_EXCEL",
+        "B2B.BILL.MAKING_PAYMENT_SPECIFIC_MONTH",
+        "B2B.BILL.VIEWING_PAYMENT_HISTORY",
+        "B2B.BILL.PERFORMING_BILL_PAYMENT_FULL",
+        "B2B.BILL.BILL_PAYMENT_QUICK_PAY",
+        "B2B.BILL.BILL_PAYMENT_QUICK_PAY_2",
+        "B2B.BILL.BILL_PAYMENT_QUICK_PAY_3",
+        "B2B.BILL.VIEW_EXIT_CHARGES",
+        "B2B.BILL.MANAGING_SUMMARY_BILL_PAYMENTS",
+        "B2B.BILL.MANAGING_BULK_RECHARGE_BILL",
+        "B2B.BILL.MANAGING_CARDS_BILL_PAYMENTS"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ]
+    },
+    {
+      "id": "B2B.BILL.VIEWING_BILLS_INFORMATION_ACCOUNT",
+      "title": "Viewing Bills Information on the Account",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "BILL",
+      "parent": "B2B.BILL",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Viewing Bills Information on the Account"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.VIEWING_DOWNLOADING_SAVING_E",
+      "title": "Viewing/Downloading/Saving the e-Bills for the Account(s)",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "BILL",
+      "parent": "B2B.BILL",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Viewing/Downloading/Saving the e-Bills for the Account(s)"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.BILL_PAYMENT_SINGLE_ACCOUNT",
+      "title": "Bill Payment for a Single Account",
+      "kind": "group",
+      "level": 2,
+      "chapter": "BILL",
+      "parent": "B2B.BILL",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Bill Payment for a Single Account"
+      ],
+      "children": [
+        "B2B.BILL.BILL_PAYMENT_SINGLE_ACCOUNT.BILL_PAYMENT_ONLINE_CREDIT",
+        "B2B.BILL.BILL_PAYMENT_SINGLE_ACCOUNT.OFFLINE_BILL_PAYMENT"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.BILL_PAYMENT_SINGLE_ACCOUNT.BILL_PAYMENT_ONLINE_CREDIT",
+      "title": "Bill Payment Online Using Credit Card",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "BILL",
+      "parent": "B2B.BILL.BILL_PAYMENT_SINGLE_ACCOUNT",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Bill Payment for a Single Account",
+        "Bill Payment Online Using Credit Card"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.BILL_PAYMENT_SINGLE_ACCOUNT.OFFLINE_BILL_PAYMENT",
+      "title": "Offline Bill Payment",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "BILL",
+      "parent": "B2B.BILL.BILL_PAYMENT_SINGLE_ACCOUNT",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Bill Payment for a Single Account",
+        "Offline Bill Payment"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.BILL_PAYMENT_ACCOUNTS_BULK",
+      "title": "Bill Payment for Accounts in Bulk",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "BILL",
+      "parent": "B2B.BILL",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Bill Payment for Accounts in Bulk"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.BILL_PAYMENTS_PAY_EXCEL",
+      "title": "Bill Payments Through Pay with Excel",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "BILL",
+      "parent": "B2B.BILL",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Bill Payments Through Pay with Excel"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.MAKING_PAYMENT_SPECIFIC_MONTH",
+      "title": "Making Payment for a Specific Month Invoice",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "BILL",
+      "parent": "B2B.BILL",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Making Payment for a Specific Month Invoice"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.VIEWING_PAYMENT_HISTORY",
+      "title": "Viewing Payment History",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "BILL",
+      "parent": "B2B.BILL",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Viewing Payment History"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.PERFORMING_BILL_PAYMENT_FULL",
+      "title": "Performing Bill Payment in full at the Organization Level",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "BILL",
+      "parent": "B2B.BILL",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Performing Bill Payment in full at the Organization Level"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.BILL_PAYMENT_QUICK_PAY",
+      "title": "Bill Payment through Quick pay – Pay by Account",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "BILL",
+      "parent": "B2B.BILL",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Bill Payment through Quick pay – Pay by Account"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.BILL_PAYMENT_QUICK_PAY_2",
+      "title": "Bill Payment through Quick pay – Summary Bill Account",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "BILL",
+      "parent": "B2B.BILL",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Bill Payment through Quick pay – Summary Bill Account"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.BILL_PAYMENT_QUICK_PAY_3",
+      "title": "Bill Payment through Quick Pay – Pay by Bulk File Upload",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "BILL",
+      "parent": "B2B.BILL",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Bill Payment through Quick Pay – Pay by Bulk File Upload"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.VIEW_EXIT_CHARGES",
+      "title": "View Exit Charges",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "BILL",
+      "parent": "B2B.BILL",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "View Exit Charges"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.MANAGING_SUMMARY_BILL_PAYMENTS",
+      "title": "Managing Summary Bill Payments",
+      "kind": "group",
+      "level": 2,
+      "chapter": "BILL",
+      "parent": "B2B.BILL",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Managing Summary Bill Payments"
+      ],
+      "children": [
+        "B2B.BILL.MANAGING_SUMMARY_BILL_PAYMENTS.MAKING_PAYMENTS_SUMMARY_BILL",
+        "B2B.BILL.MANAGING_SUMMARY_BILL_PAYMENTS.ADDING_CHILD_ACCOUNT_SUMMARY",
+        "B2B.BILL.MANAGING_SUMMARY_BILL_PAYMENTS.REMOVING_CHILD_ACCOUNT_SUMMARY",
+        "B2B.BILL.MANAGING_SUMMARY_BILL_PAYMENTS.UPDATING_SUMMARY_BILL_SETTINGS"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.MANAGING_SUMMARY_BILL_PAYMENTS.MAKING_PAYMENTS_SUMMARY_BILL",
+      "title": "Making Payments for Summary Bill",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "BILL",
+      "parent": "B2B.BILL.MANAGING_SUMMARY_BILL_PAYMENTS",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Managing Summary Bill Payments",
+        "Making Payments for Summary Bill"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.MANAGING_SUMMARY_BILL_PAYMENTS.ADDING_CHILD_ACCOUNT_SUMMARY",
+      "title": "Adding a Child Account to Summary Bill",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "BILL",
+      "parent": "B2B.BILL.MANAGING_SUMMARY_BILL_PAYMENTS",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Managing Summary Bill Payments",
+        "Adding a Child Account to Summary Bill"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.MANAGING_SUMMARY_BILL_PAYMENTS.REMOVING_CHILD_ACCOUNT_SUMMARY",
+      "title": "Removing a Child Account from Summary Bill",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "BILL",
+      "parent": "B2B.BILL.MANAGING_SUMMARY_BILL_PAYMENTS",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Managing Summary Bill Payments",
+        "Removing a Child Account from Summary Bill"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.MANAGING_SUMMARY_BILL_PAYMENTS.UPDATING_SUMMARY_BILL_SETTINGS",
+      "title": "Updating Summary Bill Settings",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "BILL",
+      "parent": "B2B.BILL.MANAGING_SUMMARY_BILL_PAYMENTS",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Managing Summary Bill Payments",
+        "Updating Summary Bill Settings"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.MANAGING_BULK_RECHARGE_BILL",
+      "title": "Managing Bulk Recharge and Bill Delivery Settings",
+      "kind": "group",
+      "level": 2,
+      "chapter": "BILL",
+      "parent": "B2B.BILL",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Managing Bulk Recharge and Bill Delivery Settings"
+      ],
+      "children": [
+        "B2B.BILL.MANAGING_BULK_RECHARGE_BILL.MANAGING_BULK_RECHARGE",
+        "B2B.BILL.MANAGING_BULK_RECHARGE_BILL.UPDATING_INDIVIDUAL_BILL_DELIVERY"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.MANAGING_BULK_RECHARGE_BILL.MANAGING_BULK_RECHARGE",
+      "title": "Managing Bulk Recharge",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "BILL",
+      "parent": "B2B.BILL.MANAGING_BULK_RECHARGE_BILL",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Managing Bulk Recharge and Bill Delivery Settings",
+        "Managing Bulk Recharge"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.MANAGING_BULK_RECHARGE_BILL.UPDATING_INDIVIDUAL_BILL_DELIVERY",
+      "title": "Updating Individual Bill Delivery Settings",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "BILL",
+      "parent": "B2B.BILL.MANAGING_BULK_RECHARGE_BILL",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Managing Bulk Recharge and Bill Delivery Settings",
+        "Updating Individual Bill Delivery Settings"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.MANAGING_CARDS_BILL_PAYMENTS",
+      "title": "Managing Cards for Bill Payments",
+      "kind": "group",
+      "level": 2,
+      "chapter": "BILL",
+      "parent": "B2B.BILL",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Managing Cards for Bill Payments"
+      ],
+      "children": [
+        "B2B.BILL.MANAGING_CARDS_BILL_PAYMENTS.ADDING_NEW_CARD_PAYMENT",
+        "B2B.BILL.MANAGING_CARDS_BILL_PAYMENTS.VIEWING_SAVED_CARDS",
+        "B2B.BILL.MANAGING_CARDS_BILL_PAYMENTS.SETTING_CARD_AS_DEFAULT",
+        "B2B.BILL.MANAGING_CARDS_BILL_PAYMENTS.DELETING_DEFAULT_CARD",
+        "B2B.BILL.MANAGING_CARDS_BILL_PAYMENTS.MAKING_PAYMENT_SAVED_CARDS",
+        "B2B.BILL.MANAGING_CARDS_BILL_PAYMENTS.UPDATING_TRN_DETAILS"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.MANAGING_CARDS_BILL_PAYMENTS.ADDING_NEW_CARD_PAYMENT",
+      "title": "Adding a New Card for Payment",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "BILL",
+      "parent": "B2B.BILL.MANAGING_CARDS_BILL_PAYMENTS",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Managing Cards for Bill Payments",
+        "Adding a New Card for Payment"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.MANAGING_CARDS_BILL_PAYMENTS.VIEWING_SAVED_CARDS",
+      "title": "Viewing Saved Cards",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "BILL",
+      "parent": "B2B.BILL.MANAGING_CARDS_BILL_PAYMENTS",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Managing Cards for Bill Payments",
+        "Viewing Saved Cards"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.MANAGING_CARDS_BILL_PAYMENTS.SETTING_CARD_AS_DEFAULT",
+      "title": "Setting a Card as Default",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "BILL",
+      "parent": "B2B.BILL.MANAGING_CARDS_BILL_PAYMENTS",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Managing Cards for Bill Payments",
+        "Setting a Card as Default"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.MANAGING_CARDS_BILL_PAYMENTS.DELETING_DEFAULT_CARD",
+      "title": "Deleting a Default Card",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "BILL",
+      "parent": "B2B.BILL.MANAGING_CARDS_BILL_PAYMENTS",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Managing Cards for Bill Payments",
+        "Deleting a Default Card"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.MANAGING_CARDS_BILL_PAYMENTS.MAKING_PAYMENT_SAVED_CARDS",
+      "title": "Making Payment with Saved Cards",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "BILL",
+      "parent": "B2B.BILL.MANAGING_CARDS_BILL_PAYMENTS",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Managing Cards for Bill Payments",
+        "Making Payment with Saved Cards"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.BILL.MANAGING_CARDS_BILL_PAYMENTS.UPDATING_TRN_DETAILS",
+      "title": "Updating TRN Details",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "BILL",
+      "parent": "B2B.BILL.MANAGING_CARDS_BILL_PAYMENTS",
+      "path": [
+        "BILLS & PAYMENTS DASHBOARD",
+        "Managing Cards for Bill Payments",
+        "Updating TRN Details"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Pay",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.SVC",
+      "title": "MANAGING SERVICES",
+      "kind": "chapter",
+      "level": 1,
+      "chapter": "SVC",
+      "parent": null,
+      "path": [
+        "MANAGING SERVICES"
+      ],
+      "children": [
+        "B2B.SVC.MANAGING_ACCOUNTS",
+        "B2B.SVC.CONTROLLING_MOBILE_USAGE_SETTINGS",
+        "B2B.SVC.SETTING_ALERTS",
+        "B2B.SVC.PERSONALIZED_OFFERS",
+        "B2B.SVC.VIRTUAL_FIREWALL_INQUIRY_MANAGEMENT",
+        "B2B.SVC.CHANGE_DOMAIN_NAME",
+        "B2B.SVC.MANAGING_MOBILE_HUB_CORPORATE"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ]
+    },
+    {
+      "id": "B2B.SVC.MANAGING_ACCOUNTS",
+      "title": "Managing Accounts",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "SVC",
+      "parent": "B2B.SVC",
+      "path": [
+        "MANAGING SERVICES",
+        "Managing Accounts"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Services",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.SVC.CONTROLLING_MOBILE_USAGE_SETTINGS",
+      "title": "Controlling Mobile Usage & Settings",
+      "kind": "group",
+      "level": 2,
+      "chapter": "SVC",
+      "parent": "B2B.SVC",
+      "path": [
+        "MANAGING SERVICES",
+        "Controlling Mobile Usage & Settings"
+      ],
+      "children": [
+        "B2B.SVC.CONTROLLING_MOBILE_USAGE_SETTINGS.SETTING_DATA_ROAMING_CONTROLS",
+        "B2B.SVC.CONTROLLING_MOBILE_USAGE_SETTINGS.SETTING_MAXIMUM_USAGE_LIMIT",
+        "B2B.SVC.CONTROLLING_MOBILE_USAGE_SETTINGS.SETTING_DATA_CAP_LIMIT",
+        "B2B.SVC.CONTROLLING_MOBILE_USAGE_SETTINGS.BLOCKING_UNBLOCKING_SMS_NOTIFICATION",
+        "B2B.SVC.CONTROLLING_MOBILE_USAGE_SETTINGS.ACTIVATING_ESIM",
+        "B2B.SVC.CONTROLLING_MOBILE_USAGE_SETTINGS.MANAGING_PROMOTIONAL_CALLS_SETTINGS"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Services",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.SVC.CONTROLLING_MOBILE_USAGE_SETTINGS.SETTING_DATA_ROAMING_CONTROLS",
+      "title": "Setting Data and Roaming Controls",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "SVC",
+      "parent": "B2B.SVC.CONTROLLING_MOBILE_USAGE_SETTINGS",
+      "path": [
+        "MANAGING SERVICES",
+        "Controlling Mobile Usage & Settings",
+        "Setting Data and Roaming Controls"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Services",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.SVC.CONTROLLING_MOBILE_USAGE_SETTINGS.SETTING_MAXIMUM_USAGE_LIMIT",
+      "title": "Setting Maximum Usage Limit",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "SVC",
+      "parent": "B2B.SVC.CONTROLLING_MOBILE_USAGE_SETTINGS",
+      "path": [
+        "MANAGING SERVICES",
+        "Controlling Mobile Usage & Settings",
+        "Setting Maximum Usage Limit"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Services",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.SVC.CONTROLLING_MOBILE_USAGE_SETTINGS.SETTING_DATA_CAP_LIMIT",
+      "title": "Setting Data CAP Limit",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "SVC",
+      "parent": "B2B.SVC.CONTROLLING_MOBILE_USAGE_SETTINGS",
+      "path": [
+        "MANAGING SERVICES",
+        "Controlling Mobile Usage & Settings",
+        "Setting Data CAP Limit"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Services",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.SVC.CONTROLLING_MOBILE_USAGE_SETTINGS.BLOCKING_UNBLOCKING_SMS_NOTIFICATION",
+      "title": "Blocking/Unblocking SMS Notification",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "SVC",
+      "parent": "B2B.SVC.CONTROLLING_MOBILE_USAGE_SETTINGS",
+      "path": [
+        "MANAGING SERVICES",
+        "Controlling Mobile Usage & Settings",
+        "Blocking/Unblocking SMS Notification"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Services",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.SVC.CONTROLLING_MOBILE_USAGE_SETTINGS.ACTIVATING_ESIM",
+      "title": "Activating eSIM",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "SVC",
+      "parent": "B2B.SVC.CONTROLLING_MOBILE_USAGE_SETTINGS",
+      "path": [
+        "MANAGING SERVICES",
+        "Controlling Mobile Usage & Settings",
+        "Activating eSIM"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Services",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.SVC.CONTROLLING_MOBILE_USAGE_SETTINGS.MANAGING_PROMOTIONAL_CALLS_SETTINGS",
+      "title": "Managing Promotional Calls Settings",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "SVC",
+      "parent": "B2B.SVC.CONTROLLING_MOBILE_USAGE_SETTINGS",
+      "path": [
+        "MANAGING SERVICES",
+        "Controlling Mobile Usage & Settings",
+        "Managing Promotional Calls Settings"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Services",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.SVC.SETTING_ALERTS",
+      "title": "Setting Alerts",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "SVC",
+      "parent": "B2B.SVC",
+      "path": [
+        "MANAGING SERVICES",
+        "Setting Alerts"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Services",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.SVC.PERSONALIZED_OFFERS",
+      "title": "Personalized Offers",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "SVC",
+      "parent": "B2B.SVC",
+      "path": [
+        "MANAGING SERVICES",
+        "Personalized Offers"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Services",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.SVC.VIRTUAL_FIREWALL_INQUIRY_MANAGEMENT",
+      "title": "Virtual Firewall - Inquiry & Management",
+      "kind": "group",
+      "level": 2,
+      "chapter": "SVC",
+      "parent": "B2B.SVC",
+      "path": [
+        "MANAGING SERVICES",
+        "Virtual Firewall - Inquiry & Management"
+      ],
+      "children": [
+        "B2B.SVC.VIRTUAL_FIREWALL_INQUIRY_MANAGEMENT.VIEWING_EDITING_VIRTUAL_FIREWALL",
+        "B2B.SVC.VIRTUAL_FIREWALL_INQUIRY_MANAGEMENT.ADDING_RULE",
+        "B2B.SVC.VIRTUAL_FIREWALL_INQUIRY_MANAGEMENT.DELETING_RULE"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Services",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.SVC.VIRTUAL_FIREWALL_INQUIRY_MANAGEMENT.VIEWING_EDITING_VIRTUAL_FIREWALL",
+      "title": "Viewing and Editing Virtual Firewall Rules",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "SVC",
+      "parent": "B2B.SVC.VIRTUAL_FIREWALL_INQUIRY_MANAGEMENT",
+      "path": [
+        "MANAGING SERVICES",
+        "Virtual Firewall - Inquiry & Management",
+        "Viewing and Editing Virtual Firewall Rules"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Services",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.SVC.VIRTUAL_FIREWALL_INQUIRY_MANAGEMENT.ADDING_RULE",
+      "title": "Adding a Rule",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "SVC",
+      "parent": "B2B.SVC.VIRTUAL_FIREWALL_INQUIRY_MANAGEMENT",
+      "path": [
+        "MANAGING SERVICES",
+        "Virtual Firewall - Inquiry & Management",
+        "Adding a Rule"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Services",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.SVC.VIRTUAL_FIREWALL_INQUIRY_MANAGEMENT.DELETING_RULE",
+      "title": "Deleting a Rule",
+      "kind": "journey",
+      "level": 3,
+      "chapter": "SVC",
+      "parent": "B2B.SVC.VIRTUAL_FIREWALL_INQUIRY_MANAGEMENT",
+      "path": [
+        "MANAGING SERVICES",
+        "Virtual Firewall - Inquiry & Management",
+        "Deleting a Rule"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Services",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.SVC.CHANGE_DOMAIN_NAME",
+      "title": "Change Domain Name",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "SVC",
+      "parent": "B2B.SVC",
+      "path": [
+        "MANAGING SERVICES",
+        "Change Domain Name"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Services",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.SVC.MANAGING_MOBILE_HUB_CORPORATE",
+      "title": "Managing Mobile Hub Corporate Accounts",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "SVC",
+      "parent": "B2B.SVC",
+      "path": [
+        "MANAGING SERVICES",
+        "Managing Mobile Hub Corporate Accounts"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Services",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.NONAUTO",
+      "title": "ONLINE ORDERING - NON AUTOMATED PRODUCTS",
+      "kind": "chapter",
+      "level": 1,
+      "chapter": "NONAUTO",
+      "parent": null,
+      "path": [
+        "ONLINE ORDERING - NON AUTOMATED PRODUCTS"
+      ],
+      "children": [
+        "B2B.NONAUTO.NEW_USER_NEW_CUSTOMER",
+        "B2B.NONAUTO.NEW_USER_EXISTING_CUSTOMER"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ]
+    },
+    {
+      "id": "B2B.NONAUTO.NEW_USER_NEW_CUSTOMER",
+      "title": "New User New Customer - Non Automated Products",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "NONAUTO",
+      "parent": "B2B.NONAUTO",
+      "path": [
+        "ONLINE ORDERING - NON AUTOMATED PRODUCTS",
+        "New User New Customer - Non Automated Products"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "anonymous",
+      "prerequisite_journeys": []
+    },
+    {
+      "id": "B2B.NONAUTO.NEW_USER_EXISTING_CUSTOMER",
+      "title": "New User Existing Customer - Non Automated Products",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "NONAUTO",
+      "parent": "B2B.NONAUTO",
+      "path": [
+        "ONLINE ORDERING - NON AUTOMATED PRODUCTS",
+        "New User Existing Customer - Non Automated Products"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "anonymous",
+      "prerequisite_journeys": []
+    },
+    {
+      "id": "B2B.SUPPORT",
+      "title": "SUPPORT",
+      "kind": "chapter",
+      "level": 1,
+      "chapter": "SUPPORT",
+      "parent": null,
+      "path": [
+        "SUPPORT"
+      ],
+      "children": [
+        "B2B.SUPPORT.TECHNICAL_SUPPORT",
+        "B2B.SUPPORT.CREATING_COMPLAINT",
+        "B2B.SUPPORT.LIVE_CHAT",
+        "B2B.SUPPORT.REQUESTING_CLEARENCE_CERTIFICATE_CEASED"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ]
+    },
+    {
+      "id": "B2B.SUPPORT.TECHNICAL_SUPPORT",
+      "title": "Technical Support",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "SUPPORT",
+      "parent": "B2B.SUPPORT",
+      "path": [
+        "SUPPORT",
+        "Technical Support"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Support",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.SUPPORT.CREATING_COMPLAINT",
+      "title": "Creating Complaint",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "SUPPORT",
+      "parent": "B2B.SUPPORT",
+      "path": [
+        "SUPPORT",
+        "Creating Complaint"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Support",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.SUPPORT.LIVE_CHAT",
+      "title": "Live Chat",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "SUPPORT",
+      "parent": "B2B.SUPPORT",
+      "path": [
+        "SUPPORT",
+        "Live Chat"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Support",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.SUPPORT.REQUESTING_CLEARENCE_CERTIFICATE_CEASED",
+      "title": "Requesting Clearence Certificate for Ceased Accounts",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "SUPPORT",
+      "parent": "B2B.SUPPORT",
+      "path": [
+        "SUPPORT",
+        "Requesting Clearence Certificate for Ceased Accounts"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Support",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TRACK",
+      "title": "ORDER TRACKING",
+      "kind": "chapter",
+      "level": 1,
+      "chapter": "TRACK",
+      "parent": null,
+      "path": [
+        "ORDER TRACKING"
+      ],
+      "children": [
+        "B2B.TRACK.ORDER_TRACKING",
+        "B2B.TRACK.RESCHEDULING_APPOINTMENT",
+        "B2B.TRACK.UPDATE_SITE_CONTACT",
+        "B2B.TRACK.CANCELLING_ORDER",
+        "B2B.TRACK.SITE_ACCESS_PERMISSION"
+      ],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ]
+    },
+    {
+      "id": "B2B.TRACK.ORDER_TRACKING",
+      "title": "Order Tracking",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "TRACK",
+      "parent": "B2B.TRACK",
+      "path": [
+        "ORDER TRACKING",
+        "Order Tracking"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TRACK.RESCHEDULING_APPOINTMENT",
+      "title": "Rescheduling an Appointment",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "TRACK",
+      "parent": "B2B.TRACK",
+      "path": [
+        "ORDER TRACKING",
+        "Rescheduling an Appointment"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TRACK.UPDATE_SITE_CONTACT",
+      "title": "Update Site Contact",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "TRACK",
+      "parent": "B2B.TRACK",
+      "path": [
+        "ORDER TRACKING",
+        "Update Site Contact"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TRACK.CANCELLING_ORDER",
+      "title": "Cancelling an Order",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "TRACK",
+      "parent": "B2B.TRACK",
+      "path": [
+        "ORDER TRACKING",
+        "Cancelling an Order"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.TRACK.SITE_ACCESS_PERMISSION",
+      "title": "Site Access Permission",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "TRACK",
+      "parent": "B2B.TRACK",
+      "path": [
+        "ORDER TRACKING",
+        "Site Access Permission"
+      ],
+      "children": [],
+      "status": "awaiting_source",
+      "sources": [
+        "master topic list"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "entry_point": "Organization Dashboard > Dashboard",
+      "entry_point_inferred": true
+    },
+    {
+      "id": "B2B.ORG.VIEW_ORGANIZATIONAL_DETAILS_TRADE",
+      "title": "View Organizational Details - Trade Licence Document",
+      "kind": "journey",
+      "level": 2,
+      "chapter": "ORG",
+      "parent": "B2B.ORG",
+      "path": [
+        "MANAGING MULTIPLE ORGANIZATIONS IN B2B PORTAL",
+        "View Organizational Details - Trade Licence Document"
+      ],
+      "children": [],
+      "status": "automation_only",
+      "sources": [
+        "Automation KB"
+      ],
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "automation_flow_ids": [
+        "flow_b2b_manage_trade_license"
+      ]
+    }
+  ]
+}

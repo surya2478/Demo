@@ -1,0 +1,92 @@
+{
+  "flow_id": "flow_b2b_dashboard_360",
+  "flow_name": "Dashboard 360 Account Inquiry, Quick Access & Operational Metrics",
+  "category": "Dashboard & Inquiry",
+  "subcategory": "Account 360",
+  "target_match_keywords": [
+    "dashboard",
+    "dashboard 360",
+    "account inquiry",
+    "quick access",
+    "total due",
+    "active accounts",
+    "orders widget",
+    "support tickets",
+    "popular solutions",
+    "business landline",
+    "business internet plans",
+    "care plus",
+    "search accounts",
+    "b2b home"
+  ],
+  "catalog_entrypoint": "/b2bportal/home.html?locale=en",
+  "automation_boundary": {
+    "automated_scope": "Authenticated landing -> Verify Dashboard 360 header and navigation -> Inspect Accounts donut chart widget -> Explore Quick Access links -> Verify Total Due -> Inspect Orders and Support Tickets widgets -> Inspect Popular Solutions carousel -> Conclude session via Profile Menu -> Sign Out.",
+    "external_boundary": "Real-time billing engines and ticketing backends provide read-only feed data."
+  },
+  "graph_edges": [
+    { "from": "portal_home", "to": "accounts_overview", "action": "inspect_accounts_widget" },
+    { "from": "portal_home", "to": "quick_access_menu", "action": "inspect_quick_access" },
+    { "from": "portal_home", "to": "total_due_section", "action": "verify_total_due" },
+    { "from": "portal_home", "to": "popular_solutions", "action": "browse_solutions_carousel" },
+    { "from": "portal_home", "to": "signed_out", "action": "profile_menu_sign_out" }
+  ],
+  "canonical_steps": [
+    {
+      "step_number": 1,
+      "action": "Verify the authenticated B2B Portal Dashboard 360 loads successfully",
+      "target": "//a[text()='Dashboard']",
+      "expected_result": "The top navigation bar is visible with links for Dashboard, Manage, Pay, Order, Services, and Support"
+    },
+    {
+      "step_number": 2,
+      "action": "Verify the active organizational context and Cost Centers dropdown",
+      "target": "//input[@placeholder='Search Accounts']",
+      "expected_result": "Organization name is displayed alongside active Cost Centers and the Search Accounts search bar"
+    },
+    {
+      "step_number": 3,
+      "action": "Inspect the ACCOUNTS widget displaying active service summaries and donut chart",
+      "target": "//div[contains(@class,'accounts-widget') or contains(.,'ACCOUNTS')]",
+      "expected_result": "Active accounts breakdown is displayed with total count and category distribution"
+    },
+    {
+      "step_number": 4,
+      "action": "Verify the QUICK ACCESS navigation card options",
+      "target": "//a[contains(.,'Buy Fixed Service')] | //a[contains(.,'Manage my Companies')]",
+      "expected_result": "Quick access links are present for Buy Fixed Service, Manage my Companies, Pay Accounts, Technical Support, and Get Premium Support"
+    },
+    {
+      "step_number": 5,
+      "action": "Inspect the TOTAL DUE widget displaying account billing balance",
+      "target": "//div[contains(@class,'total-due') or contains(.,'TOTAL DUE')]",
+      "expected_result": "The widget shows current balance or confirmation that all bills are paid up to date"
+    },
+    {
+      "step_number": 6,
+      "action": "Verify the POPULAR SOLUTIONS section showcasing enterprise packages",
+      "target": "//div[contains(@class,'solution-card') and contains(.,'Business landline')]",
+      "expected_result": "Popular solution cards for Business landline, Business Internet Plans, and Care Plus are interactively displayed"
+    },
+    {
+      "step_number": 7,
+      "action": "Open the user profile menu and sign out of the portal",
+      "target": "//a[text()='Sign Out' and not(contains(@class,'px-10 py-0'))]",
+      "expected_result": "User session is invalidated, and the browser redirects to the login screen"
+    }
+  ],
+  "test_data_notes": {
+    "popular_solutions_items": [
+      "Business landline",
+      "Business Internet Plans",
+      "Care Plus"
+    ],
+    "quick_access_items": [
+      "Buy Fixed Service",
+      "Manage my Companies",
+      "Pay Accounts",
+      "Technical Support",
+      "Get Premium Support"
+    ]
+  }
+}

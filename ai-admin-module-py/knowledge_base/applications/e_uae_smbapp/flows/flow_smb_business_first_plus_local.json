@@ -107,8 +107,8 @@
       "flexi_sms": "110 Flexi SMS",
       "carryforward": "Local Mins & Local Data (up to 3 months)",
       "bonus_perks": "12 Months free Careem Plus Subscription",
-      "buy_now_url": "https://devnew-sas.etisalat.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&ratePlanId=PKBLATLBP000000379&productId=prod_PKBLATLBP000000379&displayName=Business%20First%20Plus%20Local%20110&showRequestCallBack=true&product=1&subject=Business%20First%20Plus%20Local%20110&productName=Business%20First%20Plus%20Local%20110&p=110&contractPeriod=12%20Months%20Contract&locale=en",
-      "more_info_url": "https://devnew-sas.etisalat.ae/en/smb/products/mobile/mobile-plans/business-first-plus/local-900mins.html#12-month"
+      "buy_now_url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&ratePlanId=PKBLATLBP000000379&productId=prod_PKBLATLBP000000379&displayName=Business%20First%20Plus%20Local%20110&showRequestCallBack=true&product=1&subject=Business%20First%20Plus%20Local%20110&productName=Business%20First%20Plus%20Local%20110&p=110&contractPeriod=12%20Months%20Contract&locale=en",
+      "more_info_url": "https://www.eand.ae/en/smb/products/mobile/mobile-plans/business-first-plus/local-900mins.html#12-month"
     },
     "Business First Plus Local 150": {
       "productId": "prod_PKBLATLBP000000377",
@@ -125,8 +125,8 @@
       "flexi_sms": "150 Flexi SMS",
       "carryforward": "Local Mins & Local Data (up to 3 months)",
       "bonus_perks": "12 Months free Careem Plus Subscription",
-      "buy_now_url": "https://devnew-sas.etisalat.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&ratePlanId=PKBLATLBP000000377&productId=prod_PKBLATLBP000000377&displayName=Business%20First%20Plus%20Local%20150&showRequestCallBack=true&product=1&subject=Business%20First%20Plus%20Local%20150&productName=Business%20First%20Plus%20Local%20150&p=150&contractPeriod=12%20Months%20Contract&locale=en",
-      "more_info_url": "https://devnew-sas.etisalat.ae/en/smb/products/mobile/mobile-plans/business-first-plus/local-1100mins.html#12-month"
+      "buy_now_url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&ratePlanId=PKBLATLBP000000377&productId=prod_PKBLATLBP000000377&displayName=Business%20First%20Plus%20Local%20150&showRequestCallBack=true&product=1&subject=Business%20First%20Plus%20Local%20150&productName=Business%20First%20Plus%20Local%20150&p=150&contractPeriod=12%20Months%20Contract&locale=en",
+      "more_info_url": "https://www.eand.ae/en/smb/products/mobile/mobile-plans/business-first-plus/local-1100mins.html#12-month"
     },
     "Business First Plus Local 200": {
       "productId": "prod_PKBLBFPBP0000003J8",
@@ -143,8 +143,8 @@
       "flexi_sms": "200 Flexi SMS",
       "carryforward": "Local Mins (up to 3 months)",
       "bonus_perks": "12 Months free Careem Plus Subscription",
-      "buy_now_url": "https://devnew-sas.etisalat.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&ratePlanId=PKBLBFPBP0000003J8&productId=prod_PKBLBFPBP0000003J8&displayName=Business%20First%20Plus%20Local%20200&showRequestCallBack=true&product=1&subject=Business%20First%20Plus%20Local%20200&productName=Business%20First%20Plus%20Local%20200&p=200&contractPeriod=12%20Months%20Contract&locale=en",
-      "more_info_url": "https://devnew-sas.etisalat.ae/en/smb/products/mobile/mobile-plans/business-first-plus/local-1800mins.html#12-month"
+      "buy_now_url": "https://www.eand.ae/b2bportal/ordering-email-verification.html?b2bFlow=ONLINE_ORDERING&next=mobile-plans-discovery&selectedFlow=Mobile%20Plans&ratePlanId=PKBLBFPBP0000003J8&productId=prod_PKBLBFPBP0000003J8&displayName=Business%20First%20Plus%20Local%20200&showRequestCallBack=true&product=1&subject=Business%20First%20Plus%20Local%20200&productName=Business%20First%20Plus%20Local%20200&p=200&contractPeriod=12%20Months%20Contract&locale=en",
+      "more_info_url": "https://www.eand.ae/en/smb/products/mobile/mobile-plans/business-first-plus/local-1800mins.html#12-month"
     }
   }
 }

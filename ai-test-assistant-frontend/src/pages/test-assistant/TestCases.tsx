@@ -105,11 +105,12 @@ const TestCases: React.FC = () => {
   // Select KB. Default KB is the default application route (BASE_URL). The
   // other two are served by the admin backend and answered by the Squad KB's
   // model; `knowledgeBase` is the form value the backend expects.
-  type KnowledgeBaseChoice = 'default' | 'squad' | 'automation'
+  type KnowledgeBaseChoice = 'default' | 'squad' | 'automation' | 'journey'
   const knowledgeBaseOptions: readonly (KnowledgeBaseOption<KnowledgeBaseChoice> & { knowledgeBase: string })[] = [
     { value: 'default', label: 'Default KB', short: 'Default application', description: 'Generates with the default application, as before', isDefault: true, knowledgeBase: '' },
     { value: 'squad', label: 'Squad KB', short: 'Device Squad', description: "Grounds test cases in the Device Squad's knowledge base", knowledgeBase: 'Device Squad' },
-    { value: 'automation', label: 'Automation KB', short: 'App profiles & flows', description: 'Grounds test cases in the application profiles and flows Automation uses', knowledgeBase: 'Automation KB' }
+    { value: 'automation', label: 'Automation KB', short: 'App profiles & flows', description: 'Grounds test cases in the application profiles and flows Automation uses', knowledgeBase: 'Automation KB' },
+    { value: 'journey', label: 'Journey KB', short: 'Design journeys', description: 'Grounds test cases in the business-designed journeys, screen labels and rules', knowledgeBase: 'Journey KB' }
   ]
   const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState<KnowledgeBaseChoice>('default')
   const selectedKnowledgeBaseOption = knowledgeBaseOptions.find((option) => option.value === selectedKnowledgeBase) ?? knowledgeBaseOptions[0]

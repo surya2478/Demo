@@ -289,6 +289,8 @@ def _call_openrouter(
         ],
         "max_tokens": max_tokens,
         "temperature": temperature,
+        # Off unless configured: thinking is billed against max_tokens.
+        **settings.openrouter_reasoning(),
     }
 
     url = settings.OPENROUTER_BASE_URL.rstrip("/") + "/chat/completions"
@@ -305,9 +307,20 @@ def _call_openrouter(
 
     try:
         data = response.json()
-        return data["choices"][0]["message"]["content"] or ""
+        choice = data["choices"][0]
+        content = choice["message"]["content"] or ""
     except (ValueError, KeyError, IndexError, TypeError) as exc:
         raise LLMInvalidResponse(f"OpenRouter's reply had an unexpected shape: {exc}") from exc
+    # A reasoning model can spend the whole max_tokens thinking and return no
+    # answer at all; say so, rather than the bare "empty response" that follows.
+    if not content.strip() and choice.get("finish_reason") == "length":
+        reasoning = (data.get("usage") or {}).get("completion_tokens_details", {}).get("reasoning_tokens")
+        raise LLMInvalidResponse(
+            f"The model ran out of its {max_tokens}-token reply before answering"
+            + (f" ({reasoning} tokens went on reasoning)" if reasoning else "")
+            + ". Give it a larger max_tokens or less to do per call."
+        )
+    return content
 
 
 def _dispatch(
@@ -398,6 +411,77 @@ def complete_json(
     raise LLMInvalidResponse(
         f"The model did not return usable JSON after {attempts} attempt(s). {last_error}"
     )
+
+
+def complete_json_with_images(
+    *,
+    system_prompt: str,
+    user_input: str,
+    images: list[bytes],
+    model: str,
+    model_cls: type[TModel],
+    max_tokens: int = 16000,
+    temperature: float = 0.1,
+    timeout: float = 300,
+    attempts: int = 2,
+) -> TModel:
+    """complete_json, with pictures: PNG bytes sent alongside the text.
+
+    OpenRouter only, and only with a model that accepts images -- the AI
+    service's chat endpoint takes text. The caller names the model because a
+    vision model is a deliberate, separately configured choice
+    (JOURNEY_EXTRACTION_VISION_MODEL), not the text model used everywhere else.
+    """
+    import base64
+
+    if (settings.LLM_PROVIDER or "ai_service").strip().lower() != "openrouter":
+        raise LLMUnavailable("Reading page images needs LLM_PROVIDER=openrouter; the AI service accepts text only.")
+    missing = [k for k in settings.openrouter_missing_keys() if k != "OPENROUTER_MODEL"]
+    if missing:
+        raise LLMUnavailable("OpenRouter is not configured. Missing: " + ", ".join(missing) + ".")
+    headers = {"Authorization": f"Bearer {settings.OPENROUTER_API_KEY}", "Content-Type": "application/json"}
+    if settings.OPENROUTER_SITE_URL:
+        headers["HTTP-Referer"] = settings.OPENROUTER_SITE_URL
+    if settings.OPENROUTER_APP_NAME:
+        headers["X-Title"] = settings.OPENROUTER_APP_NAME
+    pictures = [
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64," + base64.b64encode(img).decode("ascii")}}
+        for img in images
+    ]
+    url = settings.OPENROUTER_BASE_URL.rstrip("/") + "/chat/completions"
+    last_error: Exception | None = None
+    prompt = user_input
+    for attempt in range(1, max(1, attempts) + 1):
+        body = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": [{"type": "text", "text": prompt}, *pictures]},
+            ],
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            **settings.openrouter_reasoning(),
+        }
+        try:
+            response = requests.post(url, headers=headers, json=body, timeout=timeout)
+        except requests.Timeout as exc:
+            raise LLMUnavailable(f"OpenRouter did not respond within {timeout:.0f}s.") from exc
+        except requests.RequestException as exc:
+            raise LLMUnavailable(f"OpenRouter could not be reached: {exc}") from exc
+        if response.status_code >= 400:
+            raise LLMUnavailable(f"OpenRouter returned {response.status_code} for {model}. {(response.text or '')[:300]}")
+        try:
+            raw = response.json()["choices"][0]["message"]["content"] or ""
+        except (ValueError, KeyError, IndexError, TypeError) as exc:
+            raise LLMInvalidResponse(f"OpenRouter's reply had an unexpected shape: {exc}") from exc
+        try:
+            return model_cls.model_validate(extract_json(raw))
+        except (LLMInvalidResponse, ValidationError) as exc:
+            last_error = exc
+            logger.warning("Vision reply failed validation on attempt %d/%d: %s", attempt, attempts, exc)
+            prompt = (f"{user_input}\n\nYour previous reply could not be used: {exc}\n"
+                      "Return ONLY valid JSON matching the requested schema.")
+    raise LLMInvalidResponse(f"The model did not return usable JSON after {attempts} attempt(s). {last_error}")
 
 
 def provider_status() -> dict[str, Any]:

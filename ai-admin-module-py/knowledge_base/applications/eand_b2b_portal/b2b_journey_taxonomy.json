@@ -1,0 +1,772 @@
+{
+  "app_id": "eand_b2b_portal",
+  "app_name": "e& UAE B2B Portal (Business Online)",
+  "version": "3.0.0",
+  "taxonomy_source": "B2B_Knowledge_Base_-_Explore_Topics.pdf",
+  "description": "Master 3-Tier Enterprise Journey Hierarchy (Level A -> Level B -> Level C) for B2B Portal automation intake, test case generation, and Grounding Agent crawl indexing.",
+  "modules": [
+    {
+      "module_id": "MOD-01",
+      "module_name": "Registering & Logging-on to B2B Portal",
+      "level_a": "Onboarding & Access Management",
+      "submodules": [
+        {
+          "submodule_id": "SUBMOD-01-01",
+          "submodule_name": "Existing Business Customer Registration & Sign-In",
+          "level_b": "Existing Customer Onboarding",
+          "journeys": [
+            {
+              "journey_id": "JRN-01-01-01",
+              "journey_name": "Registering to the B2B Portal via UAE Pass",
+              "level_c": "Self-Registration Pipeline",
+              "blueprint_flow_id": "flow_b2b_registration_uae_pass",
+              "status": "Implemented & Verified",
+              "key_actions": ["Click Register", "UAE Pass Login", "EID Retrieval", "Dual OTP (Mobile + Email)", "Select Emirate", "Trade License Upload & OCR", "Face ID Biometrics", "3-Way Authorization Branch"]
+            },
+            {
+              "journey_id": "JRN-01-01-02",
+              "journey_name": "Sign-In to the Portal using OTP",
+              "level_c": "OTP-Based Authentication",
+              "blueprint_flow_id": "flow_b2b_login_otp",
+              "status": "Implemented & Verified",
+              "key_actions": ["Enter Username/Email", "Click Continue", "Fill 6-digit OTP", "Verify Checkmark", "Multi-Org Routing", "Land on Dashboard"]
+            },
+            {
+              "journey_id": "JRN-01-01-03",
+              "journey_name": "Sign-In to the Portal using Password",
+              "level_c": "Password-Based Authentication",
+              "blueprint_flow_id": "flow_b2b_login_password",
+              "status": "Implemented & Verified",
+              "key_actions": ["Switch to e& Password Tab", "Enter Username", "Enter Password", "Toggle Remember Me", "Click Sign In", "Multi-Org Routing", "Land on Dashboard"]
+            },
+            {
+              "journey_id": "JRN-01-01-04",
+              "journey_name": "Sign-In to the Portal using UAE Pass",
+              "level_c": "Federated IdP Authentication",
+              "blueprint_flow_id": "flow_b2b_login_uae_pass",
+              "status": "Implemented & Verified",
+              "key_actions": ["Click Sign in with UAE PASS", "Submit Identifier", "Match 2-Digit Push Challenge", "Interstitial Progress", "Cancel/Retry Handling", "Multi-Org Routing", "Land on Dashboard"]
+            },
+            {
+              "journey_id": "JRN-01-01-05",
+              "journey_name": "Multi-Organization Selection & Cost Centers (Party ID) Inspection",
+              "level_c": "Entity Routing & Hierarchy",
+              "blueprint_flow_id": "flow_b2b_org_cost_center_selection",
+              "status": "Implemented & Verified",
+              "key_actions": ["View Organization Cards", "Inspect Active Status", "Expand Cost Centers (Party IDs) Drawer", "Select Target Organization", "Establish Org Context"]
+            },
+            {
+              "journey_id": "JRN-01-01-06",
+              "journey_name": "Authentication Error Messages & Exception Handling",
+              "level_c": "Error Recovery",
+              "blueprint_flow_id": "flow_b2b_login_otp",
+              "status": "Implemented & Verified",
+              "key_actions": ["Invalid OTP Alert Dismissal", "Unregistered Customer Alert Handling", "User Cancelled Login Recovery", "Resend OTP Trigger"]
+            },
+            {
+              "journey_id": "JRN-01-01-07",
+              "journey_name": "Contact Verification upon Login",
+              "level_c": "Security Verification",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Prompt Outdated Contact Info", "Enter Verified Mobile & Email", "Confirm Security OTP"]
+            }
+          ]
+        },
+        {
+          "submodule_id": "SUBMOD-01-02",
+          "submodule_name": "New Business Customer Registration & DUL",
+          "level_b": "New Customer Intake",
+          "journeys": [
+            {
+              "journey_id": "JRN-01-02-01",
+              "journey_name": "New Business Customer Registering & Logging-on to B2B Portal",
+              "level_c": "New Entity Registration",
+              "blueprint_flow_id": "flow_b2b_registration_uae_pass",
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Prospect Info Intake", "New Company Account Creation", "Trade License OCR Verification"]
+            },
+            {
+              "journey_id": "JRN-01-02-02",
+              "journey_name": "Register Customers via Digital Unified Link (DUL)",
+              "level_c": "Direct Onboarding Link",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Navigate via DUL Link", "Validate Invited Entity Token", "Complete Biometric Profile Binding"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "module_id": "MOD-02",
+      "module_name": "Dashboard 360 / Account Inquiry",
+      "level_a": "Dashboard & Enterprise Overview",
+      "submodules": [
+        {
+          "submodule_id": "SUBMOD-02-01",
+          "submodule_name": "Account Inquiries & Views",
+          "level_b": "Account 360 Visibility",
+          "journeys": [
+            {
+              "journey_id": "JRN-02-01-01",
+              "journey_name": "Dashboard 360 Overview & Quick Access",
+              "level_c": "Home Overview & Metrics",
+              "blueprint_flow_id": "flow_b2b_dashboard_360",
+              "status": "Implemented & Verified",
+              "key_actions": ["Verify Navigation Bar", "Inspect Active Accounts Donut Chart", "Explore Quick Access Cards", "Review Total Due Zero State", "Browse Popular Solutions"]
+            },
+            {
+              "journey_id": "JRN-02-01-02",
+              "journey_name": "Viewing All / Active / Suspended / Inactive Accounts",
+              "level_c": "Account Status Filtering",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Click View All Accounts", "Filter by Active Status", "Filter by Suspended Status", "Filter by Inactive Status"]
+            },
+            {
+              "journey_id": "JRN-02-01-03",
+              "journey_name": "View Companies under an Organization",
+              "level_c": "Corporate Hierarchy Inspection",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Expand Organization Tree", "List Subsidiary Companies", "Switch Subsidiary Context"]
+            },
+            {
+              "journey_id": "JRN-02-01-04",
+              "journey_name": "View a Company with No Accounts",
+              "level_c": "Zero-State Management",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Select Empty Entity", "Verify Zero-State Guidance", "Click Onboard First Product"]
+            },
+            {
+              "journey_id": "JRN-02-01-05",
+              "journey_name": "Searching for Accounts Using Smart Search and Filters",
+              "level_c": "Account Smart Search",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Input Account Number in Search Bar", "Apply Product Filter", "Select Account from Results"]
+            },
+            {
+              "journey_id": "JRN-02-01-06",
+              "journey_name": "Performing Account Inquiry (Postpaid, Prepaid, Fixed)",
+              "level_c": "Line-of-Business Inquiries",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Select Target Account", "Inspect Tariff Plan Details", "Inspect Subscription Add-ons", "Review Unbilled Usage"]
+            }
+          ]
+        },
+        {
+          "submodule_id": "SUBMOD-02-02",
+          "submodule_name": "Account Governance & Operational Tracking",
+          "level_b": "Governance & Operations",
+          "journeys": [
+            {
+              "journey_id": "JRN-02-02-01",
+              "journey_name": "Configuring Tags for the Account",
+              "level_c": "Account Tagging",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Open Account Settings", "Add Department/Cost Center Tag", "Save Tag Assignments"]
+            },
+            {
+              "journey_id": "JRN-02-02-02",
+              "journey_name": "Viewing Recent and All Orders",
+              "level_c": "Order Ledger",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Click Orders Widget", "Filter by Last 30 Days", "Click Order Details", "Inspect Fulfillment Status"]
+            },
+            {
+              "journey_id": "JRN-02-02-03",
+              "journey_name": "Creating Support Tickets & Tracking Leads",
+              "level_c": "Service Ticketing",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Click Need Help / Create Ticket", "Select Category", "Enter Details", "Submit Ticket", "Track Status"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "module_id": "MOD-03",
+      "module_name": "Team Management",
+      "level_a": "Enterprise User Administration",
+      "submodules": [
+        {
+          "submodule_id": "SUBMOD-03-01",
+          "submodule_name": "Admin & Employee User Management",
+          "level_b": "User Lifecycle Management",
+          "journeys": [
+            {
+              "journey_id": "JRN-03-01-01",
+              "journey_name": "Admin Users Management (Add, Search, Edit, Suspend, Activate, Delete)",
+              "level_c": "Administrator Administration",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Navigate to Team Management", "Click Add Admin User", "Enter EID & Email", "Assign Role Permissions", "Save User"]
+            },
+            {
+              "journey_id": "JRN-03-01-02",
+              "journey_name": "Add Business Representative with LOA",
+              "level_c": "Representative Delegation",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Click Add Business Representative", "Upload Signed LOA", "Specify Scope of Authority", "Submit Invitation"]
+            },
+            {
+              "journey_id": "JRN-03-01-03",
+              "journey_name": "Employee User Management & Service Assignment",
+              "level_c": "Employee Lifecycle",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Add Employee User", "Assign Mobile Numbers", "Configure Spend Limits", "Suspend/Activate Employee"]
+            },
+            {
+              "journey_id": "JRN-03-01-04",
+              "journey_name": "Delivery Address Management (Add, Edit, Delete)",
+              "level_c": "Logistics Addresses",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Open Delivery Addresses", "Add Office Address", "Set Default Delivery Location", "Save Address"]
+            },
+            {
+              "journey_id": "JRN-03-01-05",
+              "journey_name": "VSaaS User Management in B2B Portal",
+              "level_c": "Video Surveillance Users",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Access VSaaS Console", "Assign Camera Access", "Grant Live View / Playback Rights"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "module_id": "MOD-04",
+      "module_name": "Managing Multiple Organizations in B2B Portal",
+      "level_a": "Multi-Entity Corporate Governance",
+      "submodules": [
+        {
+          "submodule_id": "SUBMOD-04-01",
+          "submodule_name": "Organization Switching & Default Configuration",
+          "level_b": "Multi-Tenant Operations",
+          "journeys": [
+            {
+              "journey_id": "JRN-04-01-01",
+              "journey_name": "Viewing Multiple Organizations & Switching Context",
+              "level_c": "Entity Switcher",
+              "blueprint_flow_id": "flow_b2b_org_cost_center_selection",
+              "status": "Implemented & Verified",
+              "key_actions": ["Click Organization Switcher", "Browse Associated Organizations", "Switch Active Context", "Refresh Dashboard"]
+            },
+            {
+              "journey_id": "JRN-04-01-02",
+              "journey_name": "Setting a Default Organization",
+              "level_c": "Default Entity Preference",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Open Organization Settings", "Toggle 'Set as Default Organization'", "Confirm Preference"]
+            },
+            {
+              "journey_id": "JRN-04-01-03",
+              "journey_name": "Renaming an Existing Organization",
+              "level_c": "Entity Metadata Update",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Click Rename Organization", "Enter New Display Name", "Submit Approval Request"]
+            },
+            {
+              "journey_id": "JRN-04-01-04",
+              "journey_name": "Adding Admin User and Assigning Organizations",
+              "level_c": "Cross-Org Role Assignment",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Select Target User", "Check Assigned Organizations", "Assign Granular Permissions", "Save"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "module_id": "MOD-05",
+      "module_name": "Registration Renewal",
+      "level_a": "Regulatory Compliance & Renewal",
+      "submodules": [
+        {
+          "submodule_id": "SUBMOD-05-01",
+          "submodule_name": "Account Registration Renewal",
+          "level_b": "Compliance Renewals",
+          "journeys": [
+            {
+              "journey_id": "JRN-05-01-01",
+              "journey_name": "Registration Renewal of Mobile Business Accounts",
+              "level_c": "Mobile Regulatory Renewal",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Select Expiring Accounts", "Verify Valid Trade License", "Submit TDRA Re-Registration"]
+            },
+            {
+              "journey_id": "JRN-05-01-02",
+              "journey_name": "Registration Renewal of Fixed Business Accounts",
+              "level_c": "Fixed Regulatory Renewal",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Select Fixed Accounts", "Upload Renewed Trade License", "Confirm Premise Address", "Submit Renewal"]
+            },
+            {
+              "journey_id": "JRN-05-01-03",
+              "journey_name": "Re - Registration by Admin-Lead with Expired LOA",
+              "level_c": "Expired LOA Re-Registration",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Alert Expired LOA", "Upload Notarized Letter of Authorization", "Submit for Legal Validation"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "module_id": "MOD-06",
+      "module_name": "Managing CNAP Service Through Digital Channels",
+      "level_a": "Caller Name Presentation (CNAP)",
+      "submodules": [
+        {
+          "submodule_id": "SUBMOD-06-01",
+          "submodule_name": "CNAP Configuration",
+          "level_b": "Caller ID Governance",
+          "journeys": [
+            {
+              "journey_id": "JRN-06-01-01",
+              "journey_name": "Managing CNAP at Party Level (Government Entity)",
+              "level_c": "Government Entity CNAP",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Select Government Entity", "Configure Official Display Name", "Submit Regulatory Verification"]
+            },
+            {
+              "journey_id": "JRN-06-01-02",
+              "journey_name": "Managing CNAP at Account Level (Government & Enterprise)",
+              "level_c": "Account-Specific CNAP",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Select Enterprise Line", "Set Department Display Name", "Preview Outbound Display", "Activate CNAP"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "module_id": "MOD-07",
+      "module_name": "Managing Orders - Mobile Products",
+      "level_a": "Mobile Commercial Lifecycle",
+      "submodules": [
+        {
+          "submodule_id": "SUBMOD-07-01",
+          "submodule_name": "Mobile Plan Subscriptions",
+          "level_b": "Mobile Product Acquisition",
+          "journeys": [
+            {
+              "journey_id": "JRN-07-01-01",
+              "journey_name": "Subscribing to Mobile Plans (Registered / Unregistered / New Customers)",
+              "level_c": "Postpaid Plan Ordering",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Browse Business Postpaid Plans", "Select Allowance Tier", "Choose New Number or Port", "Add to Cart", "Checkout"]
+            },
+            {
+              "journey_id": "JRN-07-01-02",
+              "journey_name": "Subscribing to Mobile Add-Ons & Data Plans",
+              "level_c": "Add-On Acquisition",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Select Target Account", "Browse Roaming/Data Add-ons", "Select One-time or Recurring", "Submit Order"]
+            },
+            {
+              "journey_id": "JRN-07-01-03",
+              "journey_name": "Purchasing Subsidized Devices & Preorders",
+              "level_c": "Hardware Procurement",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Browse Device Catalog", "Select Smartphone Model/Color/Storage", "Choose Contract Term", "Submit Order"]
+            }
+          ]
+        },
+        {
+          "submodule_id": "SUBMOD-07-02",
+          "submodule_name": "Mobile Subscription Lifecycle Management",
+          "level_b": "In-Life Subscription Changes",
+          "journeys": [
+            {
+              "journey_id": "JRN-07-02-01",
+              "journey_name": "Change Mobile Plan & Change Data Plan",
+              "level_c": "Plan Migration",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Select Account", "Click Change Plan", "Compare Tariff Differences", "Confirm Immediate/Bill-Cycle Shift"]
+            },
+            {
+              "journey_id": "JRN-07-02-02",
+              "journey_name": "Request Blank SIM Cards & SIM Replacement",
+              "level_c": "SIM Logistics",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Request Bulk Blank SIMs", "Specify Delivery Location", "Perform In-Place SIM Replacement", "Activate eSIM"]
+            },
+            {
+              "journey_id": "JRN-07-02-03",
+              "journey_name": "Ownership Transfer (Corporate to Personal, Personal to Corporate, Corporate to Corporate)",
+              "level_c": "Transfer of Ownership",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Initiate Transfer", "Enter Transferee EID / Company Details", "Upload Consent Documents", "Submit Transfer Request"]
+            },
+            {
+              "journey_id": "JRN-07-02-04",
+              "journey_name": "Closing an Account (Managed Postpaid, Unmanaged Postpaid, Prepaid)",
+              "level_c": "Account Termination",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Initiate Account Closure", "Review Outstanding Exit Charges", "Select Reason", "Confirm Cease Request"]
+            }
+          ]
+        },
+        {
+          "submodule_id": "SUBMOD-07-03",
+          "submodule_name": "Mobile Usage & Spend Policies",
+          "level_b": "Policy & Control Enforcement",
+          "journeys": [
+            {
+              "journey_id": "JRN-07-03-01",
+              "journey_name": "Managing Usage Limit, Data Cap & Credit Limit",
+              "level_c": "Spend Controls",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Open Spend Controls", "Set Hard Data Cap", "Configure Roaming Spend Limit", "Save Controls"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "module_id": "MOD-08",
+      "module_name": "Managing Orders - Fixed Services",
+      "level_a": "Fixed Line & Broadband Lifecycle",
+      "submodules": [
+        {
+          "submodule_id": "SUBMOD-08-01",
+          "submodule_name": "Fixed Service Subscriptions",
+          "level_b": "Fixed Line Acquisition",
+          "journeys": [
+            {
+              "journey_id": "JRN-08-01-01",
+              "journey_name": "Subscribing to Office Presence & Business Pro",
+              "level_c": "Broadband Acquisition",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Check Premise Feasibility", "Select Speed Tier", "Choose Router Hardware", "Configure Installation Slot", "Checkout"]
+            },
+            {
+              "journey_id": "JRN-08-01-02",
+              "journey_name": "Dedicated Internet & Toll Free Services (800 / 600)",
+              "level_c": "Voice & Dedicated Access",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Select Toll Free Number Category", "Configure Routing Destination", "Submit Leased Line Order"]
+            }
+          ]
+        },
+        {
+          "submodule_id": "SUBMOD-08-02",
+          "submodule_name": "Fixed Subscription Lifecycle",
+          "level_b": "Fixed Maintenance & Shifting",
+          "journeys": [
+            {
+              "journey_id": "JRN-08-02-01",
+              "journey_name": "Change Plan, Shifting & Change Internet Password",
+              "level_c": "Broadband In-Life Modifications",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Initiate Premise Shifting", "Select New Office Coordinates", "Schedule Field Engineer", "Update PPPoE Password"]
+            },
+            {
+              "journey_id": "JRN-08-02-02",
+              "journey_name": "Closing Managed and Unmanaged Fixed Accounts",
+              "level_c": "Fixed Account Termination",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Request Fixed Line Cease", "Review Early Termination Penalties", "Schedule ONT Collection"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "module_id": "MOD-09",
+      "module_name": "Managing Orders - Digital Solutions",
+      "level_a": "Digital Enterprise Solutions",
+      "submodules": [
+        {
+          "submodule_id": "SUBMOD-09-01",
+          "submodule_name": "Digital Solutions Acquisition & Inquiries",
+          "level_b": "Cloud, Security & IoT",
+          "journeys": [
+            {
+              "journey_id": "JRN-09-01-01",
+              "journey_name": "Smart Messaging & Video Surveillance Procurement",
+              "level_c": "IoT & Messaging Order",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Configure SMS Sender ID", "Select Monthly Bulk Tier", "Allocate CCTV Cameras", "Confirm Subscription"]
+            },
+            {
+              "journey_id": "JRN-09-01-02",
+              "journey_name": "Cloud Server, Storage & Multi Cloud Provisioning",
+              "level_c": "Cloud Infrastructure",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Select vCPU and RAM Specs", "Choose OS Template", "Configure Firewall", "Deploy Cloud Instance"]
+            },
+            {
+              "journey_id": "JRN-09-01-03",
+              "journey_name": "Easy Insurance for Business (Logged-in & Non-Logged-in)",
+              "level_c": "Commercial Insurance",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Enter Business Coverage Details", "Generate Quote", "Submit Policy Application"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "module_id": "MOD-10",
+      "module_name": "Managing Orders - Business App Store",
+      "level_a": "SaaS Applications & Marketplace",
+      "submodules": [
+        {
+          "submodule_id": "SUBMOD-10-01",
+          "submodule_name": "SaaS Subscriptions & Licenses",
+          "level_b": "SaaS Governance",
+          "journeys": [
+            {
+              "journey_id": "JRN-10-01-01",
+              "journey_name": "Subscribing to SaaS Packages & Microsoft Office 365 Activation",
+              "level_c": "SaaS Provisioning",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Select M365 Business Standard", "Specify Number of Seats", "Assign Domain", "Activate Licenses"]
+            },
+            {
+              "journey_id": "JRN-10-01-02",
+              "journey_name": "Managing App Store Control Panel & Order History",
+              "level_c": "SaaS Admin Console",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Open App Store Admin Console", "Reassign User Licenses", "Modify Seat Count", "Review Billing Details"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "module_id": "MOD-11",
+      "module_name": "Managing Orders - Enterprise Solutions",
+      "level_a": "Enterprise Managed Services",
+      "submodules": [
+        {
+          "submodule_id": "SUBMOD-11-01",
+          "submodule_name": "Enterprise Managed Connectivity & Security",
+          "level_b": "Managed Services",
+          "journeys": [
+            {
+              "journey_id": "JRN-11-01-01",
+              "journey_name": "Digital Internet - New Subscriptions, Upgrades, Downgrades & Shifting",
+              "level_c": "Digital Internet Lifecycle",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Order Digital Internet", "Perform Bandwidth Modification", "Add Managed Security Add-on", "Request External Site Shift"]
+            },
+            {
+              "journey_id": "JRN-11-01-02",
+              "journey_name": "Managed Voice, Connectivity, SD-WAN & Managed Wi-Fi",
+              "level_c": "Enterprise Network Solutions",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Configure SD-WAN Endpoints", "Set QoS Priority", "Provision Corporate Wi-Fi SSID"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "module_id": "MOD-12",
+      "module_name": "Bills & Payments Dashboard",
+      "level_a": "Financial Settlement & Invoicing",
+      "submodules": [
+        {
+          "submodule_id": "SUBMOD-12-01",
+          "submodule_name": "Bill Settlement & Payment Methods",
+          "level_b": "Billing Operations",
+          "journeys": [
+            {
+              "journey_id": "JRN-12-01-01",
+              "journey_name": "Viewing and Downloading e-Bills",
+              "level_c": "Invoice Archival & Retrieval",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Navigate to Pay Section", "Select Invoice Month", "Download PDF e-Bill", "Save Statement"]
+            },
+            {
+              "journey_id": "JRN-12-01-02",
+              "journey_name": "Single & Bulk Bill Payment (Online Credit Card, Pay with Excel, Quick Pay)",
+              "level_c": "Payment Execution",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Select Accounts to Pay", "Upload Excel Payment Roster", "Submit Card / Net Banking Payment", "Obtain Payment Receipt"]
+            },
+            {
+              "journey_id": "JRN-12-01-03",
+              "journey_name": "Managing Summary Bill Payments & Child Accounts",
+              "level_c": "Summary Billing Hierarchy",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Add Child Account to Summary Bill", "Remove Child Account", "Execute Unified Summary Bill Settlement"]
+            },
+            {
+              "journey_id": "JRN-12-01-04",
+              "journey_name": "Credit Card Management & TRN Details Update",
+              "level_c": "Payment Tokenization & Tax",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Add New Corporate Card", "Set Default Card", "Update Tax Registration Number (TRN)"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "module_id": "MOD-13",
+      "module_name": "Managing Services",
+      "level_a": "Technical Policy & Network Security",
+      "submodules": [
+        {
+          "submodule_id": "SUBMOD-13-01",
+          "submodule_name": "Network Controls & Firewall",
+          "level_b": "Security Policies",
+          "journeys": [
+            {
+              "journey_id": "JRN-13-01-01",
+              "journey_name": "Virtual Firewall Rule Inquiry & Management (Add, Edit, Delete Rule)",
+              "level_c": "Firewall Administration",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Open Virtual Firewall", "Create Inbound/Outbound Rule", "Define IP CIDR & Port", "Apply Rule Changes"]
+            },
+            {
+              "journey_id": "JRN-13-01-02",
+              "journey_name": "Controlling Mobile Roaming, Data Limits & Promotional SMS Blocking",
+              "level_c": "Consumer Protection Controls",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Toggle Roaming Data Lock", "Block Unsolicited Marketing SMS", "Enable eSIM Profile"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "module_id": "MOD-14",
+      "module_name": "Online Ordering - Non Automated Products",
+      "level_a": "Assisted & Custom Enterprise Fulfillment",
+      "submodules": [
+        {
+          "submodule_id": "SUBMOD-14-01",
+          "submodule_name": "Bespoke Enterprise Proposals",
+          "level_b": "Non-Catalog Products",
+          "journeys": [
+            {
+              "journey_id": "JRN-14-01-01",
+              "journey_name": "New User & Existing Customer Non-Automated Orders",
+              "level_c": "Assisted RFQ Ordering",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Submit Custom RFQ Requirements", "Attach Architecture Diagram", "Engage Enterprise Sales Specialist"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "module_id": "MOD-15",
+      "module_name": "Support",
+      "level_a": "Enterprise Customer Care",
+      "submodules": [
+        {
+          "submodule_id": "SUBMOD-15-01",
+          "submodule_name": "Assistance & Dispute Management",
+          "level_b": "Customer Care",
+          "journeys": [
+            {
+              "journey_id": "JRN-15-01-01",
+              "journey_name": "Technical Support, Creating Complaint & Live Chat",
+              "level_c": "Care Incident Ticketing",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Open Support Tab", "Initiate Live Chat Agent", "Log Service Degradation Complaint", "Attach Diagnostic Log"]
+            },
+            {
+              "journey_id": "JRN-15-01-02",
+              "journey_name": "Requesting Clearance Certificate for Ceased Accounts",
+              "level_c": "Financial Clearance",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Verify Zero Outstanding Liability", "Request Official Clearance Certificate", "Download Signed Document"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "module_id": "MOD-16",
+      "module_name": "Order Tracking",
+      "level_a": "Logistics & Site Operations",
+      "submodules": [
+        {
+          "submodule_id": "SUBMOD-16-01",
+          "submodule_name": "Fulfillment Tracking & Site Access",
+          "level_b": "Order Logistics",
+          "journeys": [
+            {
+              "journey_id": "JRN-16-01-01",
+              "journey_name": "Order Tracking & Milestone Progress",
+              "level_c": "Milestone Monitoring",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Input Order ID", "View Milestone Bar (Submitted -> Verified -> Dispatched -> Completed)"]
+            },
+            {
+              "journey_id": "JRN-16-01-02",
+              "journey_name": "Rescheduling Installation Appointment & Updating Site Contact",
+              "level_c": "Site Logistics Appointment",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Select Pending Delivery", "Pick New Time Slot", "Update Building Security Contact Info"]
+            },
+            {
+              "journey_id": "JRN-16-01-03",
+              "journey_name": "Cancelling an Order & Site Access Permissions",
+              "level_c": "Order Exception Handling",
+              "blueprint_flow_id": null,
+              "status": "Cataloged for Future BRD Intake",
+              "key_actions": ["Submit Cancellation Request", "Generate Building Entry Permit Letter"]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,163 @@
+{
+  "_purpose": "User types. Test preconditions name a role id from here; test data must supply an account holding that role.",
+  "roles": [
+    {
+      "role_id": "ROLE_ANONYMOUS",
+      "name": "Non-logged-in visitor",
+      "basis": "explicit (Explore Topics 'Non-Logged in User ...' journeys)",
+      "can": [
+        "reach Login",
+        "start registration",
+        "browse public catalogue"
+      ]
+    },
+    {
+      "role_id": "ROLE_B2B_USER",
+      "name": "Registered B2B user (any role)",
+      "basis": "explicit",
+      "can": [
+        "sign in by OTP / e& Password / UAE PASS",
+        "select organization",
+        "view Organization Dashboard"
+      ]
+    },
+    {
+      "role_id": "ROLE_CUSTOMER_REPRESENTATIVE",
+      "name": "Customer Representative",
+      "basis": "explicit (org card 'Customer Representative')",
+      "note": "Role label shown per organization, so one user can hold different roles in different organizations."
+    },
+    {
+      "role_id": "ROLE_ORG_ADMIN",
+      "name": "Organization Administrator",
+      "basis": "existing KB test user; Explore Topics 'Admin Users Management'",
+      "can": [
+        "Manage > Organizational Details",
+        "team management (awaiting source)"
+      ]
+    },
+    {
+      "role_id": "ROLE_ADMIN_LEAD",
+      "name": "Admin-Lead",
+      "basis": "explicit title only (Explore Topics 'Re - Registration by Admin-Lead with Expired LOA')"
+    },
+    {
+      "role_id": "ROLE_EMPLOYEE",
+      "name": "Employee user",
+      "basis": "explicit title only (Explore Topics 'Employee User Management')"
+    },
+    {
+      "role_id": "ROLE_COMPANY_OWNER",
+      "name": "Company Manager / Sole Owner",
+      "basis": "explicit (Registering on B2B Portal.pdf p2)",
+      "note": "Must log in with own UAE PASS; registers with Trade Licence."
+    },
+    {
+      "role_id": "ROLE_BUSINESS_REPRESENTATIVE",
+      "name": "Business Representative (Delegate)",
+      "basis": "explicit (Registering on B2B Portal.pdf p2, p11)",
+      "note": "Authorised via Digital LOA by the company manager; paper authorisations are no longer accepted."
+    },
+    {
+      "role_id": "ROLE_GOVERNMENT_ENTITY",
+      "name": "Government Entity customer",
+      "basis": "explicit title only (Explore Topics CNAP chapter)"
+    }
+  ],
+  "test_data_profiles": {
+    "_note": "Definitions only: which data the journeys need, under which script variable names. VALUES live in the encrypted test-data vault (Automation Studio > Test data) and never in this file, its history or any prompt. `kind`: vault = values come from the vault; file = an uploaded document; external = held outside this system (e.g. a UAE PASS app). `used_by` is filled from the journeys' test_scenarios at read time; list extra users here.",
+    "USER_SINGLE_DEFAULT_ORG": {
+      "name": "Registered user · default organization",
+      "description": "Registered user with a default organization set -- exercises the direct-to-dashboard branch.",
+      "kind": "vault",
+      "fields": [
+        {
+          "name": "Email / username",
+          "variable": "TESTDATA_DEFAULT_ORG_EMAIL"
+        },
+        {
+          "name": "Password",
+          "variable": "TESTDATA_DEFAULT_ORG_PASSWORD"
+        },
+        {
+          "name": "OTP",
+          "variable": "TESTDATA_OTP"
+        }
+      ],
+      "state": "Exactly one organization set as default"
+    },
+    "USER_MULTI_ORG_NO_DEFAULT": {
+      "name": "Multi-organization user · no default",
+      "description": "Registered user linked to 2 or more organizations, none default -- exercises Select a Organization to continue.",
+      "kind": "vault",
+      "fields": [
+        {
+          "name": "Email / username",
+          "variable": "TESTDATA_MULTI_ORG_EMAIL"
+        },
+        {
+          "name": "Password",
+          "variable": "TESTDATA_MULTI_ORG_PASSWORD"
+        },
+        {
+          "name": "OTP",
+          "variable": "TESTDATA_OTP"
+        },
+        {
+          "name": "Organization to choose",
+          "variable": "TESTDATA_ORG_NAME"
+        }
+      ],
+      "state": "2 or more organizations, none set as default",
+      "extra_users": [
+        "Journey Crawl sign-in"
+      ]
+    },
+    "USER_UNREGISTERED_EMAIL": {
+      "name": "Unregistered email",
+      "description": "Syntactically valid e-mail with no B2B customer -- exercises 'No Customer assosiated'.",
+      "kind": "vault",
+      "fields": [
+        {
+          "name": "Email",
+          "variable": "TESTDATA_UNREGISTERED_EMAIL"
+        }
+      ],
+      "state": "Must stay unregistered"
+    },
+    "OTP_SOURCE": {
+      "name": "OTP source",
+      "description": "Where a run gets the one-time password: a fixed test OTP configured for the test accounts, or a mailbox hook.",
+      "kind": "vault",
+      "fields": [
+        {
+          "name": "OTP",
+          "variable": "TESTDATA_OTP"
+        }
+      ],
+      "extra_users": [
+        "Every sign-in journey",
+        "Journey Crawl"
+      ]
+    },
+    "TRADE_LICENCE_DOCUMENT": {
+      "name": "Trade Licence document",
+      "description": "A licence file for the registration upload: JPEG, JPG, PNG or PDF, 5 MB or less.",
+      "kind": "file",
+      "fields": [],
+      "extra_users": [
+        "Registering to the B2B Portal (once authored)"
+      ]
+    },
+    "UAE_PASS_IDENTITY": {
+      "name": "UAE PASS staging identity",
+      "description": "A UAE PASS staging account; the login is approved in the UAE PASS app, outside the automation boundary.",
+      "kind": "external",
+      "fields": [],
+      "extra_users": [
+        "Sign-in using UAE Pass",
+        "Registering to the B2B Portal"
+      ]
+    }
+  }
+}

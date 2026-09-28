@@ -336,8 +336,66 @@ def describe_grounding(requirements: str) -> Dict[str, Any]:
 # form value the frontend sends. "Default KB" sends nothing and never reaches
 # this table: it is the default application route (ai_config.BASE_URL).
 AUTOMATION_KB = "Automation KB"
+# The design-side KB (services/journeys): journeys, exact labels, branches and
+# rules from the solution-design documents. It shapes WHAT the cases test; the
+# Automation KB is compared with them afterwards (journeys/diff.py), never
+# mixed into the same prompt.
+JOURNEY_KB = "Journey KB"
 SQUAD_KBS = ("Device Squad",)
-KNOWLEDGE_BASES = (AUTOMATION_KB, *SQUAD_KBS)
+KNOWLEDGE_BASES = (AUTOMATION_KB, JOURNEY_KB, *SQUAD_KBS)
+
+
+def reference_context(knowledge_base: str | None, text: str) -> Dict[str, Any]:
+    """What the selected Knowledge Base knows about `text`, as prompt context.
+
+    ONE place maps a Select KB choice to its knowledge, and both generation and
+    AI Checks read it. Otherwise the two would each have their own mapping, and
+    a case generated against one KB could be refined and reviewed against
+    another -- which is what AI Checks did when it ignored the choice outright.
+
+    Returns {"knowledge_base", "kind", "context", "detail"}; `kind` is
+    automation | journey | squad | none, and `context` is "" whenever the KB
+    had nothing to say, which callers treat as ungrounded rather than an error.
+    """
+    kb = (knowledge_base or "").strip()
+    result: Dict[str, Any] = {"knowledge_base": kb or None, "kind": "none", "context": "", "detail": {}}
+
+    if kb == AUTOMATION_KB:
+        grounding = describe_grounding(text)
+        result.update(kind="automation", detail={k: v for k, v in grounding.items() if k != "context"})
+        if grounding["grounded"]:
+            result["context"] = grounding["context"]
+    elif kb == JOURNEY_KB:
+        from ..journeys import store as journey_store
+
+        journey = journey_store.describe(text)
+        result.update(kind="journey", detail={k: v for k, v in journey.items() if k != "context"})
+        if journey["grounded"]:
+            result["context"] = journey["context"]
+            logger.info(
+                "Grounded in Journey KB: app=%s journey=%s chain=%s (keywords: %s)",
+                journey["app_id"], journey["journey_id"], " > ".join(journey["chain"]),
+                ", ".join(journey["matched_keywords"]),
+            )
+        else:
+            logger.info("Journey KB did not ground this text (%s)", journey["reason"])
+    elif kb:
+        result["kind"] = "squad"
+        # retrieve_context never raises by contract; the guard is for the
+        # import, since psycopg and pgvector are optional in a local install.
+        try:
+            from ..knowledge_base import hybrid_retrieval_engine as squad_kb
+
+            result["context"] = squad_kb.retrieve_context(squad=kb, query=text) or ""
+        except Exception:
+            logger.warning("Squad Knowledge Base (%s) retrieval failed; continuing without it", kb, exc_info=True)
+        if result["context"]:
+            logger.info("Grounded in Squad Knowledge Base %s", kb)
+        else:
+            logger.info("Squad Knowledge Base %s returned no usable context", kb)
+    else:
+        logger.info("No Knowledge Base selected")
+    return result
 
 
 def stream_test_cases(
@@ -356,6 +414,8 @@ def stream_test_cases(
 
       AUTOMATION_KB -- the file-based application profiles and flows the
                        Automation module also reads (describe_grounding).
+      JOURNEY_KB    -- design journeys, labels, branches and rules from the
+                       solution-design documents (services/journeys).
       a squad       -- hybrid-retrieved passages from the Squad Knowledge Base
                        in Postgres (services/knowledge_base/).
       empty         -- no Knowledge Base; the disciplined ungrounded prompt.
@@ -375,33 +435,16 @@ def stream_test_cases(
     kb = (knowledge_base or "").strip()
     system_prompt = f"{SYSTEM_PROMPT}\n\n{UNGROUNDED_GUIDANCE}"
 
-    if kb == AUTOMATION_KB:
-        grounding = describe_grounding(requirements)
-        # Ungrounded is an outcome here, not a failure: no match, no Knowledge
-        # Base or an outright error all keep the disciplined prompt above.
-        if grounding["grounded"]:
-            system_prompt = f"{SYSTEM_PROMPT}\n\n{grounding['context']}"
-    elif kb:
-        # retrieve_context never raises by contract; the guard is for the
-        # import, since psycopg and pgvector are optional in a local install.
-        try:
-            from ..knowledge_base import hybrid_retrieval_engine as squad_kb
-
-            squad_context = squad_kb.retrieve_context(squad=kb, query=requirements)
-        except Exception:
-            logger.warning(
-                "Squad Knowledge Base (%s) retrieval failed; generating without it",
-                kb,
-                exc_info=True,
-            )
-            squad_context = ""
-        if squad_context:
-            system_prompt = f"{system_prompt}\n\n{squad_context}"
-            logger.info("Test case prompt grounded in Squad Knowledge Base %s", kb)
+    reference = reference_context(kb, requirements)
+    if reference["context"]:
+        if reference["kind"] == "squad":
+            # A squad's passages add to the disciplined prompt; they are
+            # retrieved text, not a description of the application.
+            system_prompt = f"{system_prompt}\n\n{reference['context']}"
         else:
-            logger.info("Squad Knowledge Base %s returned no usable context", kb)
-    else:
-        logger.info("Test cases generated without a Knowledge Base (none selected)")
+            # Ungrounded is an outcome, not a failure: no match, no Knowledge
+            # Base or an outright error all keep the disciplined prompt above.
+            system_prompt = f"{SYSTEM_PROMPT}\n\n{reference['context']}"
 
     return stream.stream_chat(
         system_prompt=system_prompt,

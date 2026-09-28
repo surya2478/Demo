@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture B2B login</title></head>
+<body>
+<!-- A stand-in for the B2B Portal login, shaped like the design PDFs and the
+     live labels (RECEIVE OTP, opt-field boxes, auto-submit after 6 digits).
+     Used only by tests/journeys/smoke_journey_crawl.py. -->
+<h2>SIGN IN TO BUSINESS ONLINE</h2>
+<div role="tablist">
+  <button role="tab" aria-selected="true" id="tab-otp">Sign in using OTP</button>
+  <button role="tab" aria-selected="false">e&amp; Password</button>
+</div>
+<section id="email-panel">
+  <h3>Enter your email.</h3>
+  <label for="userEmailField">Username or email*</label>
+  <input id="userEmailField" type="text">
+  <button id="receive" type="button">RECEIVE OTP</button>
+  <div>OR</div>
+  <button type="button">Sign in with UAE PASS</button>
+  <button type="button">REGISTER</button>
+</section>
+<section id="otp-panel" hidden>
+  <h3>Enter your One Time Password.</h3>
+  <p>We have sent the OTP to your E-mail and Mobile number</p>
+  <p>Email ID : p*********@e***.com</p>
+  <div id="boxes"></div>
+  <p>Didn't receive the OTP on your email?<a href="#" id="resend">Resend</a></p>
+</section>
+<script>
+  document.getElementById('receive').addEventListener('click', () => {
+    if (!document.getElementById('userEmailField').value) return;
+    document.getElementById('email-panel').hidden = true;
+    document.getElementById('otp-panel').hidden = false;
+    const boxes = document.getElementById('boxes');
+    for (let i = 1; i <= 6; i++) {
+      const input = document.createElement('input');
+      input.name = 'opt-field-' + i;
+      input.maxLength = 1;
+      input.addEventListener('input', () => {
+        const all = [...boxes.querySelectorAll('input')];
+        if (all.every(b => b.value)) setTimeout(() => { location.href = 'select-org.html'; }, 200);
+      });
+      boxes.appendChild(input);
+    }
+  });
+</script>
+</body>
+</html>

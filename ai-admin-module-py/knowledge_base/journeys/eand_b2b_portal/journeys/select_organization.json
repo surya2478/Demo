@@ -1,0 +1,254 @@
+{
+  "journey_id": "B2B.REG.EXISTING.SIGNIN.SELECT_ORG",
+  "name": "Select Organization after Sign-in -> Organization Dashboard",
+  "journey_path": [
+    "REGISTERING & LOGGING-ON TO B2B PORTAL",
+    "Existing Business Customer Registering & Logging-on to B2B Portal",
+    "Sign-In to the Portal",
+    "Select Organization after Sign-in"
+  ],
+  "sources": [
+    "Sign-in using OTP.pdf p2",
+    "Sign-in using Password.pdf p1-2",
+    "Sign-in using UAE Pass.pdf p4-6"
+  ],
+  "roles": [
+    "ROLE_B2B_USER",
+    "ROLE_CUSTOMER_REPRESENTATIVE"
+  ],
+  "prerequisite_journeys": [
+    "B2B.REG.EXISTING.SIGNIN"
+  ],
+  "next_journeys": [],
+  "automation_flow_ids": [],
+  "screens": [
+    "SCR_SELECT_ORG",
+    "SCR_COST_CENTERS_MODAL",
+    "SCR_ORG_DASHBOARD"
+  ],
+  "business_rules": [
+    "BR-AUTH-06",
+    "BR-ORG-01",
+    "BR-ORG-02",
+    "BR-ORG-03",
+    "BR-ORG-04",
+    "BR-DASH-01",
+    "BR-DASH-02",
+    "BR-DASH-03"
+  ],
+  "state_model": "STM_AUTH_SESSION",
+  "match_keywords": [
+    "select organization",
+    "select a organization",
+    "select an organization",
+    "organization selection",
+    "multiple organizations linked",
+    "no default organization",
+    "default organization",
+    "organization card",
+    "organization dashboard",
+    "cost centers",
+    "cost centres",
+    "party ids",
+    "party id",
+    "quick access",
+    "total due",
+    "dashboard widgets"
+  ],
+  "automation_boundary": {
+    "automated_scope": "From an authenticated session without a default organization: Select a Organization to continue -> (optional) view cost centres -> choose organization -> Organization Dashboard rendered with navigation and widgets.",
+    "external_boundary": "Organization, Party ID and account data come from back-end systems. Assert what the portal renders against the test-data profile; do not query back-end systems."
+  },
+  "steps": [
+    {
+      "step_number": 1,
+      "action": "Complete sign-in with a user linked to several organizations and no default",
+      "expected_result": "Authentication completes and the organization chooser is displayed",
+      "screen_id": "SCR_LOGIN",
+      "note": "Authentication steps come from the sign-in journey (prerequisite_journeys)."
+    },
+    {
+      "step_number": 2,
+      "action": "Verify the organization chooser lists every linked organization",
+      "expected_result": "'Select a Organization to continue' is shown with one card per organization linked to the user",
+      "screen_id": "SCR_SELECT_ORG",
+      "element_id": "org_card",
+      "rule": "BR-AUTH-06"
+    },
+    {
+      "step_number": 3,
+      "action": "Verify each organization card shows name, role, Trade License No, status badge and cost centre count",
+      "expected_result": "Every card displays organization name, the user's role (e.g. Customer Representative), 'Trade License No <n>', a status badge (e.g. ACTIVE) and 'N COST CENTERS (PARTY IDS) >'",
+      "screen_id": "SCR_SELECT_ORG",
+      "element_id": "org_card",
+      "rule": "BR-ORG-02"
+    },
+    {
+      "step_number": 4,
+      "action": "Open the cost centers (Party IDs) list from an organization card",
+      "expected_result": "An overlay titled 'N Cost centers(Party IDs) in your Organization' lists N tiles formatted '<PartyID> - <name>'",
+      "screen_id": "SCR_COST_CENTERS_MODAL",
+      "rule": "BR-ORG-03"
+    },
+    {
+      "step_number": 5,
+      "action": "Dismiss the cost centers overlay",
+      "expected_result": "The overlay disappears and the organization chooser is shown again",
+      "screen_id": "SCR_COST_CENTERS_MODAL",
+      "note": "Dismiss mechanism is not shown in the PDF; the crawl must identify it."
+    },
+    {
+      "step_number": 6,
+      "action": "Click the organization card to choose it as the working organization",
+      "expected_result": "The Organization Dashboard for the chosen organization opens",
+      "screen_id": "SCR_SELECT_ORG",
+      "element_id": "org_card",
+      "rule": "BR-ORG-01"
+    },
+    {
+      "step_number": 7,
+      "action": "Verify the Organization Dashboard header shows the company profile control",
+      "expected_result": "The header shows the profile control '<display name> (<full name>)' and the navigation Dashboard, Manage, Pay, Order, Services, Support",
+      "screen_id": "SCR_ORG_DASHBOARD",
+      "element_id": "profile_menu"
+    },
+    {
+      "step_number": 8,
+      "action": "Verify the dashboard widgets ACCOUNTS, QUICK ACCESS, TOTAL DUE, ORDERS and SUPPORT TICKETS",
+      "expected_result": "All five widgets render; each shows data for the chosen organization or its documented empty state (e.g. 'No pending dues.')",
+      "screen_id": "SCR_ORG_DASHBOARD",
+      "rule": "BR-DASH-01"
+    }
+  ],
+  "conditional_branches": [
+    {
+      "branch_id": "ORG-B1",
+      "at_step": 1,
+      "condition": "user HAS a default organization",
+      "outcome": "chooser is skipped; Organization Dashboard opens directly (flow not applicable)",
+      "rule": "BR-AUTH-06"
+    },
+    {
+      "branch_id": "ORG-B2",
+      "at_step": 3,
+      "condition": "organization status is not ACTIVE",
+      "outcome": "unspecified -- open question",
+      "rule": "BR-ORG-04"
+    },
+    {
+      "branch_id": "ORG-B3",
+      "at_step": 8,
+      "condition": "organization has no bills/orders/tickets",
+      "outcome": "widgets show their empty-state texts",
+      "rule": "BR-DASH-01"
+    }
+  ],
+  "test_scenarios": [
+    {
+      "scenario_id": "TS-ORG-01",
+      "type": "positive",
+      "title": "Multi-org user without default chooses an organization and reaches its dashboard",
+      "steps": [
+        1,
+        2,
+        6,
+        7,
+        8
+      ],
+      "test_data": "USER_MULTI_ORG_NO_DEFAULT",
+      "rules": [
+        "BR-AUTH-06",
+        "BR-ORG-01"
+      ]
+    },
+    {
+      "scenario_id": "TS-ORG-02",
+      "type": "data",
+      "title": "Organization cards show name, role, Trade License No, status and cost centre count",
+      "steps": [
+        1,
+        2,
+        3
+      ],
+      "rules": [
+        "BR-ORG-02"
+      ]
+    },
+    {
+      "scenario_id": "TS-ORG-03",
+      "type": "data",
+      "title": "Cost centre list count matches the card and tiles follow '<PartyID> - <name>'",
+      "steps": [
+        1,
+        4,
+        5
+      ],
+      "rules": [
+        "BR-ORG-03"
+      ]
+    },
+    {
+      "scenario_id": "TS-ORG-04",
+      "type": "alternate",
+      "title": "User with a default organization bypasses the chooser",
+      "steps": [
+        1,
+        7
+      ],
+      "branch": "ORG-B1",
+      "test_data": "USER_SINGLE_DEFAULT_ORG",
+      "rules": [
+        "BR-AUTH-06"
+      ]
+    },
+    {
+      "scenario_id": "TS-ORG-05",
+      "type": "data",
+      "title": "Dashboard shows data of the chosen organization only (choose org A, then org B in a new session, compare)",
+      "steps": [
+        1,
+        6,
+        8
+      ],
+      "rules": [
+        "BR-ORG-01"
+      ]
+    },
+    {
+      "scenario_id": "TS-ORG-06",
+      "type": "empty_state",
+      "title": "Organization with no dues, orders or tickets shows the documented empty states",
+      "steps": [
+        1,
+        6,
+        8
+      ],
+      "branch": "ORG-B3",
+      "rules": [
+        "BR-DASH-01",
+        "BR-DASH-02"
+      ]
+    },
+    {
+      "scenario_id": "TS-ORG-07",
+      "type": "data",
+      "title": "ACCOUNTS donut total equals 'N Active' and the sum of category rows",
+      "steps": [
+        1,
+        6,
+        8
+      ],
+      "rules": [
+        "BR-DASH-03"
+      ],
+      "basis": "inferred"
+    }
+  ],
+  "open_questions": [
+    "Are non-ACTIVE organizations listed / selectable?",
+    "How is the cost centres overlay dismissed?",
+    "Does choosing an organization here set it as default, or only for the session? (subtitle says 'set as default' -- mechanism not shown)"
+  ],
+  "shared": true,
+  "shared_note": "Common tail of all three sign-in variants (OTP, e& Password, UAE PASS). Author its steps once here; variants chain to it through next_flows."
+}

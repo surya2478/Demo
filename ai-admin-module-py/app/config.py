@@ -174,6 +174,14 @@ class Settings(BaseSettings):
     AUTOMATION_STORAGE_PATH: str = Field(default="./storage/automation")
     AUTOMATION_NODE_PATH: str = Field(default="npx")
     AUTOMATION_RUN_TIMEOUT_SECONDS: int = Field(default=600)
+    # --- Automation Module: test data vault ------------------------------------
+    # The Fernet key that encrypts credentials saved in Automation Studio's
+    # Test data (usernames, passwords, OTPs). Generate one with
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # and keep it out of the database. Unset, a key is derived from SECRET_KEY
+    # -- which works, but ties the stored values to that key: rotate SECRET_KEY
+    # and they can no longer be read.
+    AUTOMATION_SECRETS_KEY: str = Field(default="")
     AUTOMATION_HEAL_TIMEOUT_SECONDS: int = Field(default=120)
     AUTOMATION_MAX_CONCURRENT_RUNS: int = Field(default=1)
     AUTOMATION_DEFAULT_SLOW_MO_MS: int = Field(default=1000)
@@ -306,6 +314,30 @@ class Settings(BaseSettings):
     # Low by default: this generates test scripts and structured JSON, where
     # reproducibility matters more than variety.
     OPENROUTER_TEMPERATURE: float = Field(default=0.1)
+    # Thinking before answering, for models that do it (deepseek-v4-flash and
+    # the like). Off by default: the thinking is billed against max_tokens, and
+    # on a 16k-character BRD it spent all 4096 of Generate's tokens in 195s and
+    # returned no test cases; off, the same call answered in 31s. "off", "on"
+    # (the model's own default), or an effort: "low", "medium", "high".
+    OPENROUTER_REASONING: str = Field(default="off")
+
+    def openrouter_reasoning(self) -> dict:
+        """The request fields OPENROUTER_REASONING adds to an OpenRouter call."""
+        value = (self.OPENROUTER_REASONING or "").strip().lower()
+        if value in ("", "on", "default"):
+            return {}
+        if value in ("low", "medium", "high"):
+            return {"reasoning": {"effort": value}}
+        return {"reasoning": {"enabled": False}}
+
+    # Journey KB extraction from design PDFs (services/journeys/documents.py).
+    # Screen-flow PDFs carry their labels in screenshots, which a text model
+    # never sees. Set this to an OpenRouter model that accepts images (for
+    # example a Claude or GPT-4o class model) and extraction also sends each
+    # page as a picture; left empty, extraction reads the page text only and
+    # says so on every result.
+    JOURNEY_EXTRACTION_VISION_MODEL: str = Field(default="")
+    JOURNEY_EXTRACTION_TIMEOUT_SECONDS: int = Field(default=300)
 
     # Optional attribution, sent as HTTP-Referer and X-Title. OpenRouter uses
     # them to identify the calling app in its dashboards and rankings; both are

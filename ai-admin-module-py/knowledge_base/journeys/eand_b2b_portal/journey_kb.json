@@ -1,0 +1,30 @@
+{
+  "app_id": "eand_b2b_portal",
+  "app_name": "e& UAE B2B Portal (Business Online)",
+  "automation_app_id": "eand_b2b_portal",
+  "layer": "design",
+  "_purpose": "Journey KB: the business/solution-design view of the application, built from the design PDFs. It says WHAT a user does and sees -- journeys, screens, exact labels, branches, rules. It never says HOW to find an element: locators belong to the Automation KB (knowledge_base/applications/<automation_app_id>), which is built by crawling the running application. The two are joined by `automation_ref` on screen elements, and services/journeys/diff.py reports where they disagree.",
+  "sources": [
+    "B2B_Knowledge_Base_-_Explore_Topics.pdf (master journey list)",
+    "Sign-in using OTP.pdf",
+    "Sign-in using Password.pdf",
+    "Sign-in using UAE Pass.pdf",
+    "Registering on B2B Portal.pdf"
+  ],
+  "files": {
+    "taxonomy": "taxonomy.json",
+    "screens": "screens.json",
+    "business_rules": "business_rules.json",
+    "state_models": "state_models.json",
+    "roles": "roles.json",
+    "journeys_dir": "journeys"
+  },
+  "generation_directives": [
+    "Quote every screen title, button, field, tab, link and message EXACTLY as the Journey KB lists it, including the application's own spellings ('No Customer assosiated', 'Select a Organization to continue'). Do not paraphrase a label.",
+    "Write one user action per step, in the order of the journey's steps. Where the journey has prerequisite journeys, include their steps first so every case starts from the Login page.",
+    "Cover every conditional branch the journey lists (success, error, alternate) and every business rule it cites; derive negative and boundary cases from the rules, not from general habit.",
+    "Name the role/test-data profile a case needs in Preconditions (e.g. 'user linked to several organizations, none default').",
+    "This is DESIGN knowledge. Do not write locators, XPaths, CSS selectors or URLs other than the routes listed. Where the Journey KB marks something inferred or lists an open question, say so in Preconditions instead of asserting it.",
+    "External systems (OTP e-mail/SMS delivery, UAE PASS app, OCR, Face ID vendors) are outside the automation boundary: assert what the portal displays."
+  ]
+}

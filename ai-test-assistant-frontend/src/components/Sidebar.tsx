@@ -52,7 +52,7 @@ const aiTestGenerationItems: MenuItem[] = [
   
 const aiTestAutomationtems: MenuItem[] = [
     { path: '/automation', label: 'Automation Studio', permission: 'automation.view' },
-    { path: '/automation/discovery', label: 'Application Discovery', permission: 'automation.view' }
+    { path: '/automation/knowledge-base', label: 'Knowledge Base', permission: 'automation.view' }
      
     ]
     

@@ -34,7 +34,8 @@ import Automation from './pages/Automation'
 import Runs from './pages/automation/Runs'
 import Workbench from './pages/automation/Workbench'
 import ScriptLab from './pages/automation/ScriptLab'
-import Discovery from './pages/automation/Discovery'
+import TestData from './pages/automation/TestData'
+import KnowledgeBase from './pages/automation/KnowledgeBase'
 import Visual from './pages/test-assistant/Visual'
 import DataTab from './pages/test-assistant/DataTab'
 import Changes from './pages/test-assistant/Changes'
@@ -264,16 +265,22 @@ const AppRoutes: React.FC = () => {
           }
         />
 
-        {/* Dedicated Application Discovery & Application Model Route */}
+        {/* Knowledge Base: design journeys and the crawled application together.
+            It replaced Application Discovery, whose screens it embeds; the old
+            addresses redirect so bookmarks keep working. */}
         <Route
           path="discovery"
-          element={<Navigate to="/automation/discovery" replace />}
+          element={<Navigate to="/automation/knowledge-base" replace />}
         />
         <Route
           path="automation/discovery"
+          element={<Navigate to="/automation/knowledge-base" replace />}
+        />
+        <Route
+          path="automation/knowledge-base"
           element={
             <ProtectedRoute allowedPermissions={['automation.view']}>
-              <Discovery />
+              <KnowledgeBase />
             </ProtectedRoute>
           }
         />
@@ -291,6 +298,7 @@ const AppRoutes: React.FC = () => {
           <Route path="candidates" element={<Navigate to="../workbench" replace />} />
           <Route path="workbench" element={<Workbench />} />
           <Route path="script-lab" element={<ScriptLab />} />
+          <Route path="test-data" element={<TestData />} />
           <Route path="runs" element={<Runs />} />
           <Route path="runs/:runKey" element={<Runs />} />
         </Route>

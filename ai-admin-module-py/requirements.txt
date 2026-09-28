@@ -28,6 +28,9 @@ PyMuPDF==1.28.2
 python-docx==1.2.0
 openpyxl==3.1.5
 passlib==1.7.4
+# --- Automation Module: test data vault ---------------------------------------
+# Fernet (AES + HMAC) for the credentials stored in Automation Studio's Test data.
+cryptography==50.0.1
 psutil==5.9.8
 pyasn1==0.6.1
 pycparser==2.23

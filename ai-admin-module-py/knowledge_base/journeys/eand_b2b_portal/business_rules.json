@@ -1,0 +1,202 @@
+{
+  "_purpose": "Business rules and validations implied by the design PDFs. Test cases trace to these ids; negative and boundary cases are derived from them.",
+  "_basis_legend": {
+    "explicit": "stated in the PDF text or visible in a screenshot",
+    "verified": "observed in the running app by QA (existing KB)",
+    "inferred": "reasonable implication of the design; confirm with the business before asserting it as a hard pass/fail"
+  },
+  "_scope": "SAMPLE CYCLE: authentication (OTP) and organization selection.",
+  "rules": [
+    {
+      "rule_id": "BR-AUTH-01",
+      "type": "validation",
+      "screens": [
+        "SCR_LOGIN"
+      ],
+      "basis": "explicit",
+      "statement": "OTP sign-in only proceeds for a username/email associated with a B2B customer. An unassociated identifier keeps the user on the Login screen with the inline error.",
+      "message": "No Customer assosiated",
+      "source": "Registering on B2B Portal.pdf p1"
+    },
+    {
+      "rule_id": "BR-AUTH-02",
+      "type": "behaviour",
+      "screens": [
+        "SCR_LOGIN",
+        "SCR_OTP_ENTRY"
+      ],
+      "basis": "explicit",
+      "statement": "Submitting a registered identifier issues one OTP to BOTH the registered e-mail and mobile number, and the entry screen shows both destinations masked.",
+      "message": "We have sent the OTP to your E-mail and Mobile number",
+      "source": "Sign-in using OTP.pdf p1"
+    },
+    {
+      "rule_id": "BR-AUTH-03",
+      "type": "validation",
+      "screens": [
+        "SCR_OTP_ENTRY"
+      ],
+      "basis": "explicit",
+      "statement": "The OTP is exactly 6 numeric digits entered one per box; verification cannot complete with fewer.",
+      "source": "Sign-in using OTP.pdf p1; existing KB"
+    },
+    {
+      "rule_id": "BR-AUTH-04",
+      "type": "validation",
+      "screens": [
+        "SCR_OTP_ENTRY",
+        "SCR_OTP_ERROR_DIALOG"
+      ],
+      "basis": "verified",
+      "statement": "A wrong or expired OTP is rejected with an error dialog; OKAY returns the user to OTP entry without ending the attempt.",
+      "source": "existing KB flow_b2b_login_otp"
+    },
+    {
+      "rule_id": "BR-AUTH-05",
+      "type": "behaviour",
+      "screens": [
+        "SCR_OTP_ENTRY"
+      ],
+      "basis": "explicit",
+      "statement": "The user can request a new OTP via Resend. Invalidation of the previous OTP and any resend throttling are not specified.",
+      "open_question": "Does Resend invalidate the earlier OTP? Is there a cooldown or attempt limit?",
+      "source": "Sign-in using OTP.pdf p1"
+    },
+    {
+      "rule_id": "BR-AUTH-06",
+      "type": "conditional_flow",
+      "screens": [
+        "SCR_OTP_ENTRY",
+        "SCR_SELECT_ORG",
+        "SCR_ORG_DASHBOARD"
+      ],
+      "basis": "explicit",
+      "statement": "After successful authentication: if the user has a default organization, that organization's Dashboard opens directly; if not, Select a Organization to continue is shown.",
+      "source": "Sign-in using OTP.pdf p2; Sign-in using Password.pdf p1; Sign-in using UAE Pass.pdf p3-4"
+    },
+    {
+      "rule_id": "BR-AUTH-07",
+      "type": "constraint",
+      "screens": [
+        "SCR_LOGIN"
+      ],
+      "basis": "explicit",
+      "statement": "Three sign-in methods exist -- OTP, e& Password, UAE PASS -- and all converge on the same post-authentication step (BR-AUTH-06). Only OTP is verified in the running app.",
+      "source": "all sign-in PDFs; existing KB provenance"
+    },
+    {
+      "rule_id": "BR-AUTH-08",
+      "type": "behaviour",
+      "screens": [
+        "SCR_ORG_DASHBOARD",
+        "SCR_LOGIN"
+      ],
+      "basis": "verified",
+      "statement": "Sign Out (profile menu) ends the session and returns to Login; protected routes are then unreachable without signing in again.",
+      "source": "existing KB flow_b2b_manage_trade_license"
+    },
+    {
+      "rule_id": "BR-AUTH-09",
+      "type": "security",
+      "screens": [
+        "SCR_OTP_ENTRY"
+      ],
+      "basis": "explicit",
+      "statement": "OTP destinations are displayed masked: e-mail keeps its first character and domain initial; mobile keeps its first digit and last two digits.",
+      "source": "Sign-in using OTP.pdf p1"
+    },
+    {
+      "rule_id": "BR-ORG-01",
+      "type": "behaviour",
+      "screens": [
+        "SCR_SELECT_ORG",
+        "SCR_ORG_DASHBOARD"
+      ],
+      "basis": "explicit",
+      "statement": "Clicking an organization card opens the Organization Dashboard scoped to that organization's accounts.",
+      "source": "Sign-in using OTP.pdf p2"
+    },
+    {
+      "rule_id": "BR-ORG-02",
+      "type": "data_display",
+      "screens": [
+        "SCR_SELECT_ORG"
+      ],
+      "basis": "explicit",
+      "statement": "Each organization card shows name, the user's role in it, Trade License No, a status badge and the count of cost centres (Party IDs).",
+      "source": "Sign-in using OTP.pdf p2"
+    },
+    {
+      "rule_id": "BR-ORG-03",
+      "type": "data_display",
+      "screens": [
+        "SCR_SELECT_ORG",
+        "SCR_COST_CENTERS_MODAL"
+      ],
+      "basis": "explicit",
+      "statement": "The cost-centre link opens a list of that organization's Party IDs; the heading count equals the number of tiles and the number on the card.",
+      "source": "Sign-in using UAE Pass.pdf p5"
+    },
+    {
+      "rule_id": "BR-ORG-04",
+      "type": "conditional_flow",
+      "screens": [
+        "SCR_SELECT_ORG"
+      ],
+      "basis": "inferred",
+      "statement": "Selection of a non-ACTIVE organization is not shown in the PDFs; behaviour for suspended/inactive organizations is unspecified.",
+      "open_question": "Are non-ACTIVE organizations listed, and are they selectable?"
+    },
+    {
+      "rule_id": "BR-DASH-01",
+      "type": "data_display",
+      "screens": [
+        "SCR_ORG_DASHBOARD"
+      ],
+      "basis": "explicit",
+      "statement": "Dashboard widgets show an explicit empty state when there is no data: TOTAL DUE 'No pending dues.', ORDERS 'You don't have any orders yet to track.', SUPPORT TICKETS 'You don't have any support tickets yet to track.'",
+      "source": "Sign-in using OTP.pdf p2"
+    },
+    {
+      "rule_id": "BR-DASH-02",
+      "type": "data_display",
+      "screens": [
+        "SCR_ORG_DASHBOARD"
+      ],
+      "basis": "explicit",
+      "statement": "ORDERS and SUPPORT TICKETS widgets cover the last 30 days.",
+      "source": "Sign-in using OTP.pdf p2"
+    },
+    {
+      "rule_id": "BR-DASH-03",
+      "type": "data_consistency",
+      "screens": [
+        "SCR_ORG_DASHBOARD"
+      ],
+      "basis": "inferred",
+      "statement": "The ACCOUNTS donut total equals the 'N Active' count and the sum of per-category rows.",
+      "source": "Sign-in using OTP.pdf p2 (2 Active / donut 2 / Internet and Data 2)"
+    },
+    {
+      "rule_id": "BR-UAEPASS-01",
+      "type": "behaviour",
+      "screens": [
+        "SCR_UAEPASS_CONFIRM"
+      ],
+      "basis": "explicit",
+      "statement": "Cancelling on Approve Login Request ends the sign-in: the portal's UAE PASS Authentication page shows 'User Cancelled the login' with Sign in with UAE PASS and BACK TO LOGIN PAGE.",
+      "source": "Sign-in using UAE Pass.pdf p2",
+      "message": "User Cancelled the login"
+    },
+    {
+      "rule_id": "BR-PASSWORD-01",
+      "type": "validation",
+      "screens": [
+        "SCR_LOGIN"
+      ],
+      "basis": "explicit",
+      "statement": "Password sign-in uses the Username and password shared with the user during the registration process.",
+      "source": "Sign-in using Password.pdf p1"
+    }
+  ]
+}

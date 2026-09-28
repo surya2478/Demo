@@ -1,0 +1,155 @@
+{
+  "flow_id": "flow_b2b_registration_uae_pass",
+  "flow_name": "B2B Customer Self-Registration (UAE Pass + TL OCR + Face ID + 3-Way Branching)",
+  "category": "Registration & Onboarding",
+  "subcategory": "Self-Registration",
+  "target_match_keywords": [
+    "registration",
+    "register",
+    "registering",
+    "self registration",
+    "self-registration",
+    "register new business customer",
+    "new business customer",
+    "registering on b2b portal",
+    "new customer registration",
+    "uae pass",
+    "uae pass registration",
+    "register with uae pass",
+    "emirates id retrieval",
+    "dual otp",
+    "emirate selection",
+    "trade license",
+    "trade license upload",
+    "ocr check",
+    "trade license details",
+    "face id authentication",
+    "photo capture",
+    "power of attorney",
+    "digital loa",
+    "company manager",
+    "sole owner"
+  ],
+  "catalog_entrypoint": "/b2bportal/login.html?rdr=home&locale=en",
+  "automation_boundary": {
+    "automated_scope": "Login page -> Click REGISTER -> Requirements screen -> UAE Pass login & push -> Interstitial EID retrieval -> Customer details (Email, Mobile) -> Dual OTP verification -> Select Emirate -> Upload Trade License (PDF/PNG/JPG <= 5MB) -> Validate/Edit OCR metadata modal -> Save details -> Face ID consent -> Camera capture ('I'M READY') -> 3-way authorization branch (Owner / POA / Delegate LOA).",
+    "external_boundary": "UAE Pass IdP token exchange, camera video feed mocking, and OCR backend processing are external services. Automation harnesses supply pre-configured mock files and bypass live camera capture via Playwright browser context permissions."
+  },
+  "graph_edges": [
+    { "from": "login_page", "to": "registration_overview", "action": "click_register_button" },
+    { "from": "registration_overview", "to": "uae_pass_gateway", "action": "click_sign_in_with_uae_pass" },
+    { "from": "uae_pass_gateway", "to": "push_challenge", "action": "submit_uae_pass_credentials" },
+    { "from": "push_challenge", "to": "fetching_eid", "action": "approve_in_uae_pass_app" },
+    { "from": "fetching_eid", "to": "customer_details_form", "action": "retrieval_complete" },
+    { "from": "customer_details_form", "to": "dual_otp_verification", "action": "fill_email_mobile_and_proceed" },
+    { "from": "dual_otp_verification", "to": "emirate_selection", "action": "enter_dual_otps_and_continue" },
+    { "from": "emirate_selection", "to": "trade_license_upload", "action": "select_emirate_tile_and_continue" },
+    { "from": "trade_license_upload", "to": "tl_details_modal", "action": "upload_tl_document" },
+    { "from": "tl_details_modal", "to": "tl_upload_complete", "action": "verify_ocr_and_save" },
+    { "from": "tl_upload_complete", "to": "face_id_consent", "action": "click_proceed_to_biometrics" },
+    { "from": "face_id_consent", "to": "face_id_camera", "action": "click_proceed_to_authentication" },
+    { "from": "face_id_camera", "to": "branching_options", "action": "click_im_ready_and_capture" },
+    { "from": "branching_options", "to": "registration_complete_owner", "action": "select_owner_branch_continue" },
+    { "from": "branching_options", "to": "registration_poa_upload", "action": "select_register_with_poa" },
+    { "from": "branching_options", "to": "registration_loa_submitted", "action": "select_submit_loa_request" }
+  ],
+  "canonical_steps": [
+    {
+      "step_number": 1,
+      "action": "Navigate to B2B Portal login page and click REGISTER",
+      "target": "//button[contains(.,'REGISTER')]",
+      "expected_result": "The 'What's Needed' and 'Register Online' screen is displayed"
+    },
+    {
+      "step_number": 2,
+      "action": "Click 'Sign In with UAE PASS' to initiate identity verification",
+      "target": "//button[contains(.,'Sign In with UAE PASS')]",
+      "expected_result": "User is redirected to the UAE PASS authentication screen"
+    },
+    {
+      "step_number": 3,
+      "action": "Enter Emirates ID or registered identifier and submit UAE Pass login",
+      "target": "//input[@placeholder='Emirates ID or email address or UAE mobile number']",
+      "expected_result": "Push challenge number is presented to confirm in the UAE PASS mobile app"
+    },
+    {
+      "step_number": 4,
+      "action": "Confirm mobile push and observe 'Fetching Emirates ID from UAE PASS' interstitial",
+      "target": "//button[contains(.,'CONTINUE WITH UAE PASS')] | //div[contains(.,'fetching your Emirates ID')]",
+      "expected_result": "Emirates ID data is retrieved and the Customer Details form appears"
+    },
+    {
+      "step_number": 5,
+      "action": "Enter the customer personal email address",
+      "target": "//input[@placeholder='Enter your Email Address' or @name='email']",
+      "expected_result": "Email address field is filled"
+    },
+    {
+      "step_number": 6,
+      "action": "Enter the customer UAE mobile phone number",
+      "target": "//input[@placeholder='Enter your Mobile Number' or @name='mobile']",
+      "expected_result": "Mobile number field is filled"
+    },
+    {
+      "step_number": 7,
+      "action": "Click PROCEED to trigger Dual OTP verification",
+      "target": "//button[contains(.,'PROCEED')]",
+      "expected_result": "The 'VERIFY YOUR DETAILS' screen is displayed showing dual OTP entry sections"
+    },
+    {
+      "step_number": 8,
+      "action": "Enter the 6-digit mobile OTP and 6-digit email OTP and click CONTINUE",
+      "target": "//button[contains(.,'CONTINUE')]",
+      "expected_result": "Dual OTP verification succeeds and the 'Select the Emirate where your Trade License is registered' screen is displayed"
+    },
+    {
+      "step_number": 9,
+      "action": "Select the Emirate where the Trade License was issued and click CONTINUE",
+      "target": "//button[contains(translate(., 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), '{emirate}')] | //div[contains(@class,'emirate-tile') and contains(.,'{emirate}')]",
+      "expected_result": "The 'Upload your Trade License' dropzone screen appears"
+    },
+    {
+      "step_number": 10,
+      "action": "Upload the Trade License document (JPEG, PNG, or PDF <= 5MB)",
+      "target": "//button[contains(.,'UPLOAD NOW')] | //input[@type='file']",
+      "expected_result": "The file uploads, system triggers OCR check, and opens the Trade License Details modal"
+    },
+    {
+      "step_number": 11,
+      "action": "Verify auto-populated metadata in Trade License Details modal and click SAVE",
+      "target": "//button[contains(.,'SAVE')]",
+      "expected_result": "Trade License details are saved and the file card shows '100% Complete'"
+    },
+    {
+      "step_number": 12,
+      "action": "Click PROCEED to navigate to Face ID Authentication",
+      "target": "//button[contains(.,'PROCEED') and not(@disabled)]",
+      "expected_result": "The Face ID instructions and consent checklist screen appears"
+    },
+    {
+      "step_number": 13,
+      "action": "Click PROCEED TO AUTHENTICATION and then click I'M READY to capture photo",
+      "target": "//button[contains(.,'I\\'M READY') or contains(.,'I\\'m Ready') or contains(.,'Im Ready')]",
+      "expected_result": "Biometric face frame activates, validates face, and displays 'Face Captured! ✓'"
+    },
+    {
+      "step_number": 14,
+      "action": "Verify the 3-way authorization options screen is presented",
+      "target": "//div[contains(.,'Continue registration using one of the options below')]",
+      "expected_result": "Three options are displayed: (1) Owner/Company Manager, (2) Power of Attorney, (3) Digital LOA"
+    },
+    {
+      "step_number": 15,
+      "action": "Click CONTINUE under Owner/Company Manager to finalize registration",
+      "target": "//div[contains(.,'Owner/Company manager')]//button[contains(.,'CONTINUE')]",
+      "expected_result": "Registration completes successfully and user account is created"
+    }
+  ],
+  "test_data_notes": {
+    "branch_poa_selector": "//button[contains(.,'REGISTER WITH POWER OF ATTORNEY')]",
+    "branch_loa_selector": "//button[contains(.,'SUBMIT A REQUEST')]",
+    "track_status_selector": "//a[contains(.,'TRACK STATUS')]",
+    "supported_file_formats": ["application/pdf", "image/jpeg", "image/png"],
+    "max_file_size_bytes": 5242880
+  }
+}

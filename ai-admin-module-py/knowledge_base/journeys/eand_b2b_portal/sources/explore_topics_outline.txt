@@ -1,0 +1,258 @@
+# Transcription of B2B_Knowledge_Base_-_Explore_Topics.pdf (pages 1-8), titles verbatim.
+# Format: two spaces of indent per level. Chapter lines carry "CODE | Title".
+# Lines tagged [+pdf] are variants added from the screen-level PDFs (not in the Explore Topics tree).
+# Lines tagged [+shared] are shared sub-journeys that many journeys pass through.
+# Edit this file and re-run tools/build_taxonomy.py; never hand-edit journey_taxonomy.json.
+
+RELEASE | WHAT'S NEW IN B2B PORTAL - RELEASE NOTES
+INTRO | INTRODUCTION TO B2B PORTAL
+REG | REGISTERING & LOGGING-ON TO B2B PORTAL
+  Existing Business Customer Registering & Logging-on to B2B Portal
+    Registering to the B2B Portal
+      Register via UAE PASS - Owner/Company Manager Name on Trade License [+pdf]
+      Register via UAE PASS - Register with Power of Attorney [+pdf]
+      Register via UAE PASS - Company Representative (Delegate) [+pdf]
+    Sign-In to the Portal
+      Sign-in using OTP [+pdf]
+      Sign-in using Password [+pdf]
+      Sign-in using UAE Pass [+pdf]
+      Select Organization after Sign-in [+shared]
+    Error Messages
+    Contact Verification upon Login
+  New Business Customer Registering & Logging-on to B2B Portal
+  Register Customers via DUL
+DASH | DASHBOARD 360 / ACCOUNT INQUIRY
+  Viewing All Accounts
+  Viewing Active Accounts
+  Viewing Suspended Accounts
+  Viewing Inactive Accounts
+  View Companies under an Organization
+  View a Company with No Accounts
+  View Quick Access
+  View Outstanding Dues
+  View Popular Solutions
+  View Monthly Bill
+  Searching for Accounts Using Smart Search and Filters
+  Search Individual Accounts
+  Performing Account Inquiry for Postpaid Accounts
+  Performing Account Inquiry for Prepaid Accounts
+  Account Inquiry - Fixed
+  Configuring Tags for the Account
+  Viewing Recent and All Orders
+  Creating a Ticket
+  Generating a Lead
+  Tracking Support Tickets
+  Viewing Product Specific Account Details
+TEAM | TEAM MANAGEMENT
+  Viewing details of all B2B users of the organization
+  Admin Users Management
+    Adding an Admin User
+    Searching Admin Users
+    Add Business Representative
+    Assigning Services
+    Editing Users
+    Suspending a User
+    Activating a User
+    Delete User
+  Employee User Management
+    Adding an Employee
+    Searching Employee Users
+    Assigning Services
+    Editing Users
+  Delivery Address Management
+    Adding a Delivery Address
+    Editing a Delivery Address
+    Deleting a Delivery Address
+  Adding/Deleting VSaaS Users in B2B
+    Adding a New User
+    Deleting a User
+    Adding an Existing User
+ORG | MANAGING MULTIPLE ORGANIZATIONS IN B2B PORTAL
+  Viewing Multiple Organizations
+  Setting a Default Organization
+  Renaming an Existing Organization
+  Switching Organizations
+  Adding an Admin User and Assigning Organizations
+  Assigning Organizations to Existing Users
+RENEW | REGISTRATION RENEWAL
+  Registration Renewal of Mobile Business Accounts
+  Registration Renewal of Fixed Business Accounts
+  Re - Registration by Admin-Lead with Expired LOA
+CNAP | MANAGING CNAP SERVICE THROUGH DIGITAL CHANNELS
+  Managing CNAP at Party Level by Government Entity
+  Managing CNAP at Account Level for Government Entity
+  Managing CNAP at Party Level for Business Customer
+MOB | MANAGING ORDERS - MOBILE PRODUCTS
+  Subscribing to Mobile Plans - Existing Customer registered on B2B Portal
+  Subscribing to Mobile Plans - Existing Customer not registered on B2B Portal
+  Subscribing to Mobile Plans - New Customer not registered on B2B Portal
+  Subscribing to Add-Ons
+  Subscribing to Mobile Data Plans
+  Subscribing to Smart Phones
+  Subscribing to Prepaid Plans
+  Purchasing Subsidized Devices
+  Preorder Mobile Devices
+  Managing Subscriptions
+    Change Mobile Plan
+    Change Data Plan
+    Request Blank SIM Cards
+    Adding/Deleting a Clone or Multi SIM
+    Change Billing Details
+    Perform SIM Replacement
+    Subscribing to Add-Ons on an Individual Account
+    Subscribing to Add-Ons on Multiple Accounts
+    Perform Prepaid to Postpaid Migration
+    Perform Postpaid to Prepaid Migration
+    Perform Transfer of Ownership (From Corporate to Personal)
+    Perform Transfer of Ownership (From Corporate to Corporate)
+    Perform Transfer of Ownership (From Personal to Corporate)
+    Perform Mobile Re-Registration
+    Switch Number to e&
+    Remove Special Subscriptions
+    Removing Add-on Subscription
+    Removing Add-on Subscription (Single Screen Deletion Flow)
+    Reactivate Ceased Account
+    Bulk Migration for Change Plan
+  Closing an Account
+    Closing a Managed Postpaid Account
+    Closing an Unmanaged Postpaid Account
+    Closing a Prepaid Account
+    Tracking the Request
+  Managing Settings
+    Manage Usage Limit
+    Manage Data Cap
+    Manage Network Settings
+    Manage App Store Usage Settings
+    Update Credit Limit
+FIX | MANAGING ORDERS - FIXED SERVICES
+  Subscribing to Office Presence
+    Non-Logged in User Subscribing to Office Presence
+    Logged in User Subscribing to Office Presence
+  Subscribing to Business Pro
+    Non-Logged in User Subscribing to Business Pro
+    Logged in User Subscribing to Business Pro
+    Limiting_Unmanaged_Party_IDs
+    Need_Help
+  Subscribing to Business Pro - L2O Process
+    Non-Logged in User
+    Logged in User
+  Communications
+    Unified Communications
+    Cloud Talk Meeting
+  Dedicated Internet
+  Toll Free Services
+    Service 600
+    800 Toll Free Service
+  Wi-Fi
+  Landline
+  Managing Subscriptions
+    Change Plan
+    Shifting
+    Add Subscriptions
+    Change Internet Password
+    Transfer Ownership
+    Change Billing Settings
+    Remove Subscription
+  Closing an Account
+    Closing a Managed Fixed Account
+    Closing an Unmanaged Fixed Account
+DIG | MANAGING ORDERS - DIGITAL SOLUTIONS
+  Smart Messaging
+  Video Surveillance
+  Cloud Server and Storage
+  Multi Cloud
+  Payment Solutions
+  Security
+  Easy Insurance for Business
+    Non-Logged-in User Inquiring a Business Insurance Plan
+    Logged-in User Inquiring a Business Insurance Plan
+  Manage Subscriptions
+    Change Package
+    Remove Subscription
+APPSTORE | MANAGING ORDERS - BUSINESS APP STORE
+  Subscribing to a SaaS Package - Logged In User
+  Subscribing to a SaaS Package - Non-Logged In User
+  Activating a MS Office Subscription
+  Managing Subscriptions
+    Managing Control Panel
+    Managing Shop
+    Managing Order History
+ENT | MANAGING ORDERS - ENTERPRISE SOLUTIONS
+  New Subscriptions
+    Digital Internet
+    Managed Voice
+    Managed Internet
+    Managed Connectivity
+    Managed Security
+    Managed LAN
+    Managed Wi-Fi
+  Manage Subscriptions
+    Migrating to Digital Internet
+    Upgrading Digital Internet Bundle
+    Downgrading Digital Internet Bundle
+    Digital Internet - Add/Delete/Modify Add-ons
+    Digital Internet - Order Tracking, Amendment and Cancellation
+    Change Package
+    Remove Subscription
+    Digital Internet - External Shift
+BILL | BILLS & PAYMENTS DASHBOARD
+  Viewing Bills Information on the Account
+  Viewing/Downloading/Saving the e-Bills for the Account(s)
+  Bill Payment for a Single Account
+    Bill Payment Online Using Credit Card
+    Offline Bill Payment
+  Bill Payment for Accounts in Bulk
+  Bill Payments Through Pay with Excel
+  Making Payment for a Specific Month Invoice
+  Viewing Payment History
+  Performing Bill Payment in full at the Organization Level
+  Bill Payment through Quick pay – Pay by Account
+  Bill Payment through Quick pay – Summary Bill Account
+  Bill Payment through Quick Pay – Pay by Bulk File Upload
+  View Exit Charges
+  Managing Summary Bill Payments
+    Making Payments for Summary Bill
+    Adding a Child Account to Summary Bill
+    Removing a Child Account from Summary Bill
+    Updating Summary Bill Settings
+  Managing Bulk Recharge and Bill Delivery Settings
+    Managing Bulk Recharge
+    Updating Individual Bill Delivery Settings
+  Managing Cards for Bill Payments
+    Adding a New Card for Payment
+    Viewing Saved Cards
+    Setting a Card as Default
+    Deleting a Default Card
+    Making Payment with Saved Cards
+    Updating TRN Details
+SVC | MANAGING SERVICES
+  Managing Accounts
+  Controlling Mobile Usage & Settings
+    Setting Data and Roaming Controls
+    Setting Maximum Usage Limit
+    Setting Data CAP Limit
+    Blocking/Unblocking SMS Notification
+    Activating eSIM
+    Managing Promotional Calls Settings
+  Setting Alerts
+  Personalized Offers
+  Virtual Firewall - Inquiry & Management
+    Viewing and Editing Virtual Firewall Rules
+    Adding a Rule
+    Deleting a Rule
+  Change Domain Name
+  Managing Mobile Hub Corporate Accounts
+NONAUTO | ONLINE ORDERING - NON AUTOMATED PRODUCTS
+  New User New Customer - Non Automated Products
+  New User Existing Customer - Non Automated Products
+SUPPORT | SUPPORT
+  Technical Support
+  Creating Complaint
+  Live Chat
+  Requesting Clearence Certificate for Ceased Accounts
+TRACK | ORDER TRACKING
+  Order Tracking
+  Rescheduling an Appointment
+  Update Site Contact
+  Cancelling an Order
+  Site Access Permission

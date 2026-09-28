@@ -118,11 +118,11 @@ def _resolve_limits(
         resolved_temp = 0.1 if temperature is None else min(max(float(temperature), 0.0), 2.0)
         return resolved_temp, resolved_tokens
 
-    ceiling = int(settings.OPENROUTER_MAX_TOKENS or 8192)
-    if max_tokens is None or max_tokens <= 0:
-        resolved_tokens = ceiling
-    else:
-        resolved_tokens = min(int(max_tokens), ceiling)
+    # The ceiling is the spending control, and it is also the size of the reply.
+    # A lower client value is not honoured: the Test Assistant's form still
+    # sends ai_config's 4096, which cut a 16k-character BRD's table off mid-row
+    # at the 39th case.
+    resolved_tokens = int(settings.OPENROUTER_MAX_TOKENS or 8192)
 
     if temperature is None:
         resolved_temp = float(settings.OPENROUTER_TEMPERATURE or 0.1)
@@ -466,7 +466,8 @@ def _chat_completions_target(provider: str, model_override: str | None) -> dict:
             "model": settings.OPENROUTER_MODEL,
             "timeout": settings.OPENROUTER_TIMEOUT_SECONDS,
             "token_field": "max_tokens",
-            "usage": {"usage": {"include": True}},
+            # Reasoning is off unless configured: see OPENROUTER_REASONING.
+            "usage": {"usage": {"include": True}, **settings.openrouter_reasoning()},
         }
 
     if provider == "openai":
@@ -619,6 +620,7 @@ def _stream_chat_completions(
 
         usage: dict | None = None
         produced = False
+        finish: str | None = None
 
         for line in response.iter_lines(decode_unicode=True):
             if not line:
@@ -658,17 +660,29 @@ def _stream_chat_completions(
                 usage = frame["usage"]
 
             for choice in frame.get("choices") or []:
+                finish = choice.get("finish_reason") or finish
                 delta = (choice.get("delta") or {}).get("content")
                 if delta:
                     produced = True
                     yield delta
 
     if not produced:
-        logger.warning("%s stream closed without producing any content", label)
-        yield (
-            "\n> **No content was returned.** The model accepted the request but "
-            "produced an empty reply. Try again, or reduce the size of the input.\n"
+        reasoning = ((usage or {}).get("completion_tokens_details") or {}).get("reasoning_tokens")
+        logger.warning(
+            "%s stream closed without producing any content (finish=%s, reasoning tokens=%s)",
+            label, finish, reasoning,
         )
+        if finish == "length" and reasoning:
+            yield (
+                f"\n> **No content was returned.** The model spent all {reasoning} tokens "
+                "of its reply thinking and never answered. Turn reasoning off "
+                "(OPENROUTER_REASONING=off) or raise the reply limit.\n"
+            )
+        else:
+            yield (
+                "\n> **No content was returned.** The model accepted the request but "
+                "produced an empty reply. Try again, or reduce the size of the input.\n"
+            )
 
     if usage:
         yield token_marker(

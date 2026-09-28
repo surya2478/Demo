@@ -46,10 +46,33 @@ from ...models.automation import (
     AutomationScript,
 )
 from . import healer
+from . import test_data
 from . import workspace as ws
 from .local_playwright import LocalPlaywrightRunner
 
 logger = logging.getLogger(__name__)
+
+
+def _scrub(result, secrets: list[str]) -> None:
+    """Blank secret test data out of everything a run keeps: results, log, error."""
+    if not secrets:
+        return
+    result.error_message = test_data.redact(result.error_message, secrets)
+    for row in result.results:
+        row.error_message = test_data.redact(row.error_message, secrets)
+        row.stack_trace = test_data.redact(row.stack_trace, secrets)
+        row.console_logs = test_data.redact_deep(row.console_logs, secrets)
+        row.network_logs = test_data.redact_deep(row.network_logs, secrets)
+        row.raw = test_data.redact_deep(row.raw, secrets)
+    if result.log_path:
+        try:
+            path = Path(result.log_path)
+            text = path.read_text(encoding="utf-8", errors="replace")
+            cleaned = test_data.redact(text, secrets)
+            if cleaned != text:
+                path.write_text(cleaned, encoding="utf-8")
+        except OSError:
+            logger.warning("Could not redact the runner log at %s", result.log_path)
 
 
 class JobManager:
@@ -186,6 +209,31 @@ class JobManager:
             base_url = (run.run_metadata or {}).get("base_url")
             file_name_hint = (run.run_metadata or {}).get("file_name")
 
+            # --- Test data -------------------------------------------------
+            # The values the spec reads from TESTDATA_*, from Automation
+            # Studio's Test data for this application and environment. A run
+            # missing one stops here, blocked, with the names it needs --
+            # rather than typing "<set TESTDATA_...>" into the page and failing
+            # at the login step.
+            case = getattr(run, "test_case", None) or (
+                getattr(run.script, "test_case", None) if getattr(run, "script", None) else None
+            )
+            data = test_data.for_code(
+                db,
+                code,
+                environment=run.environment,
+                case_url=getattr(case, "application_url", None),
+                base_url=base_url,
+            )
+            run.run_metadata = {**(run.run_metadata or {}), "test_data": test_data.public(data)}
+            db.commit()
+            missing = test_data.missing_message(data)
+            if missing:
+                self._finalise(db, run, status="failed", outcome="blocked", error=missing)
+                return
+            data_env: dict[str, str] = data["values"]
+            secrets: list[str] = data["secrets"]
+
             run.status = "running"
             run.started_at = datetime.utcnow()
             run.run_metadata = {
@@ -256,6 +304,7 @@ class JobManager:
             progress_state: dict[str, Any] = {"last_commit": 0.0}
 
             def publish_progress(snapshot: dict) -> None:
+                snapshot = test_data.redact_deep(snapshot, secrets)
                 now = time.monotonic()
                 terminal = snapshot.get("status") in ("failed", "passed", "timedOut")
                 if not terminal and now - progress_state["last_commit"] < 1.0:
@@ -290,7 +339,9 @@ class JobManager:
                 on_progress=publish_progress,
                 timeout_seconds=int(settings.AUTOMATION_RUN_TIMEOUT_SECONDS or 600),
                 cancellation=cancel,
+                extra_env=data_env,
             )
+            _scrub(result, secrets)
 
             counts = {"pass": 0, "fail": 0, "skip": 0, "error": 0, "blocked": 0}
             for row in result.results:
@@ -383,7 +434,9 @@ class JobManager:
                             timeout_seconds=min(180, int(settings.AUTOMATION_RUN_TIMEOUT_SECONDS or 600)),
                             cancellation=cancel,
                             on_progress=publish_progress,
+                            extra_env=data_env,
                         )
+                        _scrub(healed_result, secrets)
 
                         healed_counts = {"pass": 0, "fail": 0, "skip": 0, "error": 0, "blocked": 0}
                         for row in healed_result.results:

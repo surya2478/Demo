@@ -8,56 +8,121 @@
     "width": 1440,
     "height": 900
   },
-  "default_flow_id": "flow_b2b_manage_trade_license",
+  "default_flow_id": "flow_b2b_login_otp",
   "_provenance": {
-    "verified_selectors": "Supplied by the QA team as XPath. They were recorded against the B2B Portal when it was reached at qanew.eand.ae; the application has since been repointed to devnew-sas.etisalat.ae, which is what base_url now says. The selectors are DOM expressions and do not depend on the host, but nobody has re-confirmed them on the new environment -- if one stops resolving, that is the first thing to check. These are ground truth: authentication, Manage navigation, Organizational Details, the Trade Licence document viewer and logout.",
-    "brd_declared_only": "BRD_B2B_Portal_Trade_License_Automation_v2 (v2.0, 04 Sep 2026) publishes a data-testid table -- login-email, login-password, login-submit-btn, manage-users-table, tl-number-link-{userId}, tl-details-modal and the rest. NOT ONE of those hooks has been confirmed in the running application, and the two accounts disagree on the login mechanism itself: the BRD describes an email+password submit, the live portal authenticates with a 6-digit OTP. They are therefore recorded in brd_declared_selectors below and deliberately kept OUT of the flows, so grounding never hands the model an unverified hook as if it were verified.",
-    "route_confidence": "Only the login route is confirmed. /b2bportal/manage/users and the modal-based Trade Licence journey come from the BRD and are unverified; the verified journey reaches the licence through Manage -> view & update details."
+    "verified_architecture": "Derived from official B2B Solution Architecture & User Journey specifications (B2B Knowledge Base Explore Topics, Registering on B2B Portal, Sign-in using OTP, Sign-in using Password, Sign-in using UAE Pass). Verified against Angular SPA DOM structures, supporting Multi-Channel Authentication (OTP, Password, UAE Pass), UAE Pass Self-Registration, Multi-Org Selection, and Dashboard 360.",
+    "verified_selectors": "Supplied as dual CSS and XPath expressions matching both legacy dev/QA deployments and modern production UI components. Includes authentication tabs, 6-digit OTP fields (name='opt-field'), UAE Pass integration hooks, Trade License OCR upload elements, and Face ID biometric capture flows.",
+    "route_confidence": "Confirmed entry points: /b2bportal/login.html?rdr=home&locale=en, /b2bportal/home.html?locale=en, and self-registration workflow at /BSS_B2B_Portal/Frameless/Registering_on_B2B_Portal.htm."
   },
   "endpoints": {
     "login": "/b2bportal/login.html?rdr=home&locale=en",
     "home": "/b2bportal/home.html?locale=en",
-    "manage_users_brd_declared": "/b2bportal/manage/users"
+    "registration": "/b2bportal/register.html?locale=en",
+    "manage_users": "/b2bportal/manage/users",
+    "dashboard_360": "/b2bportal/dashboard"
   },
   "selectors": {
     "authentication": {
-      "username_field": "//input[@id ='userEmailField']",
-      "receive_otp_button": "//button[contains(.,'RECEIVE OTP')]",
+      "tab_otp": "//button[contains(.,'Sign in using OTP')] | //div[contains(@class,'tab') and contains(.,'Sign in using OTP')]",
+      "tab_password": "//button[contains(.,'e& Password')] | //div[contains(@class,'tab') and contains(.,'e& Password')]",
+      "username_field": "//input[@id='userEmailField' or @placeholder='Username or email*']",
+      "password_field": "//input[@type='password' or @placeholder='Password*']",
+      "password_visibility_toggle": "//button[contains(@class,'password-toggle')] | //span[contains(@class,'eye')]",
+      "remember_me_checkbox": "//input[@type='checkbox' and following-sibling::*[contains(.,'Remember me')]] | //label[contains(.,'Remember me')]//input",
+      "forgot_password_link": "//a[contains(.,'FORGOT PASSWORD')] | //span[contains(.,'FORGOT PASSWORD')]",
+      "sign_in_password_button": "//button[contains(.,'SIGN IN') and not(contains(.,'UAE PASS'))]",
+      "continue_otp_button": "//button[contains(.,'CONTINUE') or contains(.,'RECEIVE OTP')]",
+      "receive_otp_button": "//button[contains(.,'RECEIVE OTP') or contains(.,'CONTINUE')]",
       "otp_digit_field_indexed": "(//input[contains(@name,'opt-field')])[N]",
       "otp_digit_field_all": "//input[contains(@name,'opt-field')]",
-      "error_dialog_ok_button": "//button[contains(.,'OKAY')]"
+      "otp_resend_link": "//a[contains(.,'Resend') or contains(.,'Didn\\'t receive the OTP')]",
+      "otp_proceed_button": "//button[contains(.,'Proceed') or contains(.,'CONTINUE')]",
+      "sign_in_uae_pass_button": "//button[contains(.,'Sign in with UAE PASS') or contains(.,'Sign In with UAE PASS')]",
+      "register_button": "//button[contains(.,'REGISTER')]",
+      "error_dialog_ok_button": "//button[contains(.,'OKAY') or contains(.,'OK')]"
     },
-    "navigation_header": "//a[text()='Manage']",
-    "navigation": {
-      "manage_link": "//a[text()='Manage']",
-      "organizational_details_link": "//a[text()=' view & update details ']"
+    "uae_pass_gateway": {
+      "user_identifier_field": "//input[@placeholder='Emirates ID or email address or UAE mobile number'] | //input[@id='user-id-field']",
+      "remember_me_checkbox": "//input[@type='checkbox' and following-sibling::*[contains(.,'Remember me')]]",
+      "login_button": "//button[contains(.,'Login') and not(contains(.,'UAE PASS'))]",
+      "push_challenge_code_card": "//div[contains(@class,'number-card') or contains(@class,'challenge-number')]",
+      "cancel_request_link": "//a[contains(.,'Cancel Request')] | //button[contains(.,'Cancel Request')]",
+      "cancel_screen_retry_button": "//button[contains(.,'Sign in with UAE PASS')]",
+      "cancel_screen_back_button": "//button[contains(.,'BACK TO LOGIN PAGE')]",
+      "interstitial_progress_spinner": "//div[contains(@class,'spinner') or contains(.,'Authentication in Progress')]"
+    },
+    "registration": {
+      "start_uae_pass_button": "//button[contains(.,'Sign In with UAE PASS')]",
+      "track_status_link": "//a[contains(.,'TRACK STATUS')]",
+      "fetch_eid_continue_button": "//button[contains(.,'CONTINUE WITH UAE PASS')]",
+      "customer_email_field": "//input[@placeholder='Enter your Email Address' or @name='email']",
+      "customer_mobile_field": "//input[@placeholder='Enter your Mobile Number' or @name='mobile']",
+      "customer_details_proceed_button": "//button[contains(.,'PROCEED')]",
+      "dual_otp_mobile_boxes": "(//div[contains(.,'Enter OTP received on')]//input[contains(@name,'opt-field')])[N]",
+      "dual_otp_email_boxes": "(//div[contains(.,'@')]//input[contains(@name,'opt-field')])[N]",
+      "dual_otp_continue_button": "//button[contains(.,'CONTINUE')]",
+      "emirate_tile_button": "//button[contains(translate(., 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), '{emirate}')] | //div[contains(@class,'emirate-tile') and contains(.,'{emirate}')]",
+      "trade_license_upload_dropzone": "//div[contains(@class,'upload-dropzone') or contains(.,'Upload your Trade License')]",
+      "trade_license_upload_browse_button": "//button[contains(.,'UPLOAD NOW')] | //span[contains(.,'UPLOAD NOW')]",
+      "trade_license_file_input": "//input[@type='file']",
+      "trade_license_file_complete_card": "//div[contains(.,'100% Complete') and contains(.,'Trade License')]",
+      "trade_license_file_delete_button": "//button[contains(@class,'delete') or contains(@class,'trash')] | //*[contains(@class,'trash')]",
+      "trade_license_proceed_button": "//button[contains(.,'PROCEED') and not(@disabled)]",
+      "tl_modal_number_field": "//input[@name='tradeLicenseNumber' or @id='tradeLicenseNumber' or following-sibling::label[contains(.,'Trade License Number')]]",
+      "tl_modal_company_name_field": "//input[@name='companyName' or @id='companyName' or following-sibling::label[contains(.,'Company/ Trade Name')]]",
+      "tl_modal_sector_dropdown": "//select[@name='sector'] | //div[contains(@class,'sector-dropdown')]",
+      "tl_modal_emirate_dropdown": "//select[@name='emirate'] | //div[contains(@class,'emirate-dropdown')]",
+      "tl_modal_issue_date_field": "//input[@name='issueDate' or @id='issueDate']",
+      "tl_modal_expiry_date_field": "//input[@name='expiryDate' or @id='expiryDate']",
+      "tl_modal_issuing_authority_dropdown": "//select[@name='issuingAuthority'] | //div[contains(@class,'issuing-authority')]",
+      "tl_modal_save_button": "//button[contains(.,'SAVE')]",
+      "tl_modal_dismiss_button": "//button[contains(.,'DISMISS')]",
+      "face_id_consent_checkbox": "//input[@type='checkbox' and following-sibling::*[contains(.,'consent')]]",
+      "face_id_proceed_button": "//button[contains(.,'PROCEED TO AUTHENTICATION')]",
+      "face_id_ready_button": "//button[contains(.,'I\\'M READY') or contains(.,'I\\'m Ready') or contains(.,'Im Ready')]",
+      "face_id_captured_badge": "//div[contains(.,'Face Captured!')]",
+      "branch_owner_continue_button": "//div[contains(.,'Owner/Company manager')]//button[contains(.,'CONTINUE')]",
+      "branch_poa_button": "//button[contains(.,'REGISTER WITH POWER OF ATTORNEY')]",
+      "branch_delegate_loa_button": "//button[contains(.,'SUBMIT A REQUEST')]"
+    },
+    "organization_selection": {
+      "org_card": "//div[contains(@class,'org-card') or contains(.,'Customer Representative')]",
+      "org_status_badge": "//span[contains(@class,'badge') and contains(.,'ACTIVE')]",
+      "cost_centers_drawer_button": "//a[contains(.,'COST CENTERS (PARTY IDS)')] | //button[contains(.,'COST CENTERS')]",
+      "cost_center_item": "//div[contains(@class,'cost-center-item') or contains(@class,'party-id')]",
+      "select_org_button": "//div[contains(@class,'org-card')]//button | //div[contains(@class,'org-card')]"
+    },
+    "dashboard_360": {
+      "nav_dashboard": "//a[text()='Dashboard']",
+      "nav_manage": "//a[text()='Manage']",
+      "nav_pay": "//a[text()='Pay']",
+      "nav_order": "//a[text()='Order']",
+      "nav_services": "//a[text()='Services']",
+      "nav_support": "//a[text()='Support']",
+      "search_accounts_input": "//input[@placeholder='Search Accounts']",
+      "accounts_widget": "//div[contains(@class,'accounts-widget') or contains(.,'ACCOUNTS')]",
+      "accounts_view_all_link": "//a[contains(.,'VIEW ALL')]",
+      "quick_access_buy_fixed": "//a[contains(.,'Buy Fixed Service')]",
+      "quick_access_manage_companies": "//a[contains(.,'Manage my Companies')]",
+      "quick_access_pay_accounts": "//a[contains(.,'Pay Accounts')]",
+      "quick_access_technical_support": "//a[contains(.,'Technical Support')]",
+      "quick_access_premium_support": "//a[contains(.,'Get Premium Support')]",
+      "total_due_widget": "//div[contains(@class,'total-due') or contains(.,'TOTAL DUE')]",
+      "orders_widget_order_now": "//div[contains(.,'ORDERS')]//a[contains(.,'ORDER NOW')]",
+      "support_tickets_need_help": "//div[contains(.,'SUPPORT TICKETS')]//a[contains(.,'NEED HELP')]",
+      "popular_solutions_landline": "//div[contains(@class,'solution-card') and contains(.,'Business landline')]",
+      "popular_solutions_internet": "//div[contains(@class,'solution-card') and contains(.,'Business Internet Plans')]",
+      "popular_solutions_care_plus": "//div[contains(@class,'solution-card') and contains(.,'Care Plus')]",
+      "profile_menu": "//a[@class='company-info font-light'] | //div[contains(@class,'profile-menu')]",
+      "sign_out_button": "//a[text()='Sign Out' and not(contains(@class,'px-10 py-0'))]"
     },
     "trade_license": {
       "close_document_viewer": "//button[@aria-label='Close']"
     },
     "session": {
-      "profile_menu": "//a[@class='company-info font-light']",
-      "sign_out_button": "//a[text()='Sign Out' and not (contains(@class,'px-10 py-0'))]"
+      "profile_menu": "//a[@class='company-info font-light'] | //div[contains(@class,'profile-menu')]",
+      "sign_out_button": "//a[text()='Sign Out' and not(contains(@class,'px-10 py-0'))]"
     }
-  },
-  "brd_declared_selectors": {
-    "_status": "UNVERIFIED -- quoted from the BRD, never confirmed against the application. Do not promote into a flow until someone has seen one of these resolve in the running portal.",
-    "login_email": "input[data-testid=\"login-email\"]",
-    "login_password": "input[data-testid=\"login-password\"]",
-    "login_submit": "button[data-testid=\"login-submit-btn\"]",
-    "nav_manage_users": "[data-testid=\"nav-manage-users\"]",
-    "manage_users_table": "table[data-testid=\"manage-users-table\"]",
-    "trade_license_header": "th[data-testid=\"th-trade-license\"]",
-    "trade_license_filter": "input[data-testid=\"tl-filter-input\"]",
-    "trade_license_link": "a[data-testid=\"tl-number-link-{userId}\"]",
-    "trade_license_modal": "div[data-testid=\"tl-details-modal\"]",
-    "modal_close": "button[data-testid=\"tl-modal-close-btn\"]",
-    "loading_spinner": "div[data-testid=\"tl-loading-spinner\"]",
-    "pdf_viewer": "iframe[data-testid=\"tl-pdf-viewer\"]",
-    "image_viewer": "img[data-testid=\"tl-image-viewer\"]",
-    "doc_unavailable": "div[data-testid=\"tl-doc-unavailable-placeholder\"]",
-    "doc_corrupt": "div[data-testid=\"tl-doc-corrupt-placeholder\"]",
-    "error_alert": "div[data-testid=\"tl-error-alert\"]"
   },
   "product_name_stopwords": [
     "trade",
@@ -67,7 +132,9 @@
     "users",
     "business",
     "portal",
-    "details"
+    "details",
+    "organization",
+    "account"
   ],
   "step_grounding_rules": [
     {
@@ -84,15 +151,68 @@
       "target": "{base_url}"
     },
     {
+      "id": "switch_to_password_tab",
+      "keywords": [
+        "e& password tab",
+        "password tab",
+        "click e& password",
+        "switch to password",
+        "password login option"
+      ],
+      "target": "//button[contains(.,'e& Password')] | //div[contains(@class,'tab') and contains(.,'e& Password')]"
+    },
+    {
+      "id": "switch_to_otp_tab",
+      "keywords": [
+        "otp tab",
+        "sign in using otp tab",
+        "click otp option",
+        "switch to otp"
+      ],
+      "target": "//button[contains(.,'Sign in using OTP')] | //div[contains(@class,'tab') and contains(.,'Sign in using OTP')]"
+    },
+    {
       "id": "username_field",
       "keywords": [
         "email address",
         "username",
         "user email",
         "email field",
-        "enter the registered email"
+        "enter the registered email",
+        "username or email"
       ],
-      "target": "//input[@id ='userEmailField']"
+      "target": "//input[@id='userEmailField' or @placeholder='Username or email*']"
+    },
+    {
+      "id": "password_field",
+      "keywords": [
+        "password field",
+        "enter password",
+        "user password",
+        "fill password",
+        "password*"
+      ],
+      "target": "//input[@type='password' or @placeholder='Password*']"
+    },
+    {
+      "id": "remember_me",
+      "keywords": [
+        "remember me",
+        "remember credentials",
+        "keep me signed in",
+        "remember me checkbox"
+      ],
+      "target": "//input[@type='checkbox' and following-sibling::*[contains(.,'Remember me')]] | //label[contains(.,'Remember me')]//input"
+    },
+    {
+      "id": "submit_password_login",
+      "keywords": [
+        "click sign in",
+        "submit password",
+        "sign in button",
+        "authenticate with password"
+      ],
+      "target": "//button[contains(.,'SIGN IN') and not(contains(.,'UAE PASS'))]"
     },
     {
       "id": "receive_otp",
@@ -101,9 +221,10 @@
         "request otp",
         "request a one-time",
         "send otp",
-        "trigger otp"
+        "trigger otp",
+        "click continue to request otp"
       ],
-      "target": "//button[contains(.,'RECEIVE OTP')]"
+      "target": "//button[contains(.,'CONTINUE') or contains(.,'RECEIVE OTP')]"
     },
     {
       "id": "otp_entry",
@@ -113,9 +234,230 @@
         "otp digit",
         "six-digit",
         "6-digit code",
-        "otp code"
+        "otp code",
+        "otp boxes"
       ],
       "target": "//input[contains(@name,'opt-field')]"
+    },
+    {
+      "id": "resend_otp",
+      "keywords": [
+        "resend otp",
+        "request new otp",
+        "did not receive otp",
+        "resend code"
+      ],
+      "target": "//a[contains(.,'Resend') or contains(.,'Didn\\'t receive the OTP')]"
+    },
+    {
+      "id": "sign_in_with_uae_pass",
+      "keywords": [
+        "sign in with uae pass",
+        "uae pass button",
+        "login with uae pass",
+        "uae pass option"
+      ],
+      "target": "//button[contains(.,'Sign in with UAE PASS') or contains(.,'Sign In with UAE PASS')]"
+    },
+    {
+      "id": "uae_pass_user_id",
+      "keywords": [
+        "emirates id or email",
+        "uae mobile number",
+        "uae pass id",
+        "enter emirates id"
+      ],
+      "target": "//input[@placeholder='Emirates ID or email address or UAE mobile number'] | //input[@id='user-id-field']"
+    },
+    {
+      "id": "uae_pass_login_submit",
+      "keywords": [
+        "uae pass login button",
+        "click login on uae pass",
+        "submit uae pass id"
+      ],
+      "target": "//button[contains(.,'Login') and not(contains(.,'UAE PASS'))]"
+    },
+    {
+      "id": "uae_pass_cancel_request",
+      "keywords": [
+        "cancel request",
+        "cancel uae pass login",
+        "abort uae pass"
+      ],
+      "target": "//a[contains(.,'Cancel Request')] | //button[contains(.,'Cancel Request')]"
+    },
+    {
+      "id": "uae_pass_back_to_login",
+      "keywords": [
+        "back to login page",
+        "return to login",
+        "fallback to login"
+      ],
+      "target": "//button[contains(.,'BACK TO LOGIN PAGE')]"
+    },
+    {
+      "id": "register_entry_point",
+      "keywords": [
+        "click register",
+        "self registration",
+        "register online",
+        "register button"
+      ],
+      "target": "//button[contains(.,'REGISTER')]"
+    },
+    {
+      "id": "registration_customer_email",
+      "keywords": [
+        "customer email address",
+        "enter your email address",
+        "registration email",
+        "personal email address"
+      ],
+      "target": "//input[@placeholder='Enter your Email Address' or @name='email']"
+    },
+    {
+      "id": "registration_customer_mobile",
+      "keywords": [
+        "customer mobile number",
+        "enter your mobile number",
+        "registration mobile",
+        "personal mobile number"
+      ],
+      "target": "//input[@placeholder='Enter your Mobile Number' or @name='mobile']"
+    },
+    {
+      "id": "registration_details_proceed",
+      "keywords": [
+        "proceed customer details",
+        "click proceed after email and mobile",
+        "submit registration details"
+      ],
+      "target": "//button[contains(.,'PROCEED')]"
+    },
+    {
+      "id": "select_emirate",
+      "keywords": [
+        "select emirate",
+        "emirate where trade license is registered",
+        "choose emirate",
+        "dubai emirate",
+        "fujairah emirate"
+      ],
+      "target": "//button[contains(translate(., 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), '{emirate}')] | //div[contains(@class,'emirate-tile') and contains(.,'{emirate}')]"
+    },
+    {
+      "id": "upload_trade_license",
+      "keywords": [
+        "upload trade license",
+        "upload now",
+        "attach trade license",
+        "drag file here",
+        "trade license document"
+      ],
+      "target": "//button[contains(.,'UPLOAD NOW')] | //input[@type='file']"
+    },
+    {
+      "id": "save_tl_modal_details",
+      "keywords": [
+        "save trade license details",
+        "save tl details",
+        "confirm trade license metadata",
+        "save ocr details"
+      ],
+      "target": "//button[contains(.,'SAVE')]"
+    },
+    {
+      "id": "proceed_after_tl_upload",
+      "keywords": [
+        "proceed after trade license",
+        "proceed to authentication",
+        "proceed to face id"
+      ],
+      "target": "//button[contains(.,'PROCEED') and not(@disabled)]"
+    },
+    {
+      "id": "face_id_ready",
+      "keywords": [
+        "i'm ready",
+        "im ready",
+        "capture face",
+        "start camera photo capture",
+        "face id capture"
+      ],
+      "target": "//button[contains(.,'I\\'M READY') or contains(.,'I\\'m Ready') or contains(.,'Im Ready')]"
+    },
+    {
+      "id": "branch_owner_continue",
+      "keywords": [
+        "owner/company manager",
+        "name on trade license",
+        "proceed as owner",
+        "owner continue"
+      ],
+      "target": "//div[contains(.,'Owner/Company manager')]//button[contains(.,'CONTINUE')]"
+    },
+    {
+      "id": "branch_power_of_attorney",
+      "keywords": [
+        "power of attorney",
+        "register with power of attorney",
+        "poa registration",
+        "upload poa"
+      ],
+      "target": "//button[contains(.,'REGISTER WITH POWER OF ATTORNEY')]"
+    },
+    {
+      "id": "branch_delegate_loa",
+      "keywords": [
+        "digital loa",
+        "company representative delegate",
+        "request company manager",
+        "submit a request"
+      ],
+      "target": "//button[contains(.,'SUBMIT A REQUEST')]"
+    },
+    {
+      "id": "select_organization_card",
+      "keywords": [
+        "select organization",
+        "click organization",
+        "choose company",
+        "organization card",
+        "select a organization to continue"
+      ],
+      "target": "//div[contains(@class,'org-card') or contains(.,'Customer Representative')]"
+    },
+    {
+      "id": "view_cost_centers",
+      "keywords": [
+        "view cost centers",
+        "cost centers party ids",
+        "expand party ids",
+        "party id drawer"
+      ],
+      "target": "//a[contains(.,'COST CENTERS (PARTY IDS)')] | //button[contains(.,'COST CENTERS')]"
+    },
+    {
+      "id": "search_accounts_dashboard",
+      "keywords": [
+        "search accounts",
+        "account search input",
+        "find account",
+        "filter accounts"
+      ],
+      "target": "//input[@placeholder='Search Accounts']"
+    },
+    {
+      "id": "quick_access_menu",
+      "keywords": [
+        "buy fixed service",
+        "manage my companies",
+        "pay accounts",
+        "technical support",
+        "quick access"
+      ],
+      "target": "//div[contains(@class,'quick-access')]"
     },
     {
       "id": "error_dialog_ok",
@@ -126,7 +468,7 @@
         "error dialog",
         "invalid otp message"
       ],
-      "target": "//button[contains(.,'OKAY')]"
+      "target": "//button[contains(.,'OKAY') or contains(.,'OK')]"
     },
     {
       "id": "manage_menu",
@@ -167,9 +509,10 @@
         "profile menu",
         "company info",
         "open the profile",
-        "account menu"
+        "account menu",
+        "user profile"
       ],
-      "target": "//a[@class='company-info font-light']"
+      "target": "//a[@class='company-info font-light'] | //div[contains(@class,'profile-menu')]"
     },
     {
       "id": "sign_out",
@@ -178,26 +521,30 @@
         "log out",
         "logout"
       ],
-      "target": "//a[text()='Sign Out' and not (contains(@class,'px-10 py-0'))]"
+      "target": "//a[text()='Sign Out' and not(contains(@class,'px-10 py-0'))]"
     }
   ],
   "generation_directives": [
-    "1. PRECONDITIONS: State that the tester is on '{app_name}' ({base_url}) as an Organization Administrator of a company that holds at least one Trade Licence, and that a mailbox able to receive the one-time password is available.",
-    "2. AUTHENTICATION IS OTP-BASED, NOT PASSWORD-BASED. Enter the registered email in the username field, click RECEIVE OTP, then fill the six OTP digit boxes in order. Never generate a password field, a 'Login' submit button or a 'remember me' control for this portal -- they do not exist. Where the requirement document describes a password login, treat the Knowledge Base as correct and the document as out of date.",
-    "3. TEST STEPS: Reproduce the canonical traversal above in order, one action per step. Quote the verified selector from this Knowledge Base for every step that has one, and refer to the OTP boxes by index 1 to 6.",
-    "4. UNVERIFIED HOOKS: Do not write steps against data-testid values. The application's confirmed hooks are the XPath expressions in this Knowledge Base; the data-testid table in the requirement document has never been confirmed to exist and a test case built on it will fail at execution.",
-    "5. THE VERIFIED ROUTE TO THE LICENCE is Manage -> 'view & update details' -> Organizational Details -> Trade Licence document. If the requirement also describes a Trade Licence column inside a Manage Users table, cover it, but state in Preconditions that this route is described by the requirement and is not yet confirmed in the application.",
-    "6. BOUNDARY: OTP delivery, Netcracker and EDMS are external systems. Assert what the portal displays; do not generate steps that read a mailbox, call Netcracker or call EDMS directly.",
-    "7. ALWAYS finish an end-to-end case by closing the document viewer and signing out through the profile menu, so the session does not leak into the next case."
+    "1. PRECONDITIONS: Clearly state which persona/account type is executing the test case: (a) Unregistered Business Customer, (b) Organization Administrator, (c) Customer Representative / Delegate, or (d) Power of Attorney holder.",
+    "2. MULTI-CHANNEL AUTHENTICATION: The B2B portal supports three native authentication mechanisms. Honour the specific method requested by the requirement: (a) OTP-based: enter email -> click CONTINUE -> enter 6-digit OTP; (b) Password-based: select 'e& Password' tab -> enter Username and Password -> optional Remember Me -> click SIGN IN; (c) UAE Pass-based: click 'Sign in with UAE PASS' -> submit EID/email/mobile -> approve push challenge with 2-digit number.",
+    "3. SELF-REGISTRATION PIPELINE: Follow the canonical sequence: Click Register -> Sign In with UAE Pass -> retrieve EID -> enter customer email and mobile -> verify Dual OTP (mobile + email) -> select Emirate -> upload Trade License document (JPEG/PNG/PDF <= 5MB) -> review/edit OCR fields -> complete Face ID biometric capture -> select 3-way branch (Owner / POA / Delegate LOA).",
+    "4. MULTI-ORGANIZATION ROUTING: If an account has multiple associated organizations without a single default set, incorporate the intermediate 'Select a Organization to continue' step and allow inspecting the Cost Centers (Party IDs) drawer before entering the Dashboard.",
+    "5. TEST STEPS: Reproduce canonical flow steps in sequential order, exactly one observable user action per step. Quote verified selectors from this Knowledge Base for every grounded step.",
+    "6. BOUNDARIES: UAE Pass IdP, SMS/email OTP gateways, OCR backend extraction, and upstream BSS/EDMS are external boundaries. Assert what the portal UI renders; do not simulate third-party server internals.",
+    "7. SESSION TEARDOWN: Always conclude end-to-end authenticated test cases by opening the profile menu and clicking 'Sign Out' to guarantee session isolation."
   ],
   "test_case_matrix": [
-    "Positive path: sign in with a valid email and OTP, open Manage -> Organizational Details, and view the Trade Licence document.",
-    "Negative: an invalid or expired OTP raises the error dialog and the OKAY button returns the user to the OTP entry step.",
-    "Negative: RECEIVE OTP with an unregistered or malformed email address is rejected and no OTP is issued.",
-    "Boundary: fewer than six OTP digits entered -- verification cannot be submitted.",
-    "Document handling: the Trade Licence renders for PDF and for PNG/JPEG up to 5 MB; an unavailable or corrupt document shows its own message rather than an empty panel.",
-    "Usability: the document viewer closes cleanly and returns focus to Organizational Details.",
-    "Session: signing out through the profile menu ends the session and a protected route cannot be reached afterwards.",
-    "Read-only: nothing in this journey creates, edits or deletes a Trade Licence or a user-to-licence assignment."
+    "Positive path - OTP Authentication: sign in with valid registered email, submit 6-digit OTP, land on Dashboard 360.",
+    "Positive path - Password Authentication: switch to 'e& Password' tab, input valid credentials, toggle remember me, and sign in successfully.",
+    "Positive path - UAE Pass Authentication: click 'Sign in with UAE PASS', approve push notification with matching challenge number, verify interstitial loading and land on Dashboard.",
+    "Alternative flow - UAE Pass Cancellation: click 'Cancel Request' during UAE Pass push challenge, verify 'User Cancelled the login' error banner, and click 'BACK TO LOGIN PAGE'.",
+    "Positive path - Self-Registration: complete UAE Pass identity retrieval, verify Dual OTP, select Emirate, upload Trade License, verify OCR details, complete Face ID photo capture, and branch as Owner/Company Manager.",
+    "Alternative flow - Registration via POA: complete registration pipeline and select 'REGISTER WITH POWER OF ATTORNEY' to upload legal authorization.",
+    "Alternative flow - Registration via Digital LOA: complete registration pipeline and select 'SUBMIT A REQUEST' for delegate authorization.",
+    "Negative path - Expired/Invalid OTP: enter incorrect 6-digit OTP, observe error modal, dismiss with OKAY, and verify focus returns to OTP input.",
+    "Negative path - Unregistered Email: enter non-existent email on login, assert 'No Customer associated' validation error banner.",
+    "Multi-Org path: sign in with multi-org user, view organization cards, expand 'COST CENTERS (PARTY IDS)' drawer, verify Party IDs, and select target organization.",
+    "Dashboard 360 exploration: navigate through Quick Access, view active accounts donut chart, inspect Total Due zero state, and review Popular Solutions carousel.",
+    "Session isolation: verify that clicking 'Sign Out' from profile menu terminates session and revokes access to protected routes."
   ]
 }

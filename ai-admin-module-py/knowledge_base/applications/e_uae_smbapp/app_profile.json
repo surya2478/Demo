@@ -1,8 +1,8 @@
 {
   "app_id": "e_uae_smbapp",
   "app_name": "e& UAE SMBApp",
-  "base_url": "https://devnew-sas.etisalat.ae/en/smb/index.html",
-  "domain": "devnew-sas.etisalat.ae",
+  "base_url": "https://www.eand.ae/en/smb/index.html",
+  "domain": "eand.ae",
   "framework": "Angular SPA",
   "default_viewport": {
     "width": 1440,
@@ -13,7 +13,7 @@
     "_derived_from": "Application Discovery crawl"
   },
   "discovered_selectors": {
-    "https://devnew-sas.etisalat.ae/en/smb/index.html": {
+    "https://www.eand.ae/en/smb/index.html": {
       "button_go_to_slide_5": "page.getByRole('button', { name: 'Go to slide 5' })",
       "button_small_medium_business": "page.getByRole('button', { name: 'Small & Medium Business' })",
       "group_1_5": "page.getByRole('group', { name: '1 / 5' })",
@@ -40,7 +40,7 @@
       "link_events": "page.getByRole('link', { name: 'Events' })",
       "link_explore_now": "page.getByRole('link', { name: 'EXPLORE NOW' })"
     },
-    "https://devnew-sas.etisalat.ae/en/index.html": {
+    "https://www.eand.ae/en/index.html": {
       "button_go_to_slide_6": "page.getByRole('button', { name: 'Go to slide 6' })",
       "button_go_to_slide_7": "page.getByRole('button', { name: 'Go to slide 7' })",
       "group_1_8": "page.getByRole('group', { name: '1 / 8' })",
@@ -67,7 +67,7 @@
       "link_device_trade_in": "page.getByRole('link', { name: 'Device Trade-In' })",
       "link_discover_arena_play": "page.getByRole('link', { name: 'Discover Arena Play' })"
     },
-    "https://devnew-sas.etisalat.ae/en/enterprise-and-government/index.html": {
+    "https://www.eand.ae/en/enterprise-and-government/index.html": {
       "button_enterprise_government": "page.getByRole('button', { name: 'Enterprise & Government' })",
       "button_previous_slide": "page.getByRole('button', { name: 'Previous slide' })",
       "link_5g_for_business_realise_the_full_potential_of_5g_and_explore_endless_possibilities": "page.getByRole('link', { name: '5G FOR BUSINESS Realise the full potential of 5G and explore endless possibilities' })",
@@ -121,7 +121,7 @@
       "link_financial_highlights": "page.getByText('Financial Highlights')",
       "link_financial_results": "page.getByText('Financial Results')"
     },
-    "https://devnew-sas.etisalat.ae/b2bportal/quick-payment.html?locale=en": {
+    "https://www.eand.ae/b2bportal/quick-payment.html?locale=en": {
       "button_continue": "page.getByRole('button', { name: 'CONTINUE' })",
       "link_bill_payment": "page.getByRole('link', { name: 'Bill Payment' })",
       "link_internet_calling_plans": "page.getByRole('link', { name: 'Internet Calling Plans' })",
@@ -148,7 +148,7 @@
       "link_payment_solutions": "page.getByText('Payment Solutions')",
       "link_printers": "page.getByText('Printers')"
     },
-    "https://devnew-sas.etisalat.ae/en/smb/products/mobile/mobile-plans/business-first-plus.html": {
+    "https://www.eand.ae/en/smb/products/mobile/mobile-plans/business-first-plus.html": {
       "button_frequently_asked_questions_for_careem_plus_benefit": "page.getByRole('button', { name: 'Frequently Asked Questions for Careem Plus Benefit' })",
       "button_important_to_know": "page.getByRole('button', { name: 'Important to Know' })",
       "link_dial_969": "page.getByRole('link', { name: 'DIAL *969#' })",
@@ -171,11 +171,11 @@
       "presentation_local": "page.getByText('Local')",
       "presentation_local_international": "page.getByText('Local & International')"
     },
-    "https://devnew-sas.etisalat.ae/en/smb/products/mobile/mobile-plans/business-xtreme.html": {
+    "https://www.eand.ae/en/smb/products/mobile/mobile-plans/business-xtreme.html": {
       "link_view_list_of_add_ons_here": "page.getByText('View list of add-ons here')",
       "link_applicable_to_specific_destinations": "page.getByText('applicable to specific destinations.')"
     },
-    "https://devnew-sas.etisalat.ae/en/smb/products/mobile/uae-ksa-plans.html": {
+    "https://www.eand.ae/en/smb/products/mobile/uae-ksa-plans.html": {
       "group_borderless_plan_1_aed_450_month_5_vat_excluded_40gb_flexi_data_1_000_flexi_minutes_50_flexi_sms_600_flexi_idd_icr_silver_premium_number_more_info_buy_now_borderless_plan_2_aed_600_month_5_vat_ex": "page.getByText('BORDERLESS PLAN 1 AED 450 /Month 5% VAT Excluded 40GB Flexi Data 1,000 Flexi Minutes 50 Flexi SMS 600 Flexi IDD ICR Silver Premium Number MORE INFO BUY NOW BORDERLESS PLAN 2 AED 600 /Month 5% VAT Excluded 50GB Flexi Data 2000 Flexi Minutes 100 Flexi SMS 1,200 Flexi IDD ICR Gold Premium Number MORE I')",
       "link_application_form": "page.getByText('Application Form')",
       "link_view_consumer_facts_label": "page.getByText('View Consumer Facts Label')"

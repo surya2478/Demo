@@ -1,0 +1,42 @@
+{
+  "_purpose": "State machines implied by the design. Each transition names the screen action that causes it and the rule that governs it, so state-transition test cases can be enumerated mechanically.",
+  "_scope": "SAMPLE CYCLE: session, OTP, organization context.",
+  "state_models": [
+    {
+      "model_id": "STM_AUTH_SESSION",
+      "entity": "B2B portal session",
+      "initial": "ANONYMOUS",
+      "states": ["ANONYMOUS", "IDENTIFIER_SUBMITTED", "OTP_PENDING", "AUTHENTICATED_NO_ORG", "ORG_CONTEXT_SET", "SIGNED_OUT"],
+      "transitions": [
+        {"from": "ANONYMOUS", "to": "IDENTIFIER_SUBMITTED", "trigger": "SCR_LOGIN.otp_continue", "guard": "identifier registered", "rule": "BR-AUTH-01"},
+        {"from": "ANONYMOUS", "to": "ANONYMOUS", "trigger": "SCR_LOGIN.otp_continue", "guard": "identifier not associated", "rule": "BR-AUTH-01"},
+        {"from": "IDENTIFIER_SUBMITTED", "to": "OTP_PENDING", "trigger": "system issues OTP", "rule": "BR-AUTH-02"},
+        {"from": "OTP_PENDING", "to": "AUTHENTICATED_NO_ORG", "trigger": "SCR_OTP_ENTRY.proceed", "guard": "OTP valid AND no default org", "rule": "BR-AUTH-06"},
+        {"from": "OTP_PENDING", "to": "ORG_CONTEXT_SET", "trigger": "SCR_OTP_ENTRY.proceed", "guard": "OTP valid AND default org exists", "rule": "BR-AUTH-06"},
+        {"from": "OTP_PENDING", "to": "OTP_PENDING", "trigger": "SCR_OTP_ERROR_DIALOG.okay", "guard": "OTP invalid/expired", "rule": "BR-AUTH-04"},
+        {"from": "AUTHENTICATED_NO_ORG", "to": "ORG_CONTEXT_SET", "trigger": "SCR_SELECT_ORG.org_card", "rule": "BR-ORG-01"},
+        {"from": "ORG_CONTEXT_SET", "to": "SIGNED_OUT", "trigger": "SCR_ORG_DASHBOARD.sign_out", "rule": "BR-AUTH-08"}
+      ]
+    },
+    {
+      "model_id": "STM_OTP",
+      "entity": "One-time password",
+      "initial": "ISSUED",
+      "states": ["ISSUED", "CONSUMED", "REJECTED", "EXPIRED", "SUPERSEDED"],
+      "transitions": [
+        {"from": "ISSUED", "to": "CONSUMED", "trigger": "correct 6 digits submitted", "rule": "BR-AUTH-03"},
+        {"from": "ISSUED", "to": "REJECTED", "trigger": "wrong digits submitted", "rule": "BR-AUTH-04", "note": "whether a rejected OTP stays usable for a retry is unspecified"},
+        {"from": "ISSUED", "to": "EXPIRED", "trigger": "validity window elapses", "rule": "BR-AUTH-04", "basis": "inferred", "note": "Sign-in validity period not shown; registration OTP shows ~2:14 countdown"},
+        {"from": "ISSUED", "to": "SUPERSEDED", "trigger": "SCR_OTP_ENTRY.resend", "rule": "BR-AUTH-05", "basis": "inferred"}
+      ]
+    },
+    {
+      "model_id": "STM_ORG_STATUS",
+      "entity": "Organization (as shown on the org card)",
+      "states": ["ACTIVE", "SUSPENDED", "INACTIVE"],
+      "observed": ["ACTIVE"],
+      "basis": "ACTIVE explicit (org card badge). SUSPENDED/INACTIVE inferred from Explore Topics 'Viewing Suspended/Inactive Accounts' -- those are ACCOUNT states; organization-level equivalents are unconfirmed.",
+      "rule": "BR-ORG-04"
+    }
+  ]
+}

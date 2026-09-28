@@ -14,62 +14,66 @@
     "otp",
     "one-time password",
     "receive otp",
-    "organization administrator",
+    "continue",
+    "sign in using otp",
     "devnew-sas.etisalat.ae"
   ],
   "catalog_entrypoint": "/b2bportal/login.html?rdr=home&locale=en",
   "automation_boundary": {
-    "automated_scope": "Login page -> enter registered email -> RECEIVE OTP -> fill the six OTP digit boxes -> land on the authenticated B2B Portal home page.",
-    "external_boundary": "OTP delivery itself is external. The automated run needs the code supplied to it; reading the mailbox or the SMS is out of scope."
+    "automated_scope": "Login page -> Select OTP tab (default) -> Enter registered username/email -> Click CONTINUE / RECEIVE OTP -> Fill the 6-digit OTP boxes (1 to 6) -> Land on Organization Selection or authenticated Dashboard 360.",
+    "external_boundary": "OTP generation and delivery via SMS/email is external. Automated execution requires the test runner to provide a valid test OTP code; accessing external mailboxes is out of scope."
   },
   "graph_edges": [
-    { "from": "login_page", "to": "otp_requested", "action": "click_receive_otp" },
+    { "from": "login_page", "to": "otp_requested", "action": "click_continue_otp" },
     { "from": "otp_requested", "to": "otp_entered", "action": "fill_otp_digits" },
     { "from": "otp_entered", "to": "portal_home", "action": "verify_authenticated" },
+    { "from": "otp_entered", "to": "org_selection", "action": "select_organization_if_multi_org" },
+    { "from": "org_selection", "to": "portal_home", "action": "click_organization_card" },
     { "from": "otp_entered", "to": "otp_error_dialog", "action": "invalid_or_expired_otp" },
-    { "from": "otp_error_dialog", "to": "otp_requested", "action": "acknowledge_okay" }
+    { "from": "otp_error_dialog", "to": "otp_requested", "action": "acknowledge_okay" },
+    { "from": "otp_requested", "to": "otp_requested", "action": "click_resend_otp" }
   ],
   "canonical_steps": [
     {
       "step_number": 1,
       "action": "Navigate to the B2B Portal login page",
       "target": "/b2bportal/login.html?rdr=home&locale=en",
-      "expected_result": "The login page loads and the email address field is visible"
+      "expected_result": "The login page loads with the 'Sign in using OTP' tab selected by default and the email field visible"
     },
     {
       "step_number": 2,
-      "action": "Enter the registered Organization Administrator email address",
-      "target": "//input[@id ='userEmailField']",
-      "expected_result": "The email is accepted and the RECEIVE OTP button becomes actionable"
+      "action": "Enter the registered username or email address",
+      "target": "//input[@id='userEmailField' or @placeholder='Username or email*']",
+      "expected_result": "The email is populated and the CONTINUE button becomes actionable"
     },
     {
       "step_number": 3,
-      "action": "Click RECEIVE OTP to request the one-time password",
-      "target": "//button[contains(.,'RECEIVE OTP')]",
-      "expected_result": "The six OTP digit boxes are displayed and an OTP is issued to the registered address"
+      "action": "Click CONTINUE to request the one-time password",
+      "target": "//button[contains(.,'CONTINUE') or contains(.,'RECEIVE OTP')]",
+      "expected_result": "The 'Enter your One Time Password' screen appears showing the masked email, mobile number, and six OTP digit boxes"
     },
     {
       "step_number": 4,
-      "action": "Enter the six-digit OTP, one digit per box, using boxes 1 to 6 in order",
+      "action": "Enter the six-digit OTP, one digit per box, in boxes 1 through 6",
       "target": "//input[contains(@name,'opt-field')]",
-      "expected_result": "All six boxes are filled and verification is submitted"
+      "expected_result": "All six digit boxes are filled, a green checkmark appears, and verification is submitted"
     },
     {
       "step_number": 5,
-      "action": "Dismiss the error dialog with OKAY when the OTP is rejected",
-      "target": "//button[contains(.,'OKAY')]",
-      "expected_result": "The dialog closes and the user is returned to OTP entry without losing the session"
+      "action": "Select the target organization if prompted on multi-organization screen",
+      "target": "//div[contains(@class,'org-card') or contains(.,'Customer Representative')]",
+      "expected_result": "The organization is selected and the user navigates to the authenticated Dashboard"
     },
     {
       "step_number": 6,
-      "action": "Verify the authenticated B2B Portal home page is displayed",
-      "target": "//a[@class='company-info font-light']",
-      "expected_result": "The company profile control is visible in the header, confirming an authenticated session"
+      "action": "Verify the authenticated B2B Portal Dashboard is displayed",
+      "target": "//a[@class='company-info font-light'] | //a[text()='Dashboard']",
+      "expected_result": "The Dashboard 360 loads displaying the account metrics and the user profile in the top navigation"
     }
   ],
   "test_data_notes": {
     "otp_digit_selector_template": "(//input[contains(@name,'opt-field')])[N] where N runs 1 to 6",
-    "attribute_spelling": "The OTP input name is 'opt-field' -- the application's own spelling, not a typo in this file. Do not 'correct' it to 'otp-field'.",
-    "primary_test_user": "An Organization Administrator account; the BRD names ayishabcrm@gmail.com for the QA environment."
+    "attribute_spelling": "The OTP input name attribute is 'opt-field' in the Angular application DOM.",
+    "primary_test_user": "ayishabcrm@gmail.com or registered QA customer representative"
   }
 }

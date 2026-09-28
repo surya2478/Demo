@@ -20,6 +20,7 @@ import automationService from '../../services/automationService'
 import { useAutomationContext } from '../../components/automation/AutomationContext'
 import { useConfirm } from '../../components/ui/ConfirmDialog'
 import { readSelectedApplicationId } from '../../types/automation'
+import testDataService, { readEnvironment, readableName, writeEnvironment, type ScriptDataCheck } from '../../services/testDataService'
 import type { DryRunBrief, FrameworkInfo, ScriptAsset, ScriptLabCase } from '../../types/automation'
 
 const CARD = 'rounded-[20px] border border-[#E8EAEE] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]'
@@ -252,6 +253,18 @@ const ScriptLab: React.FC = () => {
   const [editCode, setEditCode] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
+  // The environment dry runs go to, and whose test data they use.
+  const [environment, setEnvironmentState] = useState(readEnvironment)
+  const [environments, setEnvironments] = useState<string[]>(['SIT', 'UAT'])
+  const [dataCheck, setDataCheck] = useState<ScriptDataCheck | null>(null)
+  const setEnvironment = (value: string) => {
+    setEnvironmentState(value)
+    writeEnvironment(value)
+  }
+
+  useEffect(() => {
+    testDataService.apps().then(data => { if (data.environments.length) setEnvironments(data.environments) }).catch(() => undefined)
+  }, [])
 
   const load = useCallback(async () => {
     try {
@@ -311,6 +324,20 @@ const ScriptLab: React.FC = () => {
 
   const openCase = visible.find(c => c.id === openId) ?? null
   const openScript = openCase ? scriptOf(openCase) : null
+
+  // What the open script needs from Test data in this environment.
+  const openScriptId = openScript?.id ?? null
+  const openScriptCode = openScript?.code ?? ''
+  useEffect(() => {
+    setDataCheck(null)
+    if (openScriptId === null) return
+    let cancelled = false
+    testDataService
+      .check(openScriptId, environment)
+      .then(result => { if (!cancelled) setDataCheck(result) })
+      .catch(() => undefined)
+    return () => { cancelled = true }
+  }, [openScriptId, openScriptCode, environment])
   const healing = heal && openScript && heal.scriptId === openScript.id ? heal : null
   const brief = openScript ? briefOf(openScript) : null
   const activeFramework = frameworks.find(f => f.name === framework)
@@ -368,7 +395,7 @@ const ScriptLab: React.FC = () => {
 
   const handleDryRun = (script: ScriptAsset) =>
     runAction('dry-run', async () => {
-      const res = await automationService.dryRunScripts({ script_ids: [script.id], environment: 'SIT', base_url: null, slow_mo_ms: 1000 })
+      const res = await automationService.dryRunScripts({ script_ids: [script.id], environment, base_url: null, slow_mo_ms: 1000 })
       if (res.refused?.length) setNotice(`Dry run refused — ${res.refused.map((r: any) => r.reason).join(' · ')}`)
     })
 
@@ -457,6 +484,26 @@ const ScriptLab: React.FC = () => {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
+            <Link
+              to="/automation/test-data"
+              title="Logins, OTPs and other values scripts read"
+              className="flex h-10 items-center gap-1.5 rounded-[12px] border border-[#E8EAEE] bg-white px-3 text-[13.5px] font-semibold text-[#1F2937] transition hover:border-[#F6D4D5]"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#B71920" strokeWidth="1.9" aria-hidden><circle cx="8" cy="15" r="4" /><path d="M11 12l9-9M17 6l3 3M15 8l2 2" /></svg>
+              Test data
+            </Link>
+            <div className="relative">
+              <select
+                value={environment}
+                onChange={e => setEnvironment(e.target.value)}
+                aria-label="Environment"
+                title="The environment dry runs go to, and whose test data they use"
+                className="h-10 appearance-none rounded-[12px] border border-[#E8EAEE] bg-white pl-3 pr-8 text-[13.5px] font-semibold text-[#1F2937] outline-none focus:border-[#F1A4A6]"
+              >
+                {environments.map(env => <option key={env} value={env}>{env}</option>)}
+              </select>
+              <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" aria-hidden><path d="M6 9l6 6 6-6" /></svg>
+            </div>
             <div className="relative">
               <select
                 value={framework}
@@ -627,6 +674,24 @@ const ScriptLab: React.FC = () => {
                       <span className="leading-[1.3]">{check.text}</span>
                     </li>
                   ))}
+                  {dataCheck && dataCheck.needed.length > 0 && (
+                    <li className="flex items-start gap-2.5 text-[14px] text-[#1F2937]">
+                      <CheckIcon tone={dataCheck.missing.length ? 'bad' : 'ok'} />
+                      <span className="leading-[1.3]">
+                        {dataCheck.missing.length ? (
+                          <>
+                            Test data missing for {environment}: {dataCheck.missing.map(readableName).join(', ')} —{' '}
+                            <Link to="/automation/test-data" className="font-semibold text-[#B71920] hover:underline">set it in Test data</Link>
+                          </>
+                        ) : (
+                          <>
+                            {dataCheck.needed.length} test data value{dataCheck.needed.length === 1 ? '' : 's'} found for {environment}
+                            {dataCheck.application ? ` in ${dataCheck.application.name}` : ''}
+                          </>
+                        )}
+                      </span>
+                    </li>
+                  )}
                 </ul>
               </div>
             )}

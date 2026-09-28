@@ -60,6 +60,7 @@ from ..services.automation import extraction
 from ..services.automation import intake
 from ..services.automation import workbench as wb
 from ..services.automation import healer
+from ..services.automation import test_data
 from ..services.automation import knowledge_base as kb
 from ..services.automation.guided_discovery import guided_discovery_manager
 from ..services.audit_logger import audit_log
@@ -392,6 +393,19 @@ def create_run(
     permitted, reason = job_manager.capacity()
     if not permitted:
         raise HTTPException(status_code=429, detail=reason)
+
+    case = db.get(AutomationTestCase, body.test_case_id) if body.test_case_id else None
+    missing_data = test_data.missing_message(
+        test_data.for_code(
+            db,
+            body.code,
+            environment=body.environment,
+            case_url=case.application_url if case else None,
+            base_url=body.base_url,
+        )
+    )
+    if missing_data:
+        raise HTTPException(status_code=409, detail=missing_data)
 
     username = (current_user or {}).get("username")
     run_key = new_run_key()
@@ -2778,6 +2792,21 @@ def dry_run_scripts(
                     "reason": "Static gate failed: " + "; ".join(gate.get("errors") or []),
                 }
             )
+            continue
+
+        # Refused here, by name, rather than run and failed at the login step
+        # with "<set TESTDATA_...>" typed into the page.
+        missing_data = test_data.missing_message(
+            test_data.for_code(
+                db,
+                script.code or "",
+                environment=body.environment,
+                case_url=script.test_case.application_url if script.test_case else None,
+                base_url=body.base_url,
+            )
+        )
+        if missing_data:
+            refused.append({"script_id": script_id, "reason": missing_data})
             continue
 
         permitted, reason = job_manager.capacity()

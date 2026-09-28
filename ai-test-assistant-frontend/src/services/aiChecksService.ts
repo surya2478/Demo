@@ -1,6 +1,6 @@
 import api from './api'
 
-export type CheckStepName = 'refine' | 'review' | 'improve' | 'classify'
+export type CheckStepName = 'refine' | 'review' | 'improve' | 'diff' | 'classify'
 export type CheckStepState = 'pending' | 'running' | 'done' | 'skipped' | 'failed'
 
 export interface CheckedStep {
@@ -34,9 +34,36 @@ export interface CheckItem {
   expected_result: string | null
   test_data: string | null
   steps_structured: CheckedStep[] | null
+  /** KB Diff (Journey KB only): counts per status for the row. */
+  journey_diff: JourneyDiffBrief | null
+  /** The step-by-step diff, sent with the edit view. */
+  journey_diff_steps?: JourneyDiffStep[] | null
   source_row: Record<string, string>
   /** Already sent for approval. */
   sent?: boolean
+}
+
+/** How a step compares between the Journey KB (design) and the Automation KB (crawled). */
+export type JourneyDiffStatus = 'MATCH' | 'LABEL_DRIFT' | 'REF_BROKEN' | 'NOT_CRAWLED' | 'NOT_IN_DESIGN' | 'NO_ELEMENT' | 'UNRESOLVED'
+
+export interface JourneyDiffBrief {
+  journey_id: string | null
+  summary: Partial<Record<JourneyDiffStatus, number>>
+  automatable: boolean | null
+  reason?: string | null
+}
+
+export interface JourneyDiffStep {
+  step_number: number | null
+  action: string
+  status: JourneyDiffStatus
+  screen_id: string | null
+  element_id: string | null
+  design_label: string | null
+  app_labels: string[]
+  automation_target: string | null
+  suggestion: string | null
+  corrected_action?: string
 }
 
 export interface CheckBatch {

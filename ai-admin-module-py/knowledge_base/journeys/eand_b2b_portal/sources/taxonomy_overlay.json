@@ -1,0 +1,144 @@
+{
+  "_purpose": "Facts layered onto sources/explore_topics_outline.txt by `python -m app.services.journeys.taxonomy <app_id>`. id_aliases shorten the generated id segment for a title; nodes carries per-journey knowledge keyed by the final journey id. Anything not listed here is status=awaiting_source.",
+  "id_aliases": {
+    "Existing Business Customer Registering & Logging-on to B2B Portal": "EXISTING",
+    "New Business Customer Registering & Logging-on to B2B Portal": "NEW",
+    "Registering to the B2B Portal": "REGISTER",
+    "Register via UAE PASS - Owner/Company Manager Name on Trade License": "OWNER",
+    "Register via UAE PASS - Register with Power of Attorney": "POA",
+    "Register via UAE PASS - Company Representative (Delegate)": "DELEGATE",
+    "Sign-In to the Portal": "SIGNIN",
+    "Sign-in using OTP": "OTP",
+    "Sign-in using Password": "PASSWORD",
+    "Sign-in using UAE Pass": "UAEPASS",
+    "Select Organization after Sign-in": "SELECT_ORG"
+  },
+  "chapter_entry_points": {
+    "_status": "inferred from the Organization Dashboard top navigation (Sign-in using OTP.pdf p2): Dashboard, Manage, Pay, Order, Services, Support. Not confirmed per journey.",
+    "DASH": "Dashboard",
+    "TEAM": "Manage",
+    "ORG": "Manage",
+    "RENEW": "Manage",
+    "CNAP": "Services",
+    "MOB": "Order",
+    "FIX": "Order",
+    "DIG": "Order",
+    "APPSTORE": "Order",
+    "ENT": "Order",
+    "BILL": "Pay",
+    "SVC": "Services",
+    "SUPPORT": "Support",
+    "TRACK": "Dashboard"
+  },
+  "unauthenticated_chapters": [
+    "RELEASE",
+    "INTRO",
+    "REG",
+    "NONAUTO"
+  ],
+  "anonymous_title_markers": [
+    "non-logged",
+    "non logged",
+    "not registered",
+    "new customer"
+  ],
+  "nodes": {
+    "B2B.REG.EXISTING.SIGNIN": {
+      "description": "An existing, registered B2B user authenticates to Business Online. Three interchangeable methods (variants) all converge on SELECT_ORG / Organization Dashboard.",
+      "roles": [
+        "ROLE_B2B_USER"
+      ],
+      "entry_point": "Login page (/b2bportal/login.html)"
+    },
+    "B2B.REG.EXISTING.SIGNIN.OTP": {
+      "status": "detailed",
+      "journey_file": "journeys/signin_otp.json",
+      "automation_flow_ids": [
+        "flow_b2b_login_otp"
+      ],
+      "next_journeys": [
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "sources": [
+        "Sign-in using OTP.pdf p1-2"
+      ],
+      "roles": [
+        "ROLE_B2B_USER"
+      ],
+      "entry_point": "Login page, 'Sign in using OTP' tab (default tab)"
+    },
+    "B2B.REG.EXISTING.SIGNIN.PASSWORD": {
+      "status": "detailed",
+      "next_journeys": [
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "sources": [
+        "Sign-in using Password.pdf p1-2"
+      ],
+      "journey_file": "journeys/signin_password.json"
+    },
+    "B2B.REG.EXISTING.SIGNIN.UAEPASS": {
+      "status": "detailed",
+      "next_journeys": [
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ],
+      "sources": [
+        "Sign-in using UAE Pass.pdf p1-6"
+      ],
+      "journey_file": "journeys/signin_uaepass.json"
+    },
+    "B2B.REG.EXISTING.SIGNIN.SELECT_ORG": {
+      "status": "detailed",
+      "journey_file": "journeys/select_organization.json",
+      "audience": "authenticated",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN"
+      ],
+      "sources": [
+        "Sign-in using OTP.pdf p2",
+        "Sign-in using Password.pdf p1-2",
+        "Sign-in using UAE Pass.pdf p4-6"
+      ],
+      "roles": [
+        "ROLE_B2B_USER"
+      ],
+      "description": "Shared post-authentication step. Shown only when the user has no default organization; otherwise the default organization's dashboard opens directly."
+    },
+    "B2B.REG.EXISTING.REGISTER": {
+      "status": "source_available",
+      "sources": [
+        "Registering on B2B Portal.pdf p1-11"
+      ],
+      "note": "Screen-level PDF analysed; journey file not yet authored."
+    },
+    "B2B.REG.EXISTING.REGISTER.OWNER": {
+      "status": "source_available",
+      "sources": [
+        "Registering on B2B Portal.pdf p10"
+      ]
+    },
+    "B2B.REG.EXISTING.REGISTER.POA": {
+      "status": "source_available",
+      "sources": [
+        "Registering on B2B Portal.pdf p10"
+      ]
+    },
+    "B2B.REG.EXISTING.REGISTER.DELEGATE": {
+      "status": "source_available",
+      "sources": [
+        "Registering on B2B Portal.pdf p11"
+      ]
+    }
+  },
+  "automation_only": {
+    "_note": "Automation KB flows with no design source yet. Listed so the taxonomy shows them, status automation_only, rather than pretending the design covers them.",
+    "flow_b2b_manage_trade_license": {
+      "attach_to_chapter": "ORG",
+      "as_title": "View Organizational Details - Trade Licence Document",
+      "prerequisite_journeys": [
+        "B2B.REG.EXISTING.SIGNIN",
+        "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+      ]
+    }
+  }
+}

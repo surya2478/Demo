@@ -139,22 +139,25 @@ const STRATEGY_TONE: Record<string, 'success' | 'info' | 'warning' | 'neutral'> 
   text: 'warning'
 }
 
-type DiscoveryTab = 'urls' | 'flows' | 'products' | 'crawler' | 'json_model'
+export type DiscoveryTab = 'urls' | 'flows' | 'products' | 'crawler' | 'json_model'
 
-const Discovery: React.FC = () => {
+/**
+ * `embedded` renders this screen inside a Knowledge Base page stage: no hero or
+ * stat tiles (the host page has its own), only the `tabs` the stage asks for,
+ * and the application the host has selected (`appId`). The page header is left
+ * to the host too -- see the Discovery wrapper below for why that matters.
+ */
+export interface DiscoveryBodyProps {
+  embedded?: boolean
+  appId?: number | null
+  tabs?: DiscoveryTab[]
+}
+
+export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, appId = null, tabs }) => {
   const { user } = useAuth()
   const canExecute = hasPermission(user, 'automation.execute')
 
-  usePageHeader({
-    title: 'Application Discovery & Model',
-    subtitle: 'Knowledge Base routes, flow blueprints, and application model',
-    showSearch: false,
-    showAssistant: false,
-    showNotifications: true,
-    showDateRange: false
-  })
-
-  const [activeTab, setActiveTab] = useState<DiscoveryTab>('urls')
+  const [activeTab, setActiveTab] = useState<DiscoveryTab>(tabs?.[0] ?? 'urls')
   const [appModel, setAppModel] = useState<any | null>(null)
   const [modelLoading, setModelLoading] = useState(true)
   const [modelError, setModelError] = useState<string | null>(null)
@@ -248,6 +251,16 @@ const Discovery: React.FC = () => {
       window.localStorage.setItem(SELECTED_APP_STORAGE_KEY, String(selectedAppId))
     }
   }, [selectedAppId])
+
+  // Embedded: the host page owns the choice of application.
+  useEffect(() => {
+    if (embedded && appId && applications.some(a => a.id === appId)) setSelectedAppId(appId)
+  }, [embedded, appId, applications])
+
+  // Embedded: a stage that shows different tabs keeps a tab it offers.
+  useEffect(() => {
+    if (tabs?.length && !tabs.includes(activeTab)) setActiveTab(tabs[0])
+  }, [tabs, activeTab])
 
   // Load the selected application's compiled model from its Knowledge Base.
   const loadAppModel = useCallback(async () => {
@@ -503,6 +516,7 @@ const Discovery: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      {!embedded && (<>
       {/* Dedicated Page Hero */}
       <section className="overflow-hidden rounded-[20px] border border-app bg-app-surface shadow-app-card">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_auto]">
@@ -720,6 +734,7 @@ const Discovery: React.FC = () => {
           hint={discovery?.version ? `Crawl v${discovery.version}` : 'Ready to crawl'}
         />
       </div>
+      </>)}
 
       {/* Navigation Sub-Tabs */}
       <div className="flex border-b border-app bg-app-surface px-4 pt-2">
@@ -730,7 +745,7 @@ const Discovery: React.FC = () => {
             { id: 'products', label: 'Device & SKU Catalog', icon: HiOutlineDeviceMobile, badge: appModel?.summary?.total_known_products },
             { id: 'crawler', label: 'Live Crawl & Grounding', icon: HiOutlineLink, badge: elements.length || undefined },
             { id: 'json_model', label: 'Application Model JSON', icon: HiOutlineCode }
-          ].map(tab => {
+          ].filter(tab => !tabs || tabs.includes(tab.id as DiscoveryTab)).map(tab => {
             const Icon = tab.icon
             const active = activeTab === tab.id
             return (
@@ -1496,6 +1511,24 @@ const Discovery: React.FC = () => {
       )}
     </div>
   )
+}
+
+
+/**
+ * The standalone page. The header lives here, not in DiscoveryBody: usePageHeader
+ * clears the header on unmount, so an embedded body that set it would blank the
+ * Knowledge Base page's header every time its stage was left.
+ */
+const Discovery: React.FC = () => {
+  usePageHeader({
+    title: 'Application Discovery & Model',
+    subtitle: 'Knowledge Base routes, flow blueprints, and application model',
+    showSearch: false,
+    showAssistant: false,
+    showNotifications: true,
+    showDateRange: false
+  })
+  return <DiscoveryBody />
 }
 
 export default Discovery

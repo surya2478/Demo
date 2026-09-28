@@ -311,6 +311,7 @@ class LocalPlaywrightRunner(AutomationRunner):
         timeout_seconds: int = 600,
         cancellation: asyncio.Event | None = None,
         on_progress: Callable[[dict], None] | None = None,
+        extra_env: dict[str, str] | None = None,
     ) -> RunnerResult:
         available, detail = is_available("playwright")
         if not available:
@@ -348,7 +349,9 @@ class LocalPlaywrightRunner(AutomationRunner):
 
         env, withheld_env = build_runner_env(
             source=os.environ,
-            overrides={"AUTOMATION_ENV": environment or "", "CI": "1"},
+            # Test data (TESTDATA_*) rides in as overrides, set by the runner
+            # itself, so the allowlist above stays exactly as strict as it is.
+            overrides={**(extra_env or {}), "AUTOMATION_ENV": environment or "", "CI": "1"},
             runner_name=self.name,
         )
 

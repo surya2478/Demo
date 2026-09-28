@@ -193,6 +193,12 @@ class AutomationTestCase(Base):
     review_verdict = Column(String(30), nullable=True, index=True)  # pass | needs_revision | fail
     review_scores = Column(JSON, nullable=True)  # {step_quality, data_readiness, expected_result_clarity, coverage}
     review_findings = Column(JSON, nullable=True)  # {issues: [...], suggestions: [...], coverage_gaps: [...]}
+    # AI Checks' Diff step (services/journeys/diff.py): each step compared with
+    # the Journey KB (design) and the Automation KB (crawled). Its own column,
+    # not folded into review_findings or grounding_summary -- each of those is
+    # rewritten by a different step and would drop it.
+    # {journey_id, chain, summary: {STATUS: n}, automatable, steps: [...], compared_at}
+    journey_diff = Column(JSON, nullable=True)
     reviewed_at = Column(DateTime, nullable=True)
 
     created_by = Column(String(255), nullable=True, index=True)
@@ -742,3 +748,56 @@ class AutomationAICheck(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     finished_at = Column(DateTime, nullable=True)
+
+
+# --- Test data vault -----------------------------------------------------------
+
+
+class AutomationDataApp(Base):
+    """An application whose tests need values: logins, OTPs, record names.
+
+    Matched to a run by the Knowledge Base application its test case belongs
+    to, or by URL prefix, so the same values serve every script for it.
+    """
+
+    __tablename__ = "automation_data_apps"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), nullable=False, unique=True)
+    # The Knowledge Base application id (e.g. eand_b2b_portal), when there is one.
+    kb_app_id = Column(String(100), nullable=True, index=True)
+    # e.g. https://devnew-sas.etisalat.ae/b2bportal -- the longest match wins.
+    url_prefix = Column(Text, nullable=True)
+    created_by = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    entries = relationship("AutomationTestData", cascade="all, delete-orphan", back_populates="app")
+
+
+class AutomationTestData(Base):
+    """One value an application's tests read, for one environment.
+
+    `environment` "*" means every environment (an OTP shared by SIT and UAT).
+    A secret's value is stored encrypted and never returned by the API.
+    """
+
+    __tablename__ = "automation_test_data"
+
+    id = Column(Integer, primary_key=True, index=True)
+    app_id = Column(Integer, ForeignKey("automation_data_apps.id"), nullable=False, index=True)
+    environment = Column(String(40), nullable=False, default="*")
+    # e.g. "admin.username", "password", "otp", "organization_name".
+    key = Column(String(120), nullable=False)
+    value = Column(Text, nullable=True)
+    is_secret = Column(Boolean, nullable=False, default=False)
+    # Other names a script may use for it, comma-separated.
+    aliases = Column(Text, nullable=True)
+    updated_by = Column(String(255), nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    app = relationship("AutomationDataApp", back_populates="entries")
+
+    __table_args__ = (
+        Index("uq_automation_test_data_key", "app_id", "environment", "key", unique=True),
+    )

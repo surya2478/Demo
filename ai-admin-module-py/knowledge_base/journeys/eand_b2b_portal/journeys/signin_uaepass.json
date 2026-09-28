@@ -1,0 +1,139 @@
+{
+  "journey_id": "B2B.REG.EXISTING.SIGNIN.UAEPASS",
+  "name": "B2B Portal Authentication (UAE PASS)",
+  "journey_path": [
+    "REGISTERING & LOGGING-ON TO B2B PORTAL",
+    "Existing Business Customer Registering & Logging-on to B2B Portal",
+    "Sign-In to the Portal",
+    "Sign-in using UAE Pass"
+  ],
+  "sources": [
+    "Sign-in using UAE Pass.pdf p1-6"
+  ],
+  "roles": [
+    "ROLE_B2B_USER"
+  ],
+  "prerequisite_journeys": [],
+  "next_journeys": [
+    "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
+  ],
+  "automation_flow_ids": [],
+  "screens": [
+    "SCR_LOGIN",
+    "SCR_UAEPASS_LOGIN",
+    "SCR_UAEPASS_CONFIRM",
+    "SCR_UAEPASS_IN_PROGRESS",
+    "SCR_SELECT_ORG",
+    "SCR_ORG_DASHBOARD",
+    "SCR_UAEPASS_CANCELLED"
+  ],
+  "business_rules": [
+    "BR-AUTH-06",
+    "BR-UAEPASS-01"
+  ],
+  "state_model": null,
+  "match_keywords": [
+    "uae pass",
+    "sign in with uae pass",
+    "sign in using uae pass",
+    "login with uae pass",
+    "emirates id",
+    "approve login request",
+    "user cancelled the login",
+    "authentication in progress",
+    "using uae pass",
+    "via uae pass",
+    "with uae pass",
+    "uae pass app"
+  ],
+  "summary": "User signs in to the B2B portal using UAE PASS authentication. The user clicks the UAE PASS button on the login screen, enters Emirates ID/email/mobile on the UAE PASS login screen, approves the request on the UAE PASS mobile app, and is redirected to the dashboard or organization selection screen.",
+  "steps": [
+    {
+      "step_number": 1,
+      "action": "Navigate to the B2B Portal login page",
+      "expected_result": "The login page loads with the SIGN IN TO BUSINESS ONLINE panel",
+      "note": "Added by the reviewer.",
+      "screen_id": "SCR_LOGIN"
+    },
+    {
+      "step_number": 2,
+      "action": "Click 'Sign in with UAE PASS'",
+      "expected_result": "The Login to UAE PASS page opens",
+      "screen_id": "SCR_LOGIN",
+      "element_id": "uaepass_signin",
+      "source_page": 1
+    },
+    {
+      "step_number": 3,
+      "action": "Enter the Emirates ID, email address or UAE mobile number registered with UAE PASS",
+      "expected_result": "The identifier is accepted",
+      "note": "Added by the reviewer.",
+      "screen_id": "SCR_UAEPASS_LOGIN",
+      "element_id": "uaepass_identifier_input"
+    },
+    {
+      "step_number": 4,
+      "action": "Click Login",
+      "expected_result": "Approve Login Request opens with the number to select in the UAE PASS app",
+      "screen_id": "SCR_UAEPASS_LOGIN",
+      "element_id": "uaepass_login_button",
+      "source_page": 1
+    },
+    {
+      "step_number": 5,
+      "action": "Approve the login request in the UAE PASS app by selecting the number shown",
+      "expected_result": "The B2B portal refreshes and shows 'Authentication in Progress'",
+      "screen_id": "SCR_UAEPASS_CONFIRM",
+      "source_page": 2,
+      "element_id": "displayed_number"
+    },
+    {
+      "step_number": 6,
+      "action": "Wait while the portal authenticates the user via UAE PASS",
+      "expected_result": "'Authentication in Progress' and 'You are being authenticated via UAE PASS.' are shown until sign-in completes",
+      "note": "Added by the reviewer.",
+      "screen_id": "SCR_UAEPASS_IN_PROGRESS",
+      "element_id": "authentication_in_progress"
+    },
+    {
+      "step_number": 7,
+      "action": "Verify the post-authentication landing screen",
+      "expected_result": "Either 'Select a Organization to continue' (no default organization) or the Organization Dashboard (default organization) is displayed",
+      "note": "Added by the reviewer.",
+      "screen_id": "SCR_SELECT_ORG|SCR_ORG_DASHBOARD",
+      "rule": "BR-AUTH-06"
+    },
+    {
+      "step_number": 8,
+      "action": "Click Cancel Request instead of approving",
+      "expected_result": "The portal shows 'User Cancelled the login' with Sign in with UAE PASS and BACK TO LOGIN PAGE",
+      "screen_id": "SCR_UAEPASS_CONFIRM",
+      "element_id": "cancel_request_button",
+      "branch": "negative_only",
+      "rule": "BR-UAEPASS-01",
+      "source_page": 2
+    },
+    {
+      "step_number": 9,
+      "action": "Click BACK TO LOGIN PAGE",
+      "expected_result": "The B2B Portal login page opens",
+      "note": "Added by the reviewer.",
+      "screen_id": "SCR_UAEPASS_CANCELLED",
+      "element_id": "back_to_login_page",
+      "branch": "negative_only"
+    }
+  ],
+  "conditional_branches": [],
+  "test_scenarios": [],
+  "open_questions": [
+    "What is the exact error message displayed after cancellation?",
+    "What happens after the error message is displayed? Does the user return to the login screen or stay on the confirmation screen?",
+    "Is there a loading or intermediate screen between approval and the dashboard/select organization screen?"
+  ],
+  "extraction": {
+    "document": "Sign-in using UAE Pass.pdf",
+    "document_id": 2,
+    "note": "Extracted from a design document and reviewed before publishing; no locators. Selectors come from the journey-guided crawl.",
+    "steps_edited_by_reviewer": true
+  }
+}

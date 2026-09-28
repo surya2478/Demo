@@ -31,6 +31,7 @@ _ADDED_COLUMNS = (
     ("test_case_review_details", "ai_batch_id", "VARCHAR(32)"),
     ("test_case_review_details", "generation", "JSON"),
     ("automation_test_cases", "project_id", "INTEGER"),
+    ("automation_test_cases", "journey_diff", "JSON"),
 )
 
 
@@ -111,6 +112,11 @@ def init_db() -> None:
     # migration is needed and no existing table is touched.
     try:
         import app.models.automation  # noqa: F401
+    except ImportError:
+        pass
+    # Knowledge Base change sets and versions: new tables, created here.
+    try:
+        import app.models.kb_changes  # noqa: F401
     except ImportError:
         pass
 

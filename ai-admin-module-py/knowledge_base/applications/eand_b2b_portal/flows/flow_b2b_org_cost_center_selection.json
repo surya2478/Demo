@@ -1,0 +1,60 @@
+{
+  "flow_id": "flow_b2b_org_cost_center_selection",
+  "flow_name": "Multi-Organization Selection & Cost Centers (Party ID) Inspection",
+  "category": "Organization Management",
+  "subcategory": "Entity Routing",
+  "target_match_keywords": [
+    "select organization",
+    "multi-org",
+    "cost centers",
+    "party ids",
+    "party id",
+    "customer representative",
+    "trade license no",
+    "select a organization to continue",
+    "switch organization",
+    "organization dashboard"
+  ],
+  "catalog_entrypoint": "/b2bportal/login.html?rdr=home&locale=en",
+  "automation_boundary": {
+    "automated_scope": "Authenticated state without default org -> View 'Select a Organization to continue' -> Expand 'N COST CENTERS (PARTY IDS)' drawer -> Verify Cost Centers (Party IDs) -> Select target organization -> Land on Dashboard 360.",
+    "external_boundary": "Upstream CRM organization hierarchy and Party ID relationships are managed in Netcracker BSS."
+  },
+  "graph_edges": [
+    { "from": "login_authenticated", "to": "select_organization_screen", "action": "redirect_multi_org_user" },
+    { "from": "select_organization_screen", "to": "cost_centers_drawer_open", "action": "click_cost_centers_link" },
+    { "from": "cost_centers_drawer_open", "to": "select_organization_screen", "action": "close_cost_centers_drawer" },
+    { "from": "select_organization_screen", "to": "dashboard_360", "action": "click_target_organization_card" }
+  ],
+  "canonical_steps": [
+    {
+      "step_number": 1,
+      "action": "Verify the 'Select a Organization to continue' screen is displayed after authentication",
+      "target": "//div[contains(.,'Select a Organization to continue')]",
+      "expected_result": "The screen displays cards for all organizations linked to the user profile with active status badges"
+    },
+    {
+      "step_number": 2,
+      "action": "Click the 'COST CENTERS (PARTY IDS)' link on an organization card",
+      "target": "//a[contains(.,'COST CENTERS (PARTY IDS)')] | //button[contains(.,'COST CENTERS')]",
+      "expected_result": "The Cost Centers drawer opens displaying the associated Party IDs and account names"
+    },
+    {
+      "step_number": 3,
+      "action": "Verify the Party ID list rendered within the drawer",
+      "target": "//div[contains(@class,'cost-center-item') or contains(@class,'party-id')]",
+      "expected_result": "Party IDs and cost center names match the company entity registration"
+    },
+    {
+      "step_number": 4,
+      "action": "Click the Organization card to set the active organizational context",
+      "target": "//div[contains(@class,'org-card') or contains(.,'Customer Representative')]",
+      "expected_result": "The organization is selected and the user navigates to the authenticated Dashboard 360"
+    }
+  ],
+  "test_data_notes": {
+    "sample_party_ids": ["39014574", "39014845"],
+    "role_badge": "Customer Representative",
+    "status_badge": "ACTIVE"
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "flow_id": "flow_b2b_login_uae_pass",
+  "flow_name": "B2B Portal Authentication (UAE PASS Identity Gateway)",
+  "category": "Authentication",
+  "subcategory": "Federated IdP",
+  "target_match_keywords": [
+    "b2b portal",
+    "business online portal",
+    "uae pass",
+    "uaepass",
+    "sign in with uae pass",
+    "login with uae pass",
+    "emirates id login",
+    "mobile app approval",
+    "number challenge",
+    "cancel uae pass",
+    "user cancelled the login",
+    "authentication in progress"
+  ],
+  "catalog_entrypoint": "/b2bportal/login.html?rdr=home&locale=en",
+  "automation_boundary": {
+    "automated_scope": "Login page -> Click 'Sign in with UAE PASS' -> UAE Pass portal login with EID/mobile/email -> Push notification 2-digit challenge -> (Approve or Cancel) -> Interstitial progress -> Organization Selection / Dashboard 360.",
+    "external_boundary": "UAE Pass mobile biometric approval is external. In automated test environments, the UAE Pass sandbox API or mock IdP confirms the session upon challenge submission."
+  },
+  "graph_edges": [
+    { "from": "login_page", "to": "uae_pass_portal", "action": "click_sign_in_with_uae_pass" },
+    { "from": "uae_pass_portal", "to": "push_challenge_screen", "action": "enter_identifier_and_login" },
+    { "from": "push_challenge_screen", "to": "interstitial_loading", "action": "approve_in_mobile_app" },
+    { "from": "push_challenge_screen", "to": "user_cancelled_screen", "action": "click_cancel_request" },
+    { "from": "user_cancelled_screen", "to": "uae_pass_portal", "action": "click_retry_uae_pass" },
+    { "from": "user_cancelled_screen", "to": "login_page", "action": "click_back_to_login_page" },
+    { "from": "interstitial_loading", "to": "org_selection", "action": "prompt_multi_org_selection" },
+    { "from": "interstitial_loading", "to": "portal_home", "action": "route_to_default_org_dashboard" },
+    { "from": "org_selection", "to": "portal_home", "action": "select_organization_card" }
+  ],
+  "canonical_steps": [
+    {
+      "step_number": 1,
+      "action": "Navigate to the B2B Portal login page",
+      "target": "/b2bportal/login.html?rdr=home&locale=en",
+      "expected_result": "The login page loads with the 'Sign in with UAE PASS' option visible"
+    },
+    {
+      "step_number": 2,
+      "action": "Click the 'Sign in with UAE PASS' button",
+      "target": "//button[contains(.,'Sign in with UAE PASS') or contains(.,'Sign In with UAE PASS')]",
+      "expected_result": "User is redirected to the UAE PASS identity gateway login screen"
+    },
+    {
+      "step_number": 3,
+      "action": "Enter Emirates ID, registered email, or UAE mobile number and submit",
+      "target": "//input[@placeholder='Emirates ID or email address or UAE mobile number'] | //input[@id='user-id-field']",
+      "expected_result": "Identity is validated, and the 2-digit push challenge screen is displayed"
+    },
+    {
+      "step_number": 4,
+      "action": "Verify the two-digit push confirmation challenge displayed on screen",
+      "target": "//div[contains(@class,'number-card') or contains(@class,'challenge-number')]",
+      "expected_result": "The challenge code card is displayed, prompting the user to match the number in their UAE PASS mobile app"
+    },
+    {
+      "step_number": 5,
+      "action": "Optionally click 'Cancel Request' to simulate user aborting login",
+      "target": "//a[contains(.,'Cancel Request')] | //button[contains(.,'Cancel Request')]",
+      "expected_result": "The 'User Cancelled the login' screen is shown with options to retry or go back to login"
+    },
+    {
+      "step_number": 6,
+      "action": "Verify interstitial 'Authentication in Progress' state upon app approval",
+      "target": "//div[contains(@class,'spinner') or contains(.,'Authentication in Progress')]",
+      "expected_result": "The animated spinner confirms profile validation and session token generation"
+    },
+    {
+      "step_number": 7,
+      "action": "Select the target organization if prompted on multi-organization screen",
+      "target": "//div[contains(@class,'org-card') or contains(.,'Customer Representative')]",
+      "expected_result": "The organization is chosen and the authenticated session lands on Dashboard 360"
+    },
+    {
+      "step_number": 8,
+      "action": "Verify the authenticated B2B Portal Dashboard is displayed",
+      "target": "//a[@class='company-info font-light'] | //a[text()='Dashboard']",
+      "expected_result": "Dashboard 360 is loaded showing full visibility of accounts and company metrics"
+    }
+  ],
+  "test_data_notes": {
+    "cancel_retry_button": "//button[contains(.,'Sign in with UAE PASS')]",
+    "cancel_back_button": "//button[contains(.,'BACK TO LOGIN PAGE')]"
+  }
+}
