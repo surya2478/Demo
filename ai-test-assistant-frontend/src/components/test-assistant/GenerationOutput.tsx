@@ -43,6 +43,165 @@ const countSteps = (steps: string) => {
   return steps.trim() ? 1 : 0
 }
 
+// --- The AI service's older table, read as the standard one --------------------
+//
+// Default KB generation goes to the AI service (ai_config.BASE_URL), whose own
+// prompt writes an older table: ID | Channel | Product | Test Case Objective |
+// Pre-requisites | Test Steps | Expected Results | Test Case Type | Test Case
+// Complexity | Planned Exec Sequence. Everything after generation -- the grid,
+// Save, AI Checks, approval, Automation -- reads the standard columns this
+// repo's prompt writes (services/generation/testcases.py). Rather than teach
+// each of those the old names, the old table is rewritten here, once, as it is
+// read. The AI service's prompt is not touched.
+
+/** The standard columns, in order (testcases.py COLUMNS). */
+export const STANDARD_COLUMNS = [
+  'Test Case ID',
+  'Category',
+  'Test Case Description',
+  'Preconditions',
+  'Test Steps',
+  'Test Data',
+  'Expected Result',
+  'Priority'
+] as const
+
+type LegacyField = 'id' | 'description' | 'preconditions' | 'steps' | 'expected' | 'channel' | 'product' | 'category' | 'testData' | 'priority' | 'complexity'
+
+const LEGACY_NAMES: Record<string, LegacyField> = {
+  id: 'id',
+  tcid: 'id',
+  testcaseno: 'id',
+  sno: 'id',
+  testcaseobjective: 'description',
+  objective: 'description',
+  testobjective: 'description',
+  description: 'description',
+  testcasedescription: 'description',
+  prerequisites: 'preconditions',
+  prerequisite: 'preconditions',
+  preconditions: 'preconditions',
+  precondition: 'preconditions',
+  teststeps: 'steps',
+  steps: 'steps',
+  expectedresults: 'expected',
+  expectedresult: 'expected',
+  expectedoutcome: 'expected',
+  channel: 'channel',
+  product: 'product',
+  category: 'category',
+  module: 'category',
+  testdata: 'testData',
+  priority: 'priority',
+  testcasecomplexity: 'complexity',
+  complexity: 'complexity'
+}
+
+const squash = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+/** Field per column for an older header, or null when the header is not one. */
+const legacyHeader = (cells: string[]): (LegacyField | null)[] | null => {
+  const names = cells.map(squash)
+  // Already standard: nothing to rewrite.
+  if (names.includes('testcaseid')) return null
+  const fields = names.map((name) => LEGACY_NAMES[name] ?? null)
+  return fields.includes('id') && fields.includes('description') && (fields.includes('steps') || fields.includes('expected'))
+    ? fields
+    : null
+}
+
+/** A cell as one line: the standard table never breaks a cell. */
+const oneLine = (cell: string) =>
+  cell
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const pipes = (line: string) => (line.match(/\|/g) || []).length
+
+/**
+ * The text with any older AI-service table rewritten in the standard columns.
+ * Text around the table, and a table already standard, come back unchanged.
+ *
+ * A cell the service broke over several lines is joined back into its row --
+ * a row is complete once it has as many pipes as the header. While the stream
+ * is still open (`complete` false) an unfinished last row is held back, the way
+ * parseStreamingCases treats a half-written line.
+ */
+export const normalizeLegacyTable = (text: string, complete = true): string => {
+  const source = (text || '').replace(/\r\n/g, '\n')
+  if (!source.includes('|')) return source
+  const out: string[] = []
+  let fields: (LegacyField | null)[] | null = null
+  let headerCells: string[] = []
+  let extras: number[] = []
+  let need = 0
+  let buffer: string | null = null
+  let changed = false
+
+  const emit = (line: string) => {
+    const cells = splitRow(line)
+    const take = (field: LegacyField) => {
+      const index = fields!.indexOf(field)
+      return index >= 0 ? oneLine(cells[index] ?? '') : ''
+    }
+    const complexity = take('complexity')
+    const priority = take('priority') || (/^(high|medium|low)$/i.test(complexity) ? complexity[0].toUpperCase() + complexity.slice(1).toLowerCase() : 'Medium')
+    const category = take('category') || [take('channel'), take('product')].filter(Boolean).join(' · ')
+    const row = [
+      take('id'),
+      category || '—',
+      take('description') || '—',
+      take('preconditions') || 'None',
+      take('steps') || '—',
+      take('testData') || 'None',
+      take('expected') || '—',
+      priority,
+      ...extras.map((index) => oneLine(cells[index] ?? '') || '—')
+    ]
+    if (row[0]) out.push(`| ${row.join(' | ')} |`)
+  }
+
+  for (const line of source.split('\n')) {
+    const trimmed = line.trim()
+    if (fields) {
+      if (buffer !== null) {
+        // A cell broken over lines: keep joining until the row is whole.
+        buffer = `${buffer}<br>${trimmed}`
+        if (pipes(buffer) >= need) { emit(buffer); buffer = null }
+        continue
+      }
+      if (trimmed.startsWith('|')) {
+        if (isDivider(splitRow(trimmed))) continue
+        if (pipes(trimmed) >= need) emit(trimmed)
+        else buffer = trimmed
+        continue
+      }
+      fields = null // the table ended
+    }
+    if (trimmed.startsWith('|')) {
+      const cells = splitRow(trimmed)
+      const found = legacyHeader(cells)
+      if (found) {
+        fields = found
+        headerCells = cells
+        need = pipes(trimmed)
+        // Columns with no standard home are kept after the standard ones.
+        // Complexity also sets Priority, and stays visible in its own right.
+        extras = found.map((field, index) => (field === null || field === 'complexity' ? index : -1)).filter((index) => index >= 0)
+        const header = [...STANDARD_COLUMNS, ...extras.map((index) => headerCells[index])]
+        out.push(`| ${header.join(' | ')} |`, `| ${header.map(() => '---').join(' | ')} |`)
+        changed = true
+        continue
+      }
+    }
+    out.push(line)
+  }
+  // A row still open at the end: finished only if the stream is.
+  if (buffer !== null && complete) emit(buffer)
+  return changed ? out.join('\n') : source
+}
+
 /**
  * The output with the given cases' rows taken out of its table(s). Everything
  * else -- headings, notes, other tables -- is left as it was, so the Full
@@ -51,8 +210,8 @@ const countSteps = (steps: string) => {
 export const removeCasesFromMarkdown = (text: string, ids: Set<string>): string => {
   if (!ids.size) return text
   let idIndex = -1
-  return (text || '')
-    .replace(/\r\n/g, '\n')
+  // Read the older AI-service table as the standard one first.
+  return normalizeLegacyTable(text || '')
     .split('\n')
     .filter((line) => {
       const trimmed = line.trim()
@@ -77,9 +236,13 @@ export interface StreamParse {
 }
 
 export const parseStreamingCases = (text: string, complete: boolean): StreamParse => {
-  const lines = (text || '').replace(/\r\n/g, '\n').split('\n')
+  const raw = (text || '').replace(/\r\n/g, '\n')
+  // The older AI-service table, rewritten in the standard columns. It holds
+  // back an unfinished last row itself.
+  const normalized = normalizeLegacyTable(raw, complete)
+  const lines = normalized.split('\n')
   // Drop the unfinished last line while the stream is still open.
-  if (!complete) lines.pop()
+  if (!complete && normalized === raw) lines.pop()
 
   let header: string[] | null = null
   const cases: StreamedCase[] = []
@@ -103,7 +266,10 @@ export const parseStreamingCases = (text: string, complete: boolean): StreamPars
     cases.push({
       id,
       title,
-      type: inferCaseType(`${title} ${col('expected')}`),
+      // A table that states the type (the AI service's does) is taken at its word.
+      type: (/^(positive|negative|boundary)$/i.test(col('test case type'))
+        ? col('test case type')[0].toUpperCase() + col('test case type').slice(1).toLowerCase()
+        : inferCaseType(`${title} ${col('expected')}`)) as CaseType,
       priority: col('priority') || '—',
       steps: countSteps(col('steps'))
     })

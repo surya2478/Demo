@@ -25,7 +25,7 @@ import { authHeaderFor, isOwnBackend } from '../../utils/trackedFetchWithTokens'
 import api from '../../services/api'
 import SelectKB, { type KnowledgeBaseOption } from '../../components/test-assistant/SelectKB'
 import JourneyBar from '../../components/test-assistant/JourneyBar'
-import { CaseGrid, InputSummary, ProgressPanel, parseStreamingCases, removeCasesFromMarkdown } from '../../components/test-assistant/GenerationOutput'
+import { CaseGrid, InputSummary, ProgressPanel, normalizeLegacyTable, parseStreamingCases, removeCasesFromMarkdown } from '../../components/test-assistant/GenerationOutput'
 import AIChecksPanel, { isSettled } from '../../components/test-assistant/AIChecksPanel'
 import { useConfirm } from '../../components/ui/ConfirmDialog'
 import { ProjectChip, ProjectDialog } from '../../components/project/ProjectDetails'
@@ -522,7 +522,9 @@ const TestCases: React.FC = () => {
   }
 
   const extractAndConsolidateTestCases = (content: string) => {
-    const raw = (content || '').replace(/\r/g, '')
+    // The AI service's older table is read in the standard columns, so what is
+    // saved, checked and sent for approval always carries the standard names.
+    const raw = normalizeLegacyTable(content || '').replace(/\r/g, '')
     const markdownLines = raw.split('\n').filter(line => line.includes('|'))
     const tableRows = markdownLines.filter(line => !/^\s*\|?\s*[:-][-:|\s]*\|?\s*$/.test(line.trim()))
 
@@ -1436,7 +1438,7 @@ const TestCases: React.FC = () => {
             fullText += streamedChunk;
             // Scope is understood once text arrives, scenarios once the table
             // header is written; rows then stream as "Generating test cases".
-            setGenStagesDone(prev => Math.max(prev, /test case id/i.test(fullText) ? 3 : 2))
+            setGenStagesDone(prev => Math.max(prev, /test case id|test case objective/i.test(fullText) ? 3 : 2))
           }
         } finally {
           streamReaderRef.current = null
@@ -1483,8 +1485,12 @@ const TestCases: React.FC = () => {
 
       setGenStagesDone(5)
       if (fullText && fullText.trim().length > 0) {
-        setTestCasesData(fullText);
-        await autosaveGeneration(fullText, stopRequestedRef.current)
+        // Kept in the standard columns from here on: the AI service's older
+        // table is rewritten once, so the saved session restores the same way.
+        const tableText = normalizeLegacyTable(fullText)
+        if (tableText !== fullText) setResponse(tableText)
+        setTestCasesData(tableText);
+        await autosaveGeneration(tableText, stopRequestedRef.current)
         await startWorkflow(getWorkflowDocumentName(), {
           PROCESS_DOCUMENT: 'COMPLETED',
           GENERATE_TEST_CASES: 'COMPLETED',
@@ -1782,7 +1788,8 @@ const TestCases: React.FC = () => {
       const session = await projectService.session(requestId)
       const g = session.generation || {}
       clearAiChecks()
-      setResponse(g.output || '')
+      // A session saved from the AI service's older table opens in the standard columns.
+      setResponse(normalizeLegacyTable(g.output || ''))
       setOutput('')
       const types = ['text', 'file', 'e2e-spark', 'figma-pdf'] as const
       setInputType((types as readonly string[]).includes(g.input_type || '') ? (g.input_type as typeof types[number]) : 'text')
