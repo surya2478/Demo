@@ -85,11 +85,16 @@ def extract_json(text: str) -> Any:
     if fenced:
         candidates.append(fenced.group(1).strip())
 
+    # Whichever bracket opens first is the outer value. Trying "[" first
+    # unconditionally turned {"requirements": [...]} plus a line of prose into
+    # the bare inner list, which then failed the schema.
+    spans = []
     for opener, closer in (("[", "]"), ("{", "}")):
         start = text.find(opener)
         end = text.rfind(closer)
         if start != -1 and end > start:
-            candidates.append(text[start : end + 1])
+            spans.append((start, text[start : end + 1]))
+    candidates.extend(span for _, span in sorted(spans))
 
     for candidate in candidates:
         try:
@@ -103,8 +108,22 @@ def extract_json(text: str) -> Any:
 
 # ── Transports ───────────────────────────────────────────────────────────────
 
+def _ai_service_base() -> str:
+    """Where this module's AI service calls go.
+
+    AI_SERVICE_CHAT_BASE_URL when a deployment sets it -- an AI service for
+    AI Checks, refine and healing on a different host from the one the Test
+    Assistant tabs use -- else ai_config.BASE_URL, the same service the tabs
+    call. A separate setting rather than reusing OPENAI_BASE_URL: that one is
+    Squad KB generation's OpenAI-compatible endpoint, and the two are not the
+    same kind of service.
+    """
+    override = (settings.AI_SERVICE_CHAT_BASE_URL or "").strip()
+    return (override or settings.ai_config.BASE_URL or "").rstrip("/")
+
+
 def _ai_service_url() -> str:
-    base = (settings.ai_config.BASE_URL or "").rstrip("/")
+    base = _ai_service_base()
     endpoint = settings.ai_config.ENDPOINTS.chatStream or "/chat/stream"
     if not base:
         raise LLMUnavailable(
@@ -127,6 +146,21 @@ def _ai_service_headers() -> dict:
     return {"Authorization": f"Bearer {token}"} if token else {}
 
 
+def _ai_service_verify() -> bool | str:
+    """TLS verification for the AI service, as services/generation/stream.py does it.
+
+    This module posted with requests' default -- the system trust store -- and
+    ignored AI_SERVICE_VERIFY_SSL and AI_SERVICE_CA_BUNDLE_PATH. The deployed
+    AI service is signed by an internal CA, so generation (which honours both)
+    worked while AI Checks, refine, classify and healing failed with
+    CERTIFICATE_VERIFY_FAILED against the same host.
+    """
+    if not settings.AI_SERVICE_VERIFY_SSL:
+        return False
+    bundle = (settings.AI_SERVICE_CA_BUNDLE_PATH or "").strip()
+    return bundle or True
+
+
 # See services/generation/stream.py for the measurements behind this: an empty
 # brd_content makes every reply on the session the literal string "Empty
 # Response", and a whole document makes /chat/init return 500. A short real
@@ -138,8 +172,30 @@ def _session_seed(user_input: str) -> str:
     return (user_input or "").strip()[:_SESSION_SEED_CHARS] or "Requirements document."
 
 
+def _with_instructions(system_prompt: str, user_input: str) -> str:
+    """The task's instructions carried inside the message as well.
+
+    The AI service's chat endpoint is a BRD chat assistant with its own system
+    prompt, and the `system_prompt` field posted alongside is not reliably what
+    the model follows: refinement came back as the model's own restatement of
+    the case -- wrapped in {"refined_test_case": ...}, keyed by the source
+    table's columns, with no `ref` -- which is exactly what a model that never
+    saw the output schema produces. Stating the same instructions in the
+    message itself reaches the model either way. The wording is unchanged; only
+    where it is delivered is.
+    """
+    if not (system_prompt or "").strip():
+        return user_input
+    return (
+        "Follow these instructions exactly. They define the task and the only "
+        "acceptable output format.\n\n"
+        f"<instructions>\n{system_prompt.strip()}\n</instructions>\n\n"
+        f"{user_input}"
+    )
+
+
 def _ai_service_init_url() -> str:
-    base = (settings.ai_config.BASE_URL or "").rstrip("/")
+    base = _ai_service_base()
     endpoint = settings.ai_config.ENDPOINTS.chatInitiate or "/chat/init"
     return f"{base}{endpoint if endpoint.startswith('/') else '/' + endpoint}"
 
@@ -168,7 +224,9 @@ def _open_ai_service_session(
         "max_tokens": (None, str(max_tokens)),
     }
     try:
-        response = requests.post(url, files=payload, headers=_ai_service_headers(), timeout=timeout)
+        response = requests.post(
+            url, files=payload, headers=_ai_service_headers(), timeout=timeout, verify=_ai_service_verify()
+        )
     except requests.RequestException as exc:
         raise LLMError(f"The AI service session could not be opened at {url}: {exc}") from exc
 
@@ -232,7 +290,7 @@ def _call_ai_service(
     )
     payload = {
         "session_id": (None, session_id),
-        "user_input": (None, user_input),
+        "user_input": (None, _with_instructions(system_prompt, user_input)),
         "system_prompt": (None, system_prompt),
         "provider": (None, str(params.provider or "")),
         "model_name": (None, str(params.model or "")),
@@ -242,7 +300,8 @@ def _call_ai_service(
 
     try:
         with requests.post(
-            url, files=payload, headers=_ai_service_headers(), timeout=timeout, stream=True
+            url, files=payload, headers=_ai_service_headers(), timeout=timeout, stream=True,
+            verify=_ai_service_verify(),
         ) as response:
             if response.status_code >= 400:
                 body = (response.text or "")[:300]
@@ -351,6 +410,28 @@ def _dispatch(
 
 # ── The one call the rest of the module uses ─────────────────────────────────
 
+def _unwrap(data: Any) -> Any:
+    """The reply without a one-key wrapper the model added around each item.
+
+    [{"refined_test_case": {...}}] -> [{...}], and {"items": [...]} or
+    {"result": {...}} -> the inner value. Only a dict with exactly one key whose
+    value is itself a dict or list is unwrapped, so a real object is never
+    mistaken for a wrapper. Returns `data` itself when nothing was unwrapped.
+    """
+    def inner(value: Any) -> Any:
+        if isinstance(value, dict) and len(value) == 1:
+            only = next(iter(value.values()))
+            if isinstance(only, (dict, list)):
+                return only
+        return value
+
+    if isinstance(data, list):
+        items = [inner(item) for item in data]
+        return items if any(a is not b for a, b in zip(items, data)) else data
+    unwrapped = inner(data)
+    return unwrapped if unwrapped is not data else data
+
+
 def complete_json(
     *,
     system_prompt: str,
@@ -394,11 +475,31 @@ def complete_json(
             temperature=temperature,
         )
         try:
-            return model_cls.model_validate(extract_json(raw))
+            data = extract_json(raw)
+            try:
+                return model_cls.model_validate(data)
+            except ValidationError:
+                # A bare list for a model whose only field is a list:
+                # [{...}] -> {"requirements": [{...}]}.
+                fields = list(model_cls.model_fields)
+                if isinstance(data, list) and len(fields) == 1:
+                    try:
+                        return model_cls.model_validate({fields[0]: data})
+                    except ValidationError:
+                        pass
+                unwrapped = _unwrap(data)
+                if unwrapped is data:
+                    raise
+                try:
+                    return model_cls.model_validate(unwrapped)
+                except ValidationError:
+                    # Report the reply as it came, not the unwrap attempt.
+                    return model_cls.model_validate(data)
         except (LLMInvalidResponse, ValidationError) as exc:
             last_error = exc
             logger.warning(
-                "LLM reply failed validation on attempt %d/%d: %s", attempt, attempts, exc
+                "LLM reply failed validation on attempt %d/%d: %s\nReply began: %s",
+                attempt, attempts, exc, (raw or "").strip()[:600],
             )
             if attempt >= attempts:
                 break
@@ -502,7 +603,7 @@ def provider_status() -> dict[str, Any]:
                 else "Not configured. Missing: " + ", ".join(missing)
             ),
         }
-    base = (settings.ai_config.BASE_URL or "").strip()
+    base = _ai_service_base()
     return {
         "provider": provider,
         "configured": bool(base),

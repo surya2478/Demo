@@ -286,6 +286,10 @@ class Settings(BaseSettings):
     # service's timeout meant setting a variable named after a provider the
     # deployment was not using.
     AI_SERVICE_TIMEOUT_SECONDS: int = Field(default=120)
+    # Optional. Sends the Automation module's AI service calls (AI Checks,
+    # refine, healing) to a different AI service host than ai_config.BASE_URL.
+    # Empty: they use ai_config.BASE_URL, like the Test Assistant tabs.
+    AI_SERVICE_CHAT_BASE_URL: str = Field(default="")
 
     # Secret. Empty means "not configured" -- see openrouter_missing_keys(),
     # which names what is absent rather than failing on an anonymous 401.

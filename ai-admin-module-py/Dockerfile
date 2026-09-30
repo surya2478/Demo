@@ -150,6 +150,24 @@ RUN --mount=type=secret,id=build_proxy \
 
 COPY . /app
 
+# --- Company CA: trusted by every outbound call the backend makes -------------
+# The browser trusts the internal Etisalat CA through Windows; this container
+# only knows the public CAs, so its calls to the AI service at dx12348 (AI
+# Checks, refine, healing, KB generation) failed the TLS handshake while the
+# same model answered the browser. Any *.crt in certs/ (PEM: root and
+# intermediate) is added to the system store here, and requests / Node are
+# pointed at that store -- which still holds every public CA, so OpenRouter and
+# OpenAI keep verifying. Verification stays on; AI_SERVICE_CA_BUNDLE_PATH can
+# stay empty. An empty certs/ folder changes nothing.
+RUN set -eu; \
+    if ls /app/certs/*.crt >/dev/null 2>&1; then \
+        cp /app/certs/*.crt /usr/local/share/ca-certificates/; \
+        update-ca-certificates; \
+    fi
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+
 # storage/automation holds run workspaces and evidence (AUTOMATION_STORAGE_PATH).
 RUN mkdir -p /app/data /app/logs /app/storage/automation
 
