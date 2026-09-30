@@ -45,7 +45,8 @@ const adminMenuGroups: MenuGroup[] = [
 
 const aiTestGenerationItems: MenuItem[] = [
   { path: '/test-assistant', label: 'Test Assistant', permission: 'testassistant.view' },
-  { path: '/manager-review', label: 'Review & Approve', permission: 'dashboard.view' }
+  { path: '/manager-review', label: 'Review & Approve', permission: 'dashboard.view' },
+  { path: '/coverage-analysis', label: 'Coverage Analysis', permission: 'testassistant.view' }
   // Approved Test Cases is hidden from the menu; its route still exists, and
   // its list and downloads move into Review & Approval.
 

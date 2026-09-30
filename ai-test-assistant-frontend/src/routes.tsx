@@ -22,6 +22,7 @@ import ReviewAndApproval from './pages/ReviewAndApproval'
 import ReviewApprovalPage from './pages/review/ReviewApproval'
 import RequestReview from './pages/review/RequestReview'
 import ApprovedTestCases from './pages/ApprovedTestCases'
+import CoverageAnalysis from './pages/CoverageAnalysis'
 
 // Test Assistant and tabs
 import RequestTrackerDashboard from './components/RequestTrackerDashboard';
@@ -225,6 +226,15 @@ const AppRoutes: React.FC = () => {
           element={
             <ProtectedRoute allowedRoles={['admin', 'manager', 'user']}>
               <ApprovedTestCases />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="coverage-analysis"
+          element={
+            <ProtectedRoute allowedPermissions={['testassistant.view']}>
+              <CoverageAnalysis />
             </ProtectedRoute>
           }
         />

@@ -36,6 +36,29 @@ const api = axios.create({
   }
 });
 
+// --- Every request carries the saved session token ---------------------------
+// The token was only copied onto api.defaults by authService (on login, or when
+// AuthProvider calls /auth/me after a reload). React runs a child's effects
+// before its parent's, so after a page refresh ProjectProvider -- nested inside
+// AuthProvider -- restored the saved project with GET /projects/{id} BEFORE the
+// header existed. That request went out without a token, got 401, and the 401
+// handler below broadcast app:logout: every refresh signed the user out once a
+// project had been chosen. Reading the saved token here makes the order of
+// start-up calls irrelevant. A header set explicitly on a request still wins.
+api.interceptors.request.use((config) => {
+  const headers = config.headers as Record<string, any> | undefined
+  const already = headers?.Authorization || headers?.authorization || api.defaults.headers.common['Authorization']
+  if (!already) {
+    try {
+      const token = localStorage.getItem('api_token')
+      if (token && config.headers) (config.headers as any).Authorization = `Bearer ${token}`
+    } catch {
+      // storage unavailable: the request goes as before
+    }
+  }
+  return config
+})
+
 // Detect auth/session expiration responses and broadcast a global event
 api.interceptors.response.use(
   (res) => res,
