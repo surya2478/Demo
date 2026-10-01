@@ -231,8 +231,16 @@ class JobManager:
             if missing:
                 self._finalise(db, run, status="failed", outcome="blocked", error=missing)
                 return
-            data_env: dict[str, str] = data["values"]
+            data_env: dict[str, str] = dict(data["values"])
             secrets: list[str] = data["secrets"]
+            # No address chosen for this run: the environment's own, from Test
+            # Data. Scripts read BASE_URL (falling back to the host they were
+            # generated against), so this is what sends a run to RC's host.
+            if not base_url and data.get("base_url"):
+                base_url = data["base_url"]
+                data_env["BASE_URL"] = base_url
+                run.run_metadata = {**(run.run_metadata or {}), "target_url": data.get("address")}
+                db.commit()
 
             run.status = "running"
             run.started_at = datetime.utcnow()

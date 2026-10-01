@@ -135,6 +135,14 @@ def init_db() -> None:
         print(f'[Database Init] Registered models: {Base.metadata.tables.keys()}')
         Base.metadata.create_all(bind=engine)
         print(f'[Database Init] Tables created successfully')
+        # Applications registered in Discovery or on the Knowledge Base page
+        # are folded into Test Data, the one registry. Idempotent; never fatal.
+        try:
+            from ..services.automation.registry import run_on_startup
+
+            run_on_startup()
+        except Exception:
+            traceback.print_exc()
         print(f'[Database Init] Final tables in metadata: {list(Base.metadata.tables.keys())}')
     except Exception as exc:
         # print full traceback for easier debugging and re-raise

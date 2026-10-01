@@ -10,6 +10,10 @@ services/automation/test_data.py for how a run finds and uses them.
 
 Secret values are encrypted on save and never returned: the page shows that
 one is set, and a new value replaces it.
+
+This is also the one place applications are registered: each has an address
+per environment, and the application Discovery and the Knowledge Base page
+work on is kept in step from here (services/automation/registry.py).
 """
 from __future__ import annotations
 
@@ -22,7 +26,7 @@ from sqlalchemy.orm import Session
 from ..database.connection import get_db
 from ..models.automation import AutomationDataApp, AutomationScript, AutomationTestData
 from ..services.authz import require_permission
-from ..services.automation import test_data
+from ..services.automation import registry, test_data
 
 router = APIRouter()
 
@@ -54,13 +58,19 @@ def _entry(entry: AutomationTestData) -> dict[str, Any]:
     }
 
 
-def _app(app: AutomationDataApp) -> dict[str, Any]:
+def _app(app: AutomationDataApp, environments: Optional[list[str]] = None) -> dict[str, Any]:
+    present = {e.environment for e in app.entries if e.environment != test_data.ALL_ENVIRONMENTS}
+    envs = test_data.ordered_environments([*(environments or []), *present, *registry.addresses(app)])
     return {
         "id": app.id,
         "name": app.name,
         "kb_app_id": app.kb_app_id,
         "url_prefix": app.url_prefix,
         "run_environment": test_data.run_environment(app),
+        # {environment: address}; the page leads with the environment and fills
+        # the address and values from it.
+        "addresses": registry.addresses(app),
+        "environment_summary": registry.summary(app, envs),
         "created_by": app.created_by,
         "entries": [_entry(e) for e in sorted(app.entries, key=lambda e: (e.environment != "*", e.environment, e.key))],
     }
@@ -69,9 +79,29 @@ def _app(app: AutomationDataApp) -> dict[str, Any]:
 class AppIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     kb_app_id: Optional[str] = Field(default=None, max_length=100)
+    # The single address of an older client: the default environment's.
     url_prefix: Optional[str] = Field(default=None, max_length=2000)
     # The environment its scripts run against; omitted keeps the current one.
     run_environment: Optional[str] = Field(default=None, max_length=40)
+    # {environment: address}; "" removes that environment's address, and an
+    # environment left out keeps its own.
+    addresses: Optional[dict[str, Optional[str]]] = None
+
+
+def _apply_addresses(db: Session, app: AutomationDataApp, body: AppIn, actor: str) -> list[str]:
+    """Set the addresses the request names; refuse one another application has. Returns warnings."""
+    wanted = dict(body.addresses or {})
+    if body.addresses is None and body.url_prefix is not None:
+        wanted[registry.default_environment(app)] = body.url_prefix
+    try:
+        registry.set_addresses(app, wanted, actor=actor)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    problems = registry.address_conflicts(db, app)
+    clashes = [p for p in problems if "already" in p]
+    if clashes:
+        raise HTTPException(status_code=409, detail=" ".join(clashes) + " Use a more specific address (with its folder).")
+    return problems
 
 
 def _run_environment(value: Optional[str]) -> Optional[str]:
@@ -96,11 +126,19 @@ class EntriesIn(BaseModel):
     deleted_ids: list[int] = Field(default_factory=list, max_length=200)
 
 
+def _environments(db: Session) -> list[str]:
+    from ..models.automation import AutomationDataAppEnvironment
+
+    used = [e for (e,) in db.query(AutomationTestData.environment).distinct()]
+    used += [e for (e,) in db.query(AutomationDataAppEnvironment.environment).distinct()]
+    return test_data.ordered_environments(e for e in used if e != test_data.ALL_ENVIRONMENTS)
+
+
 @router.get("/apps")
 def list_apps(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(PERM_VIEW))):
     apps = db.query(AutomationDataApp).order_by(AutomationDataApp.name).all()
-    environments = test_data.ordered_environments(e for (e,) in db.query(AutomationTestData.environment).distinct())
-    return {"apps": [_app(app) for app in apps], "environments": environments}
+    environments = _environments(db)
+    return {"apps": [_app(app, environments) for app in apps], "environments": environments}
 
 
 @router.get("/kb-apps")
@@ -136,14 +174,16 @@ def create_app(
     app = AutomationDataApp(
         name=name,
         kb_app_id=(body.kb_app_id or "").strip() or None,
-        url_prefix=(body.url_prefix or "").strip().rstrip("/") or None,
         run_environment=_run_environment(body.run_environment) or "SIT",
         created_by=_actor(current_user),
     )
     db.add(app)
+    db.flush()
+    warnings = _apply_addresses(db, app, body, _actor(current_user))
+    registry.sync_crawl_app(db, app, actor=_actor(current_user))
     db.commit()
     db.refresh(app)
-    return _app(app)
+    return {**_app(app, _environments(db)), "warnings": warnings}
 
 
 @router.put("/apps/{app_id}")
@@ -162,11 +202,13 @@ def update_app(
         raise HTTPException(status_code=409, detail=f"An application called {name} already exists.")
     app.name = name
     app.kb_app_id = (body.kb_app_id or "").strip() or None
-    app.url_prefix = (body.url_prefix or "").strip().rstrip("/") or None
     if body.run_environment is not None:
         app.run_environment = _run_environment(body.run_environment) or "SIT"
+    warnings = _apply_addresses(db, app, body, _actor(current_user))
+    registry.sync_crawl_app(db, app, actor=_actor(current_user))
     db.commit()
-    return _app(app)
+    db.refresh(app)
+    return {**_app(app, _environments(db)), "warnings": warnings}
 
 
 @router.delete("/apps/{app_id}")
@@ -178,6 +220,7 @@ def delete_app(
     app = db.get(AutomationDataApp, app_id)
     if app is None:
         raise HTTPException(status_code=404, detail="Application not found.")
+    registry.retire_crawl_app(db, app)
     db.delete(app)
     db.commit()
     return {"deleted": app_id}
@@ -231,7 +274,7 @@ def save_entries(
         entry.updated_by = actor
     db.commit()
     db.refresh(app)
-    return _app(app)
+    return _app(app, _environments(db))
 
 
 @router.get("/check")

@@ -3253,6 +3253,11 @@ def create_application(
         status="success",
         details={"description": f"{username} registered application {app.name}"},
     )
+    # Test Data is the one registry: an application registered through this
+    # older endpoint becomes a Test Data application with this address.
+    from ..services.automation.registry import merge_registries
+
+    merge_registries(db)
     return _application_detail(db, app)
 
 

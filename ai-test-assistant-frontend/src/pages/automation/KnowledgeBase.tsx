@@ -17,7 +17,7 @@
  * same way.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import automationService from '../../services/automationService'
 import knowledgeBaseService, { type JourneyKbApp, type KbOverview } from '../../services/knowledgeBaseService'
 import { usePageHeader } from '../../components/layout/PageHeaderContext'
@@ -156,29 +156,6 @@ const KnowledgeBase: React.FC = () => {
     ]
   }, [overview, selectedApp, appKey])
 
-  const [registering, setRegistering] = useState(false)
-  const [registerError, setRegisterError] = useState<string | null>(null)
-  // Registers a Journey KB application with the values its Automation KB
-  // profile already holds, so it can be crawled. The same call Discovery's own
-  // "Add application" form makes.
-  const registerApplication = async () => {
-    if (!appKey || !overview?.base_url) return
-    setRegistering(true)
-    setRegisterError(null)
-    try {
-      const created = await automationService.createApplication({
-        name: overview.app_name, app_key: appKey, base_url: overview.base_url, environment: 'SIT'
-      })
-      const registered = await automationService.listApplications()
-      setApplications(registered.applications ?? [])
-      setSelection(`reg:${created.id}`)
-    } catch (err: any) {
-      setRegisterError(err?.message ?? 'The application could not be registered.')
-    } finally {
-      setRegistering(false)
-    }
-  }
-
   const needsJourneyKb = ['sources', 'journeys', 'model', 'testdata', 'reconcile', 'heal'].includes(stage)
 
   return (
@@ -263,19 +240,15 @@ const KnowledgeBase: React.FC = () => {
           {(stage === 'crawl' || stage === 'automation') && !selectedApp && appKey && (
             <Card className="flex flex-col gap-3 p-6">
               <Note tone="warn">
-                <strong>{overview?.app_name ?? appKey}</strong> has a Journey KB but is not registered as an application yet.
-                Crawling and the Automation KB screens work from a registration (name, base URL, environment).
+                <strong>{overview?.app_name ?? appKey}</strong> has a Journey KB but is not an application yet.
+                Crawling and the Automation KB screens need one: add it in Test Data with its address for each environment.
               </Note>
-              {registerError && <Note tone="warn">{registerError}</Note>}
-              <button
-                type="button"
-                onClick={() => void registerApplication()}
-                disabled={registering || !overview?.base_url}
-                title={overview?.base_url ? `Registers ${appKey} with ${overview.base_url}, environment SIT` : 'The Automation KB profile has no base_url to register with'}
-                className="w-fit rounded-[12px] bg-[#B71920] px-4 py-2 text-[13px] font-bold text-white hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+              <Link
+                to={`/test-data?add=${encodeURIComponent(appKey)}`}
+                className="w-fit rounded-[12px] bg-[#B71920] px-4 py-2 text-[13px] font-bold text-white hover:opacity-95"
               >
-                {registering ? 'Registering…' : 'Register this application'}
-              </button>
+                Add this application in Test Data
+              </Link>
             </Card>
           )}
           {stage === 'crawl' && selectedApp && (

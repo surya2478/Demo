@@ -253,7 +253,9 @@ def url_prefix(url: Optional[str]) -> Optional[str]:
 
 
 def find_app(db: Session, *, urls: Iterable[Optional[str]] = (), kb_app_id: Optional[str] = None) -> Optional[AutomationDataApp]:
-    """The application a URL (longest prefix) or Knowledge Base id belongs to."""
+    """The application a URL (longest prefix of any environment's address) or Knowledge Base id belongs to."""
+    from .registry import addresses
+
     apps = db.query(AutomationDataApp).all()
     best: tuple[int, Optional[AutomationDataApp]] = (0, None)
     for url in urls:
@@ -261,9 +263,10 @@ def find_app(db: Session, *, urls: Iterable[Optional[str]] = (), kb_app_id: Opti
         if not url:
             continue
         for app in apps:
-            prefix = (app.url_prefix or "").strip().lower().rstrip("/")
-            if prefix and (url == prefix or url.startswith(prefix + "/") or url.startswith(prefix + "?")) and len(prefix) > best[0]:
-                best = (len(prefix), app)
+            for prefix in addresses(app).values():
+                prefix = (prefix or "").strip().lower().rstrip("/")
+                if prefix and (url == prefix or url.startswith(prefix + "/") or url.startswith(prefix + "?")) and len(prefix) > best[0]:
+                    best = (len(prefix), app)
     if best[1] is not None:
         return best[1]
     if not kb_app_id:
@@ -314,11 +317,18 @@ def for_code(
     the normal case -- the Automation Lab no longer asks -- and an explicit
     value is only for a caller that wants another.
     """
+    from .registry import address_for, origin
+
     names = required_names(code)
-    app = find_app(db, urls=(base_url, case_url, *spec_urls(code), spec_base_url(code))) if names or not environment else None
+    app = find_app(db, urls=(base_url, case_url, *spec_urls(code), spec_base_url(code)))
     environment = run_environment(app, environment, case_environment)
+    # Where this environment runs: a run with no address of its own goes here,
+    # so a case generated for SIT and run on RC opens RC's host.
+    address = address_for(app, environment)
     report: dict[str, Any] = {
         "environment": environment,
+        "address": address,
+        "base_url": origin(address),
         "application": None,
         "needed": names,
         "matches": {},
@@ -326,6 +336,8 @@ def for_code(
         "values": {},
         "secrets": [],
     }
+    if app is not None:
+        report["application"] = {"id": app.id, "name": app.name}
     if not names:
         return report
     if app is None:
@@ -333,7 +345,6 @@ def for_code(
         return report
     resolved = resolve(app.entries, environment, names)
     report.update(resolved)
-    report["application"] = {"id": app.id, "name": app.name}
     return report
 
 

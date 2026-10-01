@@ -80,10 +80,13 @@ def start(
     kb = _kb(app_id)
     if application.app_key != kb.app_id:
         raise ValueError(f"{application.name} is registered as '{application.app_key}', not '{kb.app_id}'.")
-    base_url = (application.base_url or "").strip()
-    if not base_url:
-        raise ValueError(f"{application.name} has no base URL registered.")
     environment = (environment or application.environment or "SIT").strip()
+    # The environment's own address in Test Data, else the registered one.
+    from ..automation.registry import address_for_crawl
+
+    base_url = (address_for_crawl(db, application.app_key, environment) or application.base_url or "").strip()
+    if not base_url:
+        raise ValueError(f"{application.name} has no address for {environment}. Add one in AI Test Automation > Test Data.")
 
     plan = journey_crawl.build_plan(kb, journey_id, automation_profile=_automation_profile(kb),
                                     base_url=base_url, profile_id=profile_id)

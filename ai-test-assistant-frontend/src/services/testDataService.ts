@@ -35,6 +35,9 @@ export interface DataApp {
   run_environment: string
   created_by: string | null
   entries: TestDataEntry[]
+  /** {environment: address} */
+  addresses: Record<string, string>
+  environment_summary: EnvironmentSummary[]
 }
 
 /** A Knowledge Base data profile (roles.json), checked against the values. */
@@ -56,6 +59,23 @@ export interface KbUsage {
   environments: string[]
   profiles: KbProfile[]
   totals: Partial<Record<'ready' | 'missing' | 'external', number>>
+}
+
+/** {environment: address}; "" removes that environment's address. */
+export type AppBody = {
+  name: string
+  kb_app_id?: string | null
+  url_prefix?: string | null
+  run_environment?: string | null
+  addresses?: Record<string, string>
+}
+
+export interface EnvironmentSummary {
+  environment: string
+  address: string | null
+  values: number
+  values_set: number
+  is_default: boolean
 }
 
 export interface KbApp {
@@ -89,9 +109,9 @@ const BASE = '/automation/test-data'
 const testDataService = {
   apps: async (): Promise<{ apps: DataApp[]; environments: string[] }> => (await api.get(`${BASE}/apps`)).data,
   kbApps: async (): Promise<KbApp[]> => (await api.get(`${BASE}/kb-apps`)).data.apps,
-  createApp: async (body: { name: string; kb_app_id?: string | null; url_prefix?: string | null; run_environment?: string | null }): Promise<DataApp> =>
+  createApp: async (body: AppBody): Promise<DataApp & { warnings?: string[] }> =>
     (await api.post(`${BASE}/apps`, body)).data,
-  updateApp: async (id: number, body: { name: string; kb_app_id?: string | null; url_prefix?: string | null; run_environment?: string | null }): Promise<DataApp> =>
+  updateApp: async (id: number, body: AppBody): Promise<DataApp & { warnings?: string[] }> =>
     (await api.put(`${BASE}/apps/${id}`, body)).data,
   deleteApp: async (id: number): Promise<void> => {
     await api.delete(`${BASE}/apps/${id}`)

@@ -30,8 +30,6 @@ import {
   HiOutlineDeviceMobile,
   HiOutlineCode,
   HiOutlineShieldCheck,
-  HiOutlinePlus,
-  HiOutlineX,
   HiOutlineOfficeBuilding,
   HiOutlineDatabase,
   HiOutlineSave
@@ -58,15 +56,7 @@ import type {
 } from '../../types/automation'
 
 /** A Knowledge Base folder name: lower-case slug, matching the API's pattern. */
-const APP_KEY_PATTERN = /^[a-z0-9][a-z0-9_-]*$/
 
-const slugifyAppKey = (value: string): string =>
-  value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 100)
 
 /**
  * --- Routes, not absolute URLs ------------------------------------------
@@ -170,9 +160,6 @@ export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, 
   const [appsLoading, setAppsLoading] = useState(true)
   const [appsError, setAppsError] = useState<string | null>(null)
   const [draft, setDraft] = useState<KnowledgeBaseDraftResult | null>(null)
-  const [showAddApp, setShowAddApp] = useState(false)
-  const [newApp, setNewApp] = useState({ name: '', app_key: '', base_url: '', environment: 'SIT' })
-  const [addingApp, setAddingApp] = useState(false)
 
   // Crawler State
   const [runtime, setRuntime] = useState<RuntimeStatusResponse | null>(null)
@@ -397,34 +384,6 @@ export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, 
     }
   }
 
-  const handleAddApplication = async () => {
-    const name = newApp.name.trim()
-    const appKey = (newApp.app_key.trim() || slugifyAppKey(name))
-    const baseUrl = newApp.base_url.trim()
-    if (!name || !appKey || !baseUrl) return
-    if (!APP_KEY_PATTERN.test(appKey)) {
-      setAppsError('The Knowledge Base key must be lower-case letters, digits, "_" or "-".')
-      return
-    }
-    setAddingApp(true)
-    setAppsError(null)
-    try {
-      const created = await automationService.createApplication({
-        name,
-        app_key: appKey,
-        base_url: baseUrl,
-        environment: newApp.environment.trim() || 'SIT'
-      })
-      setShowAddApp(false)
-      setNewApp({ name: '', app_key: '', base_url: '', environment: 'SIT' })
-      await loadApplications(created.id)
-    } catch (err: any) {
-      setAppsError(err?.message ?? 'The application could not be registered.')
-    } finally {
-      setAddingApp(false)
-    }
-  }
-
   const handleCopyUrl = async (targetUrl: string) => {
     try {
       await navigator.clipboard.writeText(targetUrl)
@@ -574,15 +533,14 @@ export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, 
                   {selectedApp.base_url}
                 </span>
               )}
-              <button
-                type="button"
-                onClick={() => setShowAddApp(v => !v)}
-                disabled={!canExecute}
-                className="app-btn app-btn-secondary inline-flex items-center gap-1 text-[12px] disabled:opacity-50"
+              {/* Applications are registered and managed in Test Data only. */}
+              <Link
+                to="/test-data"
+                className="app-btn app-btn-secondary inline-flex items-center gap-1 text-[12px]"
+                title="Applications, their address per environment and their values are managed in AI Test Automation > Test Data"
               >
-                {showAddApp ? <HiOutlineX className="h-3.5 w-3.5" /> : <HiOutlinePlus className="h-3.5 w-3.5" />}
-                {showAddApp ? 'Cancel' : 'Add application'}
-              </button>
+                Manage applications in Test Data
+              </Link>
             </div>
 
             {appsError && (
@@ -592,65 +550,6 @@ export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, 
               </div>
             )}
 
-            {showAddApp && (
-              <div className="mt-3 grid gap-2 rounded-app border border-app bg-app-surface-muted/40 p-3 sm:grid-cols-2">
-                <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-app-secondary sm:col-span-2">
-                  Register an application
-                </label>
-                <input
-                  value={newApp.name}
-                  onChange={e => setNewApp({ ...newApp, name: e.target.value })}
-                  placeholder="Display name"
-                  className="app-input"
-                  aria-label="Application name"
-                />
-                <input
-                  value={newApp.base_url}
-                  onChange={e => setNewApp({ ...newApp, base_url: e.target.value })}
-                  placeholder="Base URL"
-                  className="app-input"
-                  aria-label="Base URL"
-                />
-                <input
-                  value={newApp.app_key}
-                  onChange={e => setNewApp({ ...newApp, app_key: e.target.value })}
-                  placeholder={
-                    newApp.name
-                      ? `Knowledge Base key (default: ${slugifyAppKey(newApp.name)})`
-                      : 'Knowledge Base key'
-                  }
-                  className="app-input font-mono"
-                  aria-label="Knowledge Base key"
-                />
-                <input
-                  value={newApp.environment}
-                  onChange={e => setNewApp({ ...newApp, environment: e.target.value })}
-                  placeholder="Environment"
-                  className="app-input"
-                  aria-label="Environment"
-                />
-                <p className="text-[11px] leading-4 text-app-secondary sm:col-span-2">
-                  The key names the folder under <code className="font-mono">knowledge_base/applications/</code>{' '}
-                  holding this application's profile and flow blueprints. It can be crawled before that
-                  folder exists — the model tabs stay empty until it does.
-                </p>
-                <div className="sm:col-span-2">
-                  <button
-                    type="button"
-                    onClick={() => void handleAddApplication()}
-                    disabled={
-                      addingApp ||
-                      !newApp.name.trim() ||
-                      !newApp.base_url.trim()
-                    }
-                    className="app-btn app-btn-primary inline-flex items-center gap-1.5 text-[12px] disabled:opacity-50"
-                  >
-                    <HiOutlinePlus className="h-3.5 w-3.5" />
-                    {addingApp ? 'Registering…' : 'Register application'}
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2 border-t border-app bg-app-surface-muted/30 px-6 py-4 lg:border-l lg:border-t-0">

@@ -35,6 +35,7 @@ from sqlalchemy import (
     JSON,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
@@ -757,10 +758,19 @@ class AutomationAICheck(Base):
 
 
 class AutomationDataApp(Base):
-    """An application whose tests need values: logins, OTPs, record names.
+    """An application: where its tests run, per environment, and the values they need.
+
+    --- The one application registry ------------------------------------------
+    Applications are registered and managed here (AI Test Automation > Test
+    Data) and nowhere else. Each has an address per environment
+    (AutomationDataAppEnvironment), so a run for RC goes to RC's host and reads
+    RC's values. Discovery, the Knowledge Base page and journey crawls work on
+    an AutomationApplication row, which is kept in step with this one by
+    services/automation/registry.py rather than registered separately.
 
     Matched to a run by the Knowledge Base application its test case belongs
-    to, or by URL prefix, so the same values serve every script for it.
+    to, or by any of its environments' addresses, so the same values serve
+    every script for it.
     """
 
     __tablename__ = "automation_data_apps"
@@ -770,6 +780,8 @@ class AutomationDataApp(Base):
     # The Knowledge Base application id (e.g. eand_b2b_portal), when there is one.
     kb_app_id = Column(String(100), nullable=True, index=True)
     # e.g. https://devnew-sas.etisalat.ae/b2bportal -- the longest match wins.
+    # The default environment's address; each environment's own is in
+    # `environments`. Kept for applications saved before those existed.
     url_prefix = Column(Text, nullable=True)
     # The environment its scripts run against and read values for. Set here,
     # once per application, instead of picked on every dry run. Null = SIT.
@@ -779,6 +791,29 @@ class AutomationDataApp(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     entries = relationship("AutomationTestData", cascade="all, delete-orphan", back_populates="app")
+    environments = relationship(
+        "AutomationDataAppEnvironment", cascade="all, delete-orphan", back_populates="app",
+        order_by="AutomationDataAppEnvironment.environment",
+    )
+
+
+class AutomationDataAppEnvironment(Base):
+    """Where an application runs in one environment: SIT at one host, RC at another."""
+
+    __tablename__ = "automation_data_app_environments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    app_id = Column(Integer, ForeignKey("automation_data_apps.id"), nullable=False, index=True)
+    environment = Column(String(40), nullable=False)
+    # scheme://host/folders, e.g. https://devnew-sas.etisalat.ae/b2bportal.
+    address = Column(Text, nullable=False)
+    updated_by = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    app = relationship("AutomationDataApp", back_populates="environments")
+
+    __table_args__ = (UniqueConstraint("app_id", "environment", name="uq_data_app_environment"),)
 
 
 class AutomationTestData(Base):
