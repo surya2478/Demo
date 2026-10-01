@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import knowledgeBaseService, { errorText, type ChangeSet, type KbImpact, type KbValue, type KbVersionRow } from '../../services/knowledgeBaseService'
 import ImpactSummary from './ImpactSummary'
+import JourneyStepsEditor from './JourneyStepsEditor'
 import { Chip, Note } from './kbUi'
 
 // Review queue and history for one application's Knowledge Bases. Nothing is
@@ -23,11 +24,24 @@ const show = (v: KbValue | null | undefined) => {
   return <code className="whitespace-pre-wrap break-all text-[11px]">{JSON.stringify(value, null, 1)}</code>
 }
 
+// The steps a change proposes, when it proposes a journey's steps: a whole
+// journey file a document created, or a "steps" change on an existing one.
+const proposedSteps = (c: NonNullable<ChangeSet['changes']>[number]): any[] | null => {
+  const value: any = c.after?.present ? c.after.value : null
+  if (c.op === 'create' && c.path === '$' && value && Array.isArray(value.steps)) return value.steps
+  if (c.op === 'set' && c.path === 'steps' && Array.isArray(value)) return value
+  return null
+}
+
 const ChangeSetCard: React.FC<{
   summary: ChangeSet
   canDecide: boolean
+  /** May correct a draft's proposed steps before it is decided. */
+  canEdit?: boolean
   onDone: (message: string, published: boolean) => void
-}> = ({ summary, canDecide, onDone }) => {
+}> = ({ summary, canDecide, canEdit = false, onDone }) => {
+  const [editingChange, setEditingChange] = useState<number | null>(null)
+  const [revising, setRevising] = useState(false)
   const [full, setFull] = useState<ChangeSet | null>(null)
   const [impact, setImpact] = useState<KbImpact | null>(null)
   const [open, setOpen] = useState(false)
@@ -93,15 +107,54 @@ const ChangeSetCard: React.FC<{
               <ImpactSummary impact={impact} compact />
             </div>
           )}
-          {full?.changes?.map((c, i) => (
+          {full?.changes?.map((c, i) => {
+            const steps = pending && canEdit && summary.kb === 'journey' ? proposedSteps(c) : null
+            if (steps && editingChange === i) {
+              return (
+                <div key={i} className="rounded-[10px] border border-[#F6D4D5] bg-white">
+                  <div className="px-3 pt-2 text-[11px] text-[#6B7280]"><code>{c.file}</code> · editing the steps this draft proposes</div>
+                  <JourneyStepsEditor
+                    steps={steps}
+                    saving={revising}
+                    canPublish={false}
+                    saveLabel="Save to this draft"
+                    onCancel={() => setEditingChange(null)}
+                    onSave={async edited => {
+                      setRevising(true)
+                      setError(null)
+                      try {
+                        const revised = await knowledgeBaseService.reviseChangeSteps(summary.id, i, edited)
+                        setFull(revised)
+                        setImpact(null)
+                        setEditingChange(null)
+                      } catch (err) {
+                        setError(errorText(err))
+                      } finally {
+                        setRevising(false)
+                      }
+                    }}
+                  />
+                </div>
+              )
+            }
+            return (
             <div key={i} className="rounded-[10px] border border-[#F1F2F4] bg-[#FCFCFD] p-2.5 text-[12px]">
-              <div className="mb-1.5 break-all text-[11px] text-[#6B7280]"><code>{c.file}</code> · <code>{c.path}</code>{c.note ? ` — ${c.note}` : ''}</div>
+              <div className="mb-1.5 flex items-start justify-between gap-2 break-all text-[11px] text-[#6B7280]">
+                <span><code>{c.file}</code> · <code>{c.path}</code>{c.note ? ` — ${c.note}` : ''}</span>
+                {steps && (
+                  <button type="button" onClick={() => setEditingChange(i)} disabled={editingChange !== null}
+                    className="h-[26px] flex-shrink-0 rounded-[8px] bg-[#B71920] px-2.5 text-[11.5px] font-bold text-white hover:opacity-95 disabled:opacity-50">
+                    Edit steps
+                  </button>
+                )}
+              </div>
               <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1">
                 <span className="font-semibold text-[#A3231C]">before</span><span className="min-w-0">{show(c.before)}</span>
-                <span className="font-semibold text-[#136B34]">after</span><span className="min-w-0">{c.op === 'remove' ? <span className="italic text-[#9CA3AF]">removed</span> : show(c.after)}</span>
+                <span className="font-semibold text-[#136B34]">after</span><span className="min-w-0">{c.op === 'remove' ? <span className="italic text-[#9CA3AF]">removed</span> : c.op === 'delete' ? <span className="italic text-[#A3231C]">file deleted</span> : show(c.after)}</span>
               </div>
             </div>
-          ))}
+            )
+          })}
           {summary.decision_note && <Note>Decision note: {summary.decision_note}</Note>}
           {error && <Note tone="warn">{error}</Note>}
           {pending && (
@@ -141,7 +194,9 @@ const ChangeSetsDrawer: React.FC<{
   /** Called after anything that changed the queue. */
   onQueueChanged: () => void
   canDecide: boolean
-}> = ({ appKey, tab, onTab, onClose, onPublished, onQueueChanged, canDecide }) => {
+  /** May correct a draft's proposed steps (automation.execute). */
+  canEdit?: boolean
+}> = ({ appKey, tab, onTab, onClose, onPublished, onQueueChanged, canDecide, canEdit = false }) => {
   const [sets, setSets] = useState<ChangeSet[] | null>(null)
   const [versions, setVersions] = useState<KbVersionRow[] | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -209,7 +264,7 @@ const ChangeSetsDrawer: React.FC<{
               {sets === null && <p className="text-[13px] text-[#6B7280]">Loading…</p>}
               {sets && pending.length === 0 && <Note>No change set is waiting. Reconcile decisions, PDF extraction and crawls create them.</Note>}
               {pending.map(s => (
-                <ChangeSetCard key={s.id} summary={s} canDecide={canDecide}
+                <ChangeSetCard key={s.id} summary={s} canDecide={canDecide} canEdit={canEdit}
                   onDone={(text, published) => { setMessage(text); load(); onQueueChanged(); if (published) onPublished() }} />
               ))}
               {decided.length > 0 && (

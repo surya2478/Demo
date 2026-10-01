@@ -254,8 +254,8 @@ const KnowledgeBase: React.FC = () => {
             <SourcesStage key={revision} appKey={appKey} overview={overview} canExecute={canExecute}
               onDrafted={() => { loadPending(); setDrawer('review') }} onOpenChangeSets={() => setDrawer('review')} />
           )}
-          {stage === 'journeys' && appKey && <JourneysStage key={revision} appKey={appKey} onOpenStage={openStage} />}
-          {stage === 'model' && appKey && <ModelStage key={revision} appKey={appKey} />}
+          {stage === 'journeys' && appKey && <JourneysStage key={revision} appKey={appKey} onOpenStage={openStage} canExecute={canExecute} canApprove={canApprove} onEdited={loadPending} />}
+          {stage === 'model' && appKey && <ModelStage key={revision} appKey={appKey} canExecute={canExecute} canApprove={canApprove} onEdited={loadPending} />}
           {stage === 'testdata' && appKey && <TestDataStage key={revision} appKey={appKey} />}
           {stage === 'reconcile' && appKey && (
             <ReconcileStage key={revision} appKey={appKey} onDrafted={() => { loadPending(); setDrawer('review') }} />
@@ -309,6 +309,7 @@ const KnowledgeBase: React.FC = () => {
           onPublished={() => setRevision(r => r + 1)}
           onQueueChanged={loadPending}
           canDecide={canApprove}
+          canEdit={canExecute}
         />
       )}
     </div>

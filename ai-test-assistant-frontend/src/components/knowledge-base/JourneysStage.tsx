@@ -1,12 +1,42 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import knowledgeBaseService, { type TaxonomyNode } from '../../services/knowledgeBaseService'
+import knowledgeBaseService, { type JourneyEditResult, type JourneyStepEdit, type TaxonomyNode } from '../../services/knowledgeBaseService'
+import { useConfirm } from '../ui/ConfirmDialog'
+import { useToast } from '../ui/Toast'
+import JourneyStepsEditor from './JourneyStepsEditor'
+import { BranchesEditor, LinksEditor, RuleRow, ScenariosEditor } from './JourneyListEditors'
+import { EditStrip, useKbEdit } from './kbEdit'
 import { Card, Chip, Failed, JOURNEY_STATUS, Loading, Note, StatusChip, TableHead, chapterTitle, useLoad } from './kbUi'
 
 type DetailTab = 'steps' | 'rules' | 'branches' | 'scenarios' | 'questions'
 
 const STEP_COLS = 'grid-cols-[28px_minmax(0,1fr)_auto]'
 
-const JourneysStage: React.FC<{ appKey: string; onOpenStage: (stage: string) => void }> = ({ appKey, onOpenStage }) => {
+const TREE_BTN = 'flex h-6 w-6 items-center justify-center rounded-[6px] text-[12px] text-[#6B7280] hover:bg-white hover:text-[#B71920]'
+
+// The tree and a journey's steps are editable: every edit is drafted as a
+// change set (reviewed under "Review change sets"), or published at once by
+// someone who may approve. Ids never change -- a renamed journey keeps the id
+// its files, test cases and crawls name.
+type TreeEdit = { mode: 'rename' | 'add'; id: string | null; title: string }
+
+const JourneysStage: React.FC<{
+  appKey: string
+  onOpenStage: (stage: string) => void
+  canExecute?: boolean
+  canApprove?: boolean
+  /** A change set was drafted or published: the page refreshes its review count. */
+  onEdited?: () => void
+}> = ({ appKey, onOpenStage, canExecute = false, canApprove = false, onEdited }) => {
+  const confirm = useConfirm()
+  const toast = useToast()
+  const [treeEdit, setTreeEdit] = useState<TreeEdit | null>(null)
+  const [editingSteps, setEditingSteps] = useState(false)
+  const [busy, setBusy] = useState(false)
+  // Publish edits at once, or leave them for review. Only an approver chooses;
+  // the choice is shared with the other Knowledge Base editors.
+  const kbEdit = useKbEdit(canApprove, onEdited)
+  const { publishNow, setPublishNow, publish } = kbEdit
+  const [editingPart, setEditingPart] = useState<null | 'branches' | 'scenarios' | 'links'>(null)
   const [taxonomy, taxError, reloadTaxonomy] = useLoad(appKey, () => knowledgeBaseService.taxonomy(appKey))
   const [selected, setSelected] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -29,7 +59,138 @@ const JourneysStage: React.FC<{ appKey: string; onOpenStage: (stage: string) => 
   const [detail, detailError, reloadDetail] = useLoad(selected ? `${appKey}:${selected}` : null, () =>
     knowledgeBaseService.journey(appKey, selected as string)
   )
-  useEffect(() => setTab('steps'), [selected])
+  useEffect(() => { setTab('steps'); setEditingSteps(false); setEditingPart(null) }, [selected])
+  useEffect(() => setEditingPart(prev => (prev === 'links' ? prev : null)), [tab])
+
+  // Edits to the open journey's branches, scenarios, links and rules.
+  const reloadAll = () => { reloadTaxonomy(); reloadDetail() }
+  const saveJourneyPart = (what: string, edit: (publish: boolean) => Promise<any>) =>
+    kbEdit.run(what, edit, () => { setEditingPart(null); reloadAll() })
+
+  const moveNode = (node: TaxonomyNode, direction: 'up' | 'down') =>
+    kbEdit.run('Order', p => knowledgeBaseService.moveJourney(appKey, node.id, direction, p), reloadTaxonomy)
+
+  const deleteRule = async (ruleId: string) => {
+    const ok = await confirm({
+      title: `Delete rule ${ruleId}?`,
+      consequences: [
+        'It is removed from the business rules, and from every journey, step, branch and scenario that cites it.',
+        publish ? 'Published now; History can revert it.' : 'Saved for review; nothing changes until it is approved.'
+      ],
+      confirmLabel: publish ? `Delete ${ruleId}` : 'Save deletion for review',
+      tone: 'danger'
+    })
+    if (ok) await kbEdit.run('Rule deletion', p => knowledgeBaseService.removeRule(appKey, ruleId, p), reloadAll)
+  }
+
+  const afterEdit = (result: JourneyEditResult, what: string) => {
+    if (result.published) {
+      toast.success(`${what} published`, result.version ? `Journey KB version ${result.version.number}.` : undefined)
+    } else {
+      toast.info(`${what} saved for review`, result.message ?? `Change set #${result.change_set.id} is waiting under Review change sets.`)
+    }
+    reloadTaxonomy()
+    if (selected) reloadDetail()
+    onEdited?.()
+  }
+
+  const failure = (error: any, what: string) => {
+    const detail = error?.response?.data?.detail
+    toast.error(`${what} failed`, typeof detail === 'string' ? detail : detail?.message ?? error?.message)
+  }
+
+  const submitTree = async () => {
+    if (!treeEdit) return
+    const title = treeEdit.title.trim()
+    if (!title) return
+    setBusy(true)
+    try {
+      if (treeEdit.mode === 'rename' && treeEdit.id) {
+        afterEdit(await knowledgeBaseService.renameJourney(appKey, treeEdit.id, title, publish), 'Rename')
+      } else {
+        const result = await knowledgeBaseService.addJourney(appKey, treeEdit.id, title, publish)
+        afterEdit(result, treeEdit.id ? 'New journey' : 'New chapter')
+        if (treeEdit.id) setExpanded(prev => new Set(prev).add(treeEdit.id as string))
+      }
+      setTreeEdit(null)
+    } catch (error) {
+      failure(error, treeEdit.mode === 'rename' ? 'Rename' : 'Adding the journey')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const removeNode = async (node: TaxonomyNode) => {
+    let preview
+    try {
+      preview = await knowledgeBaseService.journeyRemoval(appKey, node.id)
+    } catch (error) {
+      failure(error, 'Checking the journey')
+      return
+    }
+    const consequences = [
+      preview.journeys > 1 ? `${preview.journeys - 1} journey${preview.journeys === 2 ? '' : 's'} below it go too.` : 'Nothing is below it.',
+      preview.authored.length
+        ? `${preview.authored.length} authored journey file${preview.authored.length === 1 ? '' : 's'} deleted (steps, branches, scenarios) and no longer used for generation or crawls.`
+        : 'No authored steps are lost.',
+      ...preview.dependents.map(d => `${d.name} still ${d.relation}.`),
+      publish ? 'Published now; History can revert it.' : 'Saved for review; nothing changes until it is approved.'
+    ]
+    const ok = await confirm({
+      title: `Remove "${node.kind === 'chapter' ? chapterTitle(node.title) : node.title}"?`,
+      consequences,
+      confirmLabel: publish ? 'Remove journey' : 'Save removal for review',
+      tone: 'danger'
+    })
+    if (!ok) return
+    setBusy(true)
+    try {
+      afterEdit(await knowledgeBaseService.removeJourney(appKey, node.id, publish), 'Removal')
+      if (publish && selected) {
+        let cursor: string | null = selected
+        while (cursor) {
+          if (cursor === node.id) { setSelected(null); break }
+          cursor = byId.get(cursor)?.parent ?? null
+        }
+      }
+    } catch (error) {
+      failure(error, 'Removing the journey')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const saveSteps = async (steps: JourneyStepEdit[], publishSteps: boolean) => {
+    if (!selected) return
+    setBusy(true)
+    try {
+      afterEdit(await knowledgeBaseService.editSteps(appKey, selected, steps, publishSteps && canApprove), 'Steps')
+      setEditingSteps(false)
+    } catch (error) {
+      failure(error, 'Saving the steps')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const titleInput = (placeholder: string) => (
+    <form onSubmit={e => { e.preventDefault(); void submitTree() }} className="flex items-center gap-1.5 py-1 pr-1">
+      <input
+        autoFocus
+        aria-label={placeholder}
+        value={treeEdit?.title ?? ''}
+        placeholder={placeholder}
+        disabled={busy}
+        onChange={e => setTreeEdit(prev => (prev ? { ...prev, title: e.target.value } : prev))}
+        onKeyDown={e => { if (e.key === 'Escape') setTreeEdit(null) }}
+        className="h-[30px] min-w-0 flex-1 rounded-[8px] border border-[#B71920] bg-white px-2 text-[12.5px] focus:outline-none"
+      />
+      <button type="submit" disabled={busy || !treeEdit?.title.trim()} className="h-[30px] rounded-[8px] bg-[#B71920] px-2.5 text-[12px] font-bold text-white disabled:opacity-50">
+        {publish ? 'Save' : 'Draft'}
+      </button>
+      <button type="button" onClick={() => setTreeEdit(null)} className="h-[30px] rounded-[8px] px-1.5 text-[12px] text-[#6B7280] hover:text-[#1F2937]">Cancel</button>
+    </form>
+  )
 
   const leaves = (taxonomy?.nodes ?? []).filter(n => n.kind !== 'chapter' && n.children.length === 0)
   const counts = leaves.reduce<Record<string, number>>((acc, n) => ({ ...acc, [n.status]: (acc[n.status] ?? 0) + 1 }), {})
@@ -46,8 +207,13 @@ const JourneysStage: React.FC<{ appKey: string; onOpenStage: (stage: string) => 
     const isOpen = expanded.has(node.id)
     const leafCount = node.kind === 'chapter' ? leaves.filter(l => l.chapter === node.chapter).length : null
     const active = node.id === selected
+    const label = node.kind === 'chapter' ? chapterTitle(node.title) : node.title
+    if (treeEdit?.mode === 'rename' && treeEdit.id === node.id) {
+      return <div key={node.id} style={{ paddingLeft: 4 + depth * 14 }}>{titleInput(`New name for ${label}`)}</div>
+    }
     return (
       <React.Fragment key={node.id}>
+        <div className="group relative">
         <button
           type="button"
           onClick={() => (node.children.length ? toggle(node.id) : setSelected(node.id))}
@@ -69,7 +235,23 @@ const JourneysStage: React.FC<{ appKey: string; onOpenStage: (stage: string) => 
             <span title={JOURNEY_STATUS[node.status]?.label} className={`h-2 w-2 flex-shrink-0 rounded-full ${JOURNEY_STATUS[node.status]?.dot}`} />
           ) : null}
         </button>
+        {canExecute && !treeEdit && (
+          <span className="absolute right-1 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 rounded-[8px] bg-[#F4F5F7] px-0.5 shadow-sm group-hover:flex group-focus-within:flex">
+            <button type="button" className={TREE_BTN} title="Move up" aria-label={`Move ${label} up`} onClick={() => void moveNode(node, 'up')}>↑</button>
+            <button type="button" className={TREE_BTN} title="Move down" aria-label={`Move ${label} down`} onClick={() => void moveNode(node, 'down')}>↓</button>
+            <button type="button" className={TREE_BTN} title="Add a journey under this" aria-label={`Add a journey under ${label}`}
+              onClick={() => { setTreeEdit({ mode: 'add', id: node.id, title: '' }); setExpanded(prev => new Set(prev).add(node.id)) }}>+</button>
+            <button type="button" className={TREE_BTN} title="Rename" aria-label={`Rename ${label}`}
+              onClick={() => setTreeEdit({ mode: 'rename', id: node.id, title: node.title })}>✎</button>
+            <button type="button" className={`${TREE_BTN} hover:text-[#A3231C]`} title="Remove" aria-label={`Remove ${label}`}
+              onClick={() => void removeNode(node)}>✕</button>
+          </span>
+        )}
+        </div>
         {isOpen && node.children.map(id => byId.get(id)).filter(Boolean).map(child => renderNode(child as TaxonomyNode, depth + 1))}
+        {treeEdit?.mode === 'add' && treeEdit.id === node.id && (
+          <div style={{ paddingLeft: 4 + (depth + 1) * 14 }}>{titleInput(`New journey under ${label}`)}</div>
+        )}
       </React.Fragment>
     )
   }
@@ -81,7 +263,24 @@ const JourneysStage: React.FC<{ appKey: string; onOpenStage: (stage: string) => 
     <div className="grid gap-4 xl:grid-cols-[330px_minmax(0,1fr)]">
       <Card label="Journey hierarchy" className="flex max-h-[760px] flex-col">
         <div className="flex flex-col gap-2.5 border-b border-[#F1F2F4] p-3.5">
-          <label htmlFor="kb-journey-search" className="text-[12px] font-bold text-[#374151]">Journeys · A → B → C</label>
+          <div className="flex items-center justify-between gap-2">
+            <label htmlFor="kb-journey-search" className="text-[12px] font-bold text-[#374151]">Journeys · A → B → C</label>
+            {canExecute && (
+              <button type="button" disabled={!!treeEdit} onClick={() => setTreeEdit({ mode: 'add', id: null, title: '' })}
+                className="text-[12px] font-semibold text-[#B71920] hover:underline disabled:opacity-40">+ Chapter</button>
+            )}
+          </div>
+          {canExecute && (
+            canApprove ? (
+              <label className="flex items-center gap-2 text-[11.5px] text-[#4B5563]">
+                <input type="checkbox" checked={publishNow} onChange={e => setPublishNow(e.target.checked)} className="accent-[#B71920]" />
+                Publish edits immediately <span className="text-[#9CA3AF]">(off: save for review)</span>
+              </label>
+            ) : (
+              <span className="text-[11.5px] text-[#6B7280]">Edits are saved for review by an approver.</span>
+            )
+          )}
+          {treeEdit?.mode === 'add' && treeEdit.id === null && titleInput('New chapter name')}
           <input
             id="kb-journey-search"
             type="search"
@@ -135,8 +334,25 @@ const JourneysStage: React.FC<{ appKey: string; onOpenStage: (stage: string) => 
                   </React.Fragment>
                 ))}
                 {j.next.length > 0 && <span>→ then {j.next.map(n => n.name).join(' or ')}</span>}
+                {canExecute && editingPart !== 'links' && (
+                  <button type="button" onClick={() => setEditingPart('links')} className="rounded-[8px] px-2 py-0.5 text-[12px] font-semibold text-[#B71920] hover:bg-[#FFF5F5]">
+                    ✎ Edit linked journeys
+                  </button>
+                )}
                 <span className="ml-auto">Source: {j.sources.join(', ')}</span>
               </div>
+            )}
+            {j && editingPart === 'links' && (
+              <LinksEditor
+                journeyId={j.journey_id}
+                prerequisites={j.prerequisite_journeys ?? []}
+                next={j.next_journeys ?? []}
+                options={taxonomy?.nodes ?? []}
+                busy={kbEdit.busy}
+                publish={publish}
+                onCancel={() => setEditingPart(null)}
+                onSave={links => void saveJourneyPart('Linked journeys', p => knowledgeBaseService.editLinks(appKey, j.journey_id, links, p))}
+              />
             )}
           </div>
         )}
@@ -177,8 +393,27 @@ const JourneysStage: React.FC<{ appKey: string; onOpenStage: (stage: string) => 
             </div>
             <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_280px]">
               <div className="min-w-0">
-                {tab === 'steps' && (
+                {tab === 'steps' && editingSteps && (
+                  <JourneyStepsEditor
+                    key={j.journey_id}
+                    steps={j.steps}
+                    saving={busy}
+                    canPublish={canApprove}
+                    onSave={(steps, publishSteps) => void saveSteps(steps, publishSteps)}
+                    onCancel={() => setEditingSteps(false)}
+                  />
+                )}
+                {tab === 'steps' && !editingSteps && (
                   <>
+                    {canExecute && (
+                      <div className="flex items-center justify-between gap-2 border-b border-[#F1F2F4] px-5 py-2 text-[12px] text-[#6B7280]">
+                        <span>Wrong order, wording or a missing step? Fix it here; the crawl walks these steps in this order.</span>
+                        <button type="button" onClick={() => setEditingSteps(true)}
+                          className="h-[30px] flex-shrink-0 rounded-[10px] bg-[#B71920] px-3 text-[12.5px] font-bold text-white hover:opacity-95">
+                          Edit steps
+                        </button>
+                      </div>
+                    )}
                     <TableHead cols={STEP_COLS} labels={['#', 'Action → expected · screen', 'In app']} />
                     {j.steps.map(step => (
                       <div key={step.step_number} className={`grid ${STEP_COLS} items-center gap-3 border-b border-[#F1F2F4] px-5 py-2 text-[12.5px] ${step.link.status === 'LABEL_DRIFT' ? 'bg-[#FFFCF7]' : ''}`}>
@@ -198,28 +433,72 @@ const JourneysStage: React.FC<{ appKey: string; onOpenStage: (stage: string) => 
                 )}
                 {tab === 'rules' && (
                   <div className="flex flex-col gap-3 p-5 text-[12.5px]">
+                    {j.rules.length === 0 && <span className="text-[#6B7280]">This journey cites no business rules.</span>}
                     {j.rules.map(r => (
-                      <div key={r.rule_id} className="flex gap-3">
-                        <Chip tone={r.basis === 'inferred' ? 'warn' : 'good'}>{r.basis}</Chip>
-                        <span><strong>{r.rule_id}</strong> · {r.statement}{r.message && <> Message: <em>‘{r.message}’</em></>}</span>
-                      </div>
+                      <RuleRow
+                        key={r.rule_id}
+                        rule={r}
+                        canEdit={canExecute}
+                        busy={kbEdit.busy}
+                        publish={publish}
+                        basisChip={<Chip tone={r.basis === 'inferred' ? 'warn' : 'good'}>{r.basis}</Chip>}
+                        onSave={(statement, message) => kbEdit.run('Rule', p => knowledgeBaseService.editRule(appKey, r.rule_id, statement, message || null, p), reloadAll)}
+                        onDelete={() => void deleteRule(r.rule_id)}
+                      />
                     ))}
                   </div>
                 )}
-                {tab === 'branches' && (
+                {tab === 'branches' && editingPart === 'branches' && (
+                  <BranchesEditor
+                    branches={j.conditional_branches}
+                    stepCount={j.steps.length}
+                    ruleIds={Array.from(new Set([...j.rules.map(r => r.rule_id), ...j.conditional_branches.map(b => b.rule).filter((x): x is string => !!x)]))}
+                    busy={kbEdit.busy}
+                    publish={publish}
+                    onCancel={() => setEditingPart(null)}
+                    onSave={items => void saveJourneyPart('Branches', p => knowledgeBaseService.editBranches(appKey, j.journey_id, items, p))}
+                  />
+                )}
+                {tab === 'branches' && editingPart !== 'branches' && canExecute && (
+                  <EditStrip hint="What happens when a step goes another way: the condition, the outcome, and the rule behind it." label="Edit branches" onEdit={() => setEditingPart('branches')} />
+                )}
+                {tab === 'branches' && editingPart !== 'branches' && (
                   <div className="flex flex-col gap-3 p-5 text-[12.5px]">
+                    {j.conditional_branches.length === 0 && <span className="text-[#6B7280]">No branches yet.</span>}
                     {j.conditional_branches.map(b => (
                       <span key={b.branch_id}><strong>At step {b.at_step}</strong> · if {b.condition} → {b.outcome} {b.rule && <span className="text-[#6B7280]">({b.rule})</span>}</span>
                     ))}
                   </div>
                 )}
-                {tab === 'scenarios' && (
+                {tab === 'scenarios' && editingPart === 'scenarios' && (
+                  <ScenariosEditor
+                    scenarios={j.test_scenarios}
+                    stepCount={j.steps.length}
+                    branchIds={j.conditional_branches.map(b => b.branch_id)}
+                    busy={kbEdit.busy}
+                    publish={publish}
+                    onCancel={() => setEditingPart(null)}
+                    onSave={items => void saveJourneyPart('Scenarios', p => knowledgeBaseService.editScenarios(appKey, j.journey_id, items, p))}
+                  />
+                )}
+                {tab === 'scenarios' && editingPart !== 'scenarios' && canExecute && (
+                  <EditStrip hint="The test scenarios this journey implies: which steps they walk and which branch they take." label="Edit scenarios" onEdit={() => setEditingPart('scenarios')} />
+                )}
+                {tab === 'scenarios' && editingPart !== 'scenarios' && (
                   <div className="flex flex-col gap-2 p-5 text-[12.5px]">
+                    {j.test_scenarios.length === 0 && <span className="text-[#6B7280]">No scenarios yet.</span>}
                     {j.test_scenarios.map(s => (
                       <div key={s.scenario_id} className="flex items-center gap-3">
                         <code className="w-[84px] text-[11.5px] text-[#6B7280]">{s.scenario_id}</code>
                         <Chip tone={s.type === 'positive' ? 'good' : s.type === 'negative' ? 'bad' : 'idle'}>{s.type}</Chip>
-                        <span className="min-w-0 flex-1">{s.title}</span>
+                        <span className="min-w-0 flex-1">
+                          {s.title}
+                          {(s.steps?.length || s.branch) && (
+                            <span className="ml-1.5 text-[11.5px] text-[#9CA3AF]">
+                              {s.steps?.length ? `steps ${s.steps.join(', ')}` : ''}{s.branch ? ` · ${s.branch}` : ''}
+                            </span>
+                          )}
+                        </span>
                         {s.test_data && <button type="button" onClick={() => onOpenStage('testdata')} className="text-[11.5px] font-semibold text-[#B71920] hover:underline">{s.test_data}</button>}
                       </div>
                     ))}

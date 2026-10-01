@@ -27,7 +27,8 @@ still lands on the right item if the file is reordered:
 
 A change with op "create" and path "$" makes a new file (a journey extracted
 from a document); its "before" is absent, so reverting that version deletes
-the file again.
+the file again. Op "delete" at "$" is the reverse: the file is removed on
+publish, and reverting that version writes it back.
 """
 from __future__ import annotations
 
@@ -196,6 +197,12 @@ def apply(doc: Any, op: str, path: str, value: Any = None) -> Any:
 
     "create" is the exception: it returns the new document, since there was none.
     """
+    if op == "delete":
+        if path != ROOT:
+            raise ChangeSetError(f"A file is deleted at '{ROOT}', not '{path}'.")
+        if doc is None:
+            raise ChangeSetError("This file is already absent.")
+        return None
     if op == "create":
         if path != ROOT:
             raise ChangeSetError(f"A new file is created at '{ROOT}', not '{path}'.")
@@ -228,7 +235,7 @@ def apply(doc: Any, op: str, path: str, value: Any = None) -> Any:
             raise ChangeSetError(f"'{path}' is already absent.") from exc
         return doc
     if op != "set":
-        raise ChangeSetError(f"Unknown operation '{op}'; expected set, remove or create.")
+        raise ChangeSetError(f"Unknown operation '{op}'; expected set, remove, create or delete.")
     if kind == "key":
         if not isinstance(parent, dict):
             raise ChangeSetError(f"'{path}': the parent is not an object.")
@@ -294,8 +301,22 @@ def draft(
     if kind == "change" and not changes:
         raise ChangeSetError("A change set needs at least one change.")
 
-    # Dry-run every change in order against copies, so a draft that could not
-    # be applied is refused now rather than at approval.
+    rows = dry_run(app_id, kb, changes)
+    change_set = KbChangeSet(
+        app_id=app_id, kb=kb, title=title.strip()[:300], description=description, source=source,
+        kind=kind, status="draft", created_by=actor, origin=origin, changes=rows,
+    )
+    db.add(change_set)
+    db.commit()
+    db.refresh(change_set)
+    return change_set
+
+
+def dry_run(app_id: str, kb: str, changes: List[Dict[str, Any]]) -> List[KbChange]:
+    """Every change applied in order against copies of the files, as change rows.
+
+    A draft that could not be applied is refused now rather than at approval.
+    """
     docs: Dict[str, Any] = {}
     rows: List[KbChange] = []
     for position, change in enumerate(changes):
@@ -308,18 +329,10 @@ def draft(
         docs[rel] = apply(docs[rel], op, path, copy.deepcopy(change.get("value")))
         rows.append(KbChange(
             position=position, file=rel, op=op, path=path, before=before,
-            after=None if op == "remove" else {"present": True, "value": change.get("value")},
+            after=None if op in ("remove", "delete") else {"present": True, "value": change.get("value")},
             note=change.get("note"),
         ))
-
-    change_set = KbChangeSet(
-        app_id=app_id, kb=kb, title=title.strip()[:300], description=description, source=source,
-        kind=kind, status="draft", created_by=actor, origin=origin, changes=rows,
-    )
-    db.add(change_set)
-    db.commit()
-    db.refresh(change_set)
-    return change_set
+    return rows
 
 
 # --- Publishing -------------------------------------------------------------------------------
@@ -368,7 +381,8 @@ def publish(db: Session, change_set_id: int, *, actor: Optional[str], note: Opti
 
         # Apply everything in memory first; write only when every change fits.
         before_text: Dict[str, Optional[str]] = {}
-        after_text: Dict[str, str] = {}
+        # None for a file the change set deletes.
+        after_text: Dict[str, Optional[str]] = {}
         conflicts: List[Dict[str, Any]] = []
         for rel, changes in by_file.items():
             path = _file(change_set.app_id, change_set.kb, rel)
@@ -388,8 +402,7 @@ def publish(db: Session, change_set_id: int, *, actor: Optional[str], note: Opti
                     })
                     continue
                 doc = apply(doc, change.op, change.path, copy.deepcopy((change.after or {}).get("value")))
-            if doc is not None:
-                after_text[rel] = _dump(doc)
+            after_text[rel] = _dump(doc) if doc is not None else None
 
         if conflicts:
             change_set.status = "conflicted"

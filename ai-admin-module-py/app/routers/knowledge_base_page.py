@@ -21,9 +21,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..database.connection import get_db
-from ..services.authz import require_permission
+from ..services.authz import require_permission, user_has_permission
 from ..models.kb_changes import KbChangeSet, KbCrawlRun, KbHeal, KbSourceDocument, KbVersion
-from ..services.journeys import changesets, crawl_runs, diff, documents, heal, impact, store, workspace
+from ..services.journeys import changesets, crawl_runs, diff, documents, editing, heal, impact, store, workspace
 
 logger = logging.getLogger(__name__)
 
@@ -207,8 +207,12 @@ def approve_change_set(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission(PERM_APPROVE)),
 ) -> dict[str, Any]:
+    return _approve(db, change_set_id, current_user, body.note)
+
+
+def _approve(db: Session, change_set_id: int, current_user: dict, note: Optional[str]) -> dict[str, Any]:
     try:
-        versions = changesets.publish_with_pair(db, change_set_id, actor=_actor(current_user), note=body.note)
+        versions = changesets.publish_with_pair(db, change_set_id, actor=_actor(current_user), note=note)
     except Exception as exc:  # noqa: BLE001
         _fail(exc)
     change_set = db.get(KbChangeSet, change_set_id)
@@ -256,6 +260,222 @@ def discard_change_set(
     except Exception as exc:  # noqa: BLE001
         _fail(exc)
     return {"deleted": change_set_id}
+
+
+# --- Editing journeys: the tree and a journey's steps -----------------------------------------
+# Each edit is drafted as a change set (services/journeys/editing.py). With
+# publish=true and the approve permission it is published at once, through the
+# same approval -- versioned, revertable, and healed -- as one from the drawer.
+
+class JourneyRenameIn(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    publish: bool = False
+
+
+class JourneyAddIn(BaseModel):
+    parent_id: Optional[str] = None
+    title: str = Field(min_length=1, max_length=200)
+    publish: bool = False
+
+
+class JourneyStepIn(BaseModel):
+    from_step: Optional[int] = None
+    action: str = ""
+    expected_result: str = ""
+    screen_id: Optional[str] = None
+    element_id: Optional[str] = None
+
+
+class JourneyStepsIn(BaseModel):
+    steps: list[JourneyStepIn]
+    publish: bool = False
+
+
+def _edited(db: Session, change_set: KbChangeSet, current_user: dict, publish: bool) -> dict[str, Any]:
+    if publish:
+        if not user_has_permission(current_user, PERM_APPROVE):
+            return {"change_set": changesets.change_set_view(change_set), "published": False,
+                    "message": "Saved as a change set; publishing it needs the approve permission."}
+        result = _approve(db, change_set.id, current_user, "Published from the journey editor")
+        return {**result, "published": True}
+    return {"change_set": changesets.change_set_view(change_set), "published": False}
+
+
+@router.post("/{app_id}/journeys")
+def add_journey(app_id: str, body: JourneyAddIn, db: Session = Depends(get_db),
+                current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    try:
+        created = editing.add(db, _kb(app_id), body.parent_id, body.title, actor=_actor(current_user))
+    except Exception as exc:  # noqa: BLE001
+        _fail(exc)
+    return _edited(db, created, current_user, body.publish)
+
+
+@router.post("/{app_id}/journeys/{journey_id}/rename")
+def rename_journey(app_id: str, journey_id: str, body: JourneyRenameIn, db: Session = Depends(get_db),
+                   current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    try:
+        created = editing.rename(db, _kb(app_id), journey_id, body.title, actor=_actor(current_user))
+    except Exception as exc:  # noqa: BLE001
+        _fail(exc)
+    return _edited(db, created, current_user, body.publish)
+
+
+@router.get("/{app_id}/journeys/{journey_id}/removal")
+def preview_journey_removal(app_id: str, journey_id: str,
+                            current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
+    """What removing a journey takes with it, for the confirmation."""
+    kb = _kb(app_id)
+    if kb.node(journey_id) is None:
+        raise HTTPException(status_code=404, detail=f"No journey '{journey_id}'.")
+    subtree = editing._subtree(kb, journey_id)
+    return {"journeys": len(subtree), "authored": sorted(j for j in subtree if j in kb.journeys),
+            "dependents": editing.dependents(kb, subtree)}
+
+
+@router.delete("/{app_id}/journeys/{journey_id}")
+def remove_journey(app_id: str, journey_id: str, publish: bool = Query(default=False), db: Session = Depends(get_db),
+                   current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    try:
+        created = editing.remove(db, _kb(app_id), journey_id, actor=_actor(current_user))
+    except Exception as exc:  # noqa: BLE001
+        _fail(exc)
+    return _edited(db, created, current_user, publish)
+
+
+@router.put("/{app_id}/journeys/{journey_id}/steps")
+def edit_journey_steps(app_id: str, journey_id: str, body: JourneyStepsIn, db: Session = Depends(get_db),
+                       current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    try:
+        created = editing.edit_steps(db, _kb(app_id), journey_id, [s.model_dump() for s in body.steps],
+                                     actor=_actor(current_user))
+    except Exception as exc:  # noqa: BLE001
+        _fail(exc)
+    return _edited(db, created, current_user, body.publish)
+
+
+class JourneyMoveIn(BaseModel):
+    direction: Literal["up", "down"]
+    publish: bool = False
+
+
+class JourneyListIn(BaseModel):
+    items: list[dict[str, Any]]
+    publish: bool = False
+
+
+class JourneyLinksIn(BaseModel):
+    prerequisite_journeys: Optional[list[str]] = None
+    next_journeys: Optional[list[str]] = None
+    publish: bool = False
+
+
+class TextEditIn(BaseModel):
+    text: str = Field(min_length=1, max_length=2000)
+    publish: bool = False
+
+
+class RuleEditIn(BaseModel):
+    statement: str = Field(min_length=1, max_length=2000)
+    message: Optional[str] = None
+    publish: bool = False
+
+
+class StepsReviseIn(BaseModel):
+    steps: list[JourneyStepIn]
+
+
+def _run_edit(db: Session, current_user: dict, publish: bool, make) -> dict[str, Any]:
+    try:
+        created = make()
+    except Exception as exc:  # noqa: BLE001 - mapped to 400/404/409
+        _fail(exc)
+    return _edited(db, created, current_user, publish)
+
+
+@router.post("/{app_id}/journeys/{journey_id}/move")
+def move_journey(app_id: str, journey_id: str, body: JourneyMoveIn, db: Session = Depends(get_db),
+                 current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    return _run_edit(db, current_user, body.publish,
+                     lambda: editing.move(db, _kb(app_id), journey_id, body.direction, actor=_actor(current_user)))
+
+
+@router.put("/{app_id}/journeys/{journey_id}/branches")
+def edit_journey_branches(app_id: str, journey_id: str, body: JourneyListIn, db: Session = Depends(get_db),
+                          current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    return _run_edit(db, current_user, body.publish,
+                     lambda: editing.edit_branches(db, _kb(app_id), journey_id, body.items, actor=_actor(current_user)))
+
+
+@router.put("/{app_id}/journeys/{journey_id}/scenarios")
+def edit_journey_scenarios(app_id: str, journey_id: str, body: JourneyListIn, db: Session = Depends(get_db),
+                           current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    return _run_edit(db, current_user, body.publish,
+                     lambda: editing.edit_scenarios(db, _kb(app_id), journey_id, body.items, actor=_actor(current_user)))
+
+
+@router.put("/{app_id}/journeys/{journey_id}/links")
+def edit_journey_links(app_id: str, journey_id: str, body: JourneyLinksIn, db: Session = Depends(get_db),
+                       current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    links = {k: v for k, v in body.model_dump().items() if k in editing.LINK_KEYS and v is not None}
+    return _run_edit(db, current_user, body.publish,
+                     lambda: editing.edit_links(db, _kb(app_id), journey_id, links, actor=_actor(current_user)))
+
+
+@router.get("/{app_id}/screens/{screen_id}")
+def get_screen(app_id: str, screen_id: str, current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
+    try:
+        return editing.screen_detail(_kb(app_id), screen_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/{app_id}/screens/{screen_id}/rename")
+def rename_screen(app_id: str, screen_id: str, body: TextEditIn, db: Session = Depends(get_db),
+                  current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    return _run_edit(db, current_user, body.publish,
+                     lambda: editing.rename_screen(db, _kb(app_id), screen_id, body.text, actor=_actor(current_user)))
+
+
+@router.post("/{app_id}/screens/{screen_id}/elements/{element_id}/label")
+def relabel_element(app_id: str, screen_id: str, element_id: str, body: TextEditIn, db: Session = Depends(get_db),
+                    current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    return _run_edit(db, current_user, body.publish,
+                     lambda: editing.edit_element(db, _kb(app_id), screen_id, element_id, body.text, actor=_actor(current_user)))
+
+
+@router.delete("/{app_id}/screens/{screen_id}/elements/{element_id}")
+def remove_element(app_id: str, screen_id: str, element_id: str, publish: bool = Query(default=False),
+                   db: Session = Depends(get_db),
+                   current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    return _run_edit(db, current_user, publish,
+                     lambda: editing.remove_element(db, _kb(app_id), screen_id, element_id, actor=_actor(current_user)))
+
+
+@router.put("/{app_id}/rules/{rule_id}")
+def edit_rule(app_id: str, rule_id: str, body: RuleEditIn, db: Session = Depends(get_db),
+              current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    return _run_edit(db, current_user, body.publish,
+                     lambda: editing.edit_rule(db, _kb(app_id), rule_id, body.statement, body.message, actor=_actor(current_user)))
+
+
+@router.delete("/{app_id}/rules/{rule_id}")
+def remove_rule(app_id: str, rule_id: str, publish: bool = Query(default=False), db: Session = Depends(get_db),
+                current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    return _run_edit(db, current_user, publish,
+                     lambda: editing.remove_rule(db, _kb(app_id), rule_id, actor=_actor(current_user)))
+
+
+@router.put("/change-sets/{change_set_id}/changes/{position}/steps")
+def revise_change_steps(change_set_id: int, position: int, body: StepsReviseIn, db: Session = Depends(get_db),
+                        current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    """Correct the steps a drafted change set proposes, before it is approved."""
+    try:
+        revised = editing.revise_steps(db, change_set_id, position, [s.model_dump() for s in body.steps],
+                                       actor=_actor(current_user))
+    except Exception as exc:  # noqa: BLE001
+        _fail(exc)
+    return changesets.change_set_view(revised)
 
 
 @router.get("/{app_id}/versions")

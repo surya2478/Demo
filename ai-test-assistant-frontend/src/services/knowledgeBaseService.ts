@@ -86,8 +86,10 @@ export interface JourneyDetail {
     steps: JourneyStep[]
     chain: { journey_id: string; name: string }[]
     next: { journey_id: string; name: string }[]
-    conditional_branches: { branch_id: string; at_step: number; condition: string; outcome: string; rule?: string }[]
-    test_scenarios: { scenario_id: string; type: string; title: string; test_data?: string; rules?: string[] }[]
+    conditional_branches: JourneyBranch[]
+    test_scenarios: JourneyScenario[]
+    prerequisite_journeys?: string[]
+    next_journeys?: string[]
     open_questions: string[]
     rules: { rule_id: string; type: string; statement: string; message?: string; basis: string }[]
     used_by: { journey_id: string; name: string; relation: string }[]
@@ -348,7 +350,7 @@ export interface ChangeSet {
   decision_note: string | null
   published_version_id: number | null
   change_count: number
-  changes?: { file: string; op: 'set' | 'remove'; path: string; before: KbValue | null; after: KbValue | null; note: string | null }[]
+  changes?: { file: string; op: 'set' | 'remove' | 'create' | 'delete'; path: string; before: KbValue | null; after: KbValue | null; note: string | null }[]
 }
 
 export interface KbVersionRow {
@@ -373,6 +375,42 @@ export interface ReconcileDecision {
   note?: string | null
 }
 
+export interface JourneyBranch { branch_id: string; at_step: number; condition: string; outcome: string; rule?: string }
+export interface JourneyScenario { scenario_id: string; type: string; title: string; steps?: number[]; branch?: string; test_data?: string; rules?: string[] }
+
+export interface ScreenElementDetail {
+  element_id: string
+  label: string | null
+  type: string | null
+  automation_ref: string | null
+  aliases: string[]
+  used_by: { journey_id: string; name: string; step_number: number }[]
+}
+export interface ScreenDetail { screen_id: string; name: string; elements: ScreenElementDetail[]; used_by: { journey_id: string; name: string; step_number: number }[] }
+
+/** One step as the journey editor sends it; from_step is its number before the edit (null: new). */
+export interface JourneyStepEdit {
+  from_step: number | null
+  action: string
+  expected_result: string
+  screen_id?: string | null
+  element_id?: string | null
+}
+
+export interface JourneyEditResult {
+  change_set: ChangeSet
+  published: boolean
+  version?: KbVersionRow | null
+  /** Set when publish was asked for but the user may not approve. */
+  message?: string
+}
+
+export interface JourneyRemovalPreview {
+  journeys: number
+  authored: string[]
+  dependents: { journey_id: string; name: string; relation: string }[]
+}
+
 /** A 409 from approve/revert: the file changed after the draft was made. */
 export interface ConflictDetail { message: string; conflicts: { file: string; path: string | null; reason: string }[] }
 
@@ -385,6 +423,41 @@ const knowledgeBaseService = {
   taxonomy: async (app: string): Promise<KbTaxonomy> => (await api.get(`${BASE}/${enc(app)}/taxonomy`)).data,
   journey: async (app: string, journeyId: string): Promise<JourneyDetail> =>
     (await api.get(`${BASE}/${enc(app)}/journeys/${enc(journeyId)}`)).data,
+  // Editing journeys. Each edit is drafted as a change set; with publish it is
+  // also approved at once (when the user may approve).
+  addJourney: async (app: string, parentId: string | null, title: string, publish: boolean): Promise<JourneyEditResult> =>
+    (await api.post(`${BASE}/${enc(app)}/journeys`, { parent_id: parentId, title, publish })).data,
+  renameJourney: async (app: string, journeyId: string, title: string, publish: boolean): Promise<JourneyEditResult> =>
+    (await api.post(`${BASE}/${enc(app)}/journeys/${enc(journeyId)}/rename`, { title, publish })).data,
+  journeyRemoval: async (app: string, journeyId: string): Promise<JourneyRemovalPreview> =>
+    (await api.get(`${BASE}/${enc(app)}/journeys/${enc(journeyId)}/removal`)).data,
+  removeJourney: async (app: string, journeyId: string, publish: boolean): Promise<JourneyEditResult> =>
+    (await api.delete(`${BASE}/${enc(app)}/journeys/${enc(journeyId)}`, { params: { publish } })).data,
+  editSteps: async (app: string, journeyId: string, steps: JourneyStepEdit[], publish: boolean): Promise<JourneyEditResult> =>
+    (await api.put(`${BASE}/${enc(app)}/journeys/${enc(journeyId)}/steps`, { steps, publish })).data,
+  moveJourney: async (app: string, journeyId: string, direction: 'up' | 'down', publish: boolean): Promise<JourneyEditResult> =>
+    (await api.post(`${BASE}/${enc(app)}/journeys/${enc(journeyId)}/move`, { direction, publish })).data,
+  editBranches: async (app: string, journeyId: string, items: Partial<JourneyBranch>[], publish: boolean): Promise<JourneyEditResult> =>
+    (await api.put(`${BASE}/${enc(app)}/journeys/${enc(journeyId)}/branches`, { items, publish })).data,
+  editScenarios: async (app: string, journeyId: string, items: Partial<JourneyScenario>[], publish: boolean): Promise<JourneyEditResult> =>
+    (await api.put(`${BASE}/${enc(app)}/journeys/${enc(journeyId)}/scenarios`, { items, publish })).data,
+  editLinks: async (app: string, journeyId: string, links: { prerequisite_journeys?: string[]; next_journeys?: string[] }, publish: boolean): Promise<JourneyEditResult> =>
+    (await api.put(`${BASE}/${enc(app)}/journeys/${enc(journeyId)}/links`, { ...links, publish })).data,
+  screen: async (app: string, screenId: string): Promise<ScreenDetail> =>
+    (await api.get(`${BASE}/${enc(app)}/screens/${enc(screenId)}`)).data,
+  renameScreen: async (app: string, screenId: string, text: string, publish: boolean): Promise<JourneyEditResult> =>
+    (await api.post(`${BASE}/${enc(app)}/screens/${enc(screenId)}/rename`, { text, publish })).data,
+  relabelElement: async (app: string, screenId: string, elementId: string, text: string, publish: boolean): Promise<JourneyEditResult> =>
+    (await api.post(`${BASE}/${enc(app)}/screens/${enc(screenId)}/elements/${enc(elementId)}/label`, { text, publish })).data,
+  removeElement: async (app: string, screenId: string, elementId: string, publish: boolean): Promise<JourneyEditResult> =>
+    (await api.delete(`${BASE}/${enc(app)}/screens/${enc(screenId)}/elements/${enc(elementId)}`, { params: { publish } })).data,
+  editRule: async (app: string, ruleId: string, statement: string, message: string | null, publish: boolean): Promise<JourneyEditResult> =>
+    (await api.put(`${BASE}/${enc(app)}/rules/${enc(ruleId)}`, { statement, message, publish })).data,
+  removeRule: async (app: string, ruleId: string, publish: boolean): Promise<JourneyEditResult> =>
+    (await api.delete(`${BASE}/${enc(app)}/rules/${enc(ruleId)}`, { params: { publish } })).data,
+  /** Correct the steps a drafted change set proposes, before approval. */
+  reviseChangeSteps: async (changeSetId: number, position: number, steps: JourneyStepEdit[]): Promise<ChangeSet> =>
+    (await api.put(`${BASE}/change-sets/${changeSetId}/changes/${position}/steps`, { steps })).data,
   model: async (app: string): Promise<KbModel> => (await api.get(`${BASE}/${enc(app)}/model`)).data,
   reconcile: async (app: string): Promise<KbReconcile> => (await api.get(`${BASE}/${enc(app)}/reconcile`)).data,
   testData: async (app: string): Promise<KbTestData> => (await api.get(`${BASE}/${enc(app)}/test-data`)).data,

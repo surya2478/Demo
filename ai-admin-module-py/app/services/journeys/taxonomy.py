@@ -7,6 +7,16 @@ journeys. Keeping the two apart means a new release of the master document is
 a text diff, and a newly documented journey is an overlay edit -- neither
 touches the generated file.
 
+Edits made on the Knowledge Base page are overlay edits too, so a journey's id
+never changes under the files and test cases that name it:
+
+  nodes[id].title    renames a journey (paths below it follow)
+  added_nodes        [{id, title, parent}] journeys the outline does not list;
+                     parent null makes a new top-level chapter
+  removed_nodes      [id] journeys taken out of the tree, with everything below
+  child_order        {parent id | "$roots": [ids]} sibling order; ids not
+                     listed keep their place after the listed ones
+
 Run from ai-admin-module-py:
 
     python -m app.services.journeys.taxonomy eand_b2b_portal
@@ -114,6 +124,35 @@ def build(kb_dir: Path) -> dict:
         add(node, parent)
         stack.append(node)
 
+    # Journeys added on the Knowledge Base page, in the order they were added,
+    # so a child can be added under a journey added before it.
+    for extra in overlay.get("added_nodes", []):
+        parent = by_id.get(extra.get("parent")) if extra.get("parent") else None
+        if extra.get("parent") and parent is None:
+            raise ValueError(f"taxonomy_overlay.json adds {extra.get('id')} under unknown journey {extra.get('parent')}")
+        if extra["id"] in by_id:
+            raise ValueError(f"taxonomy_overlay.json adds {extra['id']}, which already exists")
+        chapter = parent["chapter"] if parent else extra["id"].split(".")[-1]
+        node = {
+            "id": extra["id"],
+            "title": extra["title"],
+            "kind": "chapter" if parent is None else extra.get("kind", "journey"),
+            "level": (parent["level"] + 1) if parent else 1,
+            "chapter": chapter,
+            "parent": parent["id"] if parent else None,
+            "path": [],
+            "children": [],
+            "status": "awaiting_source",
+            "sources": ["added on the Knowledge Base page"],
+        }
+        if parent is not None:
+            anonymous = chapter in unauth
+            node["audience"] = "anonymous" if anonymous else "authenticated"
+            node["prerequisite_journeys"] = [] if anonymous else list(session_prereqs)
+            if parent["kind"] == "journey":
+                parent["kind"] = "group"
+        add(node, parent)
+
     for flow_id, link in overlay.get("automation_only", {}).items():
         if flow_id.startswith("_"):
             continue
@@ -144,6 +183,39 @@ def build(kb_dir: Path) -> dict:
         node.update({k: v for k, v in extra.items() if k != "sources"})
         node["sources"] = node["sources"] + extra.get("sources", [])
 
+    # Journeys removed on the Knowledge Base page go with everything below them.
+    removed: set[str] = set()
+    for node_id in overlay.get("removed_nodes", []):
+        pending = [node_id] if node_id in by_id else []
+        while pending:
+            current = pending.pop()
+            if current not in removed:
+                removed.add(current)
+                pending.extend(by_id[current]["children"])
+    if removed:
+        nodes = [n for n in nodes if n["id"] not in removed]
+        for node in nodes:
+            if any(c in removed for c in node["children"]):
+                node["children"] = [c for c in node["children"] if c not in removed]
+                if not node["children"] and node["kind"] == "group":
+                    node["kind"] = "journey"
+        by_id = {n["id"]: n for n in nodes}
+
+    def ordered(ids: list[str], wanted: list[str]) -> list[str]:
+        first = [i for i in wanted if i in ids]
+        return first + [i for i in ids if i not in first]
+
+    child_order = overlay.get("child_order", {})
+    for parent_id, wanted in child_order.items():
+        if parent_id in by_id:
+            by_id[parent_id]["children"] = ordered(by_id[parent_id]["children"], wanted)
+
+    # Paths from the final titles, so a renamed journey reads right everywhere
+    # below it. Parents come before their children in `nodes`.
+    for node in nodes:
+        parent = by_id.get(node["parent"]) if node["parent"] else None
+        node["path"] = (parent["path"] if parent else []) + [node["title"]]
+
     # Children follow their parent in `nodes`, so walking backwards settles
     # every child before its parent is rolled up.
     for node in reversed(nodes):
@@ -170,7 +242,7 @@ def build(kb_dir: Path) -> dict:
         "_composition": "An authenticated journey runs as its prerequisite_journeys, in order, then its own steps. SIGNIN is satisfied by any one of its variants.",
         "app_id": manifest["app_id"],
         "summary": {"total_nodes": len(nodes), "journey_status_counts": counts},
-        "roots": [n["id"] for n in nodes if n["parent"] is None],
+        "roots": ordered([n["id"] for n in nodes if n["parent"] is None], child_order.get("$roots", [])),
         "nodes": nodes,
     }
 
