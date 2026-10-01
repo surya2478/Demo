@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import projectService, { type Project } from '../services/projectService'
+import { useAuth } from '../hooks/useAuth'
 
 // The project being worked on, shared by every page of the journey: chosen on
 // Generate Test Cases, shown and filtered on in Review & Approval and
@@ -26,6 +27,8 @@ const readStored = (): Project | null => {
 
 export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [project, setProjectState] = useState<Project | null>(readStored)
+  const { user } = useAuth()
+  const username = user?.username ?? null
 
   const setProject = useCallback((next: Project | null) => {
     setProjectState(next)
@@ -37,15 +40,20 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [])
 
+  // Refreshed only once sign-in has finished (AuthProvider has confirmed the
+  // user with /auth/me). Asking straight away on page load raced the sign-in
+  // restore: the request could leave before the token did, got 401, and the
+  // 401 handler signed the user out on every refresh once a project was saved.
   useEffect(() => {
+    if (!username) return
     const stored = readStored()
-    if (!stored || !localStorage.getItem('api_token')) return
+    if (!stored) return
     projectService.get(stored.id)
       .then((fresh) => setProject(fresh))
       .catch((error) => {
         if (error?.response?.status === 404) setProject(null)
       })
-  }, [setProject])
+  }, [username, setProject])
 
   const value = useMemo(() => ({ project, setProject }), [project, setProject])
   return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>
