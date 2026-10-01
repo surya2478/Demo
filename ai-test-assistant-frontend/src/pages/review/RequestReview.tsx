@@ -505,7 +505,7 @@ const RequestReview: React.FC = () => {
         )}
       </div>
 
-      <JourneyBar current={5} />
+      <JourneyBar current={4} />
     </div>
   )
 }

@@ -4,8 +4,9 @@ export const JOURNEY_STEPS = [
   'Parse Solution',
   'Generate Test Cases',
   'AI Checks',
-  'Send for Approval',
-  'Manager Approval',
+  // Sending and the manager's decision are one stage: the request is in
+  // review from the moment it is sent until it is approved or rejected.
+  'Review & Approval',
   'Automation Lab',
   'Execute & Report'
 ] as const

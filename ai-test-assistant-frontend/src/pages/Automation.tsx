@@ -272,7 +272,7 @@ const Automation: React.FC = () => {
 
       <Outlet context={context} />
 
-      {onLab || onRuns ? <JourneyBar current={onRuns ? 7 : 6} /> : null}
+      {onLab || onRuns ? <JourneyBar current={onRuns ? 6 : 5} /> : null}
     </div>
   )
 }

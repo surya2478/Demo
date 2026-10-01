@@ -390,7 +390,7 @@ const ReviewApproval: React.FC = () => {
         </aside>
       </div>
 
-      <JourneyBar current={5} />
+      <JourneyBar current={4} />
     </div>
   )
 }

@@ -114,9 +114,11 @@ const TestCases: React.FC = () => {
   type KnowledgeBaseChoice = 'default' | 'squad' | 'automation' | 'journey'
   const knowledgeBaseOptions: readonly (KnowledgeBaseOption<KnowledgeBaseChoice> & { knowledgeBase: string })[] = [
     { value: 'default', label: 'Default KB', short: 'Default application', description: 'Generates with the default application, as before', isDefault: true, knowledgeBase: '' },
-    { value: 'squad', label: 'Squad KB', short: 'Device Squad', description: "Grounds test cases in the Device Squad's knowledge base", knowledgeBase: 'Device Squad' },
+    { value: 'squad', label: 'Device Squad KB', short: 'Device Squad', description: "Grounds test cases in the Device Squad's knowledge base", knowledgeBase: 'Device Squad' },
     { value: 'automation', label: 'Automation KB', short: 'App profiles & flows', description: 'Grounds test cases in the application profiles and flows Automation uses', knowledgeBase: 'Automation KB' },
-    { value: 'journey', label: 'Journey KB', short: 'Design journeys', description: 'Grounds test cases in the business-designed journeys, screen labels and rules', knowledgeBase: 'Journey KB' }
+    // Journey KB is hidden from Select KB for now; its value stays known so a
+    // session saved with it is recognised rather than breaking the page.
+    // { value: 'journey', label: 'Journey KB', short: 'Design journeys', description: 'Grounds test cases in the business-designed journeys, screen labels and rules', knowledgeBase: 'Journey KB' }
   ]
   const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState<KnowledgeBaseChoice>('default')
   const selectedKnowledgeBaseOption = knowledgeBaseOptions.find((option) => option.value === selectedKnowledgeBase) ?? knowledgeBaseOptions[0]
@@ -2206,7 +2208,7 @@ const TestCases: React.FC = () => {
   const inputReady =
     inputType === 'text' ? textValue.trim().length > 0 : documentsProcessed || combinedContent.trim().length > 0
   const journeyStep =
-    submittedTestCaseCount !== null ? 5
+    submittedTestCaseCount !== null ? 4
       : aiBatch && !aiRunning ? 4
         : (response || output) && !isGenerationStreaming ? 3
         : inputReady || loading || isGenerationStreaming ? 2
