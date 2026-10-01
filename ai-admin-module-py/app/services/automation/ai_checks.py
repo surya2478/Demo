@@ -138,6 +138,22 @@ def _resolve_application(details: dict[str, Any]) -> tuple[Optional[str], Option
     return (profile.get("base_url") or "").strip() or None, name
 
 
+def _for_environment(db: Session, url: Optional[str], environment: Optional[str]) -> Optional[str]:
+    """The case's address on its environment's host (Test Data), when that environment has one.
+
+    The Knowledge Base resolves a case onto the host it was crawled on; a case
+    generated for RC should name RC's host, so a reviewer opening it, and a run
+    without an environment of its own, land where the case is for.
+    """
+    try:
+        from .registry import rehome_for_environment
+
+        return rehome_for_environment(db, url, environment)
+    except Exception:  # noqa: BLE001 - the crawled host is still a usable address
+        logger.warning("Moving %s onto %s's host failed", url, environment, exc_info=True)
+        return url
+
+
 # --- The selected Knowledge Base -------------------------------------------------
 
 def _reference(check: AutomationAICheck) -> dict[str, Any]:
@@ -227,6 +243,7 @@ def start_batch(
         display_id = wb.detail_value(row, "display_id") or f"TC-{position + 1:03d}"
         description = wb.detail_value(row, "description") or display_id
         application_url, _ = _resolve_application(row)
+        application_url = _for_environment(db, application_url, environment)
         case = AutomationTestCase(
             source="refined",
             origin=ORIGIN,
@@ -336,6 +353,7 @@ def _run_check(check_id: int) -> None:
         _set_step(db, check, step, "running")
         row = check.source_row or {}
         application_url, application_name = _resolve_application(row)
+        application_url = _for_environment(db, application_url, case.environment)
         reference = _reference(check)
         refined = refine_case_content(
             ref=f"check-{check.id}",

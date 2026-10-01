@@ -24,6 +24,7 @@ import { usePageHeader } from '../../components/layout/PageHeaderContext'
 import { useAuth } from '../../hooks/useAuth'
 import ChangeSetsDrawer from '../../components/knowledge-base/ChangeSetsDrawer'
 import { SELECTED_APP_STORAGE_KEY, type RegisteredApplication } from '../../types/automation'
+import testDataService from '../../services/testDataService'
 import { DiscoveryBody } from './Discovery'
 import { Card, Note } from '../../components/knowledge-base/kbUi'
 import SourcesStage from '../../components/knowledge-base/SourcesStage'
@@ -113,6 +114,38 @@ const KnowledgeBase: React.FC = () => {
   const appKey = kbKey && journeyApps.some(k => k.app_id === kbKey) ? kbKey : null
   const unregisteredKbs = journeyApps.filter(k => !applications.some(a => a.app_key === k.app_id))
 
+  // The environment the page's URLs are for. Hosts come from Test Data (the
+  // application's address per environment); the Knowledge Base holds routes.
+  const [envAddresses, setEnvAddresses] = useState<Record<string, string>>({})
+  const [envDefault, setEnvDefault] = useState<string | null>(null)
+  const [kbEnv, setKbEnv] = useState<string | null>(null)
+  const [dataAppId, setDataAppId] = useState<number | null>(null)
+  const envKey = kbKey ? `kb_environment:${kbKey}` : null
+  useEffect(() => {
+    if (!kbKey) { setEnvAddresses({}); setEnvDefault(null); setKbEnv(null); setDataAppId(null); return }
+    let live = true
+    testDataService.apps()
+      .then(({ apps }) => {
+        if (!live) return
+        const dataApp = apps.find(a => a.kb_app_id === kbKey) ?? null
+        const addresses = dataApp?.addresses ?? {}
+        const fallback = dataApp?.run_environment || Object.keys(addresses)[0] || null
+        let stored: string | null = null
+        try { stored = envKey ? window.localStorage.getItem(envKey) : null } catch { stored = null }
+        setDataAppId(dataApp?.id ?? null)
+        setEnvAddresses(addresses)
+        setEnvDefault(dataApp?.run_environment ?? null)
+        setKbEnv(stored && addresses[stored] ? stored : fallback)
+      })
+      .catch(() => { if (live) { setEnvAddresses({}); setKbEnv(null) } })
+    return () => { live = false }
+  }, [kbKey, envKey])
+  const chooseEnv = (value: string) => {
+    setKbEnv(value)
+    try { if (envKey) window.localStorage.setItem(envKey, value) } catch { /* per-visit only */ }
+  }
+  const envAddress = kbEnv ? envAddresses[kbEnv] ?? null : null
+
   useEffect(() => {
     if (!selection) return
     window.localStorage.setItem(SELECTION_STORAGE_KEY, selection)
@@ -149,7 +182,7 @@ const KnowledgeBase: React.FC = () => {
       s('journeys', 'Journey KB', j ? `${j.authored} authored · ${j.by_status.source_available ?? 0} ready` : '—', j && (j.by_status.source_available ?? 0) > 0 ? 'attn' : j ? 'done' : 'idle'),
       s('model', 'App Model', overview ? `${overview.screens.catalogued} screens` : '—', overview ? 'done' : 'idle'),
       s('testdata', 'Test Data', 'Coverage per environment', appKey ? 'attn' : 'idle'),
-      s('crawl', 'Journey Crawl', selectedApp ? (selectedApp.discovery ? `Last page crawl: ${selectedApp.discovery.status}` : 'Walk a journey') : 'Register to crawl', selectedApp?.discovery ? 'done' : 'idle'),
+      s('crawl', 'Walk & Dry run', selectedApp ? 'Journeys and flows, live' : 'Add it in Test Data', selectedApp?.discovery ? 'done' : 'idle'),
       s('automation', 'Automation KB', overview ? `${overview.automation.flows} flows · ${overview.automation.selectors} selectors` : `${selectedApp?.knowledge_base.flows ?? 0} flows`, 'done'),
       s('reconcile', 'Reconcile', overview ? `${drift} to decide · ${r.NOT_CRAWLED ?? 0} not crawled` : '—', drift ? 'attn' : overview ? 'done' : 'idle'),
       s('heal', 'Change & Heal', 'BRD changes · follow-ups', appKey ? 'done' : 'idle')
@@ -174,16 +207,34 @@ const KnowledgeBase: React.FC = () => {
               {applications.length === 0 && unregisteredKbs.length === 0 && <option value="">No application</option>}
               {applications.map(a => (
                 <option key={a.id} value={`reg:${a.id}`}>
-                  {a.name} · {a.environment}{journeyApps.some(k => k.app_id === a.app_key) ? '' : ' · no Journey KB'}
+                  {a.name}{journeyApps.some(k => k.app_id === a.app_key) ? '' : ' · no Journey KB'}
                 </option>
               ))}
               {unregisteredKbs.map(k => (
                 <option key={k.app_id} value={`kb:${k.app_id}`}>{k.app_name} · Journey KB · not registered</option>
               ))}
             </select>
+            {Object.keys(envAddresses).length > 0 && (
+              <select
+                aria-label="Environment"
+                value={kbEnv ?? ''}
+                onChange={e => chooseEnv(e.target.value)}
+                title="URLs on this page are built on this environment's address in Test Data"
+                className="h-[30px] rounded-[10px] border border-[#E8EAEE] bg-white px-2.5 text-[12.5px] font-semibold text-[#374151]"
+              >
+                {Object.keys(envAddresses).map(e => <option key={e} value={e}>{e}{e === envDefault ? ' (default)' : ''}</option>)}
+              </select>
+            )}
+            <Link to={dataAppId ? `/test-data?app=${dataAppId}` : '/test-data'} className="text-[12px] font-semibold text-[#B71920] hover:underline"
+              title="Addresses per environment are managed in Test Data">
+              {Object.keys(envAddresses).length ? 'Environments' : 'Add its addresses in Test Data'}
+            </Link>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[12px] text-[#6B7280]">
-            <span>{selectedApp?.base_url ?? overview?.base_url ?? '—'}</span>
+            <span>{envAddress ?? selectedApp?.base_url ?? overview?.base_url ?? '—'}</span>
+            {envAddress && (selectedApp?.base_url ?? overview?.base_url) && !String(selectedApp?.base_url ?? overview?.base_url).startsWith(envAddress.split('/').slice(0, 3).join('/')) && (
+              <span title="The Knowledge Base was crawled on this host; its routes are the same on every environment">· crawled on {(selectedApp?.base_url ?? overview?.base_url ?? '').split('/').slice(0, 3).join('/')}</span>
+            )}
             {overview && <><span>·</span><span>Journey KB {overview.app_id} · Automation KB {overview.automation_app_id}</span></>}
           </div>
         </div>
@@ -254,18 +305,18 @@ const KnowledgeBase: React.FC = () => {
           {stage === 'crawl' && selectedApp && (
             <div className="flex flex-col gap-4">
               {appKey
-                ? <JourneyCrawlStage key={`${appKey}.${selectedApp.id}`} appKey={appKey} application={selectedApp} canExecute={canExecute}
+                ? <JourneyCrawlStage key={`${appKey}.${selectedApp.id}.${kbEnv ?? ''}`} appKey={appKey} application={{ ...selectedApp, environment: kbEnv ?? selectedApp.environment, base_url: envAddress ?? selectedApp.base_url }} canExecute={canExecute}
                     onProposed={() => { loadPending(); setDrawer('review') }} />
                 : <Note>{selectedApp.name} has no Journey KB, so only the page-by-page crawl below applies.</Note>}
               <details className="rounded-[20px] border border-[#E8EAEE] bg-white" open={!appKey}>
                 <summary className="cursor-pointer px-5 py-4 text-[14px] font-bold text-[#1F2937]">
                   Page-by-page crawl <span className="font-normal text-[12.5px] text-[#6B7280]">· walks every reachable page and builds the Automation KB flows</span>
                 </summary>
-                <div className="px-3 pb-3"><DiscoveryBody embedded appId={selectedAppId} tabs={['crawler']} /></div>
+                <div className="px-3 pb-3"><DiscoveryBody embedded appId={selectedAppId} environment={kbEnv} tabs={['crawler']} /></div>
               </details>
             </div>
           )}
-          {stage === 'automation' && selectedApp && <DiscoveryBody embedded appId={selectedAppId} tabs={['flows', 'urls', 'products', 'json_model']} />}
+          {stage === 'automation' && selectedApp && <DiscoveryBody embedded appId={selectedAppId} environment={kbEnv} tabs={['flows', 'urls', 'products', 'json_model']} />}
           {stage === 'heal' && appKey && (
             <HealStage key={revision} appKey={appKey} canExecute={canExecute}
               application={selectedApp ? { id: selectedApp.id, environment: selectedApp.environment } : null}

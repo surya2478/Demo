@@ -23,6 +23,17 @@ The result is not written anywhere. It becomes a pair of change sets -- the
 captured selectors for the Automation KB (source "crawl", the only source
 allowed to change it) and the matching automation_ref links for the Journey
 KB -- which a reviewer approves like any other.
+
+--- The walk engine: a journey or a flow, watched as it runs -----------------
+The same spec walks a flow blueprint (build_flow_plan): its canonical steps
+become open / fill / click / look-for items, checked against the flow's own
+selectors. While it runs it writes its progress (PROGRESS_FILE) and a frame
+of the page about once a second (FRAME_FILE), which the Knowledge Base page
+shows live; video and trace are the run's own evidence, for replay.
+
+A walk stops before step `stop_before`, and -- unless allowed -- before the
+first step that would submit, confirm, pay, save or delete something
+(apply_stop), so a dry run against a shared environment changes nothing.
 """
 from __future__ import annotations
 
@@ -34,6 +45,8 @@ from . import diff, store
 
 OUTPUT_FILE = "journey_crawl.json"
 SPEC_FILE = "journey_crawl.spec.ts"
+PROGRESS_FILE = "walk_progress.json"
+FRAME_FILE = "live.png"
 
 INPUT_TYPES = {"text_input", "password_input", "search_input"}
 CLICK_TYPES = {"button", "link", "tab", "nav_link", "menu_item", "menu_trigger", "icon_button", "control", "card_list"}
@@ -194,6 +207,153 @@ def build_plan(
     }
 
 
+# --- A flow blueprint as a plan -------------------------------------------------------
+# A flow's canonical steps carry an action in prose and a target the Automation
+# KB recorded for it (an XPath, or a route). The walk needs to know what to do
+# with each: open, fill, enter the OTP, click, or only look for it.
+
+_FLOW_FILL = re.compile(r"^\s*(enter|type|input|fill|provide|key in|populate)\b", re.IGNORECASE)
+_FLOW_CLICK = re.compile(r"^\s*(click|tap|press|select|choose|open|submit|toggle|expand|switch|go to)\b", re.IGNORECASE)
+_FLOW_OTP = re.compile(r"\b(otp|one[- ]time password|verification code|6-digit|six-digit)\b", re.IGNORECASE)
+_QUOTED = re.compile(r"['\"‘“]([^'\"’”]{2,60})['\"’”]")
+_CAPS = re.compile(r"\b([A-Z][A-Z0-9&]+(?:\s+[A-Z][A-Z0-9&]+)*)\b")
+
+
+def _flow_target(target: Optional[str]) -> Dict[str, Optional[str]]:
+    """{'route': ...} for a page address, {'selector': ...} for an element, {} for prose."""
+    value = (target or "").strip()
+    if not value:
+        return {}
+    if value.startswith("/") and not value.startswith("//"):
+        return {"route": value}
+    if value.startswith(("//", "(//", "xpath=", "css=", "#", ".", "[")) or re.search(r"\[[^\]]+\]", value):
+        return {"selector": value[len("xpath="):] if value.startswith("xpath=") else value}
+    return {}
+
+
+def _flow_variable(text: str, data_profile: Optional[Dict[str, Any]] = None) -> Optional[str]:
+    """The Test Data value a fill step types, by what the field is.
+
+    The data profile's own variable when it names one -- the same user a
+    journey walk signs in as -- else a generic name Test Data matches by meaning.
+    """
+    lowered = text.lower()
+    profile = data_profile or {}
+    if _FLOW_OTP.search(text):
+        return _profile_variable(profile, "otp") or "TESTDATA_OTP"
+    if "password" in lowered:
+        return _profile_variable(profile, "password") or "TESTDATA_PASSWORD"
+    if any(w in lowered for w in ("email", "username", "user name", "user id", "login")):
+        return _profile_variable(profile, "email", "username", "user") or "TESTDATA_USERNAME"
+    if "mobile" in lowered or "phone" in lowered:
+        return _profile_variable(profile, "mobile", "phone") or "TESTDATA_MOBILE_NUMBER"
+    return None
+
+
+def build_flow_plan(flow: Dict[str, Any], *, automation_profile: Dict[str, Any], base_url: str,
+                    data_profile: Optional[Dict[str, Any]] = None, profile_id: Optional[str] = None) -> Dict[str, Any]:
+    """What a dry run of a flow blueprint does, step by step, on `base_url`'s host.
+
+    Each step is checked with the selector the flow records for it: found, it
+    is confirmed; not found, the walk tries the step's quoted label and says
+    the flow's selector failed.
+    """
+    from ..automation.knowledge_base import absolutize
+
+    flow_id = flow.get("flow_id") or "flow"
+    entry = flow.get("catalog_entrypoint") or ""
+    start = absolutize(entry, base_url) if entry else base_url
+    items: List[Dict[str, Any]] = []
+    for step in flow.get("canonical_steps", []):
+        number = step.get("step_number") or len(items) + 1
+        text = str(step.get("action") or "").strip()
+        target = _flow_target(step.get("target"))
+        item: Dict[str, Any] = {
+            "journey_id": flow_id, "journey_name": flow.get("flow_name") or flow_id, "step_number": number,
+            "text": text, "screen_id": None, "optional": False, "expected": step.get("expected_result"),
+        }
+        if target.get("route"):
+            item.update(kind="goto", route=target["route"])
+            items.append(item)
+            continue
+        if not target.get("selector") and _NAVIGATE.search(text):
+            item.update(kind="screen", reason="no route recorded; the walk stays where it is")
+            items.append(item)
+            continue
+        quoted = _QUOTED.search(text) or _CAPS.search(text)
+        label = quoted.group(1) if quoted else ""
+        otp = bool(_FLOW_OTP.search(text)) and _FLOW_FILL.match(text) is not None
+        kind = "otp" if otp else "fill" if _FLOW_FILL.match(text) else "click" if _FLOW_CLICK.match(text) else "capture"
+        element = {
+            "screen_id": "FLOW", "element_id": f"step_{number}", "label": label or text[:80], "clean_label": _clean(label),
+            "aliases": [], "accepted_labels": [], "type": "otp_input_group" if otp else ("text_input" if kind == "fill" else None),
+            "hint": {}, "kb_ref": f"flows.{flow_id}.step_{number}", "kb_target": target.get("selector"),
+            "group": otp, "is_input": kind in ("fill", "otp"),
+        }
+        item["element"] = element
+        item["kind"] = kind
+        if kind in ("fill", "otp"):
+            variable = _flow_variable(text, data_profile)
+            if variable:
+                item["variable"] = variable
+            else:
+                item.update(kind="capture", reason="no Test Data value names this field; the walk only looks for it")
+        if kind == "click" and re.search(r"\borgani[sz]ation\b", text, re.IGNORECASE) and not label and not target.get("selector"):
+            item["text_variable"] = _profile_variable(data_profile or {}, "organization", "org") or "TESTDATA_ORGANIZATION_NAME"
+        items.append(item)
+    return {
+        "app_id": automation_profile.get("app_id"), "journey_id": flow_id, "journey_name": flow.get("flow_name") or flow_id,
+        "scope": [flow_id], "base_url": start, "profile_id": profile_id, "source": "flow",
+        "variables": sorted({i[k] for i in items for k in ("variable", "text_variable") if i.get(k)}),
+        "items": items, "screens": {},
+    }
+
+
+# --- The stop point -----------------------------------------------------------------------
+
+# Steps that only read or sign in, whatever their verb: submitting an OTP or a
+# search changes nothing.
+SAFE = re.compile(r"\b(otp|one[- ]time|code|sign[- ]?in|log[- ]?in|search|filter|sort)\b", re.IGNORECASE)
+
+RISKY = re.compile(
+    r"\b(submit|confirm|pay|payment|place (?:the )?order|purchase|checkout|delete|remove|save|send|approve|reject|"
+    r"activate|deactivate|terminate|register|cancel (?:the )?(?:subscription|order|service|request))\b",
+    re.IGNORECASE,
+)
+
+
+def apply_stop(plan: Dict[str, Any], *, stop_before: Optional[int] = None, allow_risky: bool = False) -> Dict[str, Any]:
+    """Mark the steps that would change something, and where the walk stops.
+
+    `stop_before` is the order (1-based) of the first step not to run. Unless
+    `allow_risky`, the walk also stops before the first click that submits,
+    confirms, pays, saves or deletes -- the dry run looks, it does not act.
+    """
+    first_risky = None
+    for order, item in enumerate(plan.get("items", []), start=1):
+        text = item.get("text") or ""
+        risky = item.get("kind") == "click" and bool(RISKY.search(text)) and not SAFE.search(text)
+        item["risky"] = risky
+        if risky and first_risky is None:
+            first_risky = order
+    candidates = []
+    if stop_before:
+        candidates.append((int(stop_before), "stopped where you chose"))
+    if first_risky and not allow_risky:
+        candidates.append((first_risky, "stopped before a step that would change data (allow it to go further)"))
+    if candidates:
+        order, reason = min(candidates)
+        plan["stop_before"], plan["stop_reason"] = order, reason
+    else:
+        plan["stop_before"], plan["stop_reason"] = None, None
+    plan["first_risky"] = first_risky
+    # Only the values the steps that run will type: a walk stopped before the
+    # password step does not need a password in Test Data.
+    running = plan.get("items", [])[: plan["stop_before"] - 1] if plan["stop_before"] else plan.get("items", [])
+    plan["variables"] = sorted({i[k] for i in running for k in ("variable", "text_variable") if i.get(k)})
+    return plan
+
+
 # --- The spec ----------------------------------------------------------------------
 
 _SPEC = r"""import { test } from '@playwright/test';
@@ -213,6 +373,13 @@ const T = { action: 8000, settle: 8000 };
 __ENV_READS__
 
 const env = (name) => (name ? process.env[name] || '' : '');
+
+// Written whole and renamed into place, so a reader never sees half a file.
+function writeAtomic(name, data) {
+  const target = path.join(process.cwd(), name);
+  const tmp = target + '.tmp';
+  try { fs.writeFileSync(tmp, data); fs.renameSync(tmp, target); } catch (e) { /* the walk goes on without it */ }
+}
 
 async function settle(page) {
   await page.waitForLoadState('networkidle', { timeout: T.settle }).catch(() => {});
@@ -268,7 +435,7 @@ function uniqueXPath(el) {
     const v = el.getAttribute(a);
     if (ok(v) && !(a === 'id' && /\d{5,}|[a-f0-9]{10,}/i.test(v))) out.push(`//${tag}[@${a}='${v}']`);
   }
-  const text = (el.innerText || '').trim().replace(/\s+/g, ' ');
+  const text = (el.textContent || '').trim().replace(/\s+/g, ' ');
   if (ok(text) && text.length <= 60) {
     out.push(`//${tag}[normalize-space(.)='${text}']`);
     out.push(`//${tag}[contains(normalize-space(.),'${text}')]`);
@@ -289,6 +456,108 @@ function groupXPath(els) {
   const xp = `//${tag}[contains(@name,'${prefix}')]`;
   const n = document.evaluate(xp, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null).snapshotLength;
   return n === els.length ? xp : null;
+}
+
+// Runs in the page: every visible interactive element on it, with a selector
+// verified to match only that element, the role and the name a user sees.
+// Never a value. Self-contained: page.evaluate sends it on its own.
+function sweepPage() {
+  // Links without an href and clickable divs count too: many portals build
+  // their buttons that way ("Sign in with UAE PASS" is one).
+  const SEL = 'a,button,input:not([type=hidden]),select,textarea,[role=button],[role=link],[role=tab],[role=checkbox],[role=radio],[role=combobox],[role=menuitem],[role=switch],[role=option],[onclick],[tabindex]:not([tabindex="-1"])';
+  // Site-wide: inside a header, footer or menu, by tag, role, or -- where a
+  // site uses neither -- by its container's id or class.
+  const SITE_WIDE = /(^|[\s_-])(header|footer|navbar|nav|topbar|top-bar|megamenu|mega-menu|main-menu|site-menu|menu-wrapper|breadcrumbs?)([\s_-]|$)/;
+  const isChrome = (el) => {
+    let n = el;
+    for (let i = 0; n && n.getAttribute && i < 16; i++, n = n.parentElement) {
+      const tag = n.tagName.toLowerCase();
+      // The page root's classes describe the page, not this element's region.
+      if (tag === 'body' || tag === 'html' || tag === 'main' || n.getAttribute('role') === 'main') return false;
+      if (tag === 'header' || tag === 'footer' || tag === 'nav') return true;
+      const role = n.getAttribute('role') || '';
+      if (role === 'banner' || role === 'contentinfo' || role === 'navigation') return true;
+      const cls = typeof n.className === 'string' ? n.className : '';
+      if (SITE_WIDE.test(((n.id || '') + ' ' + cls).toLowerCase())) return true;
+    }
+    return false;
+  };
+  const count = (xp) => { try { return document.evaluate(xp, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null).snapshotLength; } catch (e) { return 0; } };
+  const ok = (v) => v && !v.includes("'") && v.length <= 80;
+  const xpathOf = (el) => {
+    const tag = el.tagName.toLowerCase();
+    const out = [];
+    for (const a of ['data-testid', 'data-test', 'id', 'name', 'formcontrolname', 'aria-label', 'placeholder']) {
+      const v = el.getAttribute(a);
+      if (ok(v) && !(a === 'id' && /\d{5,}|[a-f0-9]{10,}/i.test(v))) out.push(`//${tag}[@${a}='${v}']`);
+    }
+    // The DOM's own text: XPath does not see CSS text-transform (REGISTER NOW is 'Register now').
+    const text = (el.textContent || '').trim().replace(/\s+/g, ' ');
+    if (ok(text) && text.length <= 60) {
+      out.push(`//${tag}[normalize-space(.)='${text}']`);
+      out.push(`//${tag}[contains(normalize-space(.),'${text}')]`);
+    }
+    for (const xp of out) if (count(xp) === 1) return xp;
+    const GENERIC = /^(row|col|container|d-|px-|py-|p-|m-|mt-|mb-|ms-|me-|mx-|my-|flex|justify|align|text-|font-|w-|h-|bg-|btn$|ng-|position|overflow)/;
+    let n = el.parentElement;
+    for (let depth = 0; n && depth < 8 && n.tagName.toLowerCase() !== 'body'; depth++, n = n.parentElement) {
+      const atag = n.tagName.toLowerCase();
+      const scopes = [];
+      if (ok(n.id) && !/\d{5,}|[a-f0-9]{10,}/i.test(n.id)) scopes.push(`//${atag}[@id='${n.id}']`);
+      const cls = (typeof n.className === 'string' ? n.className : '').split(/\s+/).filter((c) => c && c.length > 3 && !GENERIC.test(c) && !c.includes("'"));
+      if (cls.length) scopes.push(`//${atag}[contains(concat(' ',normalize-space(@class),' '),' ${cls[0]} ')]`);
+      for (const scope of scopes) for (const xp of out.slice(0, 3)) {
+        const scoped = scope + xp;
+        if (count(scoped) === 1) return scoped;
+      }
+    }
+    return null;
+  };
+  const roleOf = (el) => {
+    const r = el.getAttribute('role');
+    if (r) return r;
+    const t = el.tagName.toLowerCase();
+    if (t === 'a') return 'link';
+    if (t === 'button') return 'button';
+    if (t === 'select') return 'combobox';
+    if (t === 'textarea') return 'textbox';
+    if (t === 'input') {
+      const ty = (el.getAttribute('type') || 'text').toLowerCase();
+      if (ty === 'checkbox' || ty === 'radio') return ty;
+      if (['submit', 'button', 'reset', 'image'].includes(ty)) return 'button';
+      return ty === 'password' ? 'password' : 'textbox';
+    }
+    return t;
+  };
+  const nameOf = (el) => {
+    const t = el.tagName.toLowerCase();
+    const ty = (el.getAttribute('type') || '').toLowerCase();
+    const field = ['input', 'textarea', 'select'].includes(t) && !['submit', 'button', 'reset', 'image'].includes(ty);
+    const label = el.labels && el.labels[0] ? el.labels[0].innerText : '';
+    const raw = field
+      ? (el.getAttribute('aria-label') || label || el.getAttribute('placeholder') || el.getAttribute('name') || '')
+      : ((el.innerText || '').trim() || el.getAttribute('aria-label') || el.getAttribute('title') || (ty ? el.getAttribute('value') : '') || '');
+    return String(raw).replace(/\s+/g, ' ').trim().slice(0, 80);
+  };
+  const out = [];
+  const seen = new Set();
+  for (const el of document.querySelectorAll(SEL)) {
+    if (out.length >= 150) break;
+    const box = el.getBoundingClientRect();
+    const style = getComputedStyle(el);
+    if (box.width < 2 || box.height < 2 || style.visibility === 'hidden' || style.display === 'none') continue;
+    // A clickable container wrapping other controls is not itself one.
+    if (!['a', 'button', 'input', 'select', 'textarea'].includes(el.tagName.toLowerCase()) && !el.getAttribute('role')
+        && el.querySelector('a,button,input,select,textarea')) continue;
+    const selector = xpathOf(el);
+    if (!selector || seen.has(selector)) continue;
+    seen.add(selector);
+    out.push({
+      role: roleOf(el), name: nameOf(el), tag: el.tagName.toLowerCase(), selector,
+      chrome: isChrome(el),
+    });
+  }
+  return out;
 }
 
 // Runs in the page: what the user sees this element called. Never a value.
@@ -326,24 +595,62 @@ test('journey-guided crawl', async ({ page }) => {
   const sweep = [];
   const swept = new Set();
   const blockers = [];
+  let current = null;
+  let finished = false;
+  // Every screen the walk reaches, catalogued once: all its interactive elements.
+  const pages = [];
+  const catalogued = new Set();
+  const inventory = async (screenId) => {
+    let key = screenId;
+    if (!key) { try { key = new URL(page.url()).pathname; } catch (e) { key = page.url(); } }
+    if (!key || catalogued.has(key)) return;
+    catalogued.add(key);
+    const elements = await page.evaluate(sweepPage).catch(() => []);
+    pages.push({ screen_id: screenId || null, url: page.url(), elements });
+  };
+  // Progress for the page that watches the walk: every step as it lands.
+  const progress = () => writeAtomic('__PROGRESS__', JSON.stringify({ total: PLAN.items.length, current, finished, steps }));
+  const record = (step) => { steps.push(step); progress(); };
   const shoot = async (name) => {
     const file = `shot-${name}.png`;
     await page.screenshot({ path: path.join(process.cwd(), file), fullPage: false }).catch(() => {});
     return file;
   };
+  // A frame about once a second, so the walk can be watched while it runs.
+  let watching = true;
+  const frames = (async () => {
+    while (watching) {
+      try { writeAtomic('__FRAME__', await page.screenshot({ timeout: 3000 })); } catch (e) { /* between pages */ }
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  })();
+  progress();
   try {
     await page.goto(PLAN.base_url, { waitUntil: 'domcontentloaded', timeout: 35000 });
     await settle(page);
     for (const [index, item] of PLAN.items.entries()) {
       const out = { order: index + 1, journey_id: item.journey_id, step_number: item.step_number, kind: item.kind, screen_id: item.screen_id || null };
+      // The stop point: nothing from here on runs.
+      if (PLAN.stop_before && index + 1 >= PLAN.stop_before) {
+        for (const [rest, later] of PLAN.items.slice(index).entries()) {
+          steps.push({ order: index + rest + 1, journey_id: later.journey_id, step_number: later.step_number, kind: later.kind,
+            screen_id: later.screen_id || null, status: 'stopped', reason: PLAN.stop_reason || 'stopped before this step' });
+        }
+        progress();
+        break;
+      }
+      current = { order: index + 1, step_number: item.step_number, text: item.text, kind: item.kind };
+      progress();
       try {
-        if (item.kind === 'skip') { steps.push({ ...out, status: 'skipped', reason: item.reason }); continue; }
+        if (item.kind === 'skip') { record({ ...out, status: 'skipped', reason: item.reason }); continue; }
         if (item.kind === 'goto') {
           await page.goto(new URL(item.route, PLAN.base_url).toString(), { waitUntil: 'domcontentloaded', timeout: 35000 });
           await settle(page);
-          steps.push({ ...out, status: 'done', url: page.url() });
+          record({ ...out, status: 'done', url: page.url(), screenshot: await shoot(index + 1) });
         }
-        // First visit to a screen: look for every element it should have.
+        // First visit to a screen: catalogue everything on it, and look for
+        // every element the design says it has.
+        if (item.screen_id) await inventory(item.screen_id);
         if (item.screen_id && !swept.has(item.screen_id) && PLAN.screens[item.screen_id]) {
           swept.add(item.screen_id);
           for (const el of PLAN.screens[item.screen_id]) {
@@ -353,7 +660,7 @@ test('journey-guided crawl', async ({ page }) => {
           }
         }
         if (item.kind === 'goto') continue;
-        if (item.kind === 'screen') { steps.push({ ...out, status: 'done', url: page.url(), screenshot: await shoot(index + 1) }); continue; }
+        if (item.kind === 'screen') { record({ ...out, status: 'done', url: page.url(), screenshot: await shoot(index + 1) }); continue; }
         const el = item.element;
         const textValue = env(item.text_variable);
         const r = await capture(page, el, textValue);
@@ -361,7 +668,8 @@ test('journey-guided crawl', async ({ page }) => {
         delete r._loc;
         const before = page.url();
         if (!r.found) {
-          steps.push({ ...out, status: item.optional ? 'not_applicable' : 'not_found', capture: r, screenshot: await shoot(index + 1) });
+          await inventory(item.screen_id || null);
+          record({ ...out, status: item.optional ? 'not_applicable' : 'not_found', capture: r, screenshot: await shoot(index + 1) });
           continue;
         }
         if (item.kind === 'fill') await loc.first().fill(env(item.variable), { timeout: T.action });
@@ -376,15 +684,22 @@ test('journey-guided crawl', async ({ page }) => {
         // time to leave the page before the next screen is swept.
         if (item.kind === 'otp') await page.waitForURL((u) => u.toString() !== before, { timeout: T.settle }).catch(() => {});
         if (['fill', 'otp', 'click'].includes(item.kind)) await settle(page);
-        steps.push({ ...out, status: 'done', capture: r, url: page.url(), screenshot: await shoot(index + 1) });
+        // A flow names no screens: each new page it reaches is catalogued.
+        if (!item.screen_id) await inventory(null);
+        record({ ...out, status: 'done', capture: r, url: page.url(), screenshot: await shoot(index + 1) });
       } catch (err) {
-        steps.push({ ...out, status: 'error', error: String(err && err.message || err).split('\n')[0].slice(0, 300) });
+        record({ ...out, status: 'error', error: String(err && err.message || err).split('\n')[0].slice(0, 300), screenshot: await shoot(index + 1) });
       }
     }
   } catch (err) {
     blockers.push(String(err && err.message || err).split('\n')[0].slice(0, 300));
   } finally {
-    fs.writeFileSync(path.join(process.cwd(), '__OUTPUT__'), JSON.stringify({ steps, sweep, blockers, final_url: page.url() }, null, 2));
+    watching = false;
+    await frames.catch(() => {});
+    current = null;
+    finished = true;
+    progress();
+    fs.writeFileSync(path.join(process.cwd(), '__OUTPUT__'), JSON.stringify({ steps, sweep, pages, blockers, final_url: page.url() }, null, 2));
   }
 });
 """
@@ -397,6 +712,8 @@ def build_spec(plan: Dict[str, Any]) -> str:
         _SPEC.replace("__PLAN__", json.dumps(plan, ensure_ascii=False))
         .replace("__ENV_READS__", reads)
         .replace("__OUTPUT__", OUTPUT_FILE)
+        .replace("__PROGRESS__", PROGRESS_FILE)
+        .replace("__FRAME__", FRAME_FILE)
     )
 
 
@@ -461,12 +778,236 @@ def evaluate(plan: Dict[str, Any], output: Dict[str, Any]) -> Dict[str, Any]:
     summary: Dict[str, int] = {}
     for row in rows:
         summary[row["outcome"]] = summary.get(row["outcome"], 0) + 1
+    pages = inventory(plan, output, rows)
+    texts = {(i["element"]["screen_id"], i["element"]["element_id"]): i.get("text") for i in plan.get("items", []) if i.get("element")}
+    kinds = {(i["element"]["screen_id"], i["element"]["element_id"]): i.get("kind") for i in plan.get("items", []) if i.get("element")}
+    for row in rows:
+        if row["outcome"] in ("kb_failed", "not_found"):
+            row["candidates"] = candidates_for({**row, "step_text": texts.get((row["screen_id"], row["element_id"])),
+                                                "kind": kinds.get((row["screen_id"], row["element_id"]))}, pages)
+    summary["app_only"] = sum(p["app_only"] for p in pages)
     return {
         "rows": sorted(rows, key=lambda r: (r["screen_id"], r["element_id"])),
         "steps": output.get("steps", []),
         "blockers": output.get("blockers", []),
         "final_url": output.get("final_url"),
         "summary": summary,
+        "inventory": pages,
+    }
+
+
+# --- Every element on every screen (phase 2) ----------------------------------------------
+
+_STOP_WORDS = {"the", "and", "for", "with", "your", "you", "this", "that", "click", "enter", "select", "tap",
+               "verify", "check", "confirm", "button", "field", "link", "page", "screen", "into", "from", "then"}
+ROLE_TYPES = {
+    "button": "button", "link": "link", "textbox": "text_input", "password": "password_input", "checkbox": "checkbox",
+    "radio": "radio", "combobox": "dropdown", "tab": "tab", "menuitem": "menu_item", "switch": "toggle", "option": "option",
+}
+
+
+# Words that name the same thing on a screen: a design's "one-time password"
+# is the app's "OTP", its "continue" the app's "next" or "proceed".
+_SAME = [{"otp", "code", "passcode"}, {"continue", "next", "proceed", "receive", "request", "send"},
+         {"login", "signin", "sign"}, {"logout", "signout"}, {"email", "username", "mail"},
+         {"organization", "organisation", "org", "company"}, {"search", "find"}, {"close", "dismiss", "cancel"}]
+
+
+def _words(text: Optional[str]) -> set:
+    lowered = (text or "").lower()
+    words = {w for w in re.findall(r"[a-z0-9]+", lowered) if len(w) > 2 and w not in _STOP_WORDS}
+    if re.search(r"one[- ]?time\s+pass(word|code)", lowered):
+        words.add("otp")
+    for group in _SAME:
+        if words & group:
+            words |= group
+    return words
+
+
+def _page_key(url: Optional[str]) -> str:
+    match = re.match(r"https?://[^/?#]+([^?#]*)", url or "")
+    return (match.group(1) if match else (url or "")).rstrip("/") or "/"
+
+
+def inventory(plan: Dict[str, Any], output: Dict[str, Any], rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Per screen the walk reached: every interactive element, and which design element each one is.
+
+    An element is the design's when the walk captured that selector for a
+    design element, or its name is a design element's label or alias.
+    Anything else is app-only: in the running application, not in the
+    Journey KB. Header, footer and navigation elements are site-wide
+    ("chrome") and never counted as missing from a screen's design.
+    """
+    by_screen: Dict[str, List[Dict[str, Any]]] = {}
+    for sid, els in (plan.get("screens") or {}).items():
+        by_screen.setdefault(sid, []).extend(els)
+    by_selector = {r["selector"]: r for r in rows if r.get("selector")}
+    out = []
+    for page in output.get("pages", []):
+        sid = page.get("screen_id")
+        design = by_screen.get(sid or "", [])
+        names = {}
+        for el in design:
+            for label in [el.get("clean_label"), *(el.get("aliases") or []), *(el.get("accepted_labels") or [])]:
+                if label:
+                    names[_norm(label)] = el["element_id"]
+        elements = []
+        for e in page.get("elements", []):
+            matched = (by_selector.get(e.get("selector")) or {}).get("element_id") or names.get(_norm(e.get("name")))
+            elements.append({**e, "matched": matched})
+        out.append({
+            "screen_id": sid, "url": page.get("url"), "page": _page_key(page.get("url")), "elements": elements,
+            "app_only": sum(1 for e in elements if not e["matched"] and not e.get("chrome")),
+        })
+    return out
+
+
+def candidates_for(row: Dict[str, Any], pages: List[Dict[str, Any]], limit: int = 3) -> List[Dict[str, Any]]:
+    """The elements on the row's screen most likely to be the one the walk could not find."""
+    wanted = _words(" ".join(filter(None, [row.get("design_label"), row.get("element_id", "").replace("_", " "),
+                                           row.get("step_text")])))
+    if not wanted:
+        return []
+    page = next((p for p in pages if row.get("screen_id") and p["screen_id"] == row["screen_id"]), None)
+    if page is None and row.get("url"):
+        page = next((p for p in pages if p["page"] == _page_key(row["url"])), None)
+    if page is None:
+        return []
+    clickable = row.get("kind") == "click"
+    scored = []
+    for e in page["elements"]:
+        if e.get("chrome") and not wanted & _words(e.get("name")):
+            continue
+        score = len(wanted & _words(e.get("name")))
+        if score:
+            # A click step is a button or a link more often than a field.
+            if clickable and e.get("role") in ("button", "link", "tab", "menuitem"):
+                score += 0.5
+            scored.append((score, e))
+    scored.sort(key=lambda pair: -pair[0])
+    return [{"selector": e["selector"], "name": e.get("name"), "role": e.get("role"), "score": score} for score, e in scored[:limit]]
+
+
+def _element_id(name: str, role: str, taken: set) -> str:
+    base = "_".join(re.findall(r"[a-z0-9]+", (name or "").lower())[:4]) or "element"
+    suffix = {"button": "btn", "link": "link", "textbox": "input", "password": "input", "checkbox": "check",
+              "radio": "radio", "combobox": "select", "tab": "tab"}.get(role, "")
+    candidate = f"{base}_{suffix}" if suffix and not base.endswith(suffix) else base
+    unique, n = candidate[:60], 2
+    while unique in taken:
+        unique, n = f"{candidate[:56]}_{n}", n + 1
+    taken.add(unique)
+    return unique
+
+
+def additions(evaluated: Dict[str, Any], keys: List[str], *, walk_id: Any) -> Dict[str, List[Dict[str, Any]]]:
+    """Journey KB elements and Automation KB selectors for app-only elements the reviewer chose.
+
+    `keys` are "<screen_id>|<selector>". Each becomes an element of that
+    screen (basis "crawled", its label as the app shows it) linked to a new
+    selector in the screen's selectors group.
+    """
+    wanted = set(keys)
+    journey: List[Dict[str, Any]] = []
+    groups: Dict[str, Dict[str, str]] = {}
+    for page in evaluated.get("inventory", []):
+        sid = page.get("screen_id")
+        if not sid:
+            continue
+        taken = {e.get("matched") for e in page["elements"] if e.get("matched")}
+        for e in page["elements"]:
+            if f"{sid}|{e['selector']}" not in wanted or e.get("matched"):
+                continue
+            element_id = _element_id(e.get("name") or "", e.get("role") or "", taken)
+            group = sid.lower()
+            groups.setdefault(group, {})[element_id] = e["selector"]
+            journey.append({
+                "file": "screens.json", "op": "set",
+                "path": f"screens[screen_id={sid}].elements[element_id={element_id}]",
+                "value": {
+                    "element_id": element_id, "label": e.get("name") or element_id,
+                    "type": ROLE_TYPES.get(e.get("role") or "", e.get("role") or "control"), "basis": "crawled",
+                    "locator_hint": f'{e.get("role")} "{e.get("name")}"' if e.get("name") else None,
+                    "automation_ref": f"selectors.{group}.{element_id}", "sources": [f"journey walk #{walk_id}"],
+                },
+                "note": f"in the app, not in the design: {e.get('role')} '{e.get('name')}'",
+            })
+    return {"journey": journey, "groups": groups}
+
+
+# --- Fixes and generated flows (phase 3) ----------------------------------------------------
+
+def flow_fixes(evaluated: Dict[str, Any], flow_rel: str, picks: Dict[int, str]) -> List[Dict[str, Any]]:
+    """The flow's step targets a walk supports changing.
+
+    A step whose recorded selector failed but which the walk found another way
+    gets the selector it was found with; a step the reviewer picked a
+    candidate for gets that one. `picks` is {step_number: selector}.
+    """
+    changes = []
+    seen = set()
+    for row in evaluated.get("rows", []):
+        if not row["element_id"].startswith("step_"):
+            continue
+        number = int(row["element_id"].split("_", 1)[1])
+        selector = picks.get(number)
+        why = "picked by the reviewer from the walk's candidates"
+        if not selector and row["outcome"] == "healed" and row.get("selector") and not row.get("ambiguous") and not row.get("data_dependent"):
+            selector, why = row["selector"], f"the recorded selector failed; the walk found it with {row['strategy']}"
+        if not selector or selector == row.get("kb_target"):
+            continue
+        seen.add(number)
+        changes.append({"file": flow_rel, "op": "set", "path": f"canonical_steps[step_number={number}].target",
+                        "value": selector, "note": f"step {number}: was {row.get('kb_target')}; {why}"})
+    for number, selector in picks.items():
+        if number not in seen and selector:
+            changes.append({"file": flow_rel, "op": "set", "path": f"canonical_steps[step_number={number}].target",
+                            "value": selector, "note": f"step {number}: picked by the reviewer"})
+    return changes
+
+
+def flow_from_walk(plan: Dict[str, Any], evaluated: Dict[str, Any], journey: Dict[str, Any],
+                   journeys: Optional[Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """A flow blueprint from a journey walk: the steps it performed, with the selectors it used.
+
+    Only steps that ran are kept, so the flow is what the application really
+    did; each target is the selector captured for that step (or the route it
+    opened). The flow is a proposal like any other: reviewed before it lands.
+    """
+    rows = {(r["screen_id"], r["element_id"]): r for r in evaluated.get("rows", [])}
+    steps_out = []
+    entry = None
+    by_order = {s["order"]: s for s in evaluated.get("steps", [])}
+    for order, item in enumerate(plan.get("items", []), start=1):
+        step = by_order.get(order) or {}
+        if step.get("status") != "done":
+            continue
+        target = None
+        if item["kind"] == "goto":
+            target = item.get("route")
+            entry = entry or target
+        elif item.get("element"):
+            row = rows.get((item["element"]["screen_id"], item["element"]["element_id"])) or {}
+            target = row.get("selector") if not row.get("data_dependent") else None
+            target = target or item["element"].get("kb_target")
+        if not target:
+            continue
+        source = (journeys or {}).get(item.get("journey_id")) or (journey if item.get("journey_id") == journey["journey_id"] else {})
+        expected = next((s.get("expected_result") for s in source.get("steps", []) if s.get("step_number") == item.get("step_number")), "")
+        steps_out.append({"step_number": len(steps_out) + 1, "action": item["text"], "target": target, "expected_result": expected or ""})
+    flow_id = "flow_" + re.sub(r"[^a-z0-9]+", "_", journey["journey_id"].lower()).strip("_")[-60:]
+    return {
+        "flow_id": flow_id,
+        "flow_name": journey.get("name") or journey["journey_id"],
+        "category": (journey.get("journey_path") or ["Journeys"])[0].title(),
+        "subcategory": journey.get("name"),
+        "target_match_keywords": journey.get("match_keywords", []),
+        "catalog_entrypoint": entry or "",
+        "automation_boundary": journey.get("automation_boundary") or {},
+        "graph_edges": [],
+        "canonical_steps": steps_out,
+        "test_data_notes": "Generated from a journey walk; values come from Test Data.",
+        "generated_from": {"journey_id": journey["journey_id"]},
     }
 
 

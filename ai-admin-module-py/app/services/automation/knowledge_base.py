@@ -480,6 +480,12 @@ def _identifying_signals() -> Dict[str, set]:
             host_and_dir = without_scheme.rsplit("/", 1)[0] + "/"
             if len(host_and_dir) >= 5:
                 tokens.add(host_and_dir)
+        # The application's address in every environment (Test Data), so a
+        # UAT or RC URL is recognised as well as the host it was crawled on.
+        for address in _environment_addresses().get(app_id, []):
+            lowered = address.strip().lower().rstrip("/")
+            tokens.add(lowered)
+            tokens.add(re.sub(r"^[a-z]+://", "", lowered) + "/")
         per_app[app_id] = tokens
 
     claims: Dict[str, int] = {}
@@ -490,6 +496,29 @@ def _identifying_signals() -> Dict[str, set]:
     return {
         app_id: {t for t in tokens if claims[t] == 1} for app_id, tokens in per_app.items()
     }
+
+
+def _environment_addresses() -> Dict[str, List[str]]:
+    """{Knowledge Base app id: [its addresses in every environment]}, from Test Data.
+
+    Empty when the database cannot be read (a script with no database, a
+    first start): identification then falls back to the profile alone.
+    """
+    try:
+        from ...database.connection import SessionLocal
+        from ...models.automation import AutomationDataApp
+        from .registry import addresses, crawl_key
+
+        db = SessionLocal()
+        try:
+            out: Dict[str, List[str]] = {}
+            for app in db.query(AutomationDataApp).all():
+                out.setdefault(crawl_key(app), []).extend(addresses(app).values())
+            return out
+        finally:
+            db.close()
+    except Exception:  # noqa: BLE001 - identification must never fail on this
+        return {}
 
 
 def resolve_app_id(hint: Optional[str] = None) -> Optional[str]:
@@ -1044,7 +1073,12 @@ def ground_case_structured_steps(
     return grounded_steps
 
 
-def build_application_model(app_id: Optional[str] = None) -> Dict[str, Any]:
+def build_application_model(
+    app_id: Optional[str] = None,
+    *,
+    target_address: Optional[str] = None,
+    environment: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Constructs the comprehensive Application Model in JSON structure from the Knowledge Base.
     Compiles application profile, flow blueprints, full URL registry with parameter details,
@@ -1054,6 +1088,12 @@ def build_application_model(app_id: Optional[str] = None) -> Dict[str, Any]:
     comes from the Knowledge Base. An application that declares no PDP template
     gets a model with no product configuration URLs, rather than a plausible
     document pointing at someone else's site.
+
+    --- Hosts come from Test Data, not from the Knowledge Base ---------------
+    Flows store routes; the profile's base_url only records where the
+    application was crawled. With `target_address` (an environment's address
+    from Test Data) every URL is built on that environment's host instead, so
+    the page shows -- and opens -- RC's URLs when RC is chosen.
     """
     app_id = app_id or default_app_id() or ""
     profile = load_app_profile(app_id) or {
@@ -1065,8 +1105,9 @@ def build_application_model(app_id: Optional[str] = None) -> Dict[str, Any]:
     }
 
     flows = list_flows(profile.get("app_id") or app_id)
-    base_url = profile.get("base_url", "")
-    domain = profile.get("domain", "")
+    crawled_on = profile.get("base_url", "")
+    base_url = rehome_to_profile(crawled_on, {"base_url": target_address}) if target_address else crawled_on
+    domain = _origin_of(base_url).split("://", 1)[-1] if target_address else profile.get("domain", "")
     app_name = profile.get("app_name", "")
 
     # 1. URL Registry Compilation
@@ -1291,6 +1332,11 @@ def build_application_model(app_id: Optional[str] = None) -> Dict[str, Any]:
             "app_name": app_name,
             "base_url": base_url,
             "domain": domain,
+            # Where the Knowledge Base was crawled, and which environment the
+            # URLs above are for (None: the crawled host, no environment chosen).
+            "crawled_on": crawled_on,
+            "environment": environment,
+            "target_address": target_address,
             "framework": profile.get("framework", "Web Application"),
             "default_viewport": profile.get("default_viewport", {"width": 1440, "height": 900}),
             "security_profile": profile.get("security_profile", {}),
@@ -1316,9 +1362,10 @@ def build_application_model(app_id: Optional[str] = None) -> Dict[str, Any]:
     return app_model
 
 
-def export_application_model_json(app_id: Optional[str] = None, output_path: Optional[str | Path] = None, indent: int = 2) -> str:
+def export_application_model_json(app_id: Optional[str] = None, output_path: Optional[str | Path] = None, indent: int = 2,
+                                  *, target_address: Optional[str] = None, environment: Optional[str] = None) -> str:
     """Builds and exports the Application Model to a JSON string or writes to a file."""
-    model = build_application_model(app_id)
+    model = build_application_model(app_id, target_address=target_address, environment=environment)
     json_str = json.dumps(model, indent=indent, ensure_ascii=False)
     if output_path:
         out_file = Path(output_path)

@@ -172,6 +172,9 @@ export interface CrawlPlanItem {
   variable?: string | null
   text_variable?: string | null
   reason?: string
+  /** A click that would submit, confirm, pay, save or delete. */
+  risky?: boolean
+  expected?: string | null
 }
 
 export interface CrawlPlan {
@@ -182,6 +185,28 @@ export interface CrawlPlan {
   profile_id: string | null
   variables: string[]
   items: CrawlPlanItem[]
+  source?: 'journey' | 'flow'
+  /** Order (1-based) of the first step that will not run, and why. */
+  stop_before?: number | null
+  stop_reason?: string | null
+  first_risky?: number | null
+}
+
+export interface WalkFlow { flow_id: string; flow_name: string; category: string | null; steps: number }
+export interface WalkCapabilities { headed_available: boolean; blocked_environments: string[] }
+
+/** A walk as it runs. */
+export interface WalkLive {
+  id: number
+  status: CrawlStatus
+  run_status: string | null
+  phase: string | null
+  total: number
+  current: { order: number; step_number: number; text: string; kind: string } | null
+  finished: boolean
+  steps: CrawlStep[]
+  /** When the latest frame was written (seconds); null before the first. */
+  frame_at: number | null
 }
 
 export interface CrawlRow {
@@ -198,6 +223,29 @@ export interface CrawlRow {
   data_dependent: boolean
   kb_ref: string | null
   kb_target: string | null
+  url?: string | null
+  /** For an element the walk could not find: the likeliest elements on its screen. */
+  candidates?: { selector: string; name: string; role: string; score: number }[]
+}
+
+/** One element the walk catalogued on a screen. Never a value. */
+export interface InventoryElement {
+  role: string
+  name: string
+  tag: string
+  selector: string
+  /** Header, footer or menu: on every screen. */
+  chrome: boolean
+  /** The design element it is, when it is one. */
+  matched: string | null
+}
+
+export interface InventoryPage {
+  screen_id: string | null
+  url: string | null
+  page: string
+  elements: InventoryElement[]
+  app_only: number
 }
 
 export interface CrawlStep {
@@ -206,9 +254,12 @@ export interface CrawlStep {
   step_number: number
   kind: string
   screen_id: string | null
-  status: 'done' | 'skipped' | 'not_found' | 'not_applicable' | 'error'
+  status: 'done' | 'skipped' | 'not_found' | 'not_applicable' | 'error' | 'stopped'
   error?: string
   reason?: string
+  url?: string
+  /** shot-<n>.png in the run's workspace, served by crawlImage. */
+  screenshot?: string
 }
 
 export interface JourneyCrawl {
@@ -229,7 +280,14 @@ export interface JourneyCrawl {
   created_at: string | null
   finished_at: string | null
   summary: Partial<Record<CrawlOutcome, number>> | null
-  result?: { rows: CrawlRow[]; steps: CrawlStep[]; blockers: string[]; final_url: string | null; summary: Partial<Record<CrawlOutcome, number>> } | null
+  source?: 'journey' | 'flow'
+  stop_before?: number | null
+  stop_reason?: string | null
+  result?: {
+    rows: CrawlRow[]; steps: CrawlStep[]; blockers: string[]; final_url: string | null
+    summary: Partial<Record<CrawlOutcome | 'app_only', number>>
+    inventory?: InventoryPage[]
+  } | null
 }
 
 export type ChangeSetStatus = 'draft' | 'published' | 'rejected' | 'conflicted'
@@ -477,13 +535,32 @@ const knowledgeBaseService = {
   revert: async (versionId: number): Promise<KbVersionRow> => (await api.post(`${BASE}/versions/${versionId}/revert`)).data,
 
   // Journey-guided crawl (backend: services/journeys/journey_crawl.py, crawl_runs.py)
-  crawlPlan: async (app: string, journeyId: string, profileId?: string | null): Promise<CrawlPlan> =>
-    (await api.get(`${BASE}/${enc(app)}/journey-crawl/plan`, { params: { journey_id: journeyId, profile_id: profileId || undefined } })).data,
-  startCrawl: async (app: string, body: { journey_id: string; application_id: number; profile_id?: string | null; environment?: string | null }): Promise<JourneyCrawl> =>
+  /** journeyId is a journey id, or "flow:<flow_id>" for a flow blueprint. */
+  crawlPlan: async (app: string, journeyId: string, profileId?: string | null, options?: { stop_before?: number | null; allow_risky?: boolean }): Promise<CrawlPlan> =>
+    (await api.get(`${BASE}/${enc(app)}/journey-crawl/plan`, {
+      params: { journey_id: journeyId, profile_id: profileId || undefined, stop_before: options?.stop_before || undefined, allow_risky: options?.allow_risky || undefined }
+    })).data,
+  startCrawl: async (app: string, body: {
+    journey_id: string; application_id: number; profile_id?: string | null; environment?: string | null
+    stop_before?: number | null; allow_risky?: boolean; headed?: boolean
+  }): Promise<JourneyCrawl> =>
     (await api.post(`${BASE}/${enc(app)}/journey-crawl`, body)).data,
+  walkCapabilities: async (): Promise<WalkCapabilities> => (await api.get(`${BASE}/walk/capabilities`)).data,
+  walkFlows: async (app: string): Promise<WalkFlow[]> => (await api.get(`${BASE}/${enc(app)}/walk/flows`)).data.flows,
+  crawlLive: async (id: number): Promise<WalkLive> => (await api.get(`${BASE}/journey-crawls/${id}/live`)).data,
+  /** live.png or shot-<n>.png, as an object URL (the route needs the session's token). */
+  crawlImage: async (id: number, name: string): Promise<string> => {
+    const res = await api.get(`${BASE}/journey-crawls/${id}/image/${encodeURIComponent(name)}`, { responseType: 'blob' })
+    return URL.createObjectURL(res.data as Blob)
+  },
   crawls: async (app: string): Promise<JourneyCrawl[]> => (await api.get(`${BASE}/${enc(app)}/journey-crawls`)).data.crawls,
   crawl: async (id: number): Promise<JourneyCrawl> => (await api.get(`${BASE}/journey-crawls/${id}`)).data,
-  proposeFromCrawl: async (id: number): Promise<JourneyCrawl> => (await api.post(`${BASE}/journey-crawls/${id}/propose`)).data,
+  /** additions: "<screen_id>|<selector>" of app-only elements to add; picks: a candidate for an element (or flow step) not found. */
+  proposeFromCrawl: async (id: number, body?: { additions?: string[]; picks?: { screen_id: string; element_id: string; selector: string }[] }): Promise<JourneyCrawl> =>
+    (await api.post(`${BASE}/journey-crawls/${id}/propose`, body ?? {})).data,
+  /** A flow blueprint from a journey walk, drafted for review. */
+  generateFlow: async (id: number): Promise<{ change_set: ChangeSet; flow: { flow_id: string; flow_name: string; canonical_steps: unknown[] } }> =>
+    (await api.post(`${BASE}/journey-crawls/${id}/generate-flow`)).data,
 
   // Design documents (backend: services/journeys/documents.py)
   documents: async (app: string): Promise<{ documents: SourceDocument[]; vision_model: string | null }> =>

@@ -140,10 +140,15 @@ export type DiscoveryTab = 'urls' | 'flows' | 'products' | 'crawler' | 'json_mod
 export interface DiscoveryBodyProps {
   embedded?: boolean
   appId?: number | null
+  /** The environment whose host URLs are built on (Test Data); the host page chooses it when embedded. */
+  environment?: string | null
   tabs?: DiscoveryTab[]
 }
 
-export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, appId = null, tabs }) => {
+export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, appId = null, environment: hostEnvironment = null, tabs }) => {
+  // Standalone, the page has its own environment picker; embedded, the host's choice wins.
+  const [ownEnvironment, setOwnEnvironment] = useState<string | null>(null)
+  const viewEnvironment = embedded ? hostEnvironment : ownEnvironment
   const { user } = useAuth()
   const canExecute = hasPermission(user, 'automation.execute')
 
@@ -259,7 +264,7 @@ export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, 
     setModelLoading(true)
     setModelError(null)
     try {
-      const data = await automationService.getApplicationModel(selectedApp.app_key)
+      const data = await automationService.getApplicationModel(selectedApp.app_key, viewEnvironment)
       setAppModel(data)
       setSelectedFlowId(data?.flows?.[0]?.flow_id ?? '')
     } catch (err: any) {
@@ -271,7 +276,7 @@ export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, 
     } finally {
       setModelLoading(false)
     }
-  }, [selectedApp])
+  }, [selectedApp, viewEnvironment])
 
   // Load this application's own discovery state and element catalogue.
   const loadCrawlState = useCallback(async () => {
@@ -339,9 +344,9 @@ export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, 
     try {
       const started = await automationService.startDiscovery({
         application_id: selectedAppId,
-        // Blank inherits the registered base URL and environment.
-        application_url: url.trim() || null,
-        application_environment: environment.trim() || null,
+        // Blank: the chosen environment's address in Test Data, else the registered one.
+        application_url: url.trim() || appModel?.application_info?.target_address || null,
+        application_environment: environment.trim() || appModel?.environments?.selected || null,
         max_pages: maxPages
       })
       setDiscovery(started)
@@ -419,7 +424,7 @@ export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, 
       URL.revokeObjectURL(blobUrl)
     }
     try {
-      save(await automationService.exportApplicationModelJson(selectedApp.app_key))
+      save(await automationService.exportApplicationModelJson(selectedApp.app_key, viewEnvironment))
     } catch (err: any) {
       // Only fall back to what is already on screen -- and only when there is
       // something, so a failed export cannot save an empty or foreign model
@@ -524,13 +529,26 @@ export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, 
                 )}
                 {applications.map(a => (
                   <option key={a.id} value={a.id}>
-                    {a.name} · {a.environment}
+                    {a.name}
                   </option>
                 ))}
               </select>
+              {appModel?.environments && Object.keys(appModel.environments.addresses ?? {}).length > 0 && (
+                <select
+                  value={appModel.environments.selected ?? ''}
+                  onChange={e => setOwnEnvironment(e.target.value || null)}
+                  className="app-input w-auto font-semibold"
+                  aria-label="Environment"
+                  title="URLs are built on this environment's address in Test Data"
+                >
+                  {Object.keys(appModel.environments.addresses).map((e: string) => (
+                    <option key={e} value={e}>{e}{e === appModel.environments.default ? ' (default)' : ''}</option>
+                  ))}
+                </select>
+              )}
               {selectedApp && (
                 <span className="font-mono text-[11px] text-app-secondary truncate max-w-[320px]">
-                  {selectedApp.base_url}
+                  {modelBaseUrl}
                 </span>
               )}
               {/* Applications are registered and managed in Test Data only. */}
@@ -672,6 +690,31 @@ export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, 
           })}
         </nav>
       </div>
+
+      {/* Which host the URLs below are on: the environment's address in
+          Test Data. The Knowledge Base itself holds routes. */}
+      {appModel?.environments?.selected && (
+        appModel.environments.address_missing ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-app border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
+            <HiOutlineExclamationCircle className="h-4 w-4 flex-shrink-0" />
+            <span>
+              No address for <strong>{appModel.environments.selected}</strong> in Test Data — showing the host it was crawled on
+              ({appModel.application_info?.crawled_on}).
+            </span>
+            <Link to={appModel.environments.application ? `/test-data?app=${appModel.environments.application.id}` : '/test-data'} className="font-semibold underline">
+              Add it in Test Data
+            </Link>
+          </div>
+        ) : (
+          <div className="text-[12px] text-app-secondary">
+            URLs for <strong className="text-app-primary">{appModel.environments.selected}</strong> on{' '}
+            <code className="font-mono">{appModel.application_info?.target_address}</code>, from Test Data
+            {appModel.application_info?.crawled_on && !String(appModel.application_info.crawled_on).startsWith(String(appModel.application_info?.target_address ?? '').split('/').slice(0, 3).join('/'))
+              ? <> · crawled on <code className="font-mono">{appModel.application_info.crawled_on}</code></>
+              : null}
+          </div>
+        )
+      )}
 
       {/* ── TAB 1: FULL URL REGISTRY ────────────────────────────────────── */}
       {activeTab === 'urls' && (
@@ -885,14 +928,25 @@ export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, 
                 title={activeFlow.flow_name}
                 description={`Category: ${activeFlow.category} · Flow ID: ${activeFlow.flow_id}`}
                 actions={
-                  <a
-                    href={activeFlow.catalog_entrypoint_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="app-btn app-btn-secondary inline-flex items-center gap-1 text-[12px]"
-                  >
-                    Open Catalog <HiOutlineExternalLink className="h-3.5 w-3.5" />
-                  </a>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Walks this flow in the running application, on the
+                        environment chosen in the header, watched live. */}
+                    <Link
+                      to={`/automation/knowledge-base?stage=crawl&flow=${encodeURIComponent(activeFlow.flow_id)}`}
+                      className="inline-flex h-[30px] items-center gap-1 rounded-[10px] bg-[#B71920] px-3 text-[12px] font-bold text-white hover:opacity-95"
+                      title="Walk this flow in the running application and watch it live"
+                    >
+                      Dry run
+                    </Link>
+                    <a
+                      href={activeFlow.catalog_entrypoint_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="app-btn app-btn-secondary inline-flex items-center gap-1 text-[12px]"
+                    >
+                      Open Catalog <HiOutlineExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  </div>
                 }
               >
                 {/* Automation Boundary */}
@@ -1056,7 +1110,7 @@ export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, 
                 <input
                   value={url}
                   onChange={e => setUrl(e.target.value)}
-                  placeholder={selectedApp?.base_url ?? 'Register an application first'}
+                  placeholder={appModel?.application_info?.target_address || selectedApp?.base_url || 'Add the application in Test Data first'}
                   className="app-input w-[280px]"
                   aria-label="Crawl URL, overriding the registered base URL"
                   title="Leave blank to crawl the application's registered base URL"
@@ -1064,7 +1118,7 @@ export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, 
                 <input
                   value={environment}
                   onChange={e => setEnvironment(e.target.value)}
-                  placeholder={selectedApp?.environment ?? 'Environment'}
+                  placeholder={appModel?.environments?.selected || selectedApp?.environment || 'Environment'}
                   className="app-input w-24"
                   aria-label="Environment, overriding the registered one"
                   title="Leave blank to use the application's registered environment"

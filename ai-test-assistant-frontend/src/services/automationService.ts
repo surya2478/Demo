@@ -691,13 +691,16 @@ const automationService = {
    * quietly rendered another company's routes as though they were this
    * application's. A failure is now a failure, and the caller shows it.
    */
-  getApplicationModel: (appKey: string): Promise<any> =>
-    call(() => api.get(`${BASE}/knowledge-base/applications/${encodeURIComponent(appKey)}/model`)),
+  /** URLs are built on `environment`'s address in Test Data (else the application's default). */
+  getApplicationModel: (appKey: string, environment?: string | null): Promise<any> =>
+    call(() => api.get(`${BASE}/knowledge-base/applications/${encodeURIComponent(appKey)}/model`, {
+      params: environment ? { environment } : undefined
+    })),
 
-  exportApplicationModelJson: async (appKey: string): Promise<Blob> => {
+  exportApplicationModelJson: async (appKey: string, environment?: string | null): Promise<Blob> => {
     const res = await api.get(
       `${BASE}/knowledge-base/applications/${encodeURIComponent(appKey)}/model/export`,
-      { responseType: 'blob' }
+      { responseType: 'blob', params: environment ? { environment } : undefined }
     )
     return res.data as Blob
   }

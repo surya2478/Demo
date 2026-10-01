@@ -4438,28 +4438,54 @@ def get_kb_flow_detail(
     return matched
 
 
+def _environment_target(db: Session, app_id: str, environment: Optional[str]) -> dict:
+    """The environment to build URLs for, its address in Test Data, and the choices."""
+    from ..services.automation.registry import environments_for_kb, normalize_environment
+
+    known = environments_for_kb(db, app_id)
+    env = normalize_environment(environment) or known["default"]
+    return {"environment": env, "address": (known["addresses"] or {}).get(env) if env else None, **known}
+
+
 @router.get("/knowledge-base/applications/{app_id}/model")
 def get_kb_application_model(
     app_id: str,
+    environment: Optional[str] = Query(default=None, description="Build URLs on this environment's host (Test Data)"),
+    db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission(PERM_VIEW)),
 ):
     """
     Get the comprehensive Application Model in structured JSON format with full URL details,
     component selectors, known products catalog, and navigation graph.
+
+    URLs are built on the chosen environment's address in Test Data (else the
+    application's default environment); the Knowledge Base itself holds
+    routes. `environments` lists the choices for the page's picker.
     """
-    model = kb.build_application_model(app_id)
+    target = _environment_target(db, app_id, environment)
+    model = kb.build_application_model(app_id, target_address=target["address"], environment=target["environment"])
+    model["environments"] = {
+        "selected": target["environment"],
+        "default": target["default"],
+        "addresses": target["addresses"],
+        "address_missing": bool(target["environment"]) and not target["address"],
+        "application": target["application"],
+    }
     return model
 
 
 @router.get("/knowledge-base/applications/{app_id}/model/export")
 def export_kb_application_model(
     app_id: str,
+    environment: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission(PERM_VIEW)),
 ):
     """
     Download the Application Model as a formatted JSON file attachment.
     """
-    json_str = kb.export_application_model_json(app_id, indent=2)
+    target = _environment_target(db, app_id, environment)
+    json_str = kb.export_application_model_json(app_id, indent=2, target_address=target["address"], environment=target["environment"])
     return Response(
         content=json_str,
         media_type="application/json",

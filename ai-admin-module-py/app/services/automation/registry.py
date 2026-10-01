@@ -243,6 +243,43 @@ def run_on_startup() -> None:
         db.close()
 
 
+def data_app_for_kb(db: Session, kb_app_id: str) -> Optional[AutomationDataApp]:
+    """The Test Data application behind Knowledge Base application `kb_app_id`."""
+    for app in db.query(AutomationDataApp).all():
+        if crawl_key(app) == kb_app_id:
+            return app
+    return None
+
+
+def environments_for_kb(db: Session, kb_app_id: str) -> Dict[str, Any]:
+    """The environments a Knowledge Base application has addresses for, and its default."""
+    app = data_app_for_kb(db, kb_app_id)
+    if app is None:
+        return {"application": None, "default": None, "addresses": {}}
+    return {"application": {"id": app.id, "name": app.name}, "default": default_environment(app), "addresses": addresses(app)}
+
+
+def rehome_for_environment(db: Session, url: Optional[str], environment: Optional[str]) -> Optional[str]:
+    """`url` moved onto `environment`'s host, path and query kept.
+
+    The application is the one the URL belongs to (by any of its addresses or
+    its Knowledge Base). Returned unchanged when that environment has no
+    address in Test Data, or the URL names no application.
+    """
+    raw = (url or "").strip()
+    env = normalize_environment(environment)
+    if not raw or not env:
+        return url
+    from .test_data import find_app
+
+    app = find_app(db, urls=(raw,))
+    target = origin(address_for(app, env))
+    current = origin(raw)
+    if not target or not current or target == current:
+        return url
+    return target + raw[len(current):]
+
+
 def summary(app: AutomationDataApp, environments: Iterable[str]) -> list[Dict[str, Any]]:
     """Per environment: its address and how many of its values are set."""
     mine = addresses(app)

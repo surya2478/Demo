@@ -14,6 +14,7 @@ never leave services/automation/test_data.py.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
@@ -522,10 +523,32 @@ def revert_version(
 # --- Journey-guided crawl --------------------------------------------------------------
 
 class CrawlIn(BaseModel):
+    # A Journey KB journey id, or "flow:<flow_id>" for an Automation KB flow blueprint.
     journey_id: str
     application_id: int
     profile_id: Optional[str] = None
     environment: Optional[str] = None
+    # The order (1-based) of the first step not to run.
+    stop_before: Optional[int] = Field(default=None, ge=1)
+    # Let the walk click through steps that submit, confirm, pay, save or delete.
+    allow_risky: bool = False
+    # A visible browser, where the server can show one (see /walk/capabilities).
+    headed: bool = False
+
+
+@router.get("/walk/capabilities")
+def walk_capabilities(current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
+    """What a walk can do on this server: show a browser, and which environments it refuses."""
+    return {"headed_available": crawl_runs.headed_available(), "blocked_environments": crawl_runs.blocked_environments()}
+
+
+@router.get("/{app_id}/walk/flows")
+def walk_flows(app_id: str, current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
+    """The flow blueprints a dry run can walk, besides the journeys."""
+    try:
+        return {"flows": crawl_runs.flows(app_id)}
+    except Exception as exc:  # noqa: BLE001
+        _fail(exc)
 
 
 @router.get("/{app_id}/journey-crawl/plan")
@@ -533,10 +556,12 @@ def preview_crawl_plan(
     app_id: str,
     journey_id: str = Query(...),
     profile_id: Optional[str] = Query(default=None),
+    stop_before: Optional[int] = Query(default=None, ge=1),
+    allow_risky: bool = Query(default=False),
     current_user: dict = Depends(require_permission(PERM_VIEW)),
 ) -> dict[str, Any]:
     try:
-        return crawl_runs.preview(app_id, journey_id, profile_id)
+        return crawl_runs.preview(app_id, journey_id, profile_id, stop_before=stop_before, allow_risky=allow_risky)
     except Exception as exc:  # noqa: BLE001
         _fail(exc)
 
@@ -578,17 +603,78 @@ def get_crawl(crawl_id: int, db: Session = Depends(get_db), current_user: dict =
     return crawl_runs.view(crawl_runs.absorb(db, run))
 
 
+@router.get("/journey-crawls/{crawl_id}/live")
+def crawl_live(crawl_id: int, db: Session = Depends(get_db), current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
+    """A walk as it runs: steps so far, the one under way, and the time of the latest frame."""
+    crawl = db.get(KbCrawlRun, crawl_id)
+    if crawl is None:
+        raise HTTPException(status_code=404, detail="No such crawl.")
+    crawl_runs.absorb(db, crawl)
+    return crawl_runs.live(db, crawl)
+
+
+_WALK_IMAGE = re.compile(r"^(live|shot-\d{1,4})\.png$")
+
+
+@router.get("/journey-crawls/{crawl_id}/image/{name}")
+def crawl_image(crawl_id: int, name: str, db: Session = Depends(get_db),
+                current_user: dict = Depends(require_permission(PERM_VIEW))) -> Response:
+    """The live frame (live.png) or a step's screenshot (shot-<n>.png) of a walk."""
+    if not _WALK_IMAGE.match(name):
+        raise HTTPException(status_code=400, detail="Only live.png and shot-<n>.png are served.")
+    crawl = db.get(KbCrawlRun, crawl_id)
+    if crawl is None:
+        raise HTTPException(status_code=404, detail="No such crawl.")
+    path = crawl_runs.run_file(db, crawl, name)
+    if path is None:
+        raise HTTPException(status_code=404, detail="No image yet.")
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        raise HTTPException(status_code=404, detail="No image yet.") from exc
+    return Response(content=data, media_type="image/png", headers={"Cache-Control": "no-store"})
+
+
+class PickIn(BaseModel):
+    screen_id: str
+    element_id: str
+    selector: str = Field(min_length=1, max_length=1000)
+
+
+class ProposeIn(BaseModel):
+    # App-only elements to add to the Journey KB: "<screen_id>|<selector>".
+    additions: list[str] = Field(default_factory=list, max_length=300)
+    # A candidate chosen for an element (or flow step) the walk could not find.
+    picks: list[PickIn] = Field(default_factory=list, max_length=100)
+
+
 @router.post("/journey-crawls/{crawl_id}/propose")
 def propose_from_crawl(
+    crawl_id: int,
+    body: Optional[ProposeIn] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+) -> dict[str, Any]:
+    body = body or ProposeIn()
+    try:
+        run = crawl_runs.propose(db, crawl_id, actor=_actor(current_user), additions=body.additions,
+                                 picks=[p.model_dump() for p in body.picks])
+    except Exception as exc:  # noqa: BLE001
+        _fail(exc)
+    return crawl_runs.view(run)
+
+
+@router.post("/journey-crawls/{crawl_id}/generate-flow")
+def generate_flow_from_crawl(
     crawl_id: int,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission(PERM_EXECUTE)),
 ) -> dict[str, Any]:
+    """A flow blueprint from a journey walk, drafted for review."""
     try:
-        run = crawl_runs.propose(db, crawl_id, actor=_actor(current_user))
+        return crawl_runs.generate_flow(db, crawl_id, actor=_actor(current_user))
     except Exception as exc:  # noqa: BLE001
         _fail(exc)
-    return crawl_runs.view(run)
 
 
 # --- Design documents: upload, extract, review ---------------------------------------------
