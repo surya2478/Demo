@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { HiOutlineDocumentText, HiOutlineTableCells, HiOutlineXMark, HiOutlineArrowDownTray } from 'react-icons/hi2'
-import api from '../services/api'
+import api, { LONG_REQUEST_MS } from '../services/api'
 import { usePageHeader } from '../components/layout/PageHeaderContext'
 import { getTimestampedFilename } from '../utils/DynamicFileName-DateTime'
 
@@ -135,13 +135,16 @@ const CoverageAnalysis: React.FC = () => {
       requirementFiles.forEach((file) => formData.append('requirement_files', file))
       formData.append('testcase_file', testCaseFile)
 
+      // Three model calls in a row: minutes on the AI service, far past the
+      // 30s default, which gave up while the backend was still working.
       const response = await api.post<CoverageAnalysisResponse>('/coverage/analyze', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: LONG_REQUEST_MS
       })
       setResult(response.data)
     } catch (err: any) {
       const detail = err?.response?.data?.detail
-      setError(typeof detail === 'string' ? detail : 'Coverage analysis failed. Please try again.')
+      setError(typeof detail === 'string' ? detail : err?.message || 'Coverage analysis failed. Please try again.')
     } finally {
       setLoading(false)
     }

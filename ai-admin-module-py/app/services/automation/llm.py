@@ -383,9 +383,17 @@ def _call_openrouter(
 
 
 def _dispatch(
-    *, system_prompt: str, user_input: str, timeout: float, max_tokens: int, temperature: float
+    *,
+    system_prompt: str,
+    user_input: str,
+    timeout: float,
+    max_tokens: int,
+    temperature: float,
+    provider: str | None = None,
 ) -> str:
-    provider = (settings.LLM_PROVIDER or "ai_service").strip().lower()
+    # `provider` lets a caller name the transport (Coverage Analysis passes
+    # settings.LLM_PROVIDER); omitted, it is LLM_PROVIDER as before.
+    provider = (provider or settings.LLM_PROVIDER or "ai_service").strip().lower()
     if provider == "openrouter":
         return _call_openrouter(
             system_prompt=system_prompt,
@@ -405,6 +413,39 @@ def _dispatch(
     raise LLMUnavailable(
         f"LLM_PROVIDER is set to {provider!r}, which is not a transport this build "
         "knows. Use 'ai_service' or 'openrouter'."
+    )
+
+
+def _default_timeout(provider: str | None) -> float:
+    # Provider-specific, because reading OPENROUTER_TIMEOUT_SECONDS on the
+    # ai_service path meant an operator tuning the AI service's timeout had to
+    # set a variable named after a provider they were not using.
+    if (provider or settings.LLM_PROVIDER or "ai_service").strip().lower() == "openrouter":
+        return float(settings.OPENROUTER_TIMEOUT_SECONDS or 120)
+    return float(settings.AI_SERVICE_TIMEOUT_SECONDS or 120)
+
+
+def complete_text(
+    *,
+    system_prompt: str,
+    user_input: str,
+    max_tokens: int = 16000,
+    temperature: float = 0.1,
+    timeout: float | None = None,
+    provider: str | None = None,
+) -> str:
+    """Ask for free-form text (e.g. a markdown table) and return it raw.
+
+    Same transport as complete_json without the JSON step -- Coverage Analysis
+    uses it for its recommended test cases table.
+    """
+    return _dispatch(
+        system_prompt=system_prompt,
+        user_input=user_input,
+        timeout=timeout or _default_timeout(provider),
+        max_tokens=max_tokens,
+        temperature=temperature,
+        provider=provider,
     )
 
 
@@ -441,6 +482,7 @@ def complete_json(
     temperature: float = 0.1,
     timeout: float | None = None,
     attempts: int = 2,
+    provider: str | None = None,
 ) -> TModel:
     """Ask for JSON and return it validated, or raise.
 
@@ -455,14 +497,8 @@ def complete_json(
     A transport failure is never retried here: LLMUnavailable means the model
     was not reached, and hammering an unreachable service helps nobody.
     """
-    # Provider-specific, because reading OPENROUTER_TIMEOUT_SECONDS on the
-    # ai_service path meant an operator tuning the AI service's timeout had to
-    # set a variable named after a provider they were not using.
     if timeout is None:
-        if (settings.LLM_PROVIDER or "ai_service").strip().lower() == "openrouter":
-            timeout = float(settings.OPENROUTER_TIMEOUT_SECONDS or 120)
-        else:
-            timeout = float(settings.AI_SERVICE_TIMEOUT_SECONDS or 120)
+        timeout = _default_timeout(provider)
     last_error: Exception | None = None
     prompt = user_input
 
@@ -473,6 +509,7 @@ def complete_json(
             timeout=timeout,
             max_tokens=max_tokens,
             temperature=temperature,
+            provider=provider,
         )
         try:
             data = extract_json(raw)
