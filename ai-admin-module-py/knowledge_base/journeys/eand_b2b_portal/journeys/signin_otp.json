@@ -66,28 +66,21 @@
     },
     {
       "step_number": 2,
-      "action": "Confirm the OTP tab is the active tab of the credentials panel",
-      "expected_result": "'Sign in using OTP' is selected and the heading reads 'Enter your email.'",
-      "screen_id": "SCR_LOGIN",
-      "element_id": "tab_otp"
-    },
-    {
-      "step_number": 3,
       "action": "Enter the registered Organization Administrator email address",
-      "expected_result": "The email is accepted and the CONTINUE button becomes actionable",
+      "expected_result": "The email is accepted and the Receive OTP button becomes actionable",
       "screen_id": "SCR_LOGIN",
       "element_id": "username"
     },
     {
-      "step_number": 4,
-      "action": "Click CONTINUE to request the one-time password",
+      "step_number": 3,
+      "action": "Click Receive OTP to request the one-time password",
       "expected_result": "The 'Enter your One Time Password.' panel opens stating the OTP was sent to the E-mail and Mobile number",
       "screen_id": "SCR_LOGIN",
       "element_id": "otp_continue",
       "rule": "BR-AUTH-02"
     },
     {
-      "step_number": 5,
+      "step_number": 4,
       "action": "Check the masked destinations shown under the OTP panel heading",
       "expected_result": "Email ID and Mobile Number are shown masked (e.g. p*********@e***.com, 0******32)",
       "screen_id": "SCR_OTP_ENTRY",
@@ -95,7 +88,7 @@
       "rule": "BR-AUTH-09"
     },
     {
-      "step_number": 6,
+      "step_number": 5,
       "action": "Enter the six-digit OTP, one digit per box, using boxes 1 to 6 in order",
       "expected_result": "All six boxes are filled and the green confirmation tick appears",
       "screen_id": "SCR_OTP_ENTRY",
@@ -103,7 +96,7 @@
       "rule": "BR-AUTH-03"
     },
     {
-      "step_number": 7,
+      "step_number": 6,
       "action": "Click Proceed to submit the code",
       "expected_result": "The code is verified and the portal leaves the OTP panel",
       "screen_id": "SCR_OTP_ENTRY",
@@ -111,7 +104,7 @@
       "note": "Existing KB observed verification without a separate button. Skip this step if the crawl confirms auto-submit."
     },
     {
-      "step_number": 8,
+      "step_number": 7,
       "action": "Dismiss the error dialog with OKAY when the OTP is rejected",
       "expected_result": "The dialog closes and the user is returned to OTP entry without losing the session",
       "screen_id": "SCR_OTP_ERROR_DIALOG",
@@ -120,7 +113,7 @@
       "branch": "negative_only"
     },
     {
-      "step_number": 9,
+      "step_number": 8,
       "action": "Verify the post-authentication landing screen",
       "expected_result": "Either 'Select a Organization to continue' (no default organization) or the Organization Dashboard (default organization) is displayed",
       "screen_id": "SCR_SELECT_ORG|SCR_ORG_DASHBOARD",
@@ -130,35 +123,35 @@
   "conditional_branches": [
     {
       "branch_id": "OTP-B1",
-      "at_step": 3,
+      "at_step": 2,
       "condition": "identifier not associated with a customer",
       "outcome": "stay on SCR_LOGIN with 'No Customer assosiated'",
       "rule": "BR-AUTH-01"
     },
     {
       "branch_id": "OTP-B2",
-      "at_step": 7,
+      "at_step": 6,
       "condition": "wrong or expired OTP",
-      "outcome": "SCR_OTP_ERROR_DIALOG -> step 8 -> back to step 6",
+      "outcome": "SCR_OTP_ERROR_DIALOG -> step 7 -> back to step 5",
       "rule": "BR-AUTH-04"
     },
     {
       "branch_id": "OTP-B3",
-      "at_step": 5,
+      "at_step": 4,
       "condition": "OTP not received",
       "outcome": "click Resend; new OTP issued",
       "rule": "BR-AUTH-05"
     },
     {
       "branch_id": "OTP-B4",
-      "at_step": 9,
+      "at_step": 8,
       "condition": "no default organization",
       "outcome": "continue with flow_b2b_select_organization",
       "rule": "BR-AUTH-06"
     },
     {
       "branch_id": "OTP-B5",
-      "at_step": 9,
+      "at_step": 8,
       "condition": "default organization set",
       "outcome": "Organization Dashboard directly",
       "rule": "BR-AUTH-06"
@@ -176,8 +169,7 @@
         4,
         5,
         6,
-        7,
-        9
+        8
       ],
       "branch": "OTP-B5",
       "test_data": "USER_SINGLE_DEFAULT_ORG",
@@ -192,11 +184,11 @@
       "title": "Registered multi-org user without default signs in by OTP and is asked to select an organization",
       "steps": [
         1,
+        2,
         3,
-        4,
+        5,
         6,
-        7,
-        9
+        8
       ],
       "branch": "OTP-B4",
       "test_data": "USER_MULTI_ORG_NO_DEFAULT",
@@ -211,8 +203,8 @@
       "title": "Unregistered email shows 'No Customer assosiated' and no OTP panel",
       "steps": [
         1,
-        3,
-        4
+        2,
+        3
       ],
       "branch": "OTP-B1",
       "test_data": "USER_UNREGISTERED_EMAIL",
@@ -226,11 +218,11 @@
       "title": "Wrong OTP raises the error dialog; OKAY returns to OTP entry",
       "steps": [
         1,
+        2,
         3,
-        4,
+        5,
         6,
-        7,
-        8
+        7
       ],
       "branch": "OTP-B2",
       "rules": [
@@ -243,11 +235,11 @@
       "title": "Expired OTP is rejected",
       "steps": [
         1,
+        2,
         3,
-        4,
+        5,
         6,
-        7,
-        8
+        7
       ],
       "branch": "OTP-B2",
       "rules": [
@@ -261,9 +253,9 @@
       "title": "Five digits entered -- verification cannot be submitted",
       "steps": [
         1,
+        2,
         3,
-        4,
-        6
+        5
       ],
       "rules": [
         "BR-AUTH-03"
@@ -275,9 +267,9 @@
       "title": "Non-numeric character typed into an OTP box is not accepted",
       "steps": [
         1,
+        2,
         3,
-        4,
-        6
+        5
       ],
       "rules": [
         "BR-AUTH-03"
@@ -290,12 +282,12 @@
       "title": "Resend issues a new OTP; the new code signs the user in",
       "steps": [
         1,
+        2,
         3,
         4,
         5,
         6,
-        7,
-        9
+        8
       ],
       "branch": "OTP-B3",
       "rules": [
@@ -308,9 +300,9 @@
       "title": "OTP destinations are masked on the entry panel",
       "steps": [
         1,
+        2,
         3,
-        4,
-        5
+        4
       ],
       "rules": [
         "BR-AUTH-09"
@@ -321,8 +313,7 @@
       "type": "negative",
       "title": "CONTINUE stays disabled while the username field is empty",
       "steps": [
-        1,
-        2
+        1
       ],
       "rules": [
         "BR-AUTH-01"
