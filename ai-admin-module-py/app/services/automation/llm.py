@@ -4,14 +4,17 @@
 One narrow job: send a system prompt plus user content, get back JSON that
 validates against a pydantic model, or raise something the caller can explain.
 
-Two transports sit behind the same call because the deployment has not decided
-which it wants:
+The transports below sit behind the same call. Which one answers is
+AUTOMATION_LLM_PROVIDER, else LLM_PROVIDER -- so this module can use Azure while
+the Test Assistant's own generation stays on LLM_PROVIDER:
 
   ai_service  the existing AI service at ai_config.BASE_URL. It owns the model
               and its credentials; this backend holds no key. Its chat endpoint
               is the only one that accepts a system_prompt, which is why that
               endpoint and not a /generate/* one.
   openrouter  this backend calls OpenRouter directly with OPENROUTER_API_KEY.
+  azure       Azure OpenAI (AZURE_OPENAI_*), through services/generation/azure_llm.py
+              -- the same deployment Knowledge Base generation uses.
 
 Everything specific to a transport is isolated in its _call_* function. The
 retry, the JSON extraction and the validation are shared, because those failure
@@ -382,6 +385,31 @@ def _call_openrouter(
     return content
 
 
+def _call_azure(
+    *, system_prompt: str, user_input: str, timeout: float, max_tokens: int, temperature: float
+) -> str:
+    """Azure OpenAI as plain chat text; JSON extraction and validation stay shared.
+
+    Not azure_llm.complete_json: that asks Azure for a JSON object, and refine
+    asks for a JSON array. Its timeout is AZURE_OPENAI_TIMEOUT_SECONDS.
+    """
+    from ..generation import azure_llm
+
+    try:
+        return azure_llm.complete_text(
+            system_prompt=system_prompt, user_input=user_input, max_tokens=max_tokens, temperature=temperature
+        )
+    except azure_llm.AzureLLMUnavailable as exc:
+        raise LLMUnavailable(str(exc)) from exc
+    except azure_llm.AzureLLMInvalidResponse as exc:
+        raise LLMInvalidResponse(str(exc)) from exc
+
+
+def _provider_name(provider: str | None = None) -> str:
+    """The caller's choice, else AUTOMATION_LLM_PROVIDER, else LLM_PROVIDER."""
+    return (provider or settings.AUTOMATION_LLM_PROVIDER or settings.LLM_PROVIDER or "ai_service").strip().lower()
+
+
 def _dispatch(
     *,
     system_prompt: str,
@@ -391,9 +419,9 @@ def _dispatch(
     temperature: float,
     provider: str | None = None,
 ) -> str:
-    # `provider` lets a caller name the transport (Coverage Analysis passes
-    # settings.LLM_PROVIDER); omitted, it is LLM_PROVIDER as before.
-    provider = (provider or settings.LLM_PROVIDER or "ai_service").strip().lower()
+    # `provider` lets a caller name the transport; omitted, it is
+    # AUTOMATION_LLM_PROVIDER, else LLM_PROVIDER.
+    provider = _provider_name(provider)
     if provider == "openrouter":
         return _call_openrouter(
             system_prompt=system_prompt,
@@ -410,9 +438,18 @@ def _dispatch(
             max_tokens=max_tokens,
             temperature=temperature,
         )
+    if provider == "azure":
+        return _call_azure(
+            system_prompt=system_prompt,
+            user_input=user_input,
+            timeout=timeout,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
     raise LLMUnavailable(
-        f"LLM_PROVIDER is set to {provider!r}, which is not a transport this build "
-        "knows. Use 'ai_service' or 'openrouter'."
+        f"The Automation LLM provider is {provider!r} (AUTOMATION_LLM_PROVIDER, else "
+        "LLM_PROVIDER), which is not a transport this build knows. Use 'ai_service', "
+        "'openrouter' or 'azure'."
     )
 
 
@@ -420,8 +457,11 @@ def _default_timeout(provider: str | None) -> float:
     # Provider-specific, because reading OPENROUTER_TIMEOUT_SECONDS on the
     # ai_service path meant an operator tuning the AI service's timeout had to
     # set a variable named after a provider they were not using.
-    if (provider or settings.LLM_PROVIDER or "ai_service").strip().lower() == "openrouter":
+    chosen = _provider_name(provider)
+    if chosen == "openrouter":
         return float(settings.OPENROUTER_TIMEOUT_SECONDS or 120)
+    if chosen == "azure":
+        return float(settings.AZURE_OPENAI_TIMEOUT_SECONDS or 300)
     return float(settings.AI_SERVICE_TIMEOUT_SECONDS or 120)
 
 
@@ -628,7 +668,7 @@ def provider_status() -> dict[str, Any]:
     Surfaced to the UI for the same reason the runtime preflight is: a missing
     key should be visible before someone clicks Refine, not after.
     """
-    provider = (settings.LLM_PROVIDER or "ai_service").strip().lower()
+    provider = _provider_name()
     if provider == "openrouter":
         missing = settings.openrouter_missing_keys()
         return {
@@ -636,6 +676,19 @@ def provider_status() -> dict[str, Any]:
             "configured": not missing,
             "detail": (
                 f"OpenRouter model {settings.OPENROUTER_MODEL}"
+                if not missing
+                else "Not configured. Missing: " + ", ".join(missing)
+            ),
+        }
+    if provider == "azure":
+        from ..generation import azure_llm
+
+        missing = azure_llm.missing_settings()
+        return {
+            "provider": provider,
+            "configured": not missing,
+            "detail": (
+                f"Azure OpenAI deployment {azure_llm.model_name()}"
                 if not missing
                 else "Not configured. Missing: " + ", ".join(missing)
             ),

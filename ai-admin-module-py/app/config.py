@@ -239,6 +239,11 @@ class Settings(BaseSettings):
     # calls the AI service directly, so it would also travel to the client on
     # every request.
     LLM_PROVIDER: str = Field(default="ai_service")
+    # The Automation Studio's own model (services/automation/llm.py): AI Refine,
+    # Quality Review, Auto-Improve, Classify and healing. Empty means
+    # LLM_PROVIDER. "azure" sends them to AZURE_OPENAI_* while everything else
+    # stays on LLM_PROVIDER; "ai_service" and "openrouter" work here too.
+    AUTOMATION_LLM_PROVIDER: str = Field(default="")
 
     # Direct OpenAI-compatible generation settings. Keep the key server-side;
     # the browser must never receive or choose it.

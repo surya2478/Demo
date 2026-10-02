@@ -450,7 +450,8 @@ def stream_test_cases(
             system_prompt = f"{SYSTEM_PROMPT}\n\n{reference['context']}"
 
     provider = generation_provider or (settings.SQUAD_KB_GENERATION_PROVIDER if kb else None)
-    if (provider or "").strip().lower() == "azure":
+    # Azure is azure_llm (AZURE_OPENAI_*) whether a KB chose it or LLM_PROVIDER did.
+    if (provider or settings.LLM_PROVIDER or "").strip().lower() == "azure":
         chunks = azure_llm.stream_chat(
             system_prompt=system_prompt,
             user_input=wrap_user_content(requirements),

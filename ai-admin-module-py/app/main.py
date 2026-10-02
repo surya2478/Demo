@@ -163,6 +163,11 @@ async def start_background_tasks():
                 )
         else:
             print(f"[AI] provider={settings.LLM_PROVIDER}")
+        if (settings.AUTOMATION_LLM_PROVIDER or "").strip():
+            from .services.automation.llm import provider_status
+
+            status = provider_status()
+            print(f"[AI] Automation Studio (AI Refine, Review, Classify) provider={status['provider']}  {status['detail']}")
     except Exception as exc:  # noqa: BLE001 - never block startup on this
         print(f"[AI] Configuration report skipped: {exc}")
 

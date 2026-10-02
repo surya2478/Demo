@@ -40,10 +40,12 @@ select them (testcases.py passes SQUAD_KB_GENERATION_PROVIDER):
   * openai -- any OpenAI-compatible /chat/completions at OPENAI_BASE_URL.
   * azure  -- the full chat-completions URL in AZURE_AI_CHAT_COMPLETIONS_URL.
 
-They are deliberately NOT valid values for LLM_PROVIDER. That setting also
-drives services/automation/llm.py, which knows only ai_service and openrouter,
-so LLM_PROVIDER=openai would take down Refine, Review and healing just to
-change where test cases are generated.
+openai is deliberately NOT a valid value for LLM_PROVIDER. That setting also
+drives services/automation/llm.py, which does not know it, so
+LLM_PROVIDER=openai would take down Refine, Review and healing just to change
+where test cases are generated. azure is valid: llm.py sends it to the same
+Azure OpenAI deployment (AZURE_OPENAI_*), and so does the azure target here
+when the older AZURE_AI_* route is not set.
 """
 from __future__ import annotations
 
@@ -496,6 +498,23 @@ def _chat_completions_target(provider: str, model_override: str | None) -> dict:
         }
 
     # azure
+    if not settings.AZURE_AI_CHAT_COMPLETIONS_URL.strip() and settings.AZURE_OPENAI_BASE_URL.strip():
+        # The Azure OpenAI v1 API (AZURE_OPENAI_*, see azure_llm.py): the
+        # deployment is the model, and the key goes in an api-key header.
+        from . import azure_llm
+
+        missing = azure_llm.missing_settings()
+        if missing:
+            raise GenerationUnavailable("Azure OpenAI is not configured. Missing: " + ", ".join(missing) + ".")
+        return {
+            "label": "Azure OpenAI",
+            "url": azure_llm._url("chat/completions"),
+            "headers": {"api-key": settings.AZURE_OPENAI_API_KEY.strip()},
+            "model": azure_llm.model_name(),
+            "timeout": settings.AZURE_OPENAI_TIMEOUT_SECONDS,
+            "token_field": "max_completion_tokens",
+            "usage": {"stream_options": {"include_usage": True}},
+        }
     model = (model_override or settings.AZURE_AI_MODEL or "").strip()
     missing = _missing((
         ("AZURE_AI_CHAT_COMPLETIONS_URL", settings.AZURE_AI_CHAT_COMPLETIONS_URL),
@@ -600,16 +619,25 @@ def _stream_chat_completions(
         temperature,
     )
 
-    try:
-        response = requests.post(
-            url, headers=headers, json=body, timeout=timeout, stream=True
-        )
-    except requests.Timeout as exc:
-        raise GenerationUnavailable(
-            f"{label} did not respond within {timeout:.0f}s."
-        ) from exc
-    except requests.RequestException as exc:
-        raise GenerationUnavailable(f"{label} could not be reached: {exc}") from exc
+    for attempt in (1, 2):
+        try:
+            response = requests.post(
+                url, headers=headers, json=body, timeout=timeout, stream=True
+            )
+        except requests.Timeout as exc:
+            raise GenerationUnavailable(
+                f"{label} did not respond within {timeout:.0f}s."
+            ) from exc
+        except requests.RequestException as exc:
+            raise GenerationUnavailable(f"{label} could not be reached: {exc}") from exc
+        # Reasoning models (Azure's among them) accept only the default
+        # temperature: retry once without it, as azure_llm does.
+        if attempt == 1 and response.status_code == 400 and "temperature" in (response.text or "").lower():
+            response.close()
+            logger.info("%s rejected 'temperature'; retrying without it", label)
+            body = {k: v for k, v in body.items() if k != "temperature"}
+            continue
+        break
 
     with response:
         if response.status_code >= 400:
