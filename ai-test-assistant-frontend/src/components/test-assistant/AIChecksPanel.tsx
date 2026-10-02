@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import RqmDownload, { type RqmVersion } from './RqmDownload'
 import type { CheckBatch, CheckItem, CheckStepName, CheckStepState } from '../../services/aiChecksService'
 
 // Screen 3: AI Checks results, in the Output card. Refine -> Quality Review ->
@@ -95,10 +96,14 @@ interface AIChecksPanelProps {
   sendCount: number
   /** Checks already sent for approval; the rest can still be sent. */
   sentIds: Set<number>
+  /** Download the cases in the RQM template, as generated or as AI Checks left them. */
+  onDownloadCases?: (version: RqmVersion) => void
+  downloadingCases?: boolean
 }
 
 const AIChecksPanel: React.FC<AIChecksPanelProps> = ({
-  batch, now, selected, onToggle, onToggleAll, onRetry, onEdit, onSend, onDownload, onStop, onRestart, onDelete, busy, savedAs, sendCount, sentIds
+  batch, now, selected, onToggle, onToggleAll, onRetry, onEdit, onSend, onDownload, onStop, onRestart, onDelete, busy, savedAs, sendCount, sentIds,
+  onDownloadCases, downloadingCases = false
 }) => {
   const [filter, setFilter] = useState<Filter>('all')
   const s = batch.summary
@@ -315,6 +320,17 @@ const AIChecksPanel: React.FC<AIChecksPanelProps> = ({
         {filterChip('test_data', 'Test data pending', C_WARN)}
         {filterChip('not_checked', 'Not checked', C_BAD)}
         {counts.stopped > 0 && filterChip('stopped', 'Stopped', C_WARN)}
+        {onDownloadCases && (
+          <span className="ml-2">
+            <RqmDownload
+              label={`Download ${batch.items.length} TCs`}
+              checkedAvailable={batch.items.some((item) => item.status === 'done')}
+              busy={downloadingCases}
+              disabled={batch.items.length === 0}
+              onPick={onDownloadCases}
+            />
+          </span>
+        )}
         <span className="ml-auto flex items-center gap-2.5 text-[12px] text-[#6B7280]">
           <span className="flex items-center gap-1"><span className="h-3 w-3 rounded-full bg-[#B71920]" />done</span>
           <span className="flex items-center gap-1"><span className="box-border h-3 w-3 rounded-full border-[1.5px] border-dashed border-[#C4C8CF]" />skipped</span>

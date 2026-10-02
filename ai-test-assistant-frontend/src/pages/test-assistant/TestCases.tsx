@@ -36,6 +36,8 @@ import StepEditor from '../../components/test-assistant/StepEditor'
 import { detectProject } from '../../utils/detectProject'
 import aiChecksService, { type CheckBatch, type CheckItem, type EditedStep } from '../../services/aiChecksService'
 import { publishTokenUsage } from '../../components/test-assistant/TokenUsageChip'
+import RqmDownload, { type RqmVersion } from '../../components/test-assistant/RqmDownload'
+import { downloadRqm } from '../../utils/rqmTemplate'
 
 
 
@@ -1910,6 +1912,39 @@ const TestCases: React.FC = () => {
     URL.revokeObjectURL(url)
   }
 
+  // --- Test cases in the RQM template ------------------------------------------
+  // As generated is the table as the model wrote it -- each AI check keeps that
+  // row as its source_row -- and after AI Checks is what would go for
+  // approval (checkedRow). Cases not checked yet go as generated either way.
+  const [rqmDownloading, setRqmDownloading] = useState(false)
+  const handleRqmDownload = async (version: RqmVersion) => {
+    const rows: Record<string, string>[] = aiBatch
+      ? aiBatch.items.map((item) => (version === 'checked' && item.status === 'done' ? checkedRow(item) : item.source_row))
+      : extractAndConsolidateTestCases(response || output || '').rows
+    if (!rows.length) return
+    setRqmDownloading(true)
+    const fileBase = `rqm-${savedRequestId || 'test-cases'}-${version === 'generated' ? 'as-generated' : 'after-ai-checks'}`
+    try {
+      const count = await downloadRqm(rows, { ppmId: (projectRef.current ?? project)?.ppm_id }, fileBase)
+      void logApiEvent({
+        user: authUser.user,
+        module: 'Test Cases',
+        action: 'Download RQM template',
+        resourceType: 'file',
+        resourceId: savedRequestId || 'test_case_export',
+        resourceName: 'Test Cases (RQM template)',
+        request: { version, cases: count },
+        response: { filename: fileBase },
+        status: 'success'
+      }).catch(() => undefined)
+    } catch (err) {
+      console.error('RQM download failed', err)
+      setApprovalNotification({ message: 'The test cases could not be downloaded.', type: 'error' })
+    } finally {
+      setRqmDownloading(false)
+    }
+  }
+
   // Stop keeps what was written so far: cancelling the reader ends the stream
   // loop normally, so the partial table is stored and can still be sent.
   const handleStopGeneration = () => {
@@ -2533,6 +2568,8 @@ const TestCases: React.FC = () => {
             onEdit={(checkId) => { setAiEditError(''); setAiEditing(checkId) }}
             onSend={handleAiSend}
             onDownload={handleAiDownload}
+            onDownloadCases={(version) => void handleRqmDownload(version)}
+            downloadingCases={rqmDownloading}
             onStop={handleAiStop}
             onRestart={handleAiRestart}
             onDelete={handleAiDelete}
@@ -2614,6 +2651,14 @@ const TestCases: React.FC = () => {
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
                         Delete {gridSelected.size}
                       </button>
+                    )}
+                    {streamParse.cases.length > 0 && (
+                      <RqmDownload
+                        label={`Download ${streamParse.cases.length} TCs`}
+                        checkedAvailable={false}
+                        busy={rqmDownloading}
+                        onPick={(version) => void handleRqmDownload(version)}
+                      />
                     )}
                     {streamParse.cases.length > 0 && (
                       <button

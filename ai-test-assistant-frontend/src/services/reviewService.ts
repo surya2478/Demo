@@ -1,5 +1,6 @@
 import api from './api'
 import { getTimestampedFilename } from '../utils/DynamicFileName-DateTime'
+import { saveRqm, toRqmRows } from '../utils/rqmTemplate'
 
 // Review & Approval (screens 4 and 5). Every request has been through AI Checks
 // when it comes from the Test Assistant; each case then carries the checks'
@@ -164,6 +165,31 @@ export const downloadRequestCases = async (requestId: string, records: ReviewCas
   const book = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(book, sheet, 'Test Cases')
   XLSX.writeFile(book, getTimestampedFilename(`test-cases-${requestId}`))
+}
+
+/**
+ * Requests' test cases in the RQM template, in one workbook.
+ *
+ * 'generated' is each case as the Test Assistant wrote it: a sent case holds
+ * the AI-checked text, and keeps the original under _ai.original. 'checked' is
+ * the case as it was sent. `status` narrows to the approved or rejected cases;
+ * cases saved but never sent (DRAFT) are not the manager's and stay out.
+ */
+export const downloadRequestsRqm = async (
+  requests: RequestSummary[], version: 'generated' | 'checked', status: string | null = null
+): Promise<number> => {
+  const details = await Promise.all(requests.map((item) => reviewService.detail(item.request_id)))
+  const rows = details.flatMap((detail, index) => {
+    const cases = detail.test_cases.filter((item) => {
+      const state = String(item.status).toUpperCase()
+      return state !== 'DRAFT' && (!status || state === status)
+    })
+    const records = cases.map((item) => (version === 'generated' && aiOf(item)?.original) || item.test_case_details)
+    return toRqmRows(records, { ppmId: requests[index].project?.ppm_id })
+  })
+  if (!rows.length) return 0
+  const base = requests.length === 1 ? `rqm-${requests[0].request_id}` : `rqm-${requests.length}-requests`
+  return saveRqm(rows, `${base}-${version === 'generated' ? 'as-generated' : 'after-ai-checks'}`)
 }
 
 export const downloadRequestList = async (requests: RequestSummary[]) => {

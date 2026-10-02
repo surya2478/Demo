@@ -4,9 +4,10 @@ import { usePageHeader } from '../../components/layout/PageHeaderContext'
 import { useConfirm } from '../../components/ui/ConfirmDialog'
 import JourneyBar from '../../components/test-assistant/JourneyBar'
 import reviewService, {
-  PENDING, ageLabel, downloadRequestCases, downloadRequestList,
+  PENDING, ageLabel, downloadRequestCases, downloadRequestList, downloadRequestsRqm,
   type Overview, type RequestSummary, type SourceGroup
 } from '../../services/reviewService'
+import RqmDownload, { type RqmVersion } from '../../components/test-assistant/RqmDownload'
 
 // Screen 4: Review & Approval. One list with Pending / Approved / Rejected / All
 // tabs replaces the three stacked tables, and the Approved tab plus Download
@@ -17,7 +18,7 @@ type Tab = 'pending' | 'approved' | 'rejected' | 'all'
 const CARD = 'rounded-[20px] border border-[#E8EAEE] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]'
 const LBL = 'text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6B7280]'
 const CHIP = 'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-[9px] text-[11.5px] font-semibold'
-const REQ = 'grid grid-cols-[18px_minmax(0,1fr)_56px_150px_64px_100px_86px] items-center gap-3 border-b border-[#F1F2F4] px-[18px]'
+const REQ = 'grid grid-cols-[18px_minmax(0,1fr)_56px_150px_64px_100px_36px_86px] items-center gap-3 border-b border-[#F1F2F4] px-[18px]'
 const SOURCES: SourceGroup[] = ['BRD', 'SDD', 'ADO', 'e2e Spark']
 
 const SOURCE_TONE: Record<SourceGroup, string> = {
@@ -54,6 +55,9 @@ const ReviewApproval: React.FC = () => {
   const [projectFilter, setProjectFilter] = useState<string>('all')
   const [query, setQuery] = useState('')
   const [downloading, setDownloading] = useState<string | null>(null)
+  // Which RQM download is running: a request id, or '*' for the list's.
+  const [rqmBusy, setRqmBusy] = useState<string | null>(null)
+  const [rqmNote, setRqmNote] = useState('')
   const visibleRef = useRef<RequestSummary[]>([])
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [deleting, setDeleting] = useState(false)
@@ -180,6 +184,23 @@ const ReviewApproval: React.FC = () => {
     }
   }
 
+  // The Approved and Rejected tabs download those cases; the others every case sent for review.
+  const downloadRqm = async (targets: RequestSummary[], version: RqmVersion, busyKey: string) => {
+    if (!targets.length) return
+    setRqmBusy(busyKey)
+    setRqmNote('')
+    try {
+      const count = await downloadRequestsRqm(targets, version, tab === 'approved' ? 'APPROVED' : tab === 'rejected' ? 'REJECTED' : null)
+      if (!count) setError(`No ${tab === 'approved' || tab === 'rejected' ? `${tab} ` : ''}test cases to download in ${targets.length === 1 ? targets[0].request_id : 'these requests'}.`)
+      else setRqmNote(`${count} test case${count === 1 ? '' : 's'} downloaded ${version === 'generated' ? 'as generated' : 'after AI Checks'}, in the RQM template.`)
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || 'The test cases could not be downloaded.')
+    } finally {
+      setRqmBusy(null)
+    }
+  }
+  const rqmTargets = selected.size ? visible.filter((item) => selected.has(item.request_id)) : visible
+
   // Approved reads green and Rejected red whether or not their tab is open.
   const TAB_TONE: Partial<Record<Tab, { on: string; off: string; badge: string }>> = {
     approved: { on: 'border-[#15803D] text-[#136B34]', off: 'border-transparent text-[#15803D] hover:text-[#136B34]', badge: 'bg-[#EAF7EF] text-[#136B34]' },
@@ -236,6 +257,14 @@ const ReviewApproval: React.FC = () => {
             {tabButton('rejected', 'Rejected')}
             {tabButton('all', 'All')}
             <div className="ml-auto flex flex-wrap items-center gap-1.5 py-2">
+              <RqmDownload
+                label={`Download TCs${selected.size ? ` (${rqmTargets.length})` : ''}`}
+                title={selected.size ? `Test cases of the ${rqmTargets.length} selected request${rqmTargets.length === 1 ? '' : 's'}, in the RQM template` : `Test cases of the ${visible.length} request${visible.length === 1 ? '' : 's'} listed, in the RQM template`}
+                checkedAvailable={rqmTargets.some((item) => item.ai_checked > 0)}
+                busy={rqmBusy === '*'}
+                disabled={rqmTargets.length === 0 || rqmBusy !== null}
+                onPick={(version) => void downloadRqm(rqmTargets, version, '*')}
+              />
               <select
                 aria-label="Project"
                 value={projectFilter}
@@ -253,8 +282,14 @@ const ReviewApproval: React.FC = () => {
             </div>
           </div>
 
+          {rqmNote && (
+            <div className="flex items-center gap-2 border-b border-[#CDEBD8] bg-[#F3FBF6] px-[18px] py-2 text-[12.5px] text-[#136B34]">
+              {rqmNote}
+              <button type="button" onClick={() => setRqmNote('')} className="ml-auto font-semibold text-[#6B7280] hover:text-[#1F2937]">Dismiss</button>
+            </div>
+          )}
           <div className="overflow-x-auto">
-            <div className="min-w-[760px]">
+            <div className="min-w-[800px]">
               {selected.size > 0 && (
                 <div className="flex items-center gap-3 border-b border-[#F6D4D5] bg-[#FFF8F8] px-[18px] py-2 text-[12.5px]">
                   <span className="font-semibold text-[#1F2937]">{selected.size} selected</span>
@@ -280,7 +315,7 @@ const ReviewApproval: React.FC = () => {
                   onChange={() => setSelected(allOn ? new Set() : new Set(visible.map((item) => item.request_id)))}
                   className="h-4 w-4 accent-[#B71920]"
                 />
-                <span>Request</span><span>Cases</span><span>AI classification</span><span>Quality</span><span>Attention</span><span />
+                <span>Request</span><span>Cases</span><span>AI classification</span><span>Quality</span><span>Attention</span><span /><span />
               </div>
               {loading && <div className="px-[18px] py-6 text-[13px] text-[#6B7280]">Loading requests…</div>}
               {!loading && visible.length === 0 && <div className="px-[18px] py-6 text-[13px] text-[#6B7280]">No requests here.</div>}
@@ -340,6 +375,14 @@ const ReviewApproval: React.FC = () => {
                     {item.test_data_pending > 0
                       ? <span className={`${CHIP} h-6 w-fit bg-[#FFF4E5] text-[#8A5000]`}>{item.test_data_pending} test data</span>
                       : <span className="text-[12px] text-[#9CA3AF]">None</span>}
+                    <RqmDownload
+                      variant="icon"
+                      title={`Download ${item.request_id}'s test cases in the RQM template`}
+                      checkedAvailable={item.ai_checked > 0}
+                      busy={rqmBusy === item.request_id}
+                      disabled={rqmBusy !== null && rqmBusy !== item.request_id}
+                      onPick={(version) => void downloadRqm([item], version, item.request_id)}
+                    />
                     <button
                       type="button"
                       onClick={() => navigate(`/manager-review/${encodeURIComponent(item.request_id)}`)}
