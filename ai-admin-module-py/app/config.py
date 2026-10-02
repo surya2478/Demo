@@ -249,6 +249,15 @@ class Settings(BaseSettings):
     FIGMA_VLM_MODEL: str = Field(default="gpt-5.1")
     SQUAD_KB_GENERATION_MODEL: str = Field(default="gpt-5.1")
     SQUAD_KB_GENERATION_PROVIDER: str = Field(default="openai")
+
+    # Azure OpenAI v1 API (services/generation/azure_llm.py). Selected for
+    # Knowledge Base generation by SQUAD_KB_GENERATION_PROVIDER=azure. The
+    # model is the deployment name; the key stays server-side.
+    AZURE_OPENAI_BASE_URL: str = Field(default="")
+    AZURE_OPENAI_API_KEY: str = Field(default="")
+    AZURE_OPENAI_MODEL: str = Field(default="")
+    AZURE_OPENAI_TIMEOUT_SECONDS: int = Field(default=300)
+    AZURE_OPENAI_MAX_TOKENS: int = Field(default=16000)
     FIGMA_VLM_PROMPT: str = Field(
         default=(
             "Extract all readable content from this Figma-exported PDF. "

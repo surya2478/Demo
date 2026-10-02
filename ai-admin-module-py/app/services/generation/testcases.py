@@ -23,12 +23,13 @@ string, which is what lets a table cell carry a multi-step procedure at all.
 """
 from __future__ import annotations
 
+import itertools
 import logging
 import re
 from typing import Any, Dict, Iterator
 
 from ...config import settings
-from . import stream
+from . import azure_llm, stream
 
 logger = logging.getLogger(__name__)
 
@@ -427,6 +428,8 @@ def stream_test_cases(
     Either KB switches the model to the Squad KB's: SQUAD_KB_GENERATION_PROVIDER
     unless the caller names a provider, and SQUAD_KB_GENERATION_MODEL (or the
     Figma model for Figma input) on it. With no KB, LLM_PROVIDER answers.
+    Provider "azure" is Azure OpenAI (azure_llm, AZURE_OPENAI_*), whose model
+    is its deployment.
 
     Raises GenerationUnavailable before yielding anything if the selected
     provider is not configured or cannot be reached, so the caller can still
@@ -446,13 +449,31 @@ def stream_test_cases(
             # Base or an outright error all keep the disciplined prompt above.
             system_prompt = f"{SYSTEM_PROMPT}\n\n{reference['context']}"
 
+    provider = generation_provider or (settings.SQUAD_KB_GENERATION_PROVIDER if kb else None)
+    if (provider or "").strip().lower() == "azure":
+        chunks = azure_llm.stream_chat(
+            system_prompt=system_prompt,
+            user_input=wrap_user_content(requirements),
+            max_tokens=max_tokens or settings.AZURE_OPENAI_MAX_TOKENS,
+            temperature=temperature,
+        )
+        # A generator connects on its first read: read it here, so a missing
+        # setting or an unreachable endpoint becomes GenerationUnavailable --
+        # which the router answers with a status code -- not a broken stream.
+        try:
+            first = next(chunks)
+        except StopIteration:
+            return iter(())
+        except azure_llm.AzureLLMUnavailable as exc:
+            raise stream.GenerationUnavailable(str(exc)) from exc
+        return itertools.chain([first], chunks)
+
     return stream.stream_chat(
         system_prompt=system_prompt,
         user_input=wrap_user_content(requirements),
         temperature=temperature,
         max_tokens=max_tokens,
-        provider=generation_provider
-        or (settings.SQUAD_KB_GENERATION_PROVIDER if kb else None),
+        provider=provider,
         model_override=(
             (settings.FIGMA_VLM_MODEL if generation_mode == "figma_pdf" else settings.SQUAD_KB_GENERATION_MODEL)
             if kb
