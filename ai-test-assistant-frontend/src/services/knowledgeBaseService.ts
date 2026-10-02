@@ -175,6 +175,26 @@ export interface CrawlPlanItem {
   /** A click that would submit, confirm, pay, save or delete. */
   risky?: boolean
   expected?: string | null
+  screen_options?: string[]
+  /** Where the design says this action leads; `expected` marks the outcome this walk expects. */
+  expect?: CrawlExpectation[]
+}
+
+export interface CrawlExpectation {
+  to: string[]
+  condition: string | null
+  rule: string | null
+  effect: string | null
+  expected: boolean
+}
+
+export interface CrawlScenario {
+  scenario_id: string
+  type: string
+  title: string
+  steps: number[]
+  rules?: string[]
+  branch?: string | null
 }
 
 export interface CrawlPlan {
@@ -190,6 +210,12 @@ export interface CrawlPlan {
   stop_before?: number | null
   stop_reason?: string | null
   first_risky?: number | null
+  /** Where the walk begins: the environment's address. */
+  entry?: string
+  /** The journey's test scenario the chosen test data is for. */
+  scenario?: CrawlScenario | null
+  warnings?: string[]
+  screen_names?: Record<string, string>
 }
 
 export interface WalkFlow { flow_id: string; flow_name: string; category: string | null; steps: number }
@@ -254,10 +280,15 @@ export interface CrawlStep {
   step_number: number
   kind: string
   screen_id: string | null
-  status: 'done' | 'skipped' | 'not_found' | 'not_applicable' | 'error' | 'stopped'
+  status: 'done' | 'skipped' | 'not_found' | 'not_applicable' | 'error' | 'stopped' | 'not_reached' | 'blocked' | 'off_path' | 'auto'
   error?: string
   reason?: string
+  note?: string
   url?: string
+  /** The screen the walk recognised there. */
+  screen?: string
+  /** What an action led to: the expected outcome, a known branch, an error, or nothing. */
+  outcome?: { kind: 'expected' | 'branch' | 'error' | 'unexpected' | 'unknown' | 'stuck'; screen?: string | null; rule?: string | null; condition?: string | null; message?: string; url?: string } | null
   /** shot-<n>.png in the run's workspace, served by crawlImage. */
   screenshot?: string
 }
@@ -285,8 +316,12 @@ export interface JourneyCrawl {
   stop_reason?: string | null
   result?: {
     rows: CrawlRow[]; steps: CrawlStep[]; blockers: string[]; final_url: string | null
-    summary: Partial<Record<CrawlOutcome | 'app_only', number>>
+    summary: Partial<Record<CrawlOutcome | 'app_only' | 'routes_new', number>>
     inventory?: InventoryPage[]
+    entry?: { address: string; landed?: string; screen?: string | null; note?: string; fallback?: string; error?: string } | null
+    derailed?: { after: number; reason: string } | null
+    scenario?: CrawlScenario | null
+    routes?: { screen_id: string; path: string; known: string | null; state: 'same' | 'new' | 'differs' }[]
   } | null
 }
 

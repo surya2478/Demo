@@ -117,6 +117,7 @@ def preview(app_id: str, journey_id: str, profile_id: Optional[str], *, stop_bef
     plan = _plan(kb, journey_id, base_url=profile.get("base_url") or "", profile_id=profile_id,
                  stop_before=stop_before, allow_risky=allow_risky)
     plan.pop("screens", None)
+    plan["screen_names"] = {sid: sig.get("name") for sid, sig in (plan.pop("signatures", None) or {}).items()}
     return plan
 
 
@@ -163,16 +164,9 @@ def start(
     base_url = (address_for_crawl(db, application.app_key, environment) or application.base_url or "").strip()
     if not base_url:
         raise ValueError(f"{application.name} has no address for {environment}. Add one in AI Test Automation > Test Data.")
-    # Start on the page the Knowledge Base enters by (its login page), on this
-    # environment's host. A bare folder address is not a page: the B2B portal
-    # answers /b2bportal with a redirect to an internal host that does not
-    # resolve outside its network, so a walk starting there never began.
-    entry = (_automation_profile(kb).get("base_url") or "").strip()
-    if entry:
-        from ..automation.knowledge_base import rehome_to_profile
-
-        base_url = rehome_to_profile(entry, {"base_url": base_url}) or base_url
-
+    # A journey walk starts at this address and nothing else: the application
+    # takes it to its first screen, which the walk recognises by what is on
+    # it (journey_crawl.entry_address). A flow starts at its own entry point.
     plan = _plan(kb, journey_id, base_url=base_url, profile_id=profile_id, stop_before=stop_before, allow_risky=allow_risky)
     run_key = new_run_key()
     db.add(AutomationRun(
@@ -335,6 +329,10 @@ def propose(db: Session, crawl_id: int, *, actor: Optional[str], additions: Opti
         raise changesets.ChangeSetError("This walk has already proposed its changes.")
     profile = _automation_profile(kb)
     changes = journey_crawl.proposal(result, profile)
+    # Where the walk found each screen, for screens whose address is not recorded or has moved.
+    routes = journey_crawl.route_changes(crawl.result or {}, kb, profile)
+    changes["automation"].extend(routes["automation"])
+    changes["journey"].extend(routes["journey"])
     extra = journey_crawl.additions(crawl.result or {}, additions or [], walk_id=crawl.id)
     if extra["groups"]:
         # One change per selectors group: the walk's captures and the additions together.
@@ -359,7 +357,8 @@ def propose(db: Session, crawl_id: int, *, actor: Optional[str], additions: Opti
     if changes["automation"]:
         automation_set = changesets.draft(
             db, app_id=kb.automation_app_id, kb="automation", source="crawl", actor=actor, origin=origin,
-            title=f"Crawl of {name}: {sum(len(c['value']) if isinstance(c['value'], dict) else 1 for c in changes['automation'])} selector(s)",
+            title=f"Crawl of {name}: {sum(len(c['value']) if isinstance(c['value'], dict) else 1 for c in changes['automation'] if not c['path'].startswith('endpoints.'))} selector(s)"
+                  + (f", {len(routes['automation'])} address(es)" if routes["automation"] else ""),
             description=f"Captured in {crawl.environment} at {crawl.base_url}. Every selector matched exactly one element when captured.",
             changes=changes["automation"],
         )
@@ -422,6 +421,7 @@ def view(crawl: KbCrawlRun, *, with_result: bool = True) -> Dict[str, Any]:
         "journey_name": (crawl.plan or {}).get("journey_name"), "application_id": crawl.application_id,
         "source": (crawl.plan or {}).get("source") or "journey",
         "stop_before": (crawl.plan or {}).get("stop_before"), "stop_reason": (crawl.plan or {}).get("stop_reason"),
+        "entry": (crawl.plan or {}).get("entry"), "scenario": (crawl.plan or {}).get("scenario"),
         "environment": crawl.environment, "profile_id": crawl.profile_id, "base_url": crawl.base_url,
         "run_key": crawl.run_key, "status": crawl.status, "error": crawl.error,
         "automation_change_set_id": crawl.automation_change_set_id,

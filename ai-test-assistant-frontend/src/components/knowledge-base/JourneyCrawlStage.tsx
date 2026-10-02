@@ -24,7 +24,11 @@ const STEP_STATUS: Record<CrawlStep['status'], { label: string; tone: keyof type
   not_found: { label: 'Not found', tone: 'bad' },
   not_applicable: { label: 'Not shown', tone: 'idle' },
   error: { label: 'Failed', tone: 'bad' },
-  stopped: { label: 'Not run', tone: 'idle' }
+  stopped: { label: 'Not run', tone: 'idle' },
+  not_reached: { label: 'Not reached', tone: 'bad' },
+  blocked: { label: 'Blocked', tone: 'idle' },
+  off_path: { label: 'Off the path', tone: 'bad' },
+  auto: { label: 'Moved on by itself', tone: 'good' }
 }
 
 const SELECT = 'h-[34px] rounded-[10px] border border-[#E8EAEE] bg-white px-2.5 text-[12.5px] font-semibold text-[#374151]'
@@ -116,7 +120,7 @@ const LivePanel: React.FC<{ crawl: JourneyCrawl; plan: CrawlPlan | null; onFinis
 
 // --- After the walk ------------------------------------------------------------------------
 
-const StepRow: React.FC<{ crawlId: number; step: CrawlStep; text: string }> = ({ crawlId, step, text }) => {
+const StepRow: React.FC<{ crawlId: number; step: CrawlStep; text: string; screenNames: Record<string, string> }> = ({ crawlId, step, text, screenNames }) => {
   const [open, setOpen] = useState(false)
   const shot = useAuthedImage(open && step.screenshot ? () => knowledgeBaseService.crawlImage(crawlId, step.screenshot as string) : null, open ? step.screenshot ?? null : null)
   const status = STEP_STATUS[step.status]
@@ -126,7 +130,14 @@ const StepRow: React.FC<{ crawlId: number; step: CrawlStep; text: string }> = ({
         <span className="w-6 flex-shrink-0 text-right font-semibold text-[#6B7280]">{step.order}</span>
         <span className="min-w-0 flex-1">
           <span className="font-semibold text-[#6B7280]">{KIND[step.kind] ?? step.kind}</span> {text}
-          {(step.error || step.reason) && <span className={`block text-[11.5px] ${step.error ? 'text-[#A3231C]' : 'text-[#6B7280]'}`}>{step.error ?? step.reason}</span>}
+          {(step.error || step.reason) && (
+            <span className={`block text-[11.5px] ${step.error || step.status === 'off_path' || step.status === 'not_reached' ? 'text-[#A3231C]' : 'text-[#6B7280]'}`}>{step.error ?? step.reason}</span>
+          )}
+          {step.outcome?.kind === 'expected' && step.outcome.screen && step.status !== 'auto' && (
+            <span className="block text-[11.5px] text-[#1F7A4D]">→ {screenNames[step.outcome.screen] ?? step.outcome.screen}{step.outcome.rule ? ` · ${step.outcome.rule}` : ''}, as expected</span>
+          )}
+          {step.screen && !step.outcome && <span className="block text-[11.5px] text-[#1F7A4D]">On {screenNames[step.screen] ?? step.screen}</span>}
+          {step.note && <span className="block text-[11.5px] text-[#6B7280]">{step.note}</span>}
           {step.url && <span className="block truncate font-mono text-[11px] text-[#9CA3AF]" title={step.url}>{step.url}</span>}
         </span>
         <Chip tone={status.tone}>{status.label}</Chip>
@@ -407,7 +418,7 @@ const JourneyCrawlStage: React.FC<{
   }, [detail])
   const captured = rows.some(r => ['new', 'healed'].includes(r.outcome) && !r.data_dependent && !r.ambiguous)
   const pickCount = Object.keys(picks).length
-  const proposable = captured || additions.size > 0 || pickCount > 0
+  const proposable = captured || additions.size > 0 || pickCount > 0 || (detail?.source !== 'flow' && !!detail?.result?.summary.routes_new)
   const alreadyProposed = detail?.source !== 'flow' && !!(detail?.automation_change_set_id || detail?.journey_change_set_id)
   const ranSteps = (detail?.result?.steps ?? []).some(s => s.status === 'done')
   const stepText = (order: number) => detailPlan?.items[order - 1]?.text ?? ''
@@ -498,6 +509,12 @@ const JourneyCrawlStage: React.FC<{
             <Note tone="warn">Test Data has no value in {application.environment} for {missing.join(', ')}. Add it on the Test Data stage, or stop the walk before the step that needs it.</Note>
           )}
           {actionError && <Note tone="warn">{actionError}</Note>}
+          {plan?.scenario && (
+            <Note>
+              This test data is for {plan.scenario.scenario_id} ({plan.scenario.type}): {plan.scenario.title}. The walk runs steps {plan.scenario.steps.join(', ')} and expects that outcome.
+            </Note>
+          )}
+          {(plan?.warnings ?? []).map(w => <Note key={w} tone="warn">{w}</Note>)}
           {plan && (
             <details className="rounded-[12px] border border-[#E8EAEE]">
               <summary className="cursor-pointer px-3.5 py-2.5 text-[12.5px] font-semibold text-[#374151]">
@@ -516,6 +533,11 @@ const JourneyCrawlStage: React.FC<{
                         {item.optional && <span className="ml-1.5 text-[11px] text-[#6B7280]">(if shown)</span>}
                         {item.risky && <span className="ml-1.5 text-[11px] font-semibold text-[#8A5000]">changes data</span>}
                         {plan.stop_before === i + 1 && <span className="ml-1.5 text-[11px] font-semibold text-[#B71920]">⏹ stops here</span>}
+                        {(item.expect ?? []).filter(o => o.expected).map(o => (
+                          <span key={o.to.join('|')} className="block text-[11px] text-[#1F7A4D]">
+                            expects → {o.to.map(s => plan.screen_names?.[s] ?? s).join(' or ')}{o.effect ? ` (${o.effect})` : ''}{o.rule ? ` · ${o.rule}` : ''}
+                          </span>
+                        ))}
                       </span>
                       <span className="hidden truncate font-mono text-[11px] text-[#6B7280] sm:block">{item.variable || item.text_variable || item.screen_id || ''}</span>
                     </li>
@@ -525,7 +547,8 @@ const JourneyCrawlStage: React.FC<{
             </details>
           )}
           <p className="m-0 text-[12px] text-[#6B7280]">
-            Values come from Test Data at run time and are never recorded in the result. A journey walk keeps a selector only if it matched exactly one element.
+            {plan?.source !== 'flow' && plan?.entry ? <>Starts at {plan.entry} and lets the application open its first screen; each screen is recognised by what is on it. </> : null}
+            Values come from Test Data at run time and are never recorded; typed fields are painted over in screenshots and live frames (the video and trace still show them). A journey walk keeps a selector only if it matched exactly one element.
           </p>
         </div>
       </Card>
@@ -577,15 +600,45 @@ const JourneyCrawlStage: React.FC<{
               <div className="px-5 pb-3"><Note>Stopped before step {detail.stop_before}: {detail.stop_reason}.</Note></div>
             )}
             {detail.result.blockers.length > 0 && <div className="px-5 pb-3"><Note tone="warn">Stopped early: {detail.result.blockers.join('; ')}</Note></div>}
+            {detail.result.entry && (
+              <div className="px-5 pb-3 text-[12px] text-[#4B5563]">
+                Started at <span className="font-mono">{detail.result.entry.address}</span>
+                {detail.result.entry.landed && <> → the application opened <span className="font-mono">{detail.result.entry.landed}</span></>}
+                {detail.result.entry.screen && <> · recognised as {detailPlan?.screen_names?.[detail.result.entry.screen] ?? detail.result.entry.screen}</>}
+                {detail.result.entry.note && <span className="block text-[#8A5000]">{detail.result.entry.note}; the walk opened the first screen’s address instead.</span>}
+              </div>
+            )}
+            {detail.result.scenario && (
+              <div className="px-5 pb-3"><Note>Scenario {detail.result.scenario.scenario_id} ({detail.result.scenario.type}): {detail.result.scenario.title}. Steps outside it were skipped.</Note></div>
+            )}
+            {detail.result.derailed && (
+              <div className="px-5 pb-3"><Note tone="warn">Left the journey’s path after step {detail.result.derailed.after}: {detail.result.derailed.reason}. The steps after it are blocked, not missing.</Note></div>
+            )}
             {detail.run_key && <Replay runKey={detail.run_key} />}
             <div className="px-5 pb-1 text-[11px] font-bold uppercase tracking-[0.1em] text-[#6B7280]">Steps</div>
             <ol className="m-0 list-none p-0">
-              {detail.result.steps.map(step => <StepRow key={step.order} crawlId={detail.id} step={step} text={stepText(step.order)} />)}
+              {detail.result.steps.map(step => <StepRow key={step.order} crawlId={detail.id} step={step} text={stepText(step.order)} screenNames={detailPlan?.screen_names ?? {}} />)}
             </ol>
             <div className="pt-4">
               <ScreenInventory pages={detail.result.inventory ?? []} selectable={canExecute && detail.source !== 'flow' && !alreadyProposed}
                 chosen={additions} onToggle={toggleAddition} />
             </div>
+            {(detail.result.routes ?? []).length > 0 && (
+              <div className="px-5 pt-4">
+                <div className="pb-1 text-[11px] font-bold uppercase tracking-[0.1em] text-[#6B7280]">Screen addresses found</div>
+                <ul className="m-0 list-none p-0 text-[12px]">
+                  {(detail.result.routes ?? []).map(r => (
+                    <li key={r.screen_id} className="flex flex-wrap items-center gap-2 py-0.5">
+                      <span className="font-semibold text-[#1F2937]">{detailPlan?.screen_names?.[r.screen_id] ?? r.screen_id}</span>
+                      <span className="font-mono text-[11.5px] text-[#4B5563]">{r.path}</span>
+                      {r.state === 'same' && <Chip tone="good">As recorded</Chip>}
+                      {r.state === 'new' && <Chip tone="info" title="Not recorded in the Knowledge Bases; Propose changes adds it">New</Chip>}
+                      {r.state === 'differs' && <Chip tone="warn" title={`Recorded as ${r.known}`}>Moved · was {r.known}</Chip>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="flex flex-wrap gap-1.5 px-5 pb-3 pt-4">
               <span className="mr-1 text-[11px] font-bold uppercase tracking-[0.1em] text-[#6B7280]">{detail.source === 'flow' ? 'Flow selectors' : 'Design elements'}</span>
               {ORDER.filter(o => detail.result?.summary[o]).map(o => (

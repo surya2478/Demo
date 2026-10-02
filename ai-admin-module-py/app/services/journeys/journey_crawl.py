@@ -31,6 +31,17 @@ selectors. While it runs it writes its progress (PROGRESS_FILE) and a frame
 of the page about once a second (FRAME_FILE), which the Knowledge Base page
 shows live; video and trace are the run's own evidence, for replay.
 
+--- Following the journey's path ------------------------------------------------
+A journey walk starts at the environment's address and nothing else; the
+application opens its own first screen. Screens are recognised by what is on
+them (their markers), never by a recorded URL, and each action the design
+says leads somewhere waits for one of its outcomes (the screens' transitions).
+The test data picks the journey's scenario, and so the expected outcome. An
+error, a different branch, or nothing happening takes the walk off the path:
+the steps after it are reported blocked, with the reason, rather than missing.
+The address each screen was found at is proposed back to the Knowledge Bases.
+Typed values are painted over in screenshots and live frames.
+
 A walk stops before step `stop_before`, and -- unless allowed -- before the
 first step that would submit, confirm, pay, save or delete something
 (apply_stop), so a dry run against a shared environment changes nothing.
@@ -121,6 +132,97 @@ def _descriptor(kb: store.JourneyKB, screen: Dict[str, Any], element: Dict[str, 
     }
 
 
+# --- Knowing where the walk is ------------------------------------------------------
+# A screen is recognised by what is on it, not by its address: one address can
+# show several screens (a dialog over a page) and a screen's address is often
+# not recorded. Each screen's markers are the design elements most likely to
+# be found (an Automation KB selector first, then a role and name, then a
+# label); the walk takes a screen as shown when enough of them are visible.
+
+# Elements that appear only on some outcomes, or carry no findable text.
+_NOT_MARKERS = {"inline_error", "status_icon", "toast", "static_panel", "dialog", "tile_list"}
+MARKERS_PER_SCREEN = 6
+
+
+def _path_of(route: Optional[str]) -> Optional[str]:
+    match = re.match(r"^(?:https?://[^/?#]+)?(/[^?#]*)", (route or "").strip())
+    return (match.group(1).rstrip("/") or "/") if match else None
+
+
+def _screen_route(kb: store.JourneyKB, screen: Dict[str, Any], automation: Dict[str, Any]) -> Optional[str]:
+    route = diff._resolve_ref(automation, screen["route_ref"]) if screen.get("route_ref") else None
+    return route or screen.get("route")
+
+
+def _signature(kb: store.JourneyKB, screen: Dict[str, Any], automation: Dict[str, Any]) -> Dict[str, Any]:
+    markers = []
+    for element in screen.get("elements", []):
+        if element.get("type") in _NOT_MARKERS:
+            continue
+        desc = _descriptor(kb, screen, element, automation)
+        label = desc["clean_label"]
+        # Masked or counted text ("p****@e***.com", "N COST CENTERS") is never on the page as written.
+        if label and ("*" in label or re.match(r"^N\b", label)):
+            desc["clean_label"] = label = ""
+        hint = desc["hint"]
+        findable = desc["kb_target"] or (hint.get("roles") and (hint.get("name") or hint.get("regex") or hint.get("contains"))) \
+            or len(label) >= 4
+        if findable:
+            markers.append(desc)
+    markers.sort(key=lambda d: (not d["kb_target"], not d["hint"].get("roles"), d["type"] != "heading"))
+    route = _screen_route(kb, screen, automation)
+    return {"name": screen.get("name") or screen["screen_id"], "route": _path_of(route), "markers": markers[:MARKERS_PER_SCREEN]}
+
+
+def _ids(value: Any) -> List[str]:
+    return [s.strip() for s in str(value or "").split("|") if s.strip()]
+
+
+def _transitions(kb: store.JourneyKB, screen: Dict[str, Any], element_id: str, automation: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Where the design says acting on `element_id` leads, one entry per outcome."""
+    out = []
+    for t in screen.get("transitions") or []:
+        if element_id not in _ids(t.get("on")):
+            continue
+        to = [sid for sid in _ids(t.get("to")) if sid in kb.screens]
+        if not to:
+            continue
+        effect = str(t.get("effect") or "")
+        # "no_customer_banner shown": the outcome is told apart by that element.
+        marker = None
+        for sid in to:
+            element = next((e for e in kb.screens[sid].get("elements", []) if e.get("element_id") and e["element_id"] in effect), None)
+            if element is not None:
+                marker = _descriptor(kb, kb.screens[sid], element, automation)
+                break
+        out.append({"to": to, "condition": t.get("condition"), "rule": t.get("rule"), "effect": effect or None, "marker": marker})
+    return out
+
+
+def scenario_for(journey: Dict[str, Any], profile_id: Optional[str]) -> Optional[Dict[str, Any]]:
+    """The journey's test scenario this test data is for, if one names it."""
+    if not profile_id:
+        return None
+    return next((s for s in journey.get("test_scenarios") or [] if s.get("test_data") == profile_id), None)
+
+
+def entry_address(base_url: str) -> str:
+    """Where a journey walk begins: the environment's own address, as a folder.
+
+    A folder without its trailing slash is not a page: the B2B portal answers
+    /b2bportal with a redirect to an internal host, /b2bportal/ with its login page.
+    """
+    url = (base_url or "").strip()
+    match = re.match(r"^(https?://[^/?#]+)(/[^?#]*)?$", url)
+    if not match:
+        return url
+    path = match.group(2) or "/"
+    last = path.rstrip("/").rsplit("/", 1)[-1]
+    if not path.endswith("/") and "." not in last:
+        path += "/"
+    return match.group(1) + path
+
+
 def build_plan(
     kb: store.JourneyKB,
     journey_id: str,
@@ -129,7 +231,14 @@ def build_plan(
     base_url: str,
     profile_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """What the crawl will do, step by step. Pure data; also shown to the user."""
+    """What the crawl will do, step by step. Pure data; also shown to the user.
+
+    The walk starts at the environment's address and lets the application
+    take it from there. When the test data belongs to one of the journey's
+    test scenarios, the walk runs that scenario's steps and expects its
+    outcome -- an unregistered email is expected to stay on the login page
+    with its banner, not to reach the OTP screen.
+    """
     journey = kb.journeys.get(journey_id)
     if journey is None:
         raise ValueError(f"'{journey_id}' has no authored journey file to walk.")
@@ -137,6 +246,15 @@ def build_plan(
     if not profile_id:
         profile_id = next((pid for pid, p in profiles.items() if "Journey Crawl sign-in" in p.get("extra_users", [])), None)
     data_profile = profiles.get(profile_id or "", {})
+    scenario = scenario_for(journey, profile_id)
+    warnings: List[str] = []
+    if profile_id and scenario is None and data_profile.get("fields"):
+        named = [s for s in journey.get("test_scenarios") or [] if s.get("test_data")]
+        hint = "; ".join(f"{profiles.get(s['test_data'], {}).get('name', s['test_data'])} for {s['scenario_id']}" for s in named[:4])
+        warnings.append(f"No scenario of this journey uses '{data_profile.get('name', profile_id)}'; the walk follows the steps "
+                        f"as written and may stop early." + (f" Its scenarios use: {hint}." if hint else ""))
+    scenario_steps = set(scenario.get("steps") or []) if scenario else None
+    negative = bool(scenario and scenario.get("type") not in ("positive", "alternate"))
 
     scope = store.journey_scope(kb, journey)
     items: List[Dict[str, Any]] = []
@@ -146,6 +264,14 @@ def build_plan(
         # chooser), and a step that cannot apply is skipped, not failed.
         optional = walked not in store.journey_chain(kb, journey)
         for step in walked.get("steps", []):
+            if walked["journey_id"] == journey_id and scenario_steps is not None and step["step_number"] not in scenario_steps:
+                items.append({"journey_id": walked["journey_id"], "step_number": step["step_number"], "text": step["action"],
+                              "kind": "skip", "reason": f"not part of {scenario['scenario_id']}, the scenario this test data is for"})
+                continue
+            if walked["journey_id"] != journey_id and negative:
+                items.append({"journey_id": walked["journey_id"], "step_number": step["step_number"], "text": step["action"],
+                              "kind": "skip", "reason": f"{scenario['scenario_id']} ends before this journey"})
+                continue
             if step.get("branch") == "negative_only":
                 items.append({"journey_id": walked["journey_id"], "step_number": step["step_number"], "text": step["action"],
                               "kind": "skip", "reason": "error path only; the crawl follows the success path"})
@@ -199,12 +325,62 @@ def build_plan(
         sid: [_descriptor(kb, kb.screens[sid], e, automation_profile) for e in kb.screens[sid].get("elements", [])]
         for walked in scope for sid in walked.get("screens", []) if sid in kb.screens
     }
+    _expectations(kb, items, automation_profile, scenario)
+    involved = set(screens)
+    for item in items:
+        involved.update(item.get("screen_options") or ([item["screen_id"]] if item.get("screen_id") else []))
+        for outcome in item.get("expect") or []:
+            involved.update(outcome["to"])
+    signatures = {sid: _signature(kb, kb.screens[sid], automation_profile) for sid in sorted(involved) if sid in kb.screens}
+    # When the address does not lead into the application (a redirect to a
+    # host outside this network), the walk opens the first screen's address.
+    fallback = next((i["route"] for i in items if i.get("kind") == "goto" and i.get("route")), None)
+    if not fallback:
+        first = next((i["screen_id"] for i in items if i.get("screen_id")), None)
+        fallback = _screen_route(kb, kb.screens[first], automation_profile) if first in kb.screens else None
     return {
         "app_id": kb.app_id, "journey_id": journey_id, "journey_name": journey["name"],
         "scope": [j["journey_id"] for j in scope], "base_url": base_url, "profile_id": profile_id,
+        "entry": entry_address(base_url), "entry_fallback": fallback,
+        "scenario": {k: scenario.get(k) for k in ("scenario_id", "type", "title", "steps", "rules", "branch")} if scenario else None,
+        "warnings": warnings,
         "variables": sorted({i[k] for i in items for k in ("variable", "text_variable") if i.get(k)}),
-        "items": items, "screens": screens,
+        "items": items, "screens": screens, "signatures": signatures,
     }
+
+
+def _expectations(kb: store.JourneyKB, items: List[Dict[str, Any]], automation: Dict[str, Any],
+                  scenario: Optional[Dict[str, Any]]) -> None:
+    """For each action that should lead somewhere: the outcomes the design describes, and which is expected.
+
+    The scenario's rules choose the expected outcome (BR-AUTH-01: the
+    unregistered email stays on the login page with its banner); without
+    one, the outcome leading to the next step's screen is expected. The
+    others are known branches: reaching one is reported by name, not as a
+    missing element.
+    """
+    rules = set((scenario or {}).get("rules") or [])
+    running = [i for i in items if i.get("kind") != "skip"]
+    for index, item in enumerate(running):
+        if item.get("kind") not in ("click", "otp") or not item.get("screen_id") or not item.get("element"):
+            continue
+        later = next((i for i in running[index + 1:] if i.get("screen_id") or i.get("screen_options")), None)
+        next_screens = (later.get("screen_options") or [later["screen_id"]]) if later else []
+        outcomes = _transitions(kb, kb.screens[item["screen_id"]], item["element"]["element_id"], automation)
+        if not outcomes and next_screens and item["screen_id"] not in next_screens:
+            outcomes = [{"to": next_screens, "condition": None, "rule": None, "effect": None, "marker": None}]
+        if not outcomes:
+            continue
+        chosen = [o for o in outcomes if o.get("rule") and o["rule"] in rules]
+        if not chosen:
+            chosen = [o for o in outcomes if set(o["to"]) & set(next_screens) and not o.get("marker")] \
+                or [o for o in outcomes if set(o["to"]) & set(next_screens)]
+        # The last step of a scenario that ends here: its outcome is the scenario's.
+        if not chosen and scenario and not later:
+            chosen = outcomes[:1]
+        for outcome in outcomes:
+            outcome["expected"] = outcome in chosen
+        item["expect"] = outcomes
 
 
 # --- A flow blueprint as a plan -------------------------------------------------------
@@ -303,9 +479,9 @@ def build_flow_plan(flow: Dict[str, Any], *, automation_profile: Dict[str, Any],
         items.append(item)
     return {
         "app_id": automation_profile.get("app_id"), "journey_id": flow_id, "journey_name": flow.get("flow_name") or flow_id,
-        "scope": [flow_id], "base_url": start, "profile_id": profile_id, "source": "flow",
+        "scope": [flow_id], "base_url": start, "entry": start, "profile_id": profile_id, "source": "flow",
         "variables": sorted({i[k] for i in items for k in ("variable", "text_variable") if i.get(k)}),
-        "items": items, "screens": {},
+        "items": items, "screens": {}, "signatures": {},
     }
 
 
@@ -366,7 +542,7 @@ import path from 'path';
 // Values are read from TESTDATA_* only; nothing typed is recorded.
 
 const PLAN = __PLAN__;
-const T = { action: 8000, settle: 8000 };
+const T = { action: 8000, settle: 8000, outcome: 25000 };
 
 // Which values the crawl reads -- listed literally so the runner can resolve
 // them from the test-data vault before starting:
@@ -589,8 +765,132 @@ async function capture(page, el, textValue) {
   return { ...record, found: true, strategy: r.strategy, count: r.count, ambiguous: !!r.ambiguous, selector, ...info, _loc: r.loc };
 }
 
+// --- Where the walk is ---------------------------------------------------------
+// Is this design element on the page? Looser than resolve(): any visible
+// match will do, and labels match ignoring case and surrounding words -- the
+// design's text is often a little behind the application's.
+async function present(page, el) {
+  const h = el.hint || {};
+  const tries = [];
+  if (el.kb_target) tries.push(() => page.locator(el.kb_target.startsWith('//') || el.kb_target.startsWith('(//') ? `xpath=${el.kb_target}` : el.kb_target));
+  for (const role of h.roles || []) {
+    if (h.name) tries.push(() => page.getByRole(role, { name: h.name }));
+    if (h.regex) tries.push(() => page.getByRole(role, { name: new RegExp(h.regex, 'i') }));
+    if (h.contains) tries.push(() => page.getByRole(role, { name: h.contains }));
+  }
+  if (h.contains) tries.push(() => page.getByText(h.contains));
+  for (const label of [el.clean_label, ...(el.aliases || [])].filter((l) => l && l.length >= 4)) tries.push(() => page.getByText(label));
+  for (const make of tries) {
+    try {
+      const loc = make();
+      const n = await loc.count();
+      for (let i = 0; i < Math.min(n, 3); i++) if (await loc.nth(i).isVisible()) return true;
+    } catch (e) { /* an invalid selector is a miss */ }
+  }
+  return false;
+}
+
+const pathOf = (u) => { try { return new URL(u).pathname.replace(/\/+$/, '') || '/'; } catch (e) { return null; } };
+const screenName = (id) => ((PLAN.signatures || {})[id] || {}).name || id;
+
+// Which of these screens is showing: enough of its markers visible, or its
+// known address and at least one marker. The best-supported one wins.
+async function recognise(page, ids) {
+  let best = null;
+  const here = pathOf(page.url());
+  for (const id of ids) {
+    const sig = (PLAN.signatures || {})[id];
+    if (!sig) continue;
+    let hits = 0;
+    for (const m of sig.markers) if (await present(page, m)) hits++;
+    const routed = !!(sig.route && here && sig.route === here);
+    const total = sig.markers.length;
+    const ok = total ? (hits >= Math.min(2, total) || (routed && hits >= 1)) : routed;
+    if (!ok) continue;
+    const score = hits + (routed ? 1 : 0);
+    const fraction = total ? hits / total : 1;
+    if (!best || score > best.score || (score === best.score && fraction > best.fraction)) best = { screen_id: id, score, fraction };
+  }
+  return best;
+}
+
+// Runs in the page: error messages showing, and whether the page is still busy.
+function pageSignals() {
+  const vis = (e) => { const b = e.getBoundingClientRect(); const s = getComputedStyle(e); return b.width > 1 && b.height > 1 && s.visibility !== 'hidden' && s.display !== 'none' && s.opacity !== '0'; };
+  const errors = [];
+  for (const e of document.querySelectorAll('[role=alert],[role=alertdialog],[aria-live=assertive],.alert-danger,.alert-error,.text-danger,.invalid-feedback,.error-message,.error-msg,.errorMessage,.toast-error,.mat-error,.mat-mdc-form-field-error')) {
+    if (!vis(e)) continue;
+    const t = (e.innerText || '').trim().replace(/\s+/g, ' ');
+    if (t && t.length <= 200) errors.push(t);
+  }
+  const text = document.body ? document.body.innerText : '';
+  const m = text.match(/\b(internal server error|something went wrong|service (?:is )?unavailable|bad gateway|gateway time-?out|unexpected error|technical (?:error|issue|difficult(?:y|ies)))\b[^\n]{0,120}/i);
+  if (m && !errors.some((x) => x.toLowerCase().includes(m[1].toLowerCase()))) errors.push(m[0].trim());
+  let busy = !!document.querySelector('[aria-busy=true]');
+  for (const b of document.querySelectorAll('button,[role=button],input[type=submit]')) {
+    if (vis(b) && /\b(sending|loading|please wait|processing|submitting|verifying|signing in)\b/i.test(b.innerText || b.value || '')) { busy = true; break; }
+  }
+  return { errors: [...new Set(errors)].slice(0, 3), busy };
+}
+
+// After an action the design says leads somewhere: wait for one of its
+// outcomes, an error, or the time limit -- whichever comes first.
+async function outcomeOf(page, item) {
+  const from = item.screen_id;
+  const outcomes = [...(item.expect || [])].sort((a, b) => (b.expected ? 1 : 0) - (a.expected ? 1 : 0));
+  const ids = [...new Set([from, ...outcomes.flatMap((o) => o.to)].filter(Boolean))];
+  const before = page.url();
+  const deadline = Date.now() + T.outcome;
+  let errorSeen = 0;
+  while (Date.now() < deadline) {
+    await page.waitForTimeout(600);
+    const signals = await page.evaluate(pageSignals).catch(() => ({ errors: [], busy: true }));
+    if (signals.busy) continue;
+    const showing = await recognise(page, ids);
+    for (const o of outcomes) {
+      let reached = false;
+      if (o.marker) reached = (!showing || o.to.includes(showing.screen_id)) && await present(page, o.marker);
+      else reached = !!showing && o.to.includes(showing.screen_id) && showing.screen_id !== from;
+      if (reached) {
+        return { kind: o.expected ? 'expected' : 'branch', screen: showing ? showing.screen_id : o.to[0],
+          rule: o.rule || null, condition: o.condition || null, effect: o.effect || null };
+      }
+    }
+    if (signals.errors.length) {
+      // Seen twice: a message that flickers while a request finishes is not the outcome.
+      if (++errorSeen >= 2) return { kind: 'error', message: signals.errors.join(' · '), screen: showing ? showing.screen_id : null };
+    } else errorSeen = 0;
+  }
+  const now = await recognise(page, Object.keys(PLAN.signatures || {}));
+  if (now && now.screen_id !== from) return { kind: 'unexpected', screen: now.screen_id };
+  if (page.url() !== before) return { kind: 'unknown', url: page.url() };
+  return { kind: 'stuck', screen: now ? now.screen_id : null };
+}
+
+function offPathReason(item, o) {
+  const wanted = (item.expect || []).filter((x) => x.expected).flatMap((x) => x.to).map(screenName);
+  const target = wanted.length ? wanted.join(' or ') : 'the next screen';
+  if (o.kind === 'error') return `"${o.message}" was shown after step ${item.step_number}, instead of ${target}`;
+  if (o.kind === 'branch') return `went the way the design gives for "${o.condition || o.effect || screenName(o.screen)}"${o.rule ? ` (${o.rule})` : ''}, instead of ${target}`;
+  if (o.kind === 'unexpected') return `reached ${screenName(o.screen)} instead of ${target}`;
+  if (o.kind === 'unknown') return `reached ${o.url}, a screen the Journey KB does not describe, instead of ${target}`;
+  return `nothing happened within ${Math.round(T.outcome / 1000)} s of step ${item.step_number}; ${target} never appeared`;
+}
+
+// Typed values never appear in a screenshot or a live frame: filled fields are painted over.
+async function markFilled(page) {
+  await page.evaluate(() => {
+    for (const e of document.querySelectorAll('input,textarea')) {
+      const t = (e.getAttribute('type') || '').toLowerCase();
+      if (['checkbox', 'radio', 'button', 'submit', 'hidden', 'image', 'reset'].includes(t)) continue;
+      if (e.value) e.setAttribute('data-walk-filled', ''); else e.removeAttribute('data-walk-filled');
+    }
+  }).catch(() => {});
+}
+const masked = (page) => ({ mask: [page.locator('[data-walk-filled]')], maskColor: '#8a8f98' });
+
 test('journey-guided crawl', async ({ page }) => {
-  test.setTimeout(240000);
+  test.setTimeout(300000);
   const steps = [];
   const sweep = [];
   const swept = new Set();
@@ -608,26 +908,72 @@ test('journey-guided crawl', async ({ page }) => {
     const elements = await page.evaluate(sweepPage).catch(() => []);
     pages.push({ screen_id: screenId || null, url: page.url(), elements });
   };
+  // The address each screen was found at: one screen per address, so a
+  // dialog over a page does not take the page's address.
+  const routes = {};
+  const claimed = {};
+  // On a screen for the first time: learn its address, catalogue it, and
+  // look for every element the design says it has.
+  const arrived = async (screenId) => {
+    if (!screenId) return;
+    const here = pathOf(page.url());
+    if (!routes[screenId] && here && !claimed[here]) { routes[screenId] = here; claimed[here] = screenId; }
+    await inventory(screenId);
+    if (!swept.has(screenId) && PLAN.screens[screenId]) {
+      swept.add(screenId);
+      for (const el of PLAN.screens[screenId]) {
+        const r = await capture(page, el, null);
+        delete r._loc;
+        sweep.push(r);
+      }
+    }
+  };
+  // Once the application leaves the journey's path, nothing after it can be
+  // judged: those steps are blocked, with the reason, not "not found".
+  let derailed = null;
+  const derail = (order, reason) => { if (!derailed) derailed = { after: order, reason }; };
   // Progress for the page that watches the walk: every step as it lands.
-  const progress = () => writeAtomic('__PROGRESS__', JSON.stringify({ total: PLAN.items.length, current, finished, steps }));
+  const progress = () => writeAtomic('__PROGRESS__', JSON.stringify({ total: PLAN.items.length, current, finished, steps, derailed }));
   const record = (step) => { steps.push(step); progress(); };
   const shoot = async (name) => {
     const file = `shot-${name}.png`;
-    await page.screenshot({ path: path.join(process.cwd(), file), fullPage: false }).catch(() => {});
+    await markFilled(page);
+    await page.screenshot({ path: path.join(process.cwd(), file), fullPage: false, ...masked(page) }).catch(() => {});
     return file;
   };
   // A frame about once a second, so the walk can be watched while it runs.
   let watching = true;
   const frames = (async () => {
     while (watching) {
-      try { writeAtomic('__FRAME__', await page.screenshot({ timeout: 3000 })); } catch (e) { /* between pages */ }
+      try { await markFilled(page); writeAtomic('__FRAME__', await page.screenshot({ timeout: 3000, ...masked(page) })); } catch (e) { /* between pages */ }
       await new Promise((r) => setTimeout(r, 1000));
     }
   })();
+  const entry = { address: PLAN.entry || PLAN.base_url };
   progress();
   try {
-    await page.goto(PLAN.base_url, { waitUntil: 'domcontentloaded', timeout: 35000 });
+    // In at the environment's address; the application takes it from there.
+    try {
+      await page.goto(entry.address, { waitUntil: 'domcontentloaded', timeout: 35000 });
+    } catch (err) {
+      entry.error = String(err && err.message || err).split('\n')[0].slice(0, 200);
+    }
     await settle(page);
+    entry.landed = page.url();
+    let offHost = true;
+    try { offHost = new URL(page.url()).host !== new URL(entry.address).host; } catch (e) { /* not a URL: off */ }
+    if (entry.error || offHost) {
+      if (!PLAN.entry_fallback) throw new Error(entry.error || `${entry.address} redirected to ${entry.landed}`);
+      entry.note = entry.error ? `${entry.address} did not open (${entry.error})` : `${entry.address} redirected to ${entry.landed}, outside the environment`;
+      entry.fallback = new URL(PLAN.entry_fallback, entry.address).toString();
+      await page.goto(entry.fallback, { waitUntil: 'domcontentloaded', timeout: 35000 });
+      await settle(page);
+      entry.landed = page.url();
+    }
+    const first = await recognise(page, Object.keys(PLAN.signatures || {}));
+    entry.screen = first ? first.screen_id : null;
+    if (first) await arrived(first.screen_id);
+
     for (const [index, item] of PLAN.items.entries()) {
       const out = { order: index + 1, journey_id: item.journey_id, step_number: item.step_number, kind: item.kind, screen_id: item.screen_id || null };
       // The stop point: nothing from here on runs.
@@ -639,28 +985,50 @@ test('journey-guided crawl', async ({ page }) => {
         progress();
         break;
       }
+      if (item.kind === 'skip') { record({ ...out, status: 'skipped', reason: item.reason }); continue; }
+      if (derailed) { record({ ...out, status: 'blocked', reason: derailed.reason }); continue; }
       current = { order: index + 1, step_number: item.step_number, text: item.text, kind: item.kind };
       progress();
+      const options = item.screen_options || (item.screen_id ? [item.screen_id] : []);
+      // A step of the walked journey whose screen never came: everything after it is blocked.
+      const missing = (why) => {
+        if (!item.optional) derail(index + 1, why);
+        return item.optional ? 'not_applicable' : 'not_reached';
+      };
       try {
-        if (item.kind === 'skip') { record({ ...out, status: 'skipped', reason: item.reason }); continue; }
         if (item.kind === 'goto') {
-          await page.goto(new URL(item.route, PLAN.base_url).toString(), { waitUntil: 'domcontentloaded', timeout: 35000 });
-          await settle(page);
-          record({ ...out, status: 'done', url: page.url(), screenshot: await shoot(index + 1) });
-        }
-        // First visit to a screen: catalogue everything on it, and look for
-        // every element the design says it has.
-        if (item.screen_id) await inventory(item.screen_id);
-        if (item.screen_id && !swept.has(item.screen_id) && PLAN.screens[item.screen_id]) {
-          swept.add(item.screen_id);
-          for (const el of PLAN.screens[item.screen_id]) {
-            const r = await capture(page, el, null);
-            delete r._loc;
-            sweep.push(r);
+          // Already there -- the application opened it from its own address -- or open it.
+          let shown = item.screen_id ? await recognise(page, [item.screen_id]) : null;
+          const already = !!shown;
+          if (!shown) {
+            await page.goto(new URL(item.route, entry.fallback || entry.address).toString(), { waitUntil: 'domcontentloaded', timeout: 35000 });
+            await settle(page);
+            shown = item.screen_id ? await recognise(page, [item.screen_id]) : { screen_id: null };
           }
+          if (!shown) {
+            const status = missing(`${screenName(item.screen_id)} did not appear at ${page.url()}`);
+            record({ ...out, status, url: page.url(), reason: `${screenName(item.screen_id)} is not showing`, screenshot: await shoot(index + 1) });
+            continue;
+          }
+          await arrived(item.screen_id);
+          record({ ...out, status: 'done', url: page.url(), screen: item.screen_id,
+            note: already ? 'already showing: the application opened it from its own address' : `opened ${item.route}`,
+            screenshot: await shoot(index + 1) });
+          continue;
         }
-        if (item.kind === 'goto') continue;
-        if (item.kind === 'screen') { record({ ...out, status: 'done', url: page.url(), screenshot: await shoot(index + 1) }); continue; }
+        if (item.kind === 'screen') {
+          if (!options.length) { record({ ...out, status: 'done', url: page.url(), screenshot: await shoot(index + 1) }); continue; }
+          const shown = await recognise(page, options);
+          if (!shown) {
+            const names = options.map(screenName).join(' or ');
+            const status = missing(`${names} never appeared (still at ${page.url()})`);
+            record({ ...out, status, url: page.url(), reason: `${names} is not showing`, screenshot: await shoot(index + 1) });
+            continue;
+          }
+          await arrived(shown.screen_id);
+          record({ ...out, status: 'done', url: page.url(), screen: shown.screen_id, screenshot: await shoot(index + 1) });
+          continue;
+        }
         const el = item.element;
         const textValue = env(item.text_variable);
         const r = await capture(page, el, textValue);
@@ -668,10 +1036,30 @@ test('journey-guided crawl', async ({ page }) => {
         delete r._loc;
         const before = page.url();
         if (!r.found) {
+          // Missing from its screen is a finding; its screen not showing at all is not.
+          const shown = item.screen_id ? await recognise(page, [item.screen_id]) : { screen_id: null };
+          // Already past it: an OTP form submits itself, so its Proceed button is gone
+          // and the page is where pressing it would have led.
+          const ahead = !shown && item.expect ? await recognise(page, item.expect.filter((o) => o.expected).flatMap((o) => o.to)) : null;
+          if (ahead) {
+            await arrived(ahead.screen_id);
+            record({ ...out, status: 'auto', capture: r, url: page.url(), screen: ahead.screen_id,
+              outcome: { kind: 'expected', screen: ahead.screen_id }, note: `not needed: the application moved on to ${screenName(ahead.screen_id)} by itself`,
+              screenshot: await shoot(index + 1) });
+            continue;
+          }
+          if (!shown) {
+            const status = missing(`${screenName(item.screen_id)} never appeared (still at ${page.url()})`);
+            record({ ...out, status, capture: r, url: page.url(), reason: `${screenName(item.screen_id)} is not showing`, screenshot: await shoot(index + 1) });
+            continue;
+          }
+          await arrived(item.screen_id);
           await inventory(item.screen_id || null);
-          record({ ...out, status: item.optional ? 'not_applicable' : 'not_found', capture: r, screenshot: await shoot(index + 1) });
+          record({ ...out, status: item.optional ? 'not_applicable' : 'not_found', capture: r, url: page.url(), screenshot: await shoot(index + 1) });
           continue;
         }
+        // Found: this is its screen. Catalogue it before the action changes it.
+        await arrived(item.screen_id);
         if (item.kind === 'fill') await loc.first().fill(env(item.variable), { timeout: T.action });
         if (item.kind === 'otp') {
           const digits = env(item.variable).replace(/\D/g, '').split('');
@@ -680,13 +1068,22 @@ test('journey-guided crawl', async ({ page }) => {
           else await loc.first().fill(digits.join(''), { timeout: T.action });
         }
         if (item.kind === 'click') await loc.first().click({ timeout: T.action });
-        // An OTP form submits itself once the last box is filled: give it
-        // time to leave the page before the next screen is swept.
-        if (item.kind === 'otp') await page.waitForURL((u) => u.toString() !== before, { timeout: T.settle }).catch(() => {});
-        if (['fill', 'otp', 'click'].includes(item.kind)) await settle(page);
+        let outcome = null;
+        if (item.expect && item.expect.length) {
+          outcome = await outcomeOf(page, item);
+          if (outcome.screen && outcome.kind !== 'error') await arrived(outcome.screen);
+        } else {
+          // An OTP form submits itself once the last box is filled: give it
+          // time to leave the page before the next screen is swept.
+          if (item.kind === 'otp') await page.waitForURL((u) => u.toString() !== before, { timeout: T.settle }).catch(() => {});
+          if (['fill', 'otp', 'click'].includes(item.kind)) await settle(page);
+        }
         // A flow names no screens: each new page it reaches is catalogued.
         if (!item.screen_id) await inventory(null);
-        record({ ...out, status: 'done', capture: r, url: page.url(), screenshot: await shoot(index + 1) });
+        const offPath = !!outcome && outcome.kind !== 'expected';
+        const reason = offPath ? offPathReason(item, outcome) : undefined;
+        if (offPath) derail(index + 1, reason);
+        record({ ...out, status: offPath ? 'off_path' : 'done', capture: r, url: page.url(), outcome, reason, screenshot: await shoot(index + 1) });
       } catch (err) {
         record({ ...out, status: 'error', error: String(err && err.message || err).split('\n')[0].slice(0, 300), screenshot: await shoot(index + 1) });
       }
@@ -699,7 +1096,7 @@ test('journey-guided crawl', async ({ page }) => {
     current = null;
     finished = true;
     progress();
-    fs.writeFileSync(path.join(process.cwd(), '__OUTPUT__'), JSON.stringify({ steps, sweep, pages, blockers, final_url: page.url() }, null, 2));
+    fs.writeFileSync(path.join(process.cwd(), '__OUTPUT__'), JSON.stringify({ steps, sweep, pages, blockers, final_url: page.url(), entry, routes, derailed }, null, 2));
   }
 });
 """
@@ -751,8 +1148,10 @@ def evaluate(plan: Dict[str, Any], output: Dict[str, Any]) -> Dict[str, Any]:
     for key, el in descriptors.items():
         cap = captures.get(key)
         status = step_status.get(key)
-        if cap is None:
+        if cap is None or status in ("not_reached", "blocked"):
             outcome = "not_reached"
+        elif not cap.get("found") and status == "auto":
+            outcome = "not_applicable"
         elif not cap.get("found"):
             outcome = "not_applicable" if status == "not_applicable" else ("kb_failed" if el.get("kb_target") else "not_found")
         elif cap.get("strategy") == "kb":
@@ -786,14 +1185,73 @@ def evaluate(plan: Dict[str, Any], output: Dict[str, Any]) -> Dict[str, Any]:
             row["candidates"] = candidates_for({**row, "step_text": texts.get((row["screen_id"], row["element_id"])),
                                                 "kind": kinds.get((row["screen_id"], row["element_id"]))}, pages)
     summary["app_only"] = sum(p["app_only"] for p in pages)
+    routes = learned_routes(plan, output)
+    summary["routes_new"] = sum(1 for r in routes if r["state"] != "same")
     return {
         "rows": sorted(rows, key=lambda r: (r["screen_id"], r["element_id"])),
         "steps": output.get("steps", []),
         "blockers": output.get("blockers", []),
         "final_url": output.get("final_url"),
+        "entry": output.get("entry"),
+        "derailed": output.get("derailed"),
+        "scenario": plan.get("scenario"),
+        "routes": routes,
         "summary": summary,
         "inventory": pages,
     }
+
+
+def learned_routes(plan: Dict[str, Any], output: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """The address each screen was found at, against the one the Knowledge Bases record.
+
+    state: same (as recorded), new (none recorded), differs (recorded, but
+    the screen was found elsewhere).
+    """
+    out = []
+    for sid, path in sorted((output.get("routes") or {}).items()):
+        known = ((plan.get("signatures") or {}).get(sid) or {}).get("route")
+        state = "new" if not known else ("same" if known == path else "differs")
+        out.append({"screen_id": sid, "path": path, "known": known, "state": state})
+    return out
+
+
+def route_changes(evaluated: Dict[str, Any], kb: "store.JourneyKB", automation_profile: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
+    """Addresses learnt by a walk, as changes: the Automation KB's endpoints and the Journey KB's link to them.
+
+    A screen found at an address the KBs do not record gets an endpoint named
+    after it and a route_ref; one found elsewhere than recorded has its
+    endpoint (or its own route) corrected. The query a recorded address
+    carries is kept -- the walk compares paths only.
+    """
+    endpoints = automation_profile.get("endpoints") or {}
+    automation: List[Dict[str, Any]] = []
+    journey: List[Dict[str, Any]] = []
+    for r in evaluated.get("routes") or []:
+        if r["state"] == "same" or r["screen_id"] not in kb.screens:
+            continue
+        screen = kb.screens[r["screen_id"]]
+        ref = screen.get("route_ref") or ""
+        if r["state"] == "differs" and ref.startswith("endpoints.") and ref.split(".", 1)[1] in endpoints:
+            key = ref.split(".", 1)[1]
+            query = str(endpoints[key]).partition("?")[2]
+            automation.append({"file": "app_profile.json", "op": "set", "path": ref, "value": r["path"] + (f"?{query}" if query else ""),
+                               "note": f"{r['screen_id']} was found at {r['path']}, not {r['known']}"})
+            continue
+        if r["state"] == "differs" and screen.get("route"):
+            query = str(screen["route"]).partition("?")[2]
+            journey.append({"file": "screens.json", "op": "set", "path": f"screens[screen_id={r['screen_id']}].route",
+                            "value": r["path"] + (f"?{query}" if query else ""), "note": f"found at {r['path']}, not {r['known']}"})
+            continue
+        base = re.sub(r"^scr_", "", r["screen_id"].lower()) or "screen"
+        key, n = base, 2
+        while key in endpoints and endpoints[key] != r["path"]:
+            key, n = f"{base}_{n}", n + 1
+        if endpoints.get(key) != r["path"]:
+            automation.append({"file": "app_profile.json", "op": "set", "path": f"endpoints.{key}", "value": r["path"],
+                               "note": f"the address {r['screen_id']} was found at"})
+        journey.append({"file": "screens.json", "op": "set", "path": f"screens[screen_id={r['screen_id']}].route_ref",
+                        "value": f"endpoints.{key}", "note": f"found at {r['path']} by the walk"})
+    return {"automation": automation, "journey": journey}
 
 
 # --- Every element on every screen (phase 2) ----------------------------------------------
