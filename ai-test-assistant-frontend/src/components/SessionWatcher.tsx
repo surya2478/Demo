@@ -330,7 +330,6 @@ const SessionWatcher: React.FC = () => {
             localStorage.getItem('token') ??
             sessionStorage.getItem('token') ??
             null;
-            console.log('token:', token);
           if (token) {
             const payload = parseJwt(token);
             if (payload?.exp && payload.exp * 1000 <= Date.now()) {

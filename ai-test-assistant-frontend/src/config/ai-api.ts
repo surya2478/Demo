@@ -150,11 +150,9 @@ export const loadConfigFromServer = async (): Promise<AiConfig> => {
 
   // get auth token from storage (adjust key as needed)
   const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken') || '';
-  console.log('Using auth token for AI config load:', token);
   // build headers and include Authorization when token available
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  console.log('Loading AI config from server with headers:', headers);
   console.log('Fetching from URL:', `${base.replace(/\/$/, '')}/settings/ai-config`);
   try {
     const resp = await fetch(`${base.replace(/\/$/, '')}/settings/ai-config`, {

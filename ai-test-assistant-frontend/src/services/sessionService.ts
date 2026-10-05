@@ -201,7 +201,6 @@ const sessionService = {
   keepAlive: async (sessionId?: string, ttlSeconds?: number): Promise<any> => {
     try {
       const token = getAuthToken()      
-      console.log('headers for keepAlive: Authorization: Bearer ::: ', token)  
       console.log(' keepAlive called with sessionId:', sessionId, ' ttlSeconds:', ttlSeconds)
       if (!token) {
         console.warn('[sessionService] keepAlive: No auth token found')
