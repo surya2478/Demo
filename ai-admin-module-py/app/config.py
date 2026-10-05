@@ -185,6 +185,11 @@ class Settings(BaseSettings):
     AUTOMATION_HEAL_TIMEOUT_SECONDS: int = Field(default=120)
     AUTOMATION_MAX_CONCURRENT_RUNS: int = Field(default=1)
     AUTOMATION_DEFAULT_SLOW_MO_MS: int = Field(default=1000)
+    # A walk (Knowledge Base > Walk & dry run) also pauses between steps, a
+    # random time in this range, so it reads as a person to the corporate
+    # security in front of the application rather than as a burst of clicks.
+    AUTOMATION_STEP_DELAY_MIN_MS: int = Field(default=1000)
+    AUTOMATION_STEP_DELAY_MAX_MS: int = Field(default=2000)
     # --- Automation Module: AI resolution of guessed locators ------------
     # When the compiler cannot ground a step's locator it infers one from
     # the step's prose and flags the guess. With this on, those flagged

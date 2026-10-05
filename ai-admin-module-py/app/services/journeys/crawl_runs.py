@@ -168,11 +168,16 @@ def start(
     # takes it to its first screen, which the walk recognises by what is on
     # it (journey_crawl.entry_address). A flow starts at its own entry point.
     plan = _plan(kb, journey_id, base_url=base_url, profile_id=profile_id, stop_before=stop_before, allow_risky=allow_risky)
+    # Paced like the automation module's own runs: every browser action waits
+    # AUTOMATION_DEFAULT_SLOW_MO_MS, and the walk pauses 1-2 s between steps.
+    low = max(0, int(settings.AUTOMATION_STEP_DELAY_MIN_MS or 0))
+    plan["step_delay_ms"] = [low, max(low, int(settings.AUTOMATION_STEP_DELAY_MAX_MS or 0))]
+    slow_mo = max(0, int(settings.AUTOMATION_DEFAULT_SLOW_MO_MS or 0))
     run_key = new_run_key()
     db.add(AutomationRun(
         run_key=run_key, framework="playwright", environment=environment, status="queued",
-        # Headed is slowed down so a person can follow it.
-        run_config={"headless": not headed, "slow_mo_ms": 700 if headed else 300, "mode": "journey_crawl"},
+        # Headed is never faster than a person can follow.
+        run_config={"headless": not headed, "slow_mo_ms": max(slow_mo, 700) if headed else slow_mo, "mode": "journey_crawl"},
         run_metadata={"code": journey_crawl.build_spec(plan), "base_url": base_url,
                       "file_name": journey_crawl.SPEC_FILE, "journey_id": journey_id},
         triggered_by=actor,

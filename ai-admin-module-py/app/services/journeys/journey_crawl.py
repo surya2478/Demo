@@ -825,7 +825,8 @@ function pageSignals() {
   }
   const text = document.body ? document.body.innerText : '';
   const m = text.match(/\b(internal server error|something went wrong|service (?:is )?unavailable|bad gateway|gateway time-?out|unexpected error|technical (?:error|issue|difficult(?:y|ies)))\b[^\n]{0,120}/i);
-  if (m && !errors.some((x) => x.toLowerCase().includes(m[1].toLowerCase()))) errors.push(m[0].trim());
+  // Words that say error come first: a site may mark a plain notice role=alert.
+  if (m && !errors.some((x) => x.toLowerCase().includes(m[1].toLowerCase()))) errors.unshift(m[0].trim());
   let busy = !!document.querySelector('[aria-busy=true]');
   for (const b of document.querySelectorAll('button,[role=button],input[type=submit]')) {
     if (vis(b) && /\b(sending|loading|please wait|processing|submitting|verifying|signing in)\b/i.test(b.innerText || b.value || '')) { busy = true; break; }
@@ -835,7 +836,7 @@ function pageSignals() {
 
 // After an action the design says leads somewhere: wait for one of its
 // outcomes, an error, or the time limit -- whichever comes first.
-async function outcomeOf(page, item) {
+async function outcomeOf(page, item, baseline = []) {
   const from = item.screen_id;
   const outcomes = [...(item.expect || [])].sort((a, b) => (b.expected ? 1 : 0) - (a.expected ? 1 : 0));
   const ids = [...new Set([from, ...outcomes.flatMap((o) => o.to)].filter(Boolean))];
@@ -846,6 +847,9 @@ async function outcomeOf(page, item) {
     await page.waitForTimeout(600);
     const signals = await page.evaluate(pageSignals).catch(() => ({ errors: [], busy: true }));
     if (signals.busy) continue;
+    // Only what the action brought: a notice the page always shows is not its outcome
+    // (the B2B login page marks its "CLICK HERE" notice role=alert).
+    signals.errors = signals.errors.filter((e) => !baseline.includes(e));
     const showing = await recognise(page, ids);
     for (const o of outcomes) {
       let reached = false;
@@ -868,7 +872,9 @@ async function outcomeOf(page, item) {
 }
 
 function offPathReason(item, o) {
-  const wanted = (item.expect || []).filter((x) => x.expected).flatMap((x) => x.to).map(screenName);
+  // The expected outcome as the design words it: "Sign in ... with no_customer_banner shown".
+  const wanted = (item.expect || []).filter((x) => x.expected)
+    .map((x) => x.to.map(screenName).join(' or ') + (x.effect ? ` with ${x.effect}` : ''));
   const target = wanted.length ? wanted.join(' or ') : 'the next screen';
   if (o.kind === 'error') return `"${o.message}" was shown after step ${item.step_number}, instead of ${target}`;
   if (o.kind === 'branch') return `went the way the design gives for "${o.condition || o.effect || screenName(o.screen)}"${o.rule ? ` (${o.rule})` : ''}, instead of ${target}`;
@@ -889,8 +895,17 @@ async function markFilled(page) {
 }
 const masked = (page) => ({ mask: [page.locator('[data-walk-filled]')], maskColor: '#8a8f98' });
 
+// A person's pause between steps (PLAN.step_delay_ms, from the backend's
+// settings): with slowMo on every action, a walk does not reach the
+// application as a burst of clicks that corporate security would block.
+const pause = async (page) => {
+  const [low, high] = PLAN.step_delay_ms || [0, 0];
+  if (high > 0) await page.waitForTimeout(low + Math.floor(Math.random() * (high - low + 1)));
+};
+
 test('journey-guided crawl', async ({ page }) => {
-  test.setTimeout(300000);
+  // Long enough for the pauses and slowMo on top of the steps themselves.
+  test.setTimeout(540000);
   const steps = [];
   const sweep = [];
   const swept = new Set();
@@ -987,6 +1002,7 @@ test('journey-guided crawl', async ({ page }) => {
       }
       if (item.kind === 'skip') { record({ ...out, status: 'skipped', reason: item.reason }); continue; }
       if (derailed) { record({ ...out, status: 'blocked', reason: derailed.reason }); continue; }
+      await pause(page);
       current = { order: index + 1, step_number: item.step_number, text: item.text, kind: item.kind };
       progress();
       const options = item.screen_options || (item.screen_id ? [item.screen_id] : []);
@@ -1060,6 +1076,9 @@ test('journey-guided crawl', async ({ page }) => {
         }
         // Found: this is its screen. Catalogue it before the action changes it.
         await arrived(item.screen_id);
+        // What the page says before acting, so the outcome is judged on what is new.
+        const baseline = item.expect && item.expect.length
+          ? (await page.evaluate(pageSignals).catch(() => ({ errors: [] }))).errors : [];
         if (item.kind === 'fill') await loc.first().fill(env(item.variable), { timeout: T.action });
         if (item.kind === 'otp') {
           const digits = env(item.variable).replace(/\D/g, '').split('');
@@ -1070,7 +1089,7 @@ test('journey-guided crawl', async ({ page }) => {
         if (item.kind === 'click') await loc.first().click({ timeout: T.action });
         let outcome = null;
         if (item.expect && item.expect.length) {
-          outcome = await outcomeOf(page, item);
+          outcome = await outcomeOf(page, item, baseline);
           if (outcome.screen && outcome.kind !== 'error') await arrived(outcome.screen);
         } else {
           // An OTP form submits itself once the last box is filled: give it
