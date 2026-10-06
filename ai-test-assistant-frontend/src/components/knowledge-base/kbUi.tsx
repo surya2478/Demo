@@ -24,7 +24,9 @@ export const ELEMENT_STATUS: Record<ElementStatus, { label: string; tone: keyof 
   NOT_CRAWLED: { label: 'Not crawled', tone: 'idle' },
   NOT_IN_DESIGN: { label: 'Not in design', tone: 'info' },
   NO_ELEMENT: { label: 'No element', tone: 'idle' },
-  UNRESOLVED: { label: 'Unresolved', tone: 'bad' }
+  UNRESOLVED: { label: 'Unresolved', tone: 'bad' },
+  CONFIRMED: { label: 'Confirmed by walk', tone: 'good' },
+  RECORDED: { label: 'Recorded · not walked', tone: 'info' }
 }
 
 export const JOURNEY_STATUS: Record<JourneyStatus, { label: string; tone: keyof typeof TONE; dot: string }> = {

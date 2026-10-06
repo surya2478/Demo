@@ -60,98 +60,142 @@
   "steps": [
     {
       "step_number": 1,
-      "action": "Navigate to the B2B Portal login page",
-      "expected_result": "The login page loads with the SIGN IN TO BUSINESS ONLINE panel and the email address field visible",
-      "screen_id": "SCR_LOGIN"
+      "action": "Open e& UAE B2B Portal (Business Online) at the environment's address",
+      "expected_result": "The page /b2bportal/loginV2.html opens",
+      "recorded": {
+        "kind": "goto",
+        "route": "/b2bportal/loginV2.html",
+        "url": "/b2bportal/loginV2.html",
+        "screenshot": "shot-0.png",
+        "recording": 21,
+        "environment": "RC"
+      }
     },
     {
       "step_number": 2,
-      "action": "Enter the registered Organization Administrator email address",
-      "expected_result": "The email is accepted and the Receive OTP button becomes actionable",
-      "screen_id": "SCR_LOGIN",
-      "element_id": "username"
+      "action": "Click 'CLICK HERE' link",
+      "expected_result": "The page /b2bportal/loginV2.html opens",
+      "recorded": {
+        "kind": "click",
+        "target": "//a[normalize-space(.)='CLICK HERE']",
+        "label": "CLICK HERE",
+        "url": "/b2bportal/login.html",
+        "led_to": "/b2bportal/loginV2.html",
+        "screenshot": "shot-1.png",
+        "unique": true,
+        "recording": 21,
+        "environment": "RC"
+      }
     },
     {
       "step_number": 3,
-      "action": "Click Receive OTP to request the one-time password",
-      "expected_result": "The 'Enter your One Time Password.' panel opens stating the OTP was sent to the E-mail and Mobile number",
-      "screen_id": "SCR_LOGIN",
-      "element_id": "otp_continue",
-      "rule": "BR-AUTH-02"
+      "action": "Enter the username in 'Email'",
+      "expected_result": "",
+      "recorded": {
+        "kind": "fill",
+        "target": "//input[@id='userEmailField']",
+        "field": "username",
+        "label": "Email*",
+        "url": "/b2bportal/loginV2.html",
+        "screenshot": "shot-2.png",
+        "unique": true,
+        "recording": 21,
+        "environment": "RC"
+      }
     },
     {
       "step_number": 4,
-      "action": "Check the masked destinations shown under the OTP panel heading",
-      "expected_result": "Email ID and Mobile Number are shown masked (e.g. p*********@e***.com, 0******32)",
-      "screen_id": "SCR_OTP_ENTRY",
-      "element_id": "masked_email",
-      "rule": "BR-AUTH-09"
+      "action": "Enter the password in 'Password'",
+      "expected_result": "",
+      "recorded": {
+        "kind": "fill",
+        "target": "//input[@id='passField']",
+        "field": "password",
+        "label": "Password*",
+        "url": "/b2bportal/loginV2.html",
+        "screenshot": "shot-3.png",
+        "unique": true,
+        "recording": 21,
+        "environment": "RC"
+      }
     },
     {
       "step_number": 5,
-      "action": "Enter the six-digit OTP, one digit per box, using boxes 1 to 6 in order",
-      "expected_result": "All six boxes are filled and the green confirmation tick appears",
-      "screen_id": "SCR_OTP_ENTRY",
-      "element_id": "otp_digit_1_6",
-      "rule": "BR-AUTH-03"
+      "action": "Click 'SIGN IN'",
+      "expected_result": "The page /b2bportal/app/accounts/dashboard360 opens",
+      "recorded": {
+        "kind": "click",
+        "target": "//div[@id='use-pass']/div/div/div[4]/div/button",
+        "label": "SIGN IN",
+        "url": "/b2bportal/loginV2.html",
+        "led_to": "/b2bportal/app/accounts/dashboard360",
+        "screenshot": "shot-4.png",
+        "unique": true,
+        "recording": 21,
+        "environment": "RC"
+      }
     },
     {
       "step_number": 6,
-      "action": "Click Proceed to submit the code",
-      "expected_result": "The code is verified and the portal leaves the OTP panel",
-      "screen_id": "SCR_OTP_ENTRY",
-      "element_id": "proceed",
-      "note": "Existing KB observed verification without a separate button. Skip this step if the crawl confirms auto-submit."
+      "action": "Click 'Dashboard' link",
+      "expected_result": "",
+      "recorded": {
+        "kind": "click",
+        "target": "//div[@id='navbarCollapse']//a[normalize-space(.)='Dashboard']",
+        "label": "Dashboard",
+        "url": "/b2bportal/app/accounts/dashboard360",
+        "screenshot": "shot-5.png",
+        "unique": true,
+        "recording": 21,
+        "environment": "RC"
+      }
     },
     {
       "step_number": 7,
-      "action": "Dismiss the error dialog with OKAY when the OTP is rejected",
-      "expected_result": "The dialog closes and the user is returned to OTP entry without losing the session",
-      "screen_id": "SCR_OTP_ERROR_DIALOG",
-      "element_id": "okay",
-      "rule": "BR-AUTH-04",
-      "branch": "negative_only"
-    },
-    {
-      "step_number": 8,
-      "action": "Verify the post-authentication landing screen",
-      "expected_result": "Either 'Select a Organization to continue' (no default organization) or the Organization Dashboard (default organization) is displayed",
-      "screen_id": "SCR_SELECT_ORG|SCR_ORG_DASHBOARD",
-      "rule": "BR-AUTH-06"
+      "action": "Verify the landing page /b2bportal/app/accounts/dashboard360 is shown",
+      "expected_result": "The page /b2bportal/app/accounts/dashboard360 is showing",
+      "recorded": {
+        "kind": "verify",
+        "route": "/b2bportal/app/accounts/dashboard360",
+        "url": "/b2bportal/app/accounts/dashboard360",
+        "screenshot": "shot-end.png",
+        "recording": 21,
+        "environment": "RC"
+      }
     }
   ],
   "conditional_branches": [
     {
       "branch_id": "OTP-B1",
-      "at_step": 2,
+      "at_step": 1,
       "condition": "identifier not associated with a customer",
       "outcome": "stay on SCR_LOGIN with 'No Customer assosiated'",
       "rule": "BR-AUTH-01"
     },
     {
       "branch_id": "OTP-B2",
-      "at_step": 6,
+      "at_step": 1,
       "condition": "wrong or expired OTP",
-      "outcome": "SCR_OTP_ERROR_DIALOG -> step 7 -> back to step 5",
+      "outcome": "SCR_OTP_ERROR_DIALOG -> step 5 -> back to step 4",
       "rule": "BR-AUTH-04"
     },
     {
       "branch_id": "OTP-B3",
-      "at_step": 4,
+      "at_step": 1,
       "condition": "OTP not received",
       "outcome": "click Resend; new OTP issued",
       "rule": "BR-AUTH-05"
     },
     {
       "branch_id": "OTP-B4",
-      "at_step": 8,
+      "at_step": 1,
       "condition": "no default organization",
       "outcome": "continue with flow_b2b_select_organization",
       "rule": "BR-AUTH-06"
     },
     {
       "branch_id": "OTP-B5",
-      "at_step": 8,
+      "at_step": 1,
       "condition": "default organization set",
       "outcome": "Organization Dashboard directly",
       "rule": "BR-AUTH-06"
@@ -162,15 +206,7 @@
       "scenario_id": "TS-OTP-01",
       "type": "positive",
       "title": "Registered user with default org signs in by OTP and lands on the Organization Dashboard",
-      "steps": [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        8
-      ],
+      "steps": [],
       "branch": "OTP-B5",
       "test_data": "USER_SINGLE_DEFAULT_ORG",
       "rules": [
@@ -182,14 +218,7 @@
       "scenario_id": "TS-OTP-02",
       "type": "positive",
       "title": "Registered multi-org user without default signs in by OTP and is asked to select an organization",
-      "steps": [
-        1,
-        2,
-        3,
-        5,
-        6,
-        8
-      ],
+      "steps": [],
       "branch": "OTP-B4",
       "test_data": "USER_MULTI_ORG_NO_DEFAULT",
       "rules": [
@@ -201,11 +230,7 @@
       "scenario_id": "TS-OTP-03",
       "type": "negative",
       "title": "Unregistered email shows 'No Customer assosiated' and no OTP panel",
-      "steps": [
-        1,
-        2,
-        3
-      ],
+      "steps": [],
       "branch": "OTP-B1",
       "test_data": "USER_UNREGISTERED_EMAIL",
       "rules": [
@@ -216,14 +241,7 @@
       "scenario_id": "TS-OTP-04",
       "type": "negative",
       "title": "Wrong OTP raises the error dialog; OKAY returns to OTP entry",
-      "steps": [
-        1,
-        2,
-        3,
-        5,
-        6,
-        7
-      ],
+      "steps": [],
       "branch": "OTP-B2",
       "rules": [
         "BR-AUTH-04"
@@ -233,14 +251,7 @@
       "scenario_id": "TS-OTP-05",
       "type": "negative",
       "title": "Expired OTP is rejected",
-      "steps": [
-        1,
-        2,
-        3,
-        5,
-        6,
-        7
-      ],
+      "steps": [],
       "branch": "OTP-B2",
       "rules": [
         "BR-AUTH-04"
@@ -251,12 +262,7 @@
       "scenario_id": "TS-OTP-06",
       "type": "boundary",
       "title": "Five digits entered -- verification cannot be submitted",
-      "steps": [
-        1,
-        2,
-        3,
-        5
-      ],
+      "steps": [],
       "rules": [
         "BR-AUTH-03"
       ]
@@ -265,12 +271,7 @@
       "scenario_id": "TS-OTP-07",
       "type": "boundary",
       "title": "Non-numeric character typed into an OTP box is not accepted",
-      "steps": [
-        1,
-        2,
-        3,
-        5
-      ],
+      "steps": [],
       "rules": [
         "BR-AUTH-03"
       ],
@@ -280,15 +281,7 @@
       "scenario_id": "TS-OTP-08",
       "type": "alternate",
       "title": "Resend issues a new OTP; the new code signs the user in",
-      "steps": [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        8
-      ],
+      "steps": [],
       "branch": "OTP-B3",
       "rules": [
         "BR-AUTH-05"
@@ -298,12 +291,7 @@
       "scenario_id": "TS-OTP-09",
       "type": "security",
       "title": "OTP destinations are masked on the entry panel",
-      "steps": [
-        1,
-        2,
-        3,
-        4
-      ],
+      "steps": [],
       "rules": [
         "BR-AUTH-09"
       ]
@@ -312,9 +300,7 @@
       "scenario_id": "TS-OTP-10",
       "type": "negative",
       "title": "CONTINUE stays disabled while the username field is empty",
-      "steps": [
-        1
-      ],
+      "steps": [],
       "rules": [
         "BR-AUTH-01"
       ],

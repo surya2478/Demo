@@ -345,7 +345,8 @@ class JobManager:
                 script_file_name=script_name,
                 environment=run.environment,
                 on_progress=publish_progress,
-                timeout_seconds=int(settings.AUTOMATION_RUN_TIMEOUT_SECONDS or 600),
+                # A run may ask for longer (a journey recording lasts as long as the person needs).
+                timeout_seconds=int(run_cfg.get("timeout_seconds") or settings.AUTOMATION_RUN_TIMEOUT_SECONDS or 600),
                 cancellation=cancel,
                 extra_env=data_env,
             )

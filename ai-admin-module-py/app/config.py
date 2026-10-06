@@ -190,6 +190,8 @@ class Settings(BaseSettings):
     # security in front of the application rather than as a burst of clicks.
     AUTOMATION_STEP_DELAY_MIN_MS: int = Field(default=1000)
     AUTOMATION_STEP_DELAY_MAX_MS: int = Field(default=2000)
+    # How long a journey recording may stay open before it saves and closes.
+    AUTOMATION_RECORD_MAX_MINUTES: int = Field(default=20)
     # --- Automation Module: AI resolution of guessed locators ------------
     # When the compiler cannot ground a step's locator it infers one from
     # the step's prose and flags the guess. With this on, those flagged

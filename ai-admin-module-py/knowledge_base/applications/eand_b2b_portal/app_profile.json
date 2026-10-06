@@ -16,10 +16,11 @@
   },
   "endpoints": {
     "login": "/b2bportal/login.html?rdr=home&locale=en",
-    "home": "/b2bportal/home.html?locale=en",
+    "home": "/b2bportal/app/accounts/dashboard360?locale=en",
     "registration": "/b2bportal/register.html?locale=en",
     "manage_users": "/b2bportal/manage/users",
-    "dashboard_360": "/b2bportal/dashboard"
+    "dashboard_360": "/b2bportal/dashboard",
+    "otp_entry": "/b2bportal/otp-verification.html"
   },
   "selectors": {
     "authentication": {
@@ -122,6 +123,10 @@
     "session": {
       "profile_menu": "//a[@class='company-info font-light'] | //div[contains(@class,'profile-menu')]",
       "sign_out_button": "//a[text()='Sign Out' and not(contains(@class,'px-10 py-0'))]"
+    },
+    "scr_login": {
+      "register": "//button[normalize-space(.)='Register NOW']",
+      "uaepass_signin": "//span[normalize-space(.)='Sign in with UAE PASS']"
     }
   },
   "product_name_stopwords": [

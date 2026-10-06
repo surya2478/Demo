@@ -90,10 +90,11 @@ profile = automation_kb.load_app_profile(APP)
 plan = journey_crawl.build_plan(kb, "B2B.REG.EXISTING.SIGNIN.SELECT_ORG", automation_profile=profile, base_url=BASE)
 kinds = [(i["journey_id"].split(".")[-1], i["step_number"], i["kind"]) for i in plan["items"]]
 check(plan["scope"] == ["B2B.REG.EXISTING.SIGNIN.OTP", "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"], f"scope {plan['scope']}")
+check(all(i["setup"] == (i["journey_id"] != "B2B.REG.EXISTING.SIGNIN.SELECT_ORG") for i in plan["items"]), "sign-in steps are setup")
 check(plan["profile_id"] == "USER_MULTI_ORG_NO_DEFAULT", f"crawl profile {plan['profile_id']}")
 check(("OTP", 1, "goto") in kinds and ("OTP", 3, "fill") in kinds and ("OTP", 4, "click") in kinds and ("OTP", 6, "otp") in kinds,
       "sign-in: navigate, fill email, click RECEIVE OTP, enter OTP")
-check(("OTP", 8, "skip") in kinds, "error-path step skipped")
+check(not any(k[0] == "OTP" and k[2] == "skip" for k in kinds), "the setup journey's error path is left out")
 check(("SELECT_ORG", 6, "click") in kinds, "choose the organization card")
 check(plan["variables"] == ["TESTDATA_MULTI_ORG_EMAIL", "TESTDATA_ORG_NAME", "TESTDATA_OTP"], f"variables {plan['variables']}")
 
@@ -132,7 +133,8 @@ check(rows[("SCR_LOGIN", "otp_continue")]["outcome"] == "confirmed" and rows[("S
 check(rows[("SCR_OTP_ENTRY", "otp_digit_1_6")]["outcome"] == "confirmed", "OTP boxes confirmed")
 tab = rows[("SCR_LOGIN", "tab_otp")]
 check(tab["outcome"] == "new" and tab["selector"] == "//button[@id='tab-otp']", f"OTP tab captured by its id: {tab['selector']}")
-check(rows[("SCR_LOGIN", "tab_password")]["outcome"] == "new", "e& Password tab captured on the sweep")
+check(("SCR_LOGIN", "tab_password") not in rows, "sign-in is setup here: its screens are not swept, only its steps")
+check(rows[("SCR_SELECT_ORG", "org_card")]["step"] is not None and rows[("SCR_LOGIN", "username")]["setup"], "rows say which journey step they belong to")
 check(rows[("SCR_OTP_ENTRY", "proceed")]["outcome"] == "not_found", "Proceed reported as not found -- not invented")
 check(rows[("SCR_SELECT_ORG", "title")]["outcome"] == "new", "Select Organization title captured")
 check(rows[("SCR_SELECT_ORG", "org_card")]["data_dependent"], "the organization card was found through test data")

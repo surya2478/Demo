@@ -163,7 +163,7 @@
           ],
           "basis": "explicit",
           "locator_hint": "button \"Sign in with UAE PASS\"",
-          "automation_ref": null
+          "automation_ref": "selectors.scr_login.uaepass_signin"
         },
         {
           "element_id": "register",
@@ -174,7 +174,7 @@
           ],
           "basis": "explicit",
           "locator_hint": "button \"REGISTER\"",
-          "automation_ref": null
+          "automation_ref": "selectors.scr_login.register"
         }
       ],
       "transitions": [
@@ -218,7 +218,7 @@
       "screen_id": "SCR_OTP_ENTRY",
       "name": "Enter your One Time Password",
       "route": null,
-      "route_ref": null,
+      "route_ref": "endpoints.otp_entry",
       "sources": [
         "Sign-in using OTP.pdf p1-2",
         "existing KB flow_b2b_login_otp"

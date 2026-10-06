@@ -7,6 +7,8 @@ import api from './api'
 const BASE = '/automation/knowledge-base'
 
 export type ElementStatus = 'MATCH' | 'LABEL_DRIFT' | 'REF_BROKEN' | 'NOT_CRAWLED' | 'NOT_IN_DESIGN' | 'NO_ELEMENT' | 'UNRESOLVED'
+  /** A step done by a recorded selector or an address: confirmed by the last walk, or not walked yet. */
+  | 'CONFIRMED' | 'RECORDED'
 export type JourneyStatus = 'detailed' | 'source_available' | 'awaiting_source' | 'automation_only' | 'partial'
 
 export interface JourneyKbApp {
@@ -53,12 +55,16 @@ export interface KbTaxonomy {
   roots: string[]
   nodes: TaxonomyNode[]
   authored: string[]
+  /** Journeys whose flow matches them and whose every step a walk confirmed. */
+  verified?: string[]
 }
 
 export interface JourneyStepLink {
   status: ElementStatus
   automation_target: string | null
   app_labels: string[]
+  /** Why the step's element cannot be resolved, when it cannot. */
+  note?: string
 }
 
 export interface JourneyStep {
@@ -93,6 +99,8 @@ export interface JourneyDetail {
     open_questions: string[]
     rules: { rule_id: string; type: string; statement: string; message?: string; basis: string }[]
     used_by: { journey_id: string; name: string; relation: string }[]
+    /** The flow matches the journey and a walk confirmed every step. */
+    verified?: boolean
   }
 }
 
@@ -169,6 +177,8 @@ export interface CrawlPlanItem {
   kind: 'goto' | 'screen' | 'fill' | 'otp' | 'click' | 'capture' | 'skip'
   screen_id: string | null
   optional: boolean
+  /** A step of a journey this one needs first (sign-in before choosing an organization). */
+  setup?: boolean
   variable?: string | null
   text_variable?: string | null
   reason?: string
@@ -250,6 +260,10 @@ export interface CrawlRow {
   kb_ref: string | null
   kb_target: string | null
   url?: string | null
+  /** The journey step this element belongs to; null for the other elements on the journey's screens. */
+  step?: number | null
+  /** The element belongs to a setup step. */
+  setup?: boolean
   /** For an element the walk could not find: the likeliest elements on its screen. */
   candidates?: { selector: string; name: string; role: string; score: number }[]
 }
@@ -293,6 +307,41 @@ export interface CrawlStep {
   screenshot?: string
 }
 
+/** How a recording did a step: never a typed value, only what kind of field it was. */
+export interface RecordedAction {
+  kind: 'goto' | 'click' | 'fill' | 'otp' | 'select' | 'check' | 'press' | 'verify'
+  target?: string
+  route?: string
+  field?: string
+  label?: string
+  option?: string
+  key?: string
+  url?: string
+  led_to?: string
+  boxes?: number
+  screenshot?: string
+  unique?: boolean
+  at?: number[]
+}
+
+export interface RecordedStep {
+  action: string
+  expected_result: string
+  recorded: RecordedAction
+}
+
+/** An action as it is recorded, for the live list. */
+export interface RecordingEvent {
+  order: number
+  kind: RecordedAction['kind']
+  label: string | null
+  field: string | null
+  option: string | null
+  url: string | null
+  unique: boolean
+  screenshot: string | null
+}
+
 export interface JourneyCrawl {
   id: number
   app_id: string
@@ -311,10 +360,13 @@ export interface JourneyCrawl {
   created_at: string | null
   finished_at: string | null
   summary: Partial<Record<CrawlOutcome, number>> | null
-  source?: 'journey' | 'flow'
+  source?: 'journey' | 'flow' | 'record'
   stop_before?: number | null
   stop_reason?: string | null
   result?: {
+    /** A recording (source 'record'): what the person did, as journey steps. */
+    recording?: RecordedStep[]
+    ended?: string | null
     rows: CrawlRow[]; steps: CrawlStep[]; blockers: string[]; final_url: string | null
     summary: Partial<Record<CrawlOutcome | 'app_only' | 'routes_new', number>>
     inventory?: InventoryPage[]
@@ -498,6 +550,64 @@ export interface JourneyEditResult {
   message?: string
 }
 
+// --- Journey Map: the journey's steps, its flow blueprint and selectors, side by side ---------
+
+/** Whether the Automation KB knows how to carry a step out, and whether the last walk confirmed it. */
+export type MapCapture = 'confirmed' | 'to_confirm' | 'failed' | 'captured' | 'needs_capture' | 'broken_ref' | 'unknown_element' | 'screen'
+/** Whether the flow blueprint says what the journey says. */
+export type MapFlowState = 'same' | 'differs' | 'missing' | 'error_path' | 'only_flow'
+
+export interface MapFlowStep { step_number: number; action: string; target: string; expected_result?: string }
+
+export interface MapRow {
+  kind: 'step' | 'flow_only'
+  step_number?: number
+  action?: string
+  expected_result?: string
+  branch?: string | null
+  rule?: string | null
+  screen_ids?: string[]
+  screen_names?: string[]
+  element_id?: string | null
+  element_label?: string | null
+  element_type?: string | null
+  automation_ref?: string | null
+  target?: string | null
+  target_kind?: 'selector' | 'route' | 'no_selector' | 'broken_ref' | 'unknown_element' | 'none'
+  capture: MapCapture | null
+  walk_status?: string | null
+  walk_reason?: string | null
+  walk_selector?: string | null
+  flow_step: MapFlowStep | null
+  flow_state: MapFlowState
+  /** For flow_state 'differs': what the flow blueprint has differently. */
+  flow_diff?: ('wording' | 'selector')[]
+}
+
+export interface MapSummary { steps: number; mapped: number; confirmed: number; needs_capture: number; failed: number; flow_differs: number; only_in_flow: number }
+
+export interface JourneyMap {
+  journey_id: string
+  journey_name: string
+  flow: { flow_id: string; flow_name: string; steps: number; generated_from?: { journey_id: string; generated_at?: string } | null; up_to_date: boolean } | null
+  linked_flow_ids: string[]
+  suggested_flows: { flow_id: string; flow_name: string; score: number }[]
+  walk: { id: number; environment: string | null; profile_id: string | null; when: string | null; derailed?: { after: number; reason: string } | null } | null
+  rows: MapRow[]
+  summary: MapSummary
+  screens: { screen_id: string; name: string; elements: { element_id: string; label: string | null; type: string | null }[] }[]
+}
+
+export interface JourneyMapOverview {
+  journeys: { journey_id: string; journey_name: string; flow: JourneyMap['flow']; summary: MapSummary | null; error?: string }[]
+  flows: { flow_id: string; flow_name: string; linked: boolean }[]
+}
+
+export interface JourneyMapSaveResult extends JourneyEditResult {
+  /** The regenerated flow's change set, published with the journey's. */
+  flow_change_set?: ChangeSet
+}
+
 export interface JourneyRemovalPreview {
   journeys: number
   authored: string[]
@@ -528,6 +638,12 @@ const knowledgeBaseService = {
     (await api.delete(`${BASE}/${enc(app)}/journeys/${enc(journeyId)}`, { params: { publish } })).data,
   editSteps: async (app: string, journeyId: string, steps: JourneyStepEdit[], publish: boolean): Promise<JourneyEditResult> =>
     (await api.put(`${BASE}/${enc(app)}/journeys/${enc(journeyId)}/steps`, { steps, publish })).data,
+  journeyMapOverview: async (app: string): Promise<JourneyMapOverview> => (await api.get(`${BASE}/${enc(app)}/journey-map`)).data,
+  journeyMap: async (app: string, journeyId: string): Promise<JourneyMap> =>
+    (await api.get(`${BASE}/${enc(app)}/journey-map/${enc(journeyId)}`)).data,
+  /** Steps edited on the map (or none: regenerate the flow only), and a flow to link for a journey without one. */
+  saveJourneyMap: async (app: string, journeyId: string, body: { steps?: JourneyStepEdit[]; link_flow?: string | null; publish: boolean }): Promise<JourneyMapSaveResult> =>
+    (await api.post(`${BASE}/${enc(app)}/journey-map/${enc(journeyId)}`, body)).data,
   moveJourney: async (app: string, journeyId: string, direction: 'up' | 'down', publish: boolean): Promise<JourneyEditResult> =>
     (await api.post(`${BASE}/${enc(app)}/journeys/${enc(journeyId)}/move`, { direction, publish })).data,
   editBranches: async (app: string, journeyId: string, items: Partial<JourneyBranch>[], publish: boolean): Promise<JourneyEditResult> =>
@@ -593,6 +709,13 @@ const knowledgeBaseService = {
   /** additions: "<screen_id>|<selector>" of app-only elements to add; picks: a candidate for an element (or flow step) not found. */
   proposeFromCrawl: async (id: number, body?: { additions?: string[]; picks?: { screen_id: string; element_id: string; selector: string }[] }): Promise<JourneyCrawl> =>
     (await api.post(`${BASE}/journey-crawls/${id}/propose`, body ?? {})).data,
+  /** Record a journey: a browser opens on the server's machine for someone to do it in. */
+  startRecording: async (app: string, body: { journey_id: string; application_id: number; environment?: string | null }): Promise<JourneyCrawl> =>
+    (await api.post(`${BASE}/${enc(app)}/journey-record`, body)).data,
+  finishRecording: async (id: number): Promise<void> => { await api.post(`${BASE}/journey-crawls/${id}/finish`) },
+  /** The reviewed recording as the journey's steps, with its flow regenerated. */
+  saveRecording: async (id: number, body: { steps: RecordedStep[]; link_flow?: string | null; publish: boolean }): Promise<JourneyMapSaveResult> =>
+    (await api.post(`${BASE}/journey-crawls/${id}/save-recording`, body)).data,
   /** A flow blueprint from a journey walk, drafted for review. */
   generateFlow: async (id: number): Promise<{ change_set: ChangeSet; flow: { flow_id: string; flow_name: string; canonical_steps: unknown[] } }> =>
     (await api.post(`${BASE}/journey-crawls/${id}/generate-flow`)).data,

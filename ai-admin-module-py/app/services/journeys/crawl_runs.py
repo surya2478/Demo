@@ -243,6 +243,10 @@ def absorb(db: Session, crawl: KbCrawlRun) -> KbCrawlRun:
     """Fold a finished run's output into the crawl record, once."""
     if crawl.status in ("completed", "failed") or not crawl.run_key:
         return crawl
+    if (crawl.plan or {}).get("source") == "record":
+        from . import journey_record
+
+        return journey_record.absorb(db, crawl)
     run = db.query(AutomationRun).filter(AutomationRun.run_key == crawl.run_key).first()
     if run is None or run.status in ("queued", "running"):
         return crawl
@@ -307,6 +311,8 @@ def propose(db: Session, crawl_id: int, *, actor: Optional[str], additions: Opti
     absorb(db, crawl)
     if crawl.status != "completed":
         raise changesets.ChangeSetError("Only a completed walk can propose changes.")
+    if (crawl.plan or {}).get("source") == "record":
+        raise changesets.ChangeSetError("A recording is saved as the journey's steps, not proposed as changes.")
     kb = _kb(crawl.app_id)
     name = (crawl.plan or {}).get("journey_name") or crawl.journey_id
     origin = {"crawl": {"crawl_run_id": crawl.id, "journey_id": crawl.journey_id, "run_key": crawl.run_key}}
@@ -387,37 +393,29 @@ def propose(db: Session, crawl_id: int, *, actor: Optional[str], additions: Opti
 
 
 def generate_flow(db: Session, crawl_id: int, *, actor: Optional[str]) -> Dict[str, Any]:
-    """Draft a flow blueprint from a journey walk: the steps it performed, with the selectors it used."""
+    """The journey's flow blueprint regenerated from its steps and the selectors the walks confirmed, drafted for review."""
     crawl = db.get(KbCrawlRun, crawl_id)
     if crawl is None:
         raise LookupError("No such crawl.")
     absorb(db, crawl)
-    if crawl.status != "completed" or (crawl.journey_id or "").startswith(FLOW_PREFIX):
+    if crawl.status != "completed" or (crawl.journey_id or "").startswith(FLOW_PREFIX) or (crawl.plan or {}).get("source") == "record":
         raise changesets.ChangeSetError("A flow is generated from a completed journey walk.")
     kb = _kb(crawl.app_id)
     journey = kb.journeys.get(crawl.journey_id)
     if journey is None:
         raise LookupError(f"No journey '{crawl.journey_id}'.")
-    flow = journey_crawl.flow_from_walk(crawl.plan or {}, crawl.result or {}, journey, kb.journeys)
-    if not flow["canonical_steps"]:
-        raise changesets.ChangeSetError("The walk performed no step with a selector, so there is no flow to generate.")
-    try:
-        rel = _flow_file(kb.automation_app_id, flow["flow_id"])
-        changes = [{"file": rel, "op": "set", "path": key, "value": flow[key], "note": "from the walk"}
-                   for key in ("flow_name", "catalog_entrypoint", "canonical_steps", "target_match_keywords", "generated_from")]
-        verb = "Update"
-    except LookupError:
-        rel = f"flows/{flow['flow_id']}.json"
-        changes = [{"file": rel, "op": "create", "path": changesets.ROOT, "value": flow, "note": f"{len(flow['canonical_steps'])} steps"}]
-        verb = "New"
-    draft = changesets.draft(
-        db, app_id=kb.automation_app_id, kb="automation", source="crawl", actor=actor,
-        origin={"crawl": {"crawl_run_id": crawl.id, "journey_id": crawl.journey_id, "run_key": crawl.run_key, "generated_flow": flow["flow_id"]}},
-        title=f"{verb} flow from the walk of {journey.get('name') or crawl.journey_id}: {len(flow['canonical_steps'])} steps",
-        description=f"Walked in {crawl.environment} at {crawl.base_url}; only the steps that ran, with the selectors they used.",
-        changes=changes,
-    )
-    return {"change_set": changesets.change_set_view(draft), "flow": flow}
+    # The journey's flow blueprint is generated from its steps on the Journey
+    # Map: regenerate the linked one (or create and link one), so a journey
+    # never ends up with a second, unlinked flow.
+    from . import journey_map
+
+    linked = any(f in journey_map._flows(kb) for f in journey.get("automation_flow_ids") or [])
+    created = journey_map.propose(db, kb, crawl.journey_id, steps=None, link_flow=None if linked else "new", actor=actor)
+    lead = created["automation"] or created["journey"]
+    flow_id = (lead.origin or {}).get("map", {}).get("flow_id")
+    flow = next((f for f in [journey_map._flows(kb).get(flow_id or "")] if f), None) or {"flow_id": flow_id, "flow_name": journey.get("name"), "canonical_steps": []}
+    return {"change_set": changesets.change_set_view(lead), "flow": flow,
+            "journey_change_set": changesets.change_set_view(created["journey"]) if created["journey"] and created["automation"] else None}
 
 
 def view(crawl: KbCrawlRun, *, with_result: bool = True) -> Dict[str, Any]:
@@ -438,4 +436,8 @@ def view(crawl: KbCrawlRun, *, with_result: bool = True) -> Dict[str, Any]:
     }
     if with_result:
         out["result"] = crawl.result
+        if out["source"] == "record" and (crawl.result or {}).get("recording"):
+            from .journey_record import with_check
+
+            out["result"] = {**crawl.result, "recording": with_check(crawl.result["recording"], crawl.result.get("final_url"))}
     return out

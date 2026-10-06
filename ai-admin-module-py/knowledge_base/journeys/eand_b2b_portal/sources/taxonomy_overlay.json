@@ -140,5 +140,27 @@
         "B2B.REG.EXISTING.SIGNIN.SELECT_ORG"
       ]
     }
+  },
+  "child_order": {
+    "$roots": [
+      "B2B.RELEASE",
+      "B2B.INTRO",
+      "B2B.REG",
+      "B2B.DASH",
+      "B2B.TEAM",
+      "B2B.ORG",
+      "B2B.RENEW",
+      "B2B.MOB",
+      "B2B.CNAP",
+      "B2B.FIX",
+      "B2B.DIG",
+      "B2B.APPSTORE",
+      "B2B.ENT",
+      "B2B.BILL",
+      "B2B.SVC",
+      "B2B.NONAUTO",
+      "B2B.SUPPORT",
+      "B2B.TRACK"
+    ]
   }
 }

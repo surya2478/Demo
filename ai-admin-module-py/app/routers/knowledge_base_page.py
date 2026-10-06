@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from ..database.connection import get_db
 from ..services.authz import require_permission, user_has_permission
 from ..models.kb_changes import KbChangeSet, KbCrawlRun, KbHeal, KbSourceDocument, KbVersion
-from ..services.journeys import changesets, crawl_runs, diff, documents, editing, heal, impact, store, workspace
+from ..services.journeys import changesets, crawl_runs, diff, documents, editing, heal, impact, journey_map, journey_record, store, workspace
 
 logger = logging.getLogger(__name__)
 
@@ -64,21 +64,32 @@ def get_sources(app_id: str, current_user: dict = Depends(require_permission(PER
 
 
 @router.get("/{app_id}/taxonomy")
-def get_taxonomy(app_id: str, current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
+def get_taxonomy(app_id: str, db: Session = Depends(get_db),
+                 current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
     kb = _kb(app_id)
+    # Journeys whose flow matches them and whose every step a walk confirmed.
+    verified = []
+    for journey_id in sorted(kb.journeys):
+        try:
+            if journey_map.build_map(kb, journey_id, db=db)["summary"].get("verified"):
+                verified.append(journey_id)
+        except Exception:  # noqa: BLE001 - one broken journey must not hide the tree
+            continue
     keep = ("id", "title", "kind", "level", "chapter", "parent", "children", "status", "audience")
     return {
         "summary": kb.taxonomy.get("summary", {}),
         "roots": kb.taxonomy.get("roots", []),
         "nodes": [{k: n.get(k) for k in keep} for n in kb.taxonomy.get("nodes", [])],
         "authored": sorted(kb.journeys),
+        "verified": verified,
     }
 
 
 @router.get("/{app_id}/journeys/{journey_id}")
-def get_journey(app_id: str, journey_id: str, current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
+def get_journey(app_id: str, journey_id: str, db: Session = Depends(get_db),
+                current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
     try:
-        return workspace.journey_detail(_kb(app_id), journey_id)
+        return workspace.journey_detail(_kb(app_id), journey_id, db=db)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -285,6 +296,8 @@ class JourneyStepIn(BaseModel):
     expected_result: str = ""
     screen_id: Optional[str] = None
     element_id: Optional[str] = None
+    # How a recording did the step (kind, selector, field...); omitted: kept as it was.
+    recorded: Optional[dict[str, Any]] = None
 
 
 class JourneyStepsIn(BaseModel):
@@ -347,12 +360,57 @@ def remove_journey(app_id: str, journey_id: str, publish: bool = Query(default=F
 @router.put("/{app_id}/journeys/{journey_id}/steps")
 def edit_journey_steps(app_id: str, journey_id: str, body: JourneyStepsIn, db: Session = Depends(get_db),
                        current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    # Through the Journey Map, so the journey's flow blueprint is regenerated
+    # with its steps -- wherever a step is edited, the flow cannot drift.
+    return _map_save(db, app_id, journey_id, [s.model_dump(exclude_unset=True) for s in body.steps], None, body.publish, current_user)
+
+
+# --- Journey Map: the journey's steps, its flow blueprint and selectors, side by side --------
+
+class JourneyMapSaveIn(BaseModel):
+    # The edited steps, as the steps editor sends them; omitted: only regenerate the flow.
+    steps: Optional[list[JourneyStepIn]] = None
+    # For a journey with no flow blueprint: an existing flow_id to link, or "new".
+    link_flow: Optional[str] = None
+    publish: bool = False
+
+
+@router.get("/{app_id}/journey-map")
+def journey_map_overview(app_id: str, db: Session = Depends(get_db),
+                         current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
+    return journey_map.overview(_kb(app_id), db=db)
+
+
+@router.get("/{app_id}/journey-map/{journey_id}")
+def journey_map_detail(app_id: str, journey_id: str, db: Session = Depends(get_db),
+                       current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
     try:
-        created = editing.edit_steps(db, _kb(app_id), journey_id, [s.model_dump() for s in body.steps],
-                                     actor=_actor(current_user))
+        return journey_map.build_map(_kb(app_id), journey_id, db=db)
     except Exception as exc:  # noqa: BLE001
         _fail(exc)
-    return _edited(db, created, current_user, body.publish)
+
+
+@router.post("/{app_id}/journey-map/{journey_id}")
+def journey_map_save(app_id: str, journey_id: str, body: JourneyMapSaveIn, db: Session = Depends(get_db),
+                     current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    steps = [s.model_dump(exclude_unset=True) for s in body.steps] if body.steps is not None else None
+    return _map_save(db, app_id, journey_id, steps, body.link_flow, body.publish, current_user)
+
+
+def _map_save(db: Session, app_id: str, journey_id: str, steps: Optional[list], link_flow: Optional[str],
+              publish: bool, current_user: dict) -> dict[str, Any]:
+    try:
+        created = journey_map.propose(db, _kb(app_id), journey_id, steps=steps, link_flow=link_flow, actor=_actor(current_user))
+    except Exception as exc:  # noqa: BLE001
+        _fail(exc)
+    # The journey half when there is one: approving it publishes its flow too.
+    lead = created["journey"] or created["automation"]
+    result = _edited(db, lead, current_user, publish)
+    partner = created["automation"] if created["journey"] else None
+    if partner is not None:
+        db.refresh(partner)
+        result["flow_change_set"] = changesets.change_set_view(partner)
+    return result
 
 
 class JourneyMoveIn(BaseModel):
@@ -472,8 +530,11 @@ def revise_change_steps(change_set_id: int, position: int, body: StepsReviseIn, 
                         current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
     """Correct the steps a drafted change set proposes, before it is approved."""
     try:
-        revised = editing.revise_steps(db, change_set_id, position, [s.model_dump() for s in body.steps],
+        revised = editing.revise_steps(db, change_set_id, position, [s.model_dump(exclude_unset=True) for s in body.steps],
                                        actor=_actor(current_user))
+        # A Journey Map draft: its flow half follows the revised steps.
+        if (revised.origin or {}).get("map"):
+            journey_map.refresh_pair(db, _kb(revised.app_id), revised)
     except Exception as exc:  # noqa: BLE001
         _fail(exc)
     return changesets.change_set_view(revised)
@@ -613,7 +674,7 @@ def crawl_live(crawl_id: int, db: Session = Depends(get_db), current_user: dict 
     return crawl_runs.live(db, crawl)
 
 
-_WALK_IMAGE = re.compile(r"^(live|shot-\d{1,4})\.png$")
+_WALK_IMAGE = re.compile(r"^(live|shot-(\d{1,4}|end))\.png$")
 
 
 @router.get("/journey-crawls/{crawl_id}/image/{name}")
@@ -675,6 +736,71 @@ def generate_flow_from_crawl(
         return crawl_runs.generate_flow(db, crawl_id, actor=_actor(current_user))
     except Exception as exc:  # noqa: BLE001
         _fail(exc)
+
+
+# --- Recording a journey -------------------------------------------------------------------
+# A person does the journey in a browser the server opens; what they did becomes
+# the journey's steps (journey_record). Watched and listed like a walk.
+
+class RecordIn(BaseModel):
+    journey_id: str
+    application_id: int
+    environment: Optional[str] = None
+
+
+class RecordedStepIn(BaseModel):
+    action: str = Field(min_length=1, max_length=1000)
+    expected_result: str = Field(default="", max_length=1000)
+    recorded: Optional[dict[str, Any]] = None
+
+
+class RecordSaveIn(BaseModel):
+    steps: list[RecordedStepIn] = Field(min_length=1, max_length=200)
+    # For a journey with no flow blueprint: an existing flow_id to link, or "new" (the default).
+    link_flow: Optional[str] = None
+    publish: bool = False
+
+
+@router.post("/{app_id}/journey-record", status_code=202)
+def start_recording(app_id: str, body: RecordIn, db: Session = Depends(get_db),
+                    current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    try:
+        crawl = journey_record.start(db, app_id=app_id, actor=_actor(current_user), **body.model_dump())
+    except crawl_runs.Unavailable as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        _fail(exc)
+    return crawl_runs.view(crawl)
+
+
+@router.post("/journey-crawls/{crawl_id}/finish")
+def finish_recording(crawl_id: int, db: Session = Depends(get_db),
+                     current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    crawl = db.get(KbCrawlRun, crawl_id)
+    if crawl is None:
+        raise HTTPException(status_code=404, detail="No such recording.")
+    try:
+        journey_record.finish(db, crawl)
+    except Exception as exc:  # noqa: BLE001
+        _fail(exc)
+    return {"finishing": True}
+
+
+@router.post("/journey-crawls/{crawl_id}/save-recording")
+def save_recording(crawl_id: int, body: RecordSaveIn, db: Session = Depends(get_db),
+                   current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    """The reviewed recording as the journey's steps, with its flow regenerated: drafted as one pair."""
+    try:
+        created = journey_record.save(db, crawl_id, [s.model_dump() for s in body.steps], link_flow=body.link_flow,
+                                      actor=_actor(current_user))
+    except Exception as exc:  # noqa: BLE001
+        _fail(exc)
+    lead = created["journey"] or created["automation"]
+    result = _edited(db, lead, current_user, body.publish)
+    if created["journey"] is not None and created["automation"] is not None:
+        db.refresh(created["automation"])
+        result["flow_change_set"] = changesets.change_set_view(created["automation"])
+    return result
 
 
 # --- Design documents: upload, extract, review ---------------------------------------------

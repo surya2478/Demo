@@ -127,7 +127,7 @@ def overview(kb: store.JourneyKB) -> Dict[str, Any]:
 
 # --- Journey detail ---------------------------------------------------------------------
 
-def journey_detail(kb: store.JourneyKB, journey_id: str) -> Dict[str, Any]:
+def journey_detail(kb: store.JourneyKB, journey_id: str, db=None) -> Dict[str, Any]:
     node = kb.node(journey_id)
     if node is None:
         raise LookupError(f"No journey '{journey_id}'.")
@@ -139,18 +139,37 @@ def journey_detail(kb: store.JourneyKB, journey_id: str) -> Dict[str, Any]:
     profile = _profile(kb)
     chain = store.journey_chain(kb, journey)
     rows = {(r["screen_id"], r["element_id"]): r for r in diff.reconcile_elements(kb, profile)["rows"] if r["element_id"]}
+    # What the Journey Map knows per step: a recorded selector or an address,
+    # and whether the last walk confirmed it -- for steps with no design element.
+    from . import journey_map
+
+    try:
+        mapped = journey_map.build_map(kb, journey_id, db=db)
+    except Exception:  # noqa: BLE001 - the detail still shows without it
+        mapped = None
+    map_rows = [r for r in (mapped or {}).get("rows", []) if r["kind"] == "step"]
     steps = []
-    for step in journey.get("steps", []):
+    for position, step in enumerate(journey.get("steps", [])):
         screen_id = str(step.get("screen_id") or "").split("|")[0]
         row = rows.get((screen_id, step.get("element_id")))
         if row:
             link = {"status": row["status"], "automation_target": row["automation_target"], "app_labels": row["app_labels"]}
+        elif step.get("element_id") and not any(
+                e.get("element_id") == step["element_id"]
+                for sid in str(step.get("screen_id") or "").split("|") for e in (kb.screens.get(sid.strip()) or {}).get("elements", [])):
+            # Named, but none of the step's screens has it: say so, as the Journey Map does.
+            link = {"status": diff.UNRESOLVED, "automation_target": None, "app_labels": [],
+                    "note": f"'{step['element_id']}' is not an element of {step.get('screen_id') or 'its screen'}"}
         elif step.get("element_id"):
             link = {"status": diff.NOT_CRAWLED, "automation_target": None, "app_labels": []}
         else:
             screen = kb.screens.get(screen_id) or {}
             route = diff._resolve_ref(profile, screen["route_ref"]) if screen.get("route_ref") and step.get("step_number") == 1 else None
             link = {"status": diff.MATCH if route else diff.NO_ELEMENT, "automation_target": route, "app_labels": []}
+        m = map_rows[position] if position < len(map_rows) and map_rows[position]["step_number"] == step.get("step_number") else None
+        if m and m.get("target") and link["status"] in (diff.NO_ELEMENT, diff.NOT_CRAWLED):
+            status = "CONFIRMED" if m["capture"] == "confirmed" else "RECORDED" if m.get("recorded") else link["status"]
+            link = {"status": status, "automation_target": m["target"], "app_labels": []}
         steps.append({**step, "link": link, "screen_name": (kb.screens.get(screen_id) or {}).get("name")})
 
     # Who else is affected when this journey changes: journeys that run after
@@ -176,6 +195,7 @@ def journey_detail(kb: store.JourneyKB, journey_id: str) -> Dict[str, Any]:
         "next": [{"journey_id": n, "name": (kb.journeys.get(n) or {}).get("name") or n} for n in journey.get("next_journeys", [])],
         "rules": [kb.rules[r] for r in journey.get("business_rules", []) if r in kb.rules],
         "used_by": used_by,
+        "verified": bool(((mapped or {}).get("summary") or {}).get("verified")),
     }
     return result
 

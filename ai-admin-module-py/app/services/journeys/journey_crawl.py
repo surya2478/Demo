@@ -238,6 +238,12 @@ def build_plan(
     test scenarios, the walk runs that scenario's steps and expects its
     outcome -- an unregistered email is expected to stay on the login page
     with its banner, not to reach the OTP screen.
+
+    The walk is the journey's own steps, numbered as the journey numbers
+    them, so a walk lines up step for step with the Journey Map and the
+    flow generated from it. Journeys that can follow it are not walked;
+    journeys it needs first (sign-in before choosing an organization) run
+    as setup and are marked so.
     """
     journey = kb.journeys.get(journey_id)
     if journey is None:
@@ -253,28 +259,23 @@ def build_plan(
         hint = "; ".join(f"{profiles.get(s['test_data'], {}).get('name', s['test_data'])} for {s['scenario_id']}" for s in named[:4])
         warnings.append(f"No scenario of this journey uses '{data_profile.get('name', profile_id)}'; the walk follows the steps "
                         f"as written and may stop early." + (f" Its scenarios use: {hint}." if hint else ""))
-    scenario_steps = set(scenario.get("steps") or []) if scenario else None
-    negative = bool(scenario and scenario.get("type") not in ("positive", "alternate"))
+    # A scenario whose steps were all replaced (a recording) no longer narrows the walk.
+    scenario_steps = set(scenario["steps"]) if scenario and scenario.get("steps") else None
 
-    scope = store.journey_scope(kb, journey)
+    scope = store.journey_chain(kb, journey)
     items: List[Dict[str, Any]] = []
     for walked in scope:
-        # Steps of journeys after the chosen one are optional: the landing
-        # screen depends on the account (a default organization skips the
-        # chooser), and a step that cannot apply is skipped, not failed.
-        optional = walked not in store.journey_chain(kb, journey)
+        setup = walked["journey_id"] != journey_id
         for step in walked.get("steps", []):
-            if walked["journey_id"] == journey_id and scenario_steps is not None and step["step_number"] not in scenario_steps:
-                items.append({"journey_id": walked["journey_id"], "step_number": step["step_number"], "text": step["action"],
-                              "kind": "skip", "reason": f"not part of {scenario['scenario_id']}, the scenario this test data is for"})
-                continue
-            if walked["journey_id"] != journey_id and negative:
-                items.append({"journey_id": walked["journey_id"], "step_number": step["step_number"], "text": step["action"],
-                              "kind": "skip", "reason": f"{scenario['scenario_id']} ends before this journey"})
+            base = {"journey_id": walked["journey_id"], "journey_name": walked["name"], "step_number": step["step_number"],
+                    "text": step["action"], "setup": setup, "optional": False}
+            if not setup and scenario_steps is not None and step["step_number"] not in scenario_steps:
+                items.append({**base, "kind": "skip", "reason": f"not part of {scenario['scenario_id']}, the scenario this test data is for"})
                 continue
             if step.get("branch") == "negative_only":
-                items.append({"journey_id": walked["journey_id"], "step_number": step["step_number"], "text": step["action"],
-                              "kind": "skip", "reason": "error path only; the crawl follows the success path"})
+                # A setup journey's error path is not part of this walk at all.
+                if not setup:
+                    items.append({**base, "kind": "skip", "reason": "error path only; the walk follows the success path"})
                 continue
             # "A|B" means the account decides which screen appears; the plan
             # cannot know, so that step sweeps nothing -- the screen is swept
@@ -283,12 +284,17 @@ def build_plan(
             screen_id = options[0] if len(options) == 1 else ""
             screen = kb.screens.get(screen_id) or {}
             element = next((e for e in screen.get("elements", []) if e.get("element_id") == step.get("element_id")), None)
-            item: Dict[str, Any] = {
-                "journey_id": walked["journey_id"], "journey_name": walked["name"], "step_number": step["step_number"],
-                "text": step["action"], "screen_id": screen_id or None, "optional": optional,
-            }
+            item: Dict[str, Any] = {**base, "screen_id": screen_id or None}
             if len(options) > 1:
                 item["screen_options"] = options
+            if element is None and step.get("element_id") and not setup:
+                warnings.append(f"Step {step['step_number']} names '{step['element_id']}', which is not an element of "
+                                f"{step.get('screen_id') or 'its screen'}: the walk only checks the screen is showing. "
+                                "Fix it on the Journey Map.")
+            if element is None and step.get("recorded"):
+                item.update(_recorded_item(step, data_profile))
+                items.append(item)
+                continue
             if element is None:
                 route = None
                 if screen.get("route_ref"):
@@ -321,9 +327,13 @@ def build_plan(
                 item["reason"] = f"the data profile '{profile_id}' names no value for this field"
             items.append(item)
 
+    # Every element of the journey's own screens is looked for, so the walk
+    # captures what the steps will need; setup screens only for their steps.
+    visited = {sid for i in items if i.get("kind") != "skip" and not i.get("setup")
+               for sid in (i.get("screen_options") or ([i["screen_id"]] if i.get("screen_id") else []))}
     screens = {
         sid: [_descriptor(kb, kb.screens[sid], e, automation_profile) for e in kb.screens[sid].get("elements", [])]
-        for walked in scope for sid in walked.get("screens", []) if sid in kb.screens
+        for sid in journey.get("screens", []) if sid in kb.screens and sid in visited
     }
     _expectations(kb, items, automation_profile, scenario)
     involved = set(screens)
@@ -347,6 +357,49 @@ def build_plan(
         "variables": sorted({i[k] for i in items for k in ("variable", "text_variable") if i.get(k)}),
         "items": items, "screens": screens, "signatures": signatures,
     }
+
+
+# A recorded step's element: it has no design screen, only the selector it was recorded with.
+RECORDED_SCREEN = "RECORDED"
+
+
+def _recorded_item(step: Dict[str, Any], data_profile: Dict[str, Any]) -> Dict[str, Any]:
+    """How a walk replays a step recorded by journey_record: by its own selector, with the Test Data value for its field."""
+    rec = step["recorded"]
+    kind = rec.get("kind")
+    if kind == "verify":
+        return {"kind": "screen", "expect_path": rec["route"]} if rec.get("route") else {"kind": "screen"}
+    if kind == "goto":
+        return {"kind": "goto", "route": rec["route"]} if rec.get("route") else {"kind": "screen"}
+    label = rec.get("label") or ""
+    otp = kind == "otp"
+    fills = kind in ("fill", "otp")
+    element = {
+        "screen_id": RECORDED_SCREEN, "element_id": f"step_{step['step_number']}", "label": label or step["action"][:80],
+        "clean_label": _clean(label), "aliases": [], "accepted_labels": [],
+        "type": "otp_input_group" if otp else ("text_input" if fills else None), "hint": {}, "kb_ref": None,
+        "kb_target": rec.get("target"), "group": otp, "is_input": fills,
+    }
+    out: Dict[str, Any] = {"element": element}
+    if rec.get("led_to"):
+        out["led_to"] = rec["led_to"]
+    if rec.get("at"):
+        out["at"] = rec["at"]
+    if fills:
+        field = rec.get("field") or "text"
+        words = {"username": ("username", "email", "user"), "email": ("email", "username", "user"), "password": ("password",),
+                 "otp": ("otp",), "mobile": ("mobile", "phone")}.get(field, (field,))
+        variable = _profile_variable(data_profile, *words) or (f"TESTDATA_{field.upper()}" if field != "text" else None)
+        if variable:
+            out.update(kind="otp" if otp else "fill", variable=variable)
+        else:
+            out.update(kind="capture", reason="the recording does not say which Test Data value this field takes")
+    elif kind in ("click", "check"):
+        out["kind"] = "click"
+    else:
+        # Choosing an option and pressing a key are not replayed yet: the walk checks the element is there.
+        out.update(kind="capture", reason=f"a recorded {kind} is checked, not replayed")
+    return out
 
 
 def _expectations(kb: store.JourneyKB, items: List[Dict[str, Any]], automation: Dict[str, Any],
@@ -879,6 +932,7 @@ function offPathReason(item, o) {
   if (o.kind === 'error') return `"${o.message}" was shown after step ${item.step_number}, instead of ${target}`;
   if (o.kind === 'branch') return `went the way the design gives for "${o.condition || o.effect || screenName(o.screen)}"${o.rule ? ` (${o.rule})` : ''}, instead of ${target}`;
   if (o.kind === 'unexpected') return `reached ${screenName(o.screen)} instead of ${target}`;
+  if (o.kind === 'recorded') return `stayed at ${o.url} after step ${item.step_number}; when recorded it led to ${o.led}`;
   if (o.kind === 'unknown') return `reached ${o.url}, a screen the Journey KB does not describe, instead of ${target}`;
   return `nothing happened within ${Math.round(T.outcome / 1000)} s of step ${item.step_number}; ${target} never appeared`;
 }
@@ -1033,6 +1087,19 @@ test('journey-guided crawl', async ({ page }) => {
           continue;
         }
         if (item.kind === 'screen') {
+          if (!options.length && item.expect_path) {
+            // A recorded check: the page the recording ended on.
+            const want = item.expect_path.replace(/\/+$/, '') || '/';
+            const shown = await page.waitForURL((u) => pathOf(u.toString()) === want, { timeout: T.outcome }).then(() => true).catch(() => false);
+            if (!shown) {
+              const status = missing(`the page ${want} never opened (still at ${page.url()})`);
+              record({ ...out, status, url: page.url(), reason: `the page ${want} is not showing`, screenshot: await shoot(index + 1) });
+              continue;
+            }
+            await settle(page);
+            record({ ...out, status: 'done', url: page.url(), screenshot: await shoot(index + 1) });
+            continue;
+          }
           if (!options.length) { record({ ...out, status: 'done', url: page.url(), screenshot: await shoot(index + 1) }); continue; }
           const shown = await recognise(page, options);
           if (!shown) {
@@ -1086,11 +1153,16 @@ test('journey-guided crawl', async ({ page }) => {
           if (n > 1) { for (let i = 0; i < Math.min(n, digits.length); i++) await loc.nth(i).fill(digits[i], { timeout: T.action }); }
           else await loc.first().fill(digits.join(''), { timeout: T.action });
         }
-        if (item.kind === 'click') await loc.first().click({ timeout: T.action });
+        if (item.kind === 'click') await loc.first().click({ timeout: T.action, ...(item.at ? { position: { x: item.at[0], y: item.at[1] } } : {}) });
         let outcome = null;
         if (item.expect && item.expect.length) {
           outcome = await outcomeOf(page, item, baseline);
           if (outcome.screen && outcome.kind !== 'error') await arrived(outcome.screen);
+        } else if (item.led_to) {
+          // A recorded step led to this address when it was recorded: it should again.
+          const reached = await page.waitForURL((u) => pathOf(u.toString()) === (item.led_to.replace(/\/+$/, '') || '/'), { timeout: T.outcome }).then(() => true).catch(() => false);
+          await settle(page);
+          if (!reached) outcome = { kind: 'recorded', url: page.url(), led: item.led_to };
         } else {
           // An OTP form submits itself once the last box is filled: give it
           // time to leave the page before the next screen is swept.
@@ -1193,6 +1265,15 @@ def evaluate(plan: Dict[str, Any], output: Dict[str, Any]) -> Dict[str, Any]:
             "kb_ref": el.get("kb_ref"), "kb_target": el.get("kb_target"), "url": (cap or {}).get("url"),
             "tried": (cap or {}).get("tried", []),
         })
+    # Which journey step each element belongs to, so results read step by step.
+    owner: Dict[tuple, Dict[str, Any]] = {}
+    for item in plan["items"]:
+        if item.get("element") and item.get("kind") != "skip":
+            owner.setdefault((item["element"]["screen_id"], item["element"]["element_id"]), item)
+    for row in rows:
+        item = owner.get((row["screen_id"], row["element_id"]))
+        row["step"] = item["step_number"] if item and not item.get("setup") else None
+        row["setup"] = bool(item and item.get("setup"))
     summary: Dict[str, int] = {}
     for row in rows:
         summary[row["outcome"]] = summary.get(row["outcome"], 0) + 1
@@ -1207,7 +1288,7 @@ def evaluate(plan: Dict[str, Any], output: Dict[str, Any]) -> Dict[str, Any]:
     routes = learned_routes(plan, output)
     summary["routes_new"] = sum(1 for r in routes if r["state"] != "same")
     return {
-        "rows": sorted(rows, key=lambda r: (r["screen_id"], r["element_id"])),
+        "rows": sorted(rows, key=lambda r: (r["step"] is None, r["step"] or 0, r["screen_id"], r["element_id"])),
         "steps": output.get("steps", []),
         "blockers": output.get("blockers", []),
         "final_url": output.get("final_url"),
@@ -1507,6 +1588,8 @@ def proposal(evaluated: Dict[str, Any], automation_profile: Dict[str, Any]) -> D
     for row in evaluated["rows"]:
         if row["outcome"] not in ("new", "healed") or not row["selector"] or row["ambiguous"] or row["data_dependent"]:
             continue
+        if row["screen_id"] == RECORDED_SCREEN:
+            continue  # a recorded step's selector lives on the step; a new recording replaces it
         ref = row.get("kb_ref") or ""
         parts = ref.split(".")
         if row["outcome"] == "healed" and len(parts) >= 3 and parts[0] == "selectors" and isinstance(selectors.get(parts[1]), dict):

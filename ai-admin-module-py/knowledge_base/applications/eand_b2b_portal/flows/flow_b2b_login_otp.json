@@ -24,56 +24,105 @@
     "external_boundary": "OTP generation and delivery via SMS/email is external. Automated execution requires the test runner to provide a valid test OTP code; accessing external mailboxes is out of scope."
   },
   "graph_edges": [
-    { "from": "login_page", "to": "otp_requested", "action": "click_continue_otp" },
-    { "from": "otp_requested", "to": "otp_entered", "action": "fill_otp_digits" },
-    { "from": "otp_entered", "to": "portal_home", "action": "verify_authenticated" },
-    { "from": "otp_entered", "to": "org_selection", "action": "select_organization_if_multi_org" },
-    { "from": "org_selection", "to": "portal_home", "action": "click_organization_card" },
-    { "from": "otp_entered", "to": "otp_error_dialog", "action": "invalid_or_expired_otp" },
-    { "from": "otp_error_dialog", "to": "otp_requested", "action": "acknowledge_okay" },
-    { "from": "otp_requested", "to": "otp_requested", "action": "click_resend_otp" }
+    {
+      "from": "login_page",
+      "to": "otp_requested",
+      "action": "click_continue_otp"
+    },
+    {
+      "from": "otp_requested",
+      "to": "otp_entered",
+      "action": "fill_otp_digits"
+    },
+    {
+      "from": "otp_entered",
+      "to": "portal_home",
+      "action": "verify_authenticated"
+    },
+    {
+      "from": "otp_entered",
+      "to": "org_selection",
+      "action": "select_organization_if_multi_org"
+    },
+    {
+      "from": "org_selection",
+      "to": "portal_home",
+      "action": "click_organization_card"
+    },
+    {
+      "from": "otp_entered",
+      "to": "otp_error_dialog",
+      "action": "invalid_or_expired_otp"
+    },
+    {
+      "from": "otp_error_dialog",
+      "to": "otp_requested",
+      "action": "acknowledge_okay"
+    },
+    {
+      "from": "otp_requested",
+      "to": "otp_requested",
+      "action": "click_resend_otp"
+    }
   ],
   "canonical_steps": [
     {
       "step_number": 1,
-      "action": "Navigate to the B2B Portal login page",
-      "target": "/b2bportal/login.html?rdr=home&locale=en",
-      "expected_result": "The login page loads with the 'Sign in using OTP' tab selected by default and the email field visible"
+      "action": "Open e& UAE B2B Portal (Business Online) at the environment's address",
+      "target": "/b2bportal/loginV2.html",
+      "expected_result": "The page /b2bportal/loginV2.html opens",
+      "journey_step": 1
     },
     {
       "step_number": 2,
-      "action": "Enter the registered username or email address",
-      "target": "//input[@id='userEmailField' or @placeholder='Username or email*']",
-      "expected_result": "The email is populated and the CONTINUE button becomes actionable"
+      "action": "Click 'CLICK HERE' link",
+      "target": "//a[normalize-space(.)='CLICK HERE']",
+      "expected_result": "The page /b2bportal/loginV2.html opens",
+      "journey_step": 2
     },
     {
       "step_number": 3,
-      "action": "Click CONTINUE to request the one-time password",
-      "target": "//button[contains(.,'CONTINUE') or contains(.,'RECEIVE OTP')]",
-      "expected_result": "The 'Enter your One Time Password' screen appears showing the masked email, mobile number, and six OTP digit boxes"
+      "action": "Enter the username in 'Email'",
+      "target": "//input[@id='userEmailField']",
+      "expected_result": "",
+      "journey_step": 3
     },
     {
       "step_number": 4,
-      "action": "Enter the six-digit OTP, one digit per box, in boxes 1 through 6",
-      "target": "//input[contains(@name,'opt-field')]",
-      "expected_result": "All six digit boxes are filled, a green checkmark appears, and verification is submitted"
+      "action": "Enter the password in 'Password'",
+      "target": "//input[@id='passField']",
+      "expected_result": "",
+      "journey_step": 4
     },
     {
       "step_number": 5,
-      "action": "Select the target organization if prompted on multi-organization screen",
-      "target": "//div[contains(@class,'org-card') or contains(.,'Customer Representative')]",
-      "expected_result": "The organization is selected and the user navigates to the authenticated Dashboard"
+      "action": "Click 'SIGN IN'",
+      "target": "//div[@id='use-pass']/div/div/div[4]/div/button",
+      "expected_result": "The page /b2bportal/app/accounts/dashboard360 opens",
+      "journey_step": 5
     },
     {
       "step_number": 6,
-      "action": "Verify the authenticated B2B Portal Dashboard is displayed",
-      "target": "//a[@class='company-info font-light'] | //a[text()='Dashboard']",
-      "expected_result": "The Dashboard 360 loads displaying the account metrics and the user profile in the top navigation"
+      "action": "Click 'Dashboard' link",
+      "target": "//div[@id='navbarCollapse']//a[normalize-space(.)='Dashboard']",
+      "expected_result": "",
+      "journey_step": 6
+    },
+    {
+      "step_number": 7,
+      "action": "Verify the landing page /b2bportal/app/accounts/dashboard360 is shown",
+      "target": "/b2bportal/app/accounts/dashboard360",
+      "expected_result": "The page /b2bportal/app/accounts/dashboard360 is showing",
+      "journey_step": 7
     }
   ],
   "test_data_notes": {
     "otp_digit_selector_template": "(//input[contains(@name,'opt-field')])[N] where N runs 1 to 6",
     "attribute_spelling": "The OTP input name attribute is 'opt-field' in the Angular application DOM.",
     "primary_test_user": "ayishabcrm@gmail.com or registered QA customer representative"
+  },
+  "generated_from": {
+    "journey_id": "B2B.REG.EXISTING.SIGNIN.OTP",
+    "generated_at": "2026-10-06T08:26:14Z"
   }
 }

@@ -49,6 +49,10 @@ from . import store
 
 KBS = ("journey", "automation")
 AUTOMATION_SOURCES = {"crawl", "qa", "revert"}
+# A flow blueprint regenerated from its journey (journey_map.py). Its steps are
+# the journey's and its targets the Automation KB's own selectors, so it may
+# change flow blueprints -- and nothing else in the Automation KB.
+FLOW_ONLY_SOURCES = {"journey-map"}
 
 _locks: Dict[Tuple[str, str], threading.Lock] = {}
 _locks_guard = threading.Lock()
@@ -289,7 +293,11 @@ def draft(
     """Record a draft. Every change is checked to apply cleanly now."""
     if kb not in KBS:
         raise ChangeSetError(f"Unknown Knowledge Base '{kb}'.")
-    if kb == "automation" and source not in AUTOMATION_SOURCES:
+    if kb == "automation" and source in FLOW_ONLY_SOURCES:
+        outside = sorted({c.get("file") for c in changes if not str(c.get("file") or "").startswith("flows/")})
+        if outside:
+            raise ChangeSetError(f"A flow regenerated from its journey may change flow blueprints only, not {', '.join(outside)}.")
+    elif kb == "automation" and source not in AUTOMATION_SOURCES:
         raise ChangeSetError(
             "The Automation KB is what the crawled application renders; only a crawl or QA may change it. "
             "Propose design changes to the Journey KB instead."
@@ -437,10 +445,14 @@ def reject(db: Session, change_set_id: int, *, actor: Optional[str], note: Optio
         raise LookupError("No such change set.")
     if change_set.status not in ("draft", "conflicted"):
         raise ChangeSetError(f"This change set is already {change_set.status}.")
-    change_set.status = "rejected"
-    change_set.decided_by = actor
-    change_set.decided_at = datetime.utcnow()
-    change_set.decision_note = note
+    # A Journey Map edit's two halves stand or fall together.
+    partner = db.get(KbChangeSet, ((change_set.origin or {}).get("map") or {}).get("pair") or 0)
+    for item in (change_set, partner):
+        if item is not None and item.status in ("draft", "conflicted"):
+            item.status = "rejected"
+            item.decided_by = actor
+            item.decided_at = datetime.utcnow()
+            item.decision_note = note if item is change_set else f"Rejected with change set #{change_set.id}"
     db.commit()
     return change_set
 
@@ -451,6 +463,9 @@ def discard(db: Session, change_set_id: int) -> None:
         raise LookupError("No such change set.")
     if change_set.status not in ("draft", "conflicted"):
         raise ChangeSetError("Only a draft can be discarded; published and rejected ones are history.")
+    partner = db.get(KbChangeSet, ((change_set.origin or {}).get("map") or {}).get("pair") or 0)
+    if partner is not None and partner.status in ("draft", "conflicted"):
+        db.delete(partner)
     db.delete(change_set)
     db.commit()
 
@@ -668,8 +683,18 @@ def publish_with_pair(db: Session, change_set_id: int, *, actor: Optional[str], 
     if change_set is None:
         raise LookupError("No such change set.")
     published: List[KbVersion] = []
-    pair_id = ((change_set.origin or {}).get("crawl") or {}).get("pair")
-    if change_set.kb == "journey" and pair_id:
+    origin = change_set.origin or {}
+    pair_id = (origin.get("crawl") or {}).get("pair")
+    # A Journey Map edit is one change in two files -- the journey's steps and
+    # the flow generated from them: approving either half publishes both.
+    map_pair = (origin.get("map") or {}).get("pair")
+    if map_pair:
+        partner = db.get(KbChangeSet, map_pair)
+        if partner is not None and partner.status in ("draft", "conflicted"):
+            version = publish(db, partner.id, actor=actor, note=note or f"Published with change set #{change_set.id}")
+            if version:
+                published.append(version)
+    elif change_set.kb == "journey" and pair_id:
         partner = db.get(KbChangeSet, pair_id)
         if partner is not None and partner.status in ("draft", "conflicted"):
             version = publish(db, partner.id, actor=actor, note=note or f"Published with change set #{change_set.id}")

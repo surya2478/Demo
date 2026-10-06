@@ -4,9 +4,13 @@
  * One page for both Knowledge Bases of an application, in the order the work
  * happens:
  *
- *   design side       1 Sources · 2 Journey KB · 3 App Model
- *   application side  4 Test Data · 5 Journey Crawl · 6 Automation KB
- *   bringing together 7 Reconcile · 8 Change & Heal
+ *   design side       1 Sources · 2 Journey KB · 3 Journey Map · 4 App Model
+ *   application side  5 Test Data · 6 Walk & Dry run · 7 Automation KB
+ *   bringing together 8 Reconcile · 9 Change & Heal
+ *
+ * Journey Map is where a journey's steps are edited: beside each step, the
+ * Automation KB selector that carries it out and the flow blueprint's step,
+ * which is generated from the journey (components/knowledge-base/JourneyMapStage).
  *
  * It replaces the Application Discovery page at the same route. Crawl and
  * Automation KB are that page's own tabs, embedded (DiscoveryBody), so nothing
@@ -34,13 +38,14 @@ import TestDataStage from '../../components/knowledge-base/TestDataStage'
 import ReconcileStage from '../../components/knowledge-base/ReconcileStage'
 import JourneyCrawlStage from '../../components/knowledge-base/JourneyCrawlStage'
 import HealStage from '../../components/knowledge-base/HealStage'
+import JourneyMapStage from '../../components/knowledge-base/JourneyMapStage'
 
-type StageId = 'sources' | 'journeys' | 'model' | 'testdata' | 'crawl' | 'automation' | 'reconcile' | 'heal'
+type StageId = 'sources' | 'journeys' | 'map' | 'model' | 'testdata' | 'crawl' | 'automation' | 'reconcile' | 'heal'
 type StageState = 'done' | 'attn' | 'idle'
 
 const SELECTION_STORAGE_KEY = 'automation.knowledgeBase.selection'
 
-const STAGE_IDS: StageId[] = ['sources', 'journeys', 'model', 'testdata', 'crawl', 'automation', 'reconcile', 'heal']
+const STAGE_IDS: StageId[] = ['sources', 'journeys', 'map', 'model', 'testdata', 'crawl', 'automation', 'reconcile', 'heal']
 
 const DOT: Record<StageState, string> = {
   done: 'bg-[#B71920] text-white',
@@ -70,8 +75,14 @@ const KnowledgeBase: React.FC = () => {
 
   const [params, setParams] = useSearchParams()
   const stage: StageId = STAGE_IDS.includes(params.get('stage') as StageId) ? (params.get('stage') as StageId) : 'sources'
-  const openStage = useCallback((next: string) => {
-    setParams(prev => { const p = new URLSearchParams(prev); p.set('stage', next); return p })
+  // `extra` carries what the next stage should open on, e.g. { journey: id }.
+  const openStage = useCallback((next: string, extra?: Record<string, string>) => {
+    setParams(prev => {
+      const p = new URLSearchParams(prev)
+      p.set('stage', next)
+      Object.entries(extra ?? {}).forEach(([k, v]) => (v ? p.set(k, v) : p.delete(k)))
+      return p
+    })
   }, [setParams])
 
   const [applications, setApplications] = useState<RegisteredApplication[]>([])
@@ -180,6 +191,7 @@ const KnowledgeBase: React.FC = () => {
     return [
       s('sources', 'Sources', overview ? `${overview.sources.documents} documents` : '—', overview ? 'done' : 'idle'),
       s('journeys', 'Journey KB', j ? `${j.authored} authored · ${j.by_status.source_available ?? 0} ready` : '—', j && (j.by_status.source_available ?? 0) > 0 ? 'attn' : j ? 'done' : 'idle'),
+      s('map', 'Journey Map', 'Steps · selectors · flows', j?.authored ? 'attn' : 'idle'),
       s('model', 'App Model', overview ? `${overview.screens.catalogued} screens` : '—', overview ? 'done' : 'idle'),
       s('testdata', 'Test Data', 'Coverage per environment', appKey ? 'attn' : 'idle'),
       s('crawl', 'Walk & Dry run', selectedApp ? 'Journeys and flows, live' : 'Add it in Test Data', selectedApp?.discovery ? 'done' : 'idle'),
@@ -189,7 +201,7 @@ const KnowledgeBase: React.FC = () => {
     ]
   }, [overview, selectedApp, appKey])
 
-  const needsJourneyKb = ['sources', 'journeys', 'model', 'testdata', 'reconcile', 'heal'].includes(stage)
+  const needsJourneyKb = ['sources', 'journeys', 'map', 'model', 'testdata', 'reconcile', 'heal'].includes(stage)
 
   return (
     <div className="flex flex-col gap-[18px]">
@@ -250,7 +262,7 @@ const KnowledgeBase: React.FC = () => {
 
       {appsError && <Note tone="warn">{appsError}</Note>}
 
-      <nav aria-label="Knowledge Base stages" className="grid grid-cols-2 gap-2 md:grid-cols-4 2xl:grid-cols-8">
+      <nav aria-label="Knowledge Base stages" className="grid grid-cols-2 gap-2 md:grid-cols-5 2xl:grid-cols-9">
         {stages.map((s, i) => (
           <button
             key={s.id}
@@ -283,6 +295,7 @@ const KnowledgeBase: React.FC = () => {
               onDrafted={() => { loadPending(); setDrawer('review') }} onOpenChangeSets={() => setDrawer('review')} />
           )}
           {stage === 'journeys' && appKey && <JourneysStage key={revision} appKey={appKey} onOpenStage={openStage} canExecute={canExecute} canApprove={canApprove} onEdited={loadPending} />}
+          {stage === 'map' && appKey && <JourneyMapStage key={`${appKey}:${revision}`} appKey={appKey} onOpenStage={openStage} canExecute={canExecute} canApprove={canApprove} onEdited={loadPending} />}
           {stage === 'model' && appKey && <ModelStage key={revision} appKey={appKey} canExecute={canExecute} canApprove={canApprove} onEdited={loadPending} />}
           {stage === 'testdata' && appKey && <TestDataStage key={revision} appKey={appKey} />}
           {stage === 'reconcile' && appKey && (
@@ -305,7 +318,7 @@ const KnowledgeBase: React.FC = () => {
           {stage === 'crawl' && selectedApp && (
             <div className="flex flex-col gap-4">
               {appKey
-                ? <JourneyCrawlStage key={`${appKey}.${selectedApp.id}.${kbEnv ?? ''}`} appKey={appKey} application={{ ...selectedApp, environment: kbEnv ?? selectedApp.environment, base_url: envAddress ?? selectedApp.base_url }} canExecute={canExecute}
+                ? <JourneyCrawlStage key={`${appKey}.${selectedApp.id}.${kbEnv ?? ''}`} appKey={appKey} application={{ ...selectedApp, environment: kbEnv ?? selectedApp.environment, base_url: envAddress ?? selectedApp.base_url }} canExecute={canExecute} canApprove={canApprove}
                     onProposed={() => { loadPending(); setDrawer('review') }} />
                 : <Note>{selectedApp.name} has no Journey KB, so only the page-by-page crawl below applies.</Note>}
               <details className="rounded-[20px] border border-[#E8EAEE] bg-white" open={!appKey}>

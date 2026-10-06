@@ -230,7 +230,7 @@ def _renumber_text(text: Any, mapping: Dict[int, int]) -> Any:
 def restep(journey: Dict[str, Any], steps: List[Dict[str, Any]]) -> Dict[str, Any]:
     """A journey document's steps replaced by `steps`, and what points at them renumbered.
 
-    Each item is {from_step, action, expected_result, screen_id?, element_id?}:
+    Each item is {from_step, action, expected_result, screen_id?, element_id?, recorded?}:
     `from_step` is the number it had (null for a new step). A step left out is
     deleted. Fields an editor does not set (a step's rule, branch, note) are
     kept from the step it came from. Returns {steps, conditional_branches,
@@ -266,6 +266,12 @@ def restep(journey: Dict[str, Any], steps: List[Dict[str, Any]]) -> Dict[str, An
                 step[field] = value
             else:
                 step.pop(field, None)
+        # How a recording did the step (journey_record); kept unless the editor sends it.
+        if "recorded" in item:
+            if isinstance(item["recorded"], dict) and item["recorded"]:
+                step["recorded"] = item["recorded"]
+            else:
+                step.pop("recorded", None)
         # step_number first, as the files are written.
         new_steps.append({"step_number": position, **{k: v for k, v in step.items() if k != "step_number"}})
 

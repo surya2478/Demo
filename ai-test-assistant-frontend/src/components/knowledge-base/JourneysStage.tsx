@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import knowledgeBaseService, { type JourneyEditResult, type JourneyStepEdit, type TaxonomyNode } from '../../services/knowledgeBaseService'
+import knowledgeBaseService, { type JourneyEditResult, type TaxonomyNode } from '../../services/knowledgeBaseService'
 import { useConfirm } from '../ui/ConfirmDialog'
 import { useToast } from '../ui/Toast'
-import JourneyStepsEditor from './JourneyStepsEditor'
 import { BranchesEditor, LinksEditor, RuleRow, ScenariosEditor } from './JourneyListEditors'
 import { EditStrip, useKbEdit } from './kbEdit'
 import { Card, Chip, Failed, JOURNEY_STATUS, Loading, Note, StatusChip, TableHead, chapterTitle, useLoad } from './kbUi'
@@ -21,7 +20,7 @@ type TreeEdit = { mode: 'rename' | 'add'; id: string | null; title: string }
 
 const JourneysStage: React.FC<{
   appKey: string
-  onOpenStage: (stage: string) => void
+  onOpenStage: (stage: string, extra?: Record<string, string>) => void
   canExecute?: boolean
   canApprove?: boolean
   /** A change set was drafted or published: the page refreshes its review count. */
@@ -30,7 +29,6 @@ const JourneysStage: React.FC<{
   const confirm = useConfirm()
   const toast = useToast()
   const [treeEdit, setTreeEdit] = useState<TreeEdit | null>(null)
-  const [editingSteps, setEditingSteps] = useState(false)
   const [busy, setBusy] = useState(false)
   // Publish edits at once, or leave them for review. Only an approver chooses;
   // the choice is shared with the other Knowledge Base editors.
@@ -44,6 +42,7 @@ const JourneysStage: React.FC<{
   const [tab, setTab] = useState<DetailTab>('steps')
 
   const byId = useMemo(() => new Map((taxonomy?.nodes ?? []).map(n => [n.id, n])), [taxonomy])
+  const verified = useMemo(() => new Set(taxonomy?.verified ?? []), [taxonomy])
 
   // Open on the first authored journey, with its branch of the tree expanded.
   useEffect(() => {
@@ -59,7 +58,7 @@ const JourneysStage: React.FC<{
   const [detail, detailError, reloadDetail] = useLoad(selected ? `${appKey}:${selected}` : null, () =>
     knowledgeBaseService.journey(appKey, selected as string)
   )
-  useEffect(() => { setTab('steps'); setEditingSteps(false); setEditingPart(null) }, [selected])
+  useEffect(() => { setTab('steps'); setEditingPart(null) }, [selected])
   useEffect(() => setEditingPart(prev => (prev === 'links' ? prev : null)), [tab])
 
   // Edits to the open journey's branches, scenarios, links and rules.
@@ -160,19 +159,6 @@ const JourneysStage: React.FC<{
     }
   }
 
-  const saveSteps = async (steps: JourneyStepEdit[], publishSteps: boolean) => {
-    if (!selected) return
-    setBusy(true)
-    try {
-      afterEdit(await knowledgeBaseService.editSteps(appKey, selected, steps, publishSteps && canApprove), 'Steps')
-      setEditingSteps(false)
-    } catch (error) {
-      failure(error, 'Saving the steps')
-    } finally {
-      setBusy(false)
-    }
-  }
-
   const titleInput = (placeholder: string) => (
     <form onSubmit={e => { e.preventDefault(); void submitTree() }} className="flex items-center gap-1.5 py-1 pr-1">
       <input
@@ -231,6 +217,8 @@ const JourneysStage: React.FC<{
           </span>
           {leafCount !== null ? (
             <span className="text-[11px] font-normal text-[#6B7280]">{leafCount}</span>
+          ) : !node.children.length && verified.has(node.id) ? (
+            <span title="Verified: the flow matches the journey and a walk confirmed every step" aria-label="Verified" className="flex-shrink-0 text-[13px] font-bold leading-none text-[#136B34]">✓</span>
           ) : !node.children.length ? (
             <span title={JOURNEY_STATUS[node.status]?.label} className={`h-2 w-2 flex-shrink-0 rounded-full ${JOURNEY_STATUS[node.status]?.dot}`} />
           ) : null}
@@ -315,6 +303,7 @@ const JourneysStage: React.FC<{
               <div className="flex flex-wrap items-center gap-2.5">
                 <h2 className="m-0 text-[20px] font-bold text-[#1F2937]">{node.title}</h2>
                 <Chip tone={JOURNEY_STATUS[node.status]?.tone ?? 'idle'}>{JOURNEY_STATUS[node.status]?.label ?? node.status}</Chip>
+                {(verified.has(node.id) || j?.verified) && <Chip tone="good" title="Verified: the flow matches the journey and a walk confirmed every step">✓ Verified</Chip>}
                 <code className="text-[11.5px] text-[#6B7280]">{node.id}</code>
               </div>
               {j && (
@@ -393,24 +382,14 @@ const JourneysStage: React.FC<{
             </div>
             <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_280px]">
               <div className="min-w-0">
-                {tab === 'steps' && editingSteps && (
-                  <JourneyStepsEditor
-                    key={j.journey_id}
-                    steps={j.steps}
-                    saving={busy}
-                    canPublish={canApprove}
-                    onSave={(steps, publishSteps) => void saveSteps(steps, publishSteps)}
-                    onCancel={() => setEditingSteps(false)}
-                  />
-                )}
-                {tab === 'steps' && !editingSteps && (
+                {tab === 'steps' && (
                   <>
                     {canExecute && (
                       <div className="flex items-center justify-between gap-2 border-b border-[#F1F2F4] px-5 py-2 text-[12px] text-[#6B7280]">
-                        <span>Wrong order, wording or a missing step? Fix it here; the crawl walks these steps in this order.</span>
-                        <button type="button" onClick={() => setEditingSteps(true)}
+                        <span>Steps are edited on the Journey Map, beside their selectors and the flow blueprint generated from them.</span>
+                        <button type="button" onClick={() => onOpenStage('map', { journey: j.journey_id })}
                           className="h-[30px] flex-shrink-0 rounded-[10px] bg-[#B71920] px-3 text-[12.5px] font-bold text-white hover:opacity-95">
-                          Edit steps
+                          Edit on Journey Map
                         </button>
                       </div>
                     )}
@@ -425,8 +404,9 @@ const JourneysStage: React.FC<{
                           </span>
                           <span className="text-[#6B7280]">{step.expected_result}</span>
                           <span className="text-[11.5px] text-[#9CA3AF]">{step.screen_name ?? step.screen_id ?? '—'}{step.element_id ? ` · ${step.element_id}` : ''}</span>
+                          {step.link.note && <span className="text-[11.5px] text-[#A3231C]">{step.link.note}: fix it on the Journey Map</span>}
                         </span>
-                        <StatusChip status={step.link.status} title={step.link.automation_target ?? undefined} />
+                        <StatusChip status={step.link.status} title={step.link.automation_target ?? step.link.note} />
                       </div>
                     ))}
                   </>
