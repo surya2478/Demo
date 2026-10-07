@@ -28,7 +28,7 @@ import type { DryRunBrief, FrameworkInfo, ScriptAsset, ScriptLabCase } from '../
 const CARD = 'rounded-[20px] border border-[#E8EAEE] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]'
 const CHIP = 'inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-[12.5px] font-semibold'
 const ICON_BTN = 'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[12px] border border-[#E8EAEE] bg-white text-[#6B7280] transition hover:border-[#F6D4D5] hover:text-[#B71920] disabled:cursor-not-allowed disabled:opacity-40'
-const ROW = 'grid grid-cols-[28px_40px_112px_minmax(0,1fr)_140px_170px_70px_170px] items-center gap-3 pl-4 pr-5'
+const ROW = 'grid grid-cols-[28px_40px_112px_minmax(0,1fr)_120px_150px_170px_70px_170px] items-center gap-3 pl-4 pr-5'
 
 
 function saveBlob(blob: Blob, filename: string) {
@@ -55,6 +55,16 @@ const stamp = (iso: string | null | undefined) => {
   if (!iso) return ''
   const date = new Date(iso.endsWith('Z') || iso.includes('+') ? iso : `${iso}Z`)
   return date.toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+}
+
+/** "07 Oct 2026, 14:05" in Dubai time; the server writes UTC without a zone. */
+const fullStamp = (iso: string | null | undefined) => {
+  if (!iso) return ''
+  const date = new Date(iso.endsWith('Z') || iso.includes('+') ? iso : `${iso}Z`)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Dubai', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
+  }).format(date)
 }
 
 const briefOf = (script: ScriptAsset): DryRunBrief | null => script.dry_run ?? null
@@ -630,6 +640,7 @@ const ScriptLab: React.FC = () => {
                           <span>TC ID</span>
                           <span>Title</span>
                           <span>Created by</span>
+                          <span>Created</span>
                           <span>Last dry run</span>
                           <span className="text-right">Steps</span>
                           <span>Script</span>
@@ -677,6 +688,9 @@ const ScriptLab: React.FC = () => {
                               >
                                 {testCase.created_by || '—'}
                               </span>
+                              <span className="min-w-0 text-[12.5px] tabular-nums text-[#374151]" title="When this case reached Automation Studio (Dubai time)">
+                                {fullStamp(testCase.created_at) || '—'}
+                              </span>
                               <span className="flex min-w-0 flex-col items-start gap-0.5">
                                 {script ? <ScriptStatus script={script} /> : <span className="text-[13px] text-[#9CA3AF]">—</span>}
                                 {script?.dry_run?.failed_step && script.dry_run_status === 'failed' ? (
@@ -684,6 +698,7 @@ const ScriptLab: React.FC = () => {
                                 ) : script?.dry_run?.duration_seconds != null && script.dry_run_status === 'passed' ? (
                                   <span className="text-[12px] tabular-nums text-[#6B7280]">{clock(script.dry_run.duration_seconds)}</span>
                                 ) : null}
+                                {script?.dry_run_at && <span className="text-[11.5px] tabular-nums text-[#9CA3AF]">{fullStamp(script.dry_run_at)}</span>}
                               </span>
                               <span className="text-right text-[13.5px] font-semibold tabular-nums text-[#1F2937]">{testCase.steps}</span>
                               <span className="min-w-0">

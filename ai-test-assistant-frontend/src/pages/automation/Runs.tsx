@@ -62,6 +62,16 @@ const when = (value: string | null | undefined) => {
   return `${new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dubai', day: 'numeric', month: 'short' }).format(date)} ${hhmm(value)}`
 }
 
+/** "07 Oct 2026, 14:05" in Dubai time. */
+const fullStamp = (value: string | null | undefined) => {
+  const date = parseServerTime(value)
+  return date
+    ? new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Dubai', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
+      }).format(date)
+    : ''
+}
+
 const elapsedSeconds = (run: RunSummary, now: number) => {
   if (run.duration_seconds != null && isTerminal(run.status)) return run.duration_seconds
   const started = parseServerTime(run.started_at ?? run.created_at)
@@ -778,7 +788,7 @@ const StepBar: React.FC<{ run: RunSummary }> = ({ run }) => {
 
 // --- Page -------------------------------------------------------------------------------
 
-const RUN_ROW = 'grid grid-cols-[28px_40px_112px_minmax(0,1fr)_150px_150px_130px_210px] items-center gap-3 pl-4 pr-5'
+const RUN_ROW = 'grid grid-cols-[28px_40px_112px_minmax(0,1fr)_150px_150px_110px_150px_210px] items-center gap-3 pl-4 pr-5'
 
 const Runs: React.FC = () => {
   const { runKey } = useParams<{ runKey: string }>()
@@ -965,6 +975,7 @@ const Runs: React.FC = () => {
                         <span>Result</span>
                         <span>Steps</span>
                         <span>Duration</span>
+                        <span>Started</span>
                         <span>Runner</span>
                       </div>
                       {group.runs.map(run => {
@@ -1014,7 +1025,9 @@ const Runs: React.FC = () => {
                               <span className="block text-[13.5px] font-semibold tabular-nums text-[#1F2937]">
                                 {tone === 'running' || tone === 'queued' ? `${clock(elapsedSeconds(run, now))} so far` : clock(run.duration_seconds)}
                               </span>
-                              <span className="block text-[12px] text-[#9CA3AF]">{when(run.started_at ?? run.created_at)}</span>
+                            </span>
+                            <span className="min-w-0 text-[12.5px] tabular-nums text-[#374151]" title={run.completed_at ? `Finished ${fullStamp(run.completed_at)}` : undefined}>
+                              {fullStamp(run.started_at ?? run.created_at) || '—'}
                             </span>
                             <span className="flex min-w-0 flex-col items-start gap-0.5">
                               {/* The framework is the way into the run: it opens the drawer. */}

@@ -25,7 +25,9 @@ console.log("API_BASE",API_BASE)
  * polled background job; the two that already are -- generation and intake
  * extraction -- return a job id and are on the default.
  */
-export const DEFAULT_REQUEST_MS = 30_000;
+// Raised from 30s to 15 minutes at the team's request (2026-10-07), so slow
+// model-backed calls are not given up on while the server is still working.
+export const DEFAULT_REQUEST_MS = 900_000;
 export const LONG_REQUEST_MS = 900_000;
 
 const api = axios.create({
