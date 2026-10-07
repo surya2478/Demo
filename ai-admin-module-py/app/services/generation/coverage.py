@@ -40,7 +40,7 @@ from ...schemas.coverage import (
     RequirementDecomposition,
 )
 from ...config import settings
-from .azure_llm import complete_json, complete_text, wrap_user_content
+from .azure_llm import complete_json, complete_text, endpoint, model_name, wrap_user_content
 
 logger = logging.getLogger(__name__)
 # The app configures no root handler, so INFO from here would otherwise never reach the console.
@@ -67,6 +67,7 @@ def _banner(title: str) -> None:
 
 
 def _log_prompt(system_prompt: str, user_message: str) -> None:
+    logger.info("Sending to Azure OpenAI: %s (deployment %s)", endpoint() or "NOT CONFIGURED", model_name() or "-")
     logger.info("--- System prompt (%d chars) ---\n%s", len(system_prompt), system_prompt)
     logger.info("--- User message sent to model (%d chars) ---\n%s", len(user_message), _preview(user_message))
 

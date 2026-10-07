@@ -74,6 +74,11 @@ def _url(path: str) -> str:
     return f"{base}/{path}"
 
 
+def endpoint(path: str = "chat/completions") -> str:
+    """The Azure OpenAI URL a call goes to, for logs ("" when not configured)."""
+    return _url(path) if (settings.AZURE_OPENAI_BASE_URL or "").strip() else ""
+
+
 def _post(path: str, body: dict, *, stream: bool = False) -> requests.Response:
     missing = missing_settings()
     if missing:

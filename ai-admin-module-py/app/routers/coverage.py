@@ -18,6 +18,7 @@ from dataclasses import asdict
 from typing import Iterator
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -107,7 +108,7 @@ async def _load_inputs(
             )
         try:
             extraction.validate_signature(file_type, contents[:16])
-            text, _pages = extraction.extract_text(contents, file_type)
+            text, _pages = await run_in_threadpool(extraction.extract_text, contents, file_type)
         except extraction.ExtractionError as exc:
             raise HTTPException(status_code=422, detail=f"{upload.filename}: {exc}") from exc
         sources.append({"filename": upload.filename, "characters": len(text)})
@@ -134,7 +135,7 @@ async def _load_inputs(
         )
     try:
         extraction.validate_signature(tc_type, tc_contents[:16])
-        existing_rows = extraction.extract_rows(tc_contents, tc_type)
+        existing_rows = await run_in_threadpool(extraction.extract_rows, tc_contents, tc_type)
     except extraction.ExtractionError as exc:
         raise HTTPException(status_code=422, detail=f"{testcase_file.filename}: {exc}") from exc
 
@@ -172,7 +173,8 @@ async def analyze_coverage(
     )
 
     try:
-        result, recommendations_markdown = coverage.analyze(requirements_text, existing_rows)
+        # Off the event loop: minutes of model calls would otherwise stall every other request.
+        result, recommendations_markdown = await run_in_threadpool(coverage.analyze, requirements_text, existing_rows)
     except AzureLLMError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
