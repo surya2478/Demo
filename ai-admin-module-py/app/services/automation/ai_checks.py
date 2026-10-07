@@ -337,6 +337,24 @@ def _fail(db: Session, check: AutomationAICheck, step: str, message: str) -> Non
 
 
 def _run_check(check_id: int) -> None:
+    """Run one check with the LLM its Knowledge Base generates with."""
+    from ..generation.testcases import provider_for_kb
+    from .llm import use_provider
+
+    db = SessionLocal()
+    try:
+        check = db.get(AutomationAICheck, check_id)
+        knowledge_base = check.knowledge_base if check else None
+    finally:
+        db.close()
+    provider = provider_for_kb(knowledge_base)
+    logger.info("AI Checks: check %s (KB %s) uses provider %s", check_id, knowledge_base or "Default",
+                provider or "AUTOMATION_LLM_PROVIDER / LLM_PROVIDER")
+    with use_provider(provider):
+        _run_check_steps(check_id)
+
+
+def _run_check_steps(check_id: int) -> None:
     db = SessionLocal()
     step = "refine"
     try:

@@ -59,7 +59,7 @@ STEPS = [
 def fake_complete_json(*, system_prompt, user_input, model_cls, **_):
     payload = json.loads(user_input.split("<user_content>", 1)[1].rsplit("</user_content>", 1)[0])
     name = model_cls.__name__
-    calls.append({"model": name, "payload": payload})
+    calls.append({"model": name, "payload": payload, "provider": automation_llm._provider_name()})
     if name == "_ArrayAdapter":
         ref = payload["items"][0]["ref"]
         return model_cls.model_validate([{
@@ -81,6 +81,9 @@ def fake_complete_json(*, system_prompt, user_input, model_cls, **_):
 
 
 refine.complete_json = fake_complete_json
+from app.config import settings as _settings  # noqa: E402
+from app.services.automation import llm as automation_llm  # noqa: E402
+_settings.AUTOMATION_LLM_PROVIDER, _settings.LLM_PROVIDER = "", "ai_service"  # the server's Default route
 review_agent.complete_json = fake_complete_json
 ai_checks._launch = lambda *a, **k: None  # run synchronously below instead of on a thread
 
@@ -147,6 +150,7 @@ check(item["journey_diff"]["summary"] == diff["summary"], "batch view carries th
 check(len(item["journey_diff_steps"] or []) == len(STEPS), "edit view carries the step-by-step diff")
 check(view["pipeline"]["diff"]["done"] == 1, "pipeline counts the KB Diff step")
 check(case.review_findings.get("reference_kb") == "Automation KB", "review records which KB it judged labels against")
+check({c["provider"] for c in seen} == {"azure"}, f"every step runs on Azure, like Automation KB generation ({ {c['provider'] for c in seen} })")
 
 print("1b. Journey KB (the old name) is the same KB")
 view, record, case, seen = run("Journey KB")
@@ -159,6 +163,7 @@ print("2. No KB selected")
 view, record, case, seen = run(None)
 check(record.status == "done", f"check finished ({record.status}: {record.error})")
 check(all("reference_knowledge" not in c["payload"] for c in seen), "no step received KB context")
+check({c["provider"] for c in seen} == {"ai_service"}, f"every step runs on the AI service, like Default generation ({ {c['provider'] for c in seen} })")
 check(record.steps.get("diff") == "skipped" and case.journey_diff is None, "KB Diff skipped, nothing stored")
 check(view["items"][0]["journey_diff"] is None, "batch view reports no diff")
 

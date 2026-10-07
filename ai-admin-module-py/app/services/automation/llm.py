@@ -27,7 +27,9 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Any, TypeVar
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Any, Iterator, TypeVar
 
 import requests
 from pydantic import BaseModel, ValidationError
@@ -122,6 +124,13 @@ def _ai_service_base() -> str:
     same kind of service.
     """
     override = (settings.AI_SERVICE_CHAT_BASE_URL or "").strip()
+    if ".openai.azure.com" in override.lower():
+        # An Azure OpenAI address here sent the AI service's /chat/init and
+        # /chat/stream calls to Azure, which has neither. Azure is its own
+        # provider ("azure"); the AI service is config.json's BASE_URL.
+        logger.warning("AI_SERVICE_CHAT_BASE_URL is an Azure OpenAI address (%s); ignoring it and using "
+                       "the AI service from config.json. Leave it empty.", override)
+        override = ""
     return (override or settings.ai_config.BASE_URL or "").rstrip("/")
 
 
@@ -405,9 +414,37 @@ def _call_azure(
         raise LLMInvalidResponse(str(exc)) from exc
 
 
+# The provider a task chose for every call made inside it -- AI Checks set it
+# from the Knowledge Base the case was generated with (provider_for_kb), so
+# refine, review and classify all go where that case's generation went.
+_TASK_PROVIDER: ContextVar[str | None] = ContextVar("automation_llm_provider", default=None)
+
+
+@contextmanager
+def use_provider(provider: str | None) -> Iterator[None]:
+    """Calls made inside go to `provider` (None: the usual env-based choice)."""
+    token = _TASK_PROVIDER.set(provider or None)
+    try:
+        yield
+    finally:
+        _TASK_PROVIDER.reset(token)
+
+
+def _clean(value: str | None) -> str:
+    """The provider word alone. Docker's env_file keeps everything after the
+    '=' -- "azure -- for ai refine" or "azure  # refine" arrived whole and
+    matched no transport -- so only the first word counts."""
+    words = (value or "").split("#", 1)[0].split()
+    return words[0].strip().lower() if words else ""
+
+
 def _provider_name(provider: str | None = None) -> str:
-    """The caller's choice, else AUTOMATION_LLM_PROVIDER, else LLM_PROVIDER."""
-    return (provider or settings.AUTOMATION_LLM_PROVIDER or settings.LLM_PROVIDER or "ai_service").strip().lower()
+    """The caller's choice, else the task's, else AUTOMATION_LLM_PROVIDER, else LLM_PROVIDER."""
+    for value in (provider, _TASK_PROVIDER.get(), settings.AUTOMATION_LLM_PROVIDER, settings.LLM_PROVIDER):
+        name = _clean(value)
+        if name:
+            return name
+    return "ai_service"
 
 
 def _dispatch(

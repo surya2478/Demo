@@ -423,6 +423,20 @@ def is_squad(knowledge_base: str | None) -> bool:
     return bool(kb) and kb not in APPLICATION_KBS
 
 
+def provider_for_kb(knowledge_base: str | None) -> str | None:
+    """The Automation LLM transport that matches how a KB's cases are generated.
+
+    Device Squad and the Automation KB generate on Azure, so the AI Checks run
+    on their cases (refine, review, classify) go to Azure too. Default KB
+    generates on the AI service: None keeps the usual choice there --
+    AUTOMATION_LLM_PROVIDER, else LLM_PROVIDER (ai_service on the server).
+    """
+    kb = normalize_knowledge_base(knowledge_base)
+    if kb and (kb in APPLICATION_KBS or is_squad(kb)):
+        return "azure"
+    return None
+
+
 def kb_generation_provider() -> str:
     """The provider for Automation KB and Journey KB generation.
 
