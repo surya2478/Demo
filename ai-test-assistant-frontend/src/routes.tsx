@@ -37,6 +37,7 @@ import Workbench from './pages/automation/Workbench'
 import ScriptLab from './pages/automation/ScriptLab'
 import TestData from './pages/automation/TestData'
 import KnowledgeBase from './pages/automation/KnowledgeBase'
+import RndLab from './pages/automation/RndLab'
 import Visual from './pages/test-assistant/Visual'
 import DataTab from './pages/test-assistant/DataTab'
 import Changes from './pages/test-assistant/Changes'
@@ -291,6 +292,17 @@ const AppRoutes: React.FC = () => {
           element={
             <ProtectedRoute allowedPermissions={['automation.view']}>
               <KnowledgeBase />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* AI R&D Lab: its own page under AI Test Automation, independent of
+            Automation Studio -- it reads the other modules and writes to none. */}
+        <Route
+          path="automation/rnd-lab"
+          element={
+            <ProtectedRoute allowedPermissions={['automation.view']}>
+              <RndLab />
             </ProtectedRoute>
           }
         />

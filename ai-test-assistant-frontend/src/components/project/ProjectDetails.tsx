@@ -17,11 +17,13 @@ export interface ProjectDialogProps {
   initialName?: string
   /** Opened to change the current project: starts from it and can rename it. */
   editCurrent?: boolean
+  /** Replaces the subtitle, for pages other than Generate Test Cases. */
+  description?: string
   onClose: () => void
   onChosen: (project: Project | null) => void
 }
 
-export const ProjectDialog: React.FC<ProjectDialogProps> = ({ open, gate, initialPpmId, initialName, editCurrent, onClose, onChosen }) => {
+export const ProjectDialog: React.FC<ProjectDialogProps> = ({ open, gate, initialPpmId, initialName, editCurrent, description, onClose, onChosen }) => {
   const { project: current } = useProject()
   const [ppmId, setPpmId] = useState('')
   const [name, setName] = useState('')
@@ -109,7 +111,7 @@ export const ProjectDialog: React.FC<ProjectDialogProps> = ({ open, gate, initia
           <div className="min-w-0 flex-1">
             <h2 id="project-dialog-title" className="m-0 text-[16px] font-bold text-[#1F2937]">Project Details</h2>
             <p className="mt-0.5 text-[12.5px] text-[#6B7280]">
-              {gate
+              {description ? description : gate
                 ? 'Choose the project these test cases are for. It stays with them through AI Checks, approval and Automation Studio.'
                 : 'Test cases generated from now on belong to this project, through AI Checks, approval and Automation Studio.'}
             </p>

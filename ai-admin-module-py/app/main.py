@@ -258,6 +258,13 @@ app.include_router(ado_api.router, prefix="/ado-api", tags=["ADO API"])
 app.include_router(test_data_router.router, prefix="/automation/test-data", tags=["Automation Studio: Test data"])
 app.include_router(knowledge_base_page.router, prefix="/automation/knowledge-base", tags=["Automation Studio: Knowledge Base"])
 app.include_router(automation.router, prefix="/automation", tags=["Automation Studio"])
+# --- AI R&D Lab: independent; a failure to load it never stops the app --------
+try:
+    from .routers import rnd_lab
+    app.include_router(rnd_lab.router, prefix="/rnd-lab", tags=["AI R&D Lab"])
+except Exception:  # noqa: BLE001
+    import logging as _logging
+    _logging.getLogger(__name__).exception("AI R&D Lab did not load; the rest of the app is unaffected.")
 # --- Generation: the paths the external AI service used to serve --------------
 # The prefix reproduces ai_config.ENDPOINTS, which are all rooted at /generate.
 # Set ai_config.BASE_URL to this backend and the Test Assistant tabs land here

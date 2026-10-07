@@ -121,6 +121,12 @@ def init_db() -> None:
         import app.models.kb_changes  # noqa: F401
     except ImportError:
         pass
+    # AI R&D Lab: its own rnd_ tables, isolated like the automation models so
+    # a problem there can never stop anything else registering.
+    try:
+        import app.models.rnd_lab  # noqa: F401
+    except Exception:
+        traceback.print_exc()
 
     try:
         _ensure_columns(engine)

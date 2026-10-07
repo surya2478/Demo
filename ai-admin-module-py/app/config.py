@@ -192,6 +192,18 @@ class Settings(BaseSettings):
     AUTOMATION_STEP_DELAY_MAX_MS: int = Field(default=2000)
     # How long a journey recording may stay open before it saves and closes.
     AUTOMATION_RECORD_MAX_MINUTES: int = Field(default=20)
+    # --- AI R&D Lab ---------------------------------------------------------
+    # Maps approved automation cases against their BRD, design (Figma), the
+    # Journey KB and the generated script. Read-only towards every other
+    # module; off here hides the page's API without touching anything else.
+    RND_LAB_ENABLED: bool = Field(default=True)
+    # Per uploaded file. Figma exports run to tens of MB; the file is streamed
+    # to disk and read in a background job, never on the request thread.
+    RND_LAB_MAX_UPLOAD_MB: int = Field(default=100)
+    # Pages of a design PDF sent to the vision model per call, and the size a
+    # chunk is shrunk under before sending (base64 adds a third on the wire).
+    RND_LAB_VISION_PAGES_PER_CALL: int = Field(default=4)
+    RND_LAB_VISION_MAX_CHUNK_MB: int = Field(default=8)
     # --- Automation Module: AI resolution of guessed locators ------------
     # When the compiler cannot ground a step's locator it infers one from
     # the step's prose and flags the guess. With this on, those flagged
