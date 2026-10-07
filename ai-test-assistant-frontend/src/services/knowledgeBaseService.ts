@@ -614,6 +614,30 @@ export interface JourneyRemovalPreview {
   dependents: { journey_id: string; name: string; relation: string }[]
 }
 
+/** Where an application stands: registered for crawling, its environments, a Journey KB. */
+export interface AppRegistration {
+  app_key: string
+  journey_kb: boolean
+  app_name: string | null
+  data_app_id: number | null
+  crawl_app_id: number | null
+  application: { id: number; name: string } | null
+  default: string | null
+  addresses: Record<string, string>
+}
+
+export interface NewApplication {
+  name: string
+  /** The folder both Knowledge Bases share; derived from the name when omitted. */
+  app_key?: string
+  /** {environment: address} */
+  addresses: Record<string, string>
+  default_environment?: string
+  id_prefix?: string
+  /** The master topic list: one journey per line, two spaces of indent per level. */
+  outline?: string
+}
+
 /** A 409 from approve/revert: the file changed after the draft was made. */
 export interface ConflictDetail { message: string; conflicts: { file: string; path: string | null; reason: string }[] }
 
@@ -621,6 +645,15 @@ const enc = encodeURIComponent
 
 const knowledgeBaseService = {
   listApps: async (): Promise<JourneyKbApp[]> => (await api.get(`${BASE}/apps`)).data.apps,
+  // Registering an application: Test Data entry, crawl registry and Journey KB in one call.
+  registerApplication: async (body: NewApplication): Promise<AppRegistration & { name: string; journey_kb_created: boolean; warnings: string[] }> =>
+    (await api.post(`${BASE}/applications`, body)).data,
+  registration: async (app: string): Promise<AppRegistration> => (await api.get(`${BASE}/${enc(app)}/registration`)).data,
+  createJourneyKb: async (app: string, body: { name?: string; id_prefix?: string; outline?: string }): Promise<JourneyKbApp> =>
+    (await api.post(`${BASE}/${enc(app)}/journey-kb`, body)).data,
+  /** Renames it in Test Data, the crawl registry and the Journey KB; the key stays. */
+  renameApplication: async (app: string, name: string): Promise<{ app_key: string; name: string }> =>
+    (await api.put(`${BASE}/${enc(app)}/name`, { name })).data,
   overview: async (app: string): Promise<KbOverview> => (await api.get(`${BASE}/${enc(app)}/overview`)).data,
   sources: async (app: string): Promise<KbSource[]> => (await api.get(`${BASE}/${enc(app)}/sources`)).data.sources,
   taxonomy: async (app: string): Promise<KbTaxonomy> => (await api.get(`${BASE}/${enc(app)}/taxonomy`)).data,
@@ -736,6 +769,11 @@ const knowledgeBaseService = {
   documentPageImage: async (id: number, page: number): Promise<string> =>
     URL.createObjectURL((await api.get(`${BASE}/documents/${id}/pages/${page}.png`, { responseType: 'blob' })).data),
   extractDocument: async (id: number): Promise<SourceDocument> => (await api.post(`${BASE}/documents/${id}/extract`)).data,
+  /** Add journeys the master list lacks (one change set), then match the document again. */
+  placeDocumentJourneys: async (id: number, placements: { title: string; parent_id?: string | null; new_chapter?: string | null }[], publish: boolean): Promise<JourneyEditResult & { document: SourceDocument }> =>
+    (await api.post(`${BASE}/documents/${id}/place`, { placements, publish })).data,
+  /** Match the stored extraction against the Journey KB as it is now; no model call. */
+  rematchDocument: async (id: number): Promise<SourceDocument> => (await api.post(`${BASE}/documents/${id}/rematch`)).data,
   draftFromDocument: async (id: number, selected: string[], edits: Record<string, Record<string, unknown>>, additions: DocumentAddition[] = []):
     Promise<{ document: SourceDocument; change_set: ChangeSet; auto_included: string[] }> =>
     (await api.post(`${BASE}/documents/${id}/draft`, { selected, edits, additions })).data,

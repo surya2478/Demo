@@ -65,6 +65,19 @@ class JourneyKB:
         return None
 
 
+def automation_profile(kb: "JourneyKB") -> Dict[str, Any]:
+    """The Automation KB profile of this application's own folder; {} before its first crawl.
+
+    load_app_profile falls back to the first profile it finds, which gave a
+    newly registered application another application's address and selectors.
+    """
+    from ..automation import knowledge_base as automation_kb
+
+    if not (automation_kb.KB_ROOT_DIR / kb.automation_app_id / "app_profile.json").exists():
+        return {}
+    return automation_kb.load_app_profile(kb.automation_app_id) or {}
+
+
 def _read(path: Path, default: Any) -> Any:
     if not path.exists():
         return default

@@ -1,12 +1,17 @@
 /**
  * --- Knowledge Base ---------------------------------------------------------------
  *
- * One page for both Knowledge Bases of an application, in the order the work
- * happens:
+ * One page for both Knowledge Bases of an application, in four phases, in the
+ * order the work happens:
  *
- *   design side       1 Sources · 2 Journey KB · 3 Journey Map · 4 App Model
- *   application side  5 Test Data · 6 Walk & Dry run · 7 Automation KB
- *   bringing together 8 Reconcile · 9 Change & Heal
+ *   1 Register         Start here (name, key, environments, what is left to do)
+ *   2 Design journeys  Sources · Journey KB · App Model
+ *   3 Crawl the app    Test Data · Walk & Dry run · Automation KB
+ *   4 Confirm mapping  Journey Map · Reconcile · Change & Heal
+ *
+ * A new application is registered here in one step (NewApplicationDialog):
+ * Test Data entry, crawl registry and an empty Journey KB, optionally with its
+ * master topic list. Renaming changes the name everywhere; the key stays.
  *
  * Journey Map is where a journey's steps are edited: beside each step, the
  * Automation KB selector that carries it out and the flow blueprint's step,
@@ -39,13 +44,36 @@ import ReconcileStage from '../../components/knowledge-base/ReconcileStage'
 import JourneyCrawlStage from '../../components/knowledge-base/JourneyCrawlStage'
 import HealStage from '../../components/knowledge-base/HealStage'
 import JourneyMapStage from '../../components/knowledge-base/JourneyMapStage'
+import { CreateJourneyKbCard, NewApplicationDialog, RenameApplication, SetupStage } from '../../components/knowledge-base/ApplicationSetup'
 
-type StageId = 'sources' | 'journeys' | 'map' | 'model' | 'testdata' | 'crawl' | 'automation' | 'reconcile' | 'heal'
+type StageId = 'setup' | 'sources' | 'journeys' | 'map' | 'model' | 'testdata' | 'crawl' | 'automation' | 'reconcile' | 'heal'
 type StageState = 'done' | 'attn' | 'idle'
 
 const SELECTION_STORAGE_KEY = 'automation.knowledgeBase.selection'
 
-const STAGE_IDS: StageId[] = ['sources', 'journeys', 'map', 'model', 'testdata', 'crawl', 'automation', 'reconcile', 'heal']
+const STAGE_IDS: StageId[] = ['setup', 'sources', 'journeys', 'model', 'testdata', 'crawl', 'automation', 'map', 'reconcile', 'heal']
+
+// The stages grouped as the work goes: what a new engineer does first is on the left.
+const PHASES: { title: string; hint: string; stages: StageId[] }[] = [
+  { title: 'Register', hint: 'Application · environments', stages: ['setup'] },
+  { title: 'Design journeys', hint: 'Documents in, journeys out', stages: ['sources', 'journeys', 'model'] },
+  { title: 'Crawl the application', hint: 'Live pages give each element a selector', stages: ['testdata', 'crawl', 'automation'] },
+  { title: 'Confirm the mapping', hint: 'Every step beside the selector doing it', stages: ['map', 'reconcile', 'heal'] }
+]
+
+// One line under the stages: what this one is for, and where to go after it.
+const GUIDE: Record<StageId, { what: string; next?: StageId }> = {
+  setup: { what: 'Where the application stands and what to do next: its name, environments and the four steps from documents to mapped journeys.', next: 'sources' },
+  sources: { what: 'Upload screen-flow PDFs or BRDs. The model proposes journeys, screens and rules; keep what is right and approve it as a change set.', next: 'journeys' },
+  journeys: { what: 'The master topic list. Add chapters and journeys here; open a journey to read or edit its steps. Extracted journeys land on these.', next: 'model' },
+  model: { what: 'The screens and elements the documents describe, with their exact labels. No locators here: those come from crawling.', next: 'testdata' },
+  testdata: { what: 'Which test accounts and values each journey needs, per environment. Values stay in Test Data and never enter the Knowledge Base.', next: 'crawl' },
+  crawl: { what: 'Walk a journey in a real browser: each step finds its element on the live page and proposes its selector. Or crawl page by page.', next: 'automation' },
+  automation: { what: 'What crawling found: flows, pages and selectors — the objects generated scripts use.', next: 'map' },
+  map: { what: 'Each journey step beside the selector that performs it and the flow step generated from it. A journey is mapped when a walk confirms every step.', next: 'reconcile' },
+  reconcile: { what: 'Where the design and the application disagree — a label that changed, an element that is missing. Decide which side is right.', next: 'heal' },
+  heal: { what: 'After a BRD change is approved: the journeys, test cases and selectors it touched, and what to re-run.' }
+}
 
 const DOT: Record<StageState, string> = {
   done: 'bg-[#B71920] text-white',
@@ -74,7 +102,7 @@ const KnowledgeBase: React.FC = () => {
   const canExecute = can('automation.execute')
 
   const [params, setParams] = useSearchParams()
-  const stage: StageId = STAGE_IDS.includes(params.get('stage') as StageId) ? (params.get('stage') as StageId) : 'sources'
+  const stage: StageId = STAGE_IDS.includes(params.get('stage') as StageId) ? (params.get('stage') as StageId) : 'setup'
   // `extra` carries what the next stage should open on, e.g. { journey: id }.
   const openStage = useCallback((next: string, extra?: Record<string, string>) => {
     setParams(prev => {
@@ -94,6 +122,9 @@ const KnowledgeBase: React.FC = () => {
   const [selection, setSelection] = useState<string | null>(null)
   const [appsError, setAppsError] = useState<string | null>(null)
   const [overview, setOverview] = useState<KbOverview | null>(null)
+  // Bumped after registering or renaming, so the picker and environments reload.
+  const [appsTick, setAppsTick] = useState(0)
+  const [newApp, setNewApp] = useState<null | { existingKb: { app_key: string; name: string } | null }>(null)
 
   useEffect(() => {
     let live = true
@@ -116,7 +147,7 @@ const KnowledgeBase: React.FC = () => {
       })
       .catch((err: any) => live && setAppsError(err?.message ?? 'Registered applications could not be read.'))
     return () => { live = false }
-  }, [])
+  }, [appsTick])
 
   const selectedApp = selection?.startsWith('reg:') ? applications.find(a => `reg:${a.id}` === selection) ?? null : null
   const selectedAppId = selectedApp?.id ?? null
@@ -150,7 +181,7 @@ const KnowledgeBase: React.FC = () => {
       })
       .catch(() => { if (live) { setEnvAddresses({}); setKbEnv(null) } })
     return () => { live = false }
-  }, [kbKey, envKey])
+  }, [kbKey, envKey, appsTick])
   const chooseEnv = (value: string) => {
     setKbEnv(value)
     try { if (envKey) window.localStorage.setItem(envKey, value) } catch { /* per-visit only */ }
@@ -183,23 +214,38 @@ const KnowledgeBase: React.FC = () => {
     return () => { live = false }
   }, [appKey, revision])
 
+  const appName = selectedApp?.name ?? overview?.app_name ?? journeyApps.find(k => k.app_id === kbKey)?.app_name ?? kbKey ?? 'Knowledge Base'
+  const registered = (result: { app_key: string; crawl_app_id: number | null }) => {
+    setNewApp(null)
+    const key = result.crawl_app_id ? `reg:${result.crawl_app_id}` : `kb:${result.app_key}`
+    window.localStorage.setItem(SELECTION_STORAGE_KEY, key)
+    setSelection(key)
+    setAppsTick(t => t + 1)
+    setRevision(r => r + 1)
+    openStage('setup')
+  }
+  const refreshApp = () => { setAppsTick(t => t + 1); setRevision(r => r + 1) }
+
   const stages = useMemo(() => {
     const r = overview?.reconcile ?? {}
     const j = overview?.journeys
     const drift = (r.LABEL_DRIFT ?? 0) + (r.REF_BROKEN ?? 0)
     const s = (id: StageId, label: string, sub: string, state: StageState) => ({ id, label, sub, state })
+    const registeredForCrawl = !!selectedApp && Object.keys(envAddresses).length > 0
     return [
-      s('sources', 'Sources', overview ? `${overview.sources.documents} documents` : '—', overview ? 'done' : 'idle'),
+      s('setup', 'Start here', !kbKey ? 'Register an application' : registeredForCrawl && appKey ? 'Registered · ready' : 'Finish registering', registeredForCrawl && appKey ? 'done' : kbKey ? 'attn' : 'idle'),
+      s('sources', 'Sources', overview ? `${overview.sources.documents} document${overview.sources.documents === 1 ? '' : 's'}` : '—', overview ? 'done' : 'idle'),
       s('journeys', 'Journey KB', j ? `${j.authored} authored · ${j.by_status.source_available ?? 0} ready` : '—', j && (j.by_status.source_available ?? 0) > 0 ? 'attn' : j ? 'done' : 'idle'),
-      s('map', 'Journey Map', 'Steps · selectors · flows', j?.authored ? 'attn' : 'idle'),
       s('model', 'App Model', overview ? `${overview.screens.catalogued} screens` : '—', overview ? 'done' : 'idle'),
       s('testdata', 'Test Data', 'Coverage per environment', appKey ? 'attn' : 'idle'),
       s('crawl', 'Walk & Dry run', selectedApp ? 'Journeys and flows, live' : 'Add it in Test Data', selectedApp?.discovery ? 'done' : 'idle'),
-      s('automation', 'Automation KB', overview ? `${overview.automation.flows} flows · ${overview.automation.selectors} selectors` : `${selectedApp?.knowledge_base.flows ?? 0} flows`, 'done'),
+      s('automation', 'Automation KB', overview ? `${overview.automation.flows} flows · ${overview.automation.selectors} selectors` : `${selectedApp?.knowledge_base.flows ?? 0} flow${selectedApp?.knowledge_base.flows === 1 ? '' : 's'}`, (overview?.automation.flows ?? selectedApp?.knowledge_base.flows ?? 0) > 0 ? 'done' : 'idle'),
+      s('map', 'Journey Map', 'Steps · selectors · flows', j?.authored ? 'attn' : 'idle'),
       s('reconcile', 'Reconcile', overview ? `${drift} to decide · ${r.NOT_CRAWLED ?? 0} not crawled` : '—', drift ? 'attn' : overview ? 'done' : 'idle'),
       s('heal', 'Change & Heal', 'BRD changes · follow-ups', appKey ? 'done' : 'idle')
     ]
-  }, [overview, selectedApp, appKey])
+  }, [overview, selectedApp, appKey, kbKey, envAddresses])
+  const stageById = useMemo(() => new Map(stages.map((s, i) => [s.id, { ...s, n: i + 1 }])), [stages])
 
   const needsJourneyKb = ['sources', 'journeys', 'map', 'model', 'testdata', 'reconcile', 'heal'].includes(stage)
 
@@ -209,7 +255,8 @@ const KnowledgeBase: React.FC = () => {
         <div className="flex flex-col gap-1.5">
           <span className="text-[11px] font-bold tracking-[0.14em] text-[#6B7280]">AUTOMATION · KNOWLEDGE BASE</span>
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="m-0 text-[26px] font-bold tracking-[-0.02em] text-[#1F2937]">{selectedApp?.name ?? overview?.app_name ?? 'Knowledge Base'}</h1>
+            <h1 className="m-0 text-[26px] font-bold tracking-[-0.02em] text-[#1F2937]">{appName}</h1>
+            {kbKey && <RenameApplication appKey={kbKey} name={appName} canEdit={canExecute} onRenamed={refreshApp} />}
             <select
               aria-label="Application"
               value={selection ?? ''}
@@ -251,6 +298,9 @@ const KnowledgeBase: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setNewApp({ existingKb: null })} disabled={!canExecute}
+            title={canExecute ? 'Register an application and create its Journey KB' : 'Needs the automation.execute permission'}
+            className="h-[38px] rounded-[12px] border border-[#E8EAEE] bg-white px-4 text-[13px] font-bold text-[#B71920] hover:border-[#F6D4D5] disabled:cursor-not-allowed disabled:text-[#9CA3AF]">+ New application</button>
           <button type="button" onClick={() => setDrawer('history')} disabled={!appKey}
             className="h-[38px] rounded-[12px] border border-[#E8EAEE] bg-white px-4 text-[13px] font-bold text-[#1F2937] hover:border-[#F6D4D5] disabled:cursor-not-allowed disabled:text-[#9CA3AF]">History</button>
           <button type="button" onClick={() => setDrawer('review')} disabled={!appKey}
@@ -262,32 +312,62 @@ const KnowledgeBase: React.FC = () => {
 
       {appsError && <Note tone="warn">{appsError}</Note>}
 
-      <nav aria-label="Knowledge Base stages" className="grid grid-cols-2 gap-2 md:grid-cols-5 2xl:grid-cols-9">
-        {stages.map((s, i) => (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => openStage(s.id)}
-            aria-current={stage === s.id ? 'step' : undefined}
-            className={`flex min-h-[64px] items-center gap-2 rounded-[14px] border px-2.5 text-left ${stage === s.id ? 'border-[#F1A4A6] bg-[#FFF5F5] shadow-[0_0_0_1px_#F1A4A6]' : 'border-[#E8EAEE] bg-white hover:border-[#F6D4D5]'}`}
-          >
-            <span className={`box-border flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-full text-[12px] font-bold ${DOT[s.state]}`}>{i + 1}</span>
-            <span className="flex min-w-0 flex-col">
-              <span className="whitespace-nowrap text-[13px] font-bold text-[#1F2937]">{s.label}</span>
-              <span className="truncate text-[11.5px] text-[#6B7280]">{s.sub}</span>
-            </span>
-          </button>
+      <nav aria-label="Knowledge Base stages" className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(150px,0.7fr)_repeat(3,minmax(0,2fr))]">
+        {PHASES.map((phase, p) => (
+          <div key={phase.title} className="flex flex-col gap-1.5 rounded-[16px] border border-[#EEF0F3] bg-[#FAFAFB] p-2">
+            <div className="flex items-baseline gap-2 px-1">
+              <span className="whitespace-nowrap text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#B71920]">Step {p + 1}</span>
+              <span className="truncate text-[12px] font-bold text-[#1F2937]">{phase.title}</span>
+              <span className="hidden truncate text-[11px] text-[#6B7280] 2xl:inline">· {phase.hint}</span>
+            </div>
+            <div className={`grid gap-1.5 ${phase.stages.length > 1 ? 'sm:grid-cols-3 xl:grid-cols-1' : ''}`}>
+              {phase.stages.map(id => {
+                const s = stageById.get(id)!
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => openStage(s.id)}
+                    aria-current={stage === s.id ? 'step' : undefined}
+                    className={`flex min-h-[48px] items-center gap-2 rounded-[12px] border px-2.5 text-left xl:min-h-[44px] ${stage === s.id ? 'border-[#F1A4A6] bg-[#FFF5F5] shadow-[0_0_0_1px_#F1A4A6]' : 'border-[#E8EAEE] bg-white hover:border-[#F6D4D5]'}`}
+                  >
+                    <span className={`box-border flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-full text-[11.5px] font-bold ${DOT[s.state]}`}>{s.n}</span>
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate text-[12.5px] font-bold text-[#1F2937]">{s.label}</span>
+                      <span className="truncate text-[11px] text-[#6B7280]" title={s.sub}>{s.sub}</span>
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         ))}
       </nav>
 
-      {needsJourneyKb && !appKey ? (
-        <Card className="p-6">
-          <Note tone="warn">
-            {selectedApp || kbKey
-              ? <>No Journey KB exists for <code>{kbKey}</code> yet. Its design journeys appear here once a Journey KB folder is created under <code>knowledge_base/journeys/{kbKey}</code>. The Crawl and Automation KB stages work without one.</>
-              : 'Select an application.'}
-          </Note>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] bg-[#F4F5F7] px-4 py-2.5 text-[12.5px] text-[#374151]">
+        <span className="min-w-0 flex-1"><strong className="text-[#1F2937]">{stageById.get(stage)?.label}:</strong> {GUIDE[stage].what}</span>
+        {GUIDE[stage].next && (
+          <button type="button" onClick={() => openStage(GUIDE[stage].next!)} className="font-bold text-[#B71920] hover:underline">
+            Next: {stageById.get(GUIDE[stage].next!)?.label} →
+          </button>
+        )}
+      </div>
+
+      {stage === 'setup' && !kbKey ? (
+        <Card className="flex flex-col items-start gap-3 p-6">
+          <h2 className="m-0 text-[16px] font-bold text-[#1F2937]">No application yet</h2>
+          <p className="m-0 text-[12.5px] text-[#6B7280]">Register one to start: its name, its address in each environment and, if you have it, the list of its journeys.</p>
+          <button type="button" onClick={() => setNewApp({ existingKb: null })} disabled={!canExecute}
+            className="rounded-[12px] bg-[#B71920] px-4 py-2 text-[13px] font-bold text-white hover:opacity-95 disabled:opacity-50">+ New application</button>
         </Card>
+      ) : stage === 'setup' && kbKey ? (
+        <SetupStage key={`${kbKey}:${revision}`} appKey={appKey} kbKey={kbKey} name={appName} overview={overview} crawledFlows={selectedApp?.knowledge_base.flows ?? 0} canExecute={canExecute}
+          onOpenStage={next => openStage(next)} onChanged={refreshApp}
+          onRegister={() => setNewApp({ existingKb: { app_key: kbKey, name: appName } })} />
+      ) : needsJourneyKb && !appKey ? (
+        selectedApp && kbKey
+          ? <CreateJourneyKbCard appKey={kbKey} name={appName} canExecute={canExecute} onCreated={refreshApp} />
+          : <Card className="p-6"><Note tone="warn">Select an application.</Note></Card>
       ) : (
         <>
           {stage === 'sources' && appKey && (
@@ -305,14 +385,16 @@ const KnowledgeBase: React.FC = () => {
             <Card className="flex flex-col gap-3 p-6">
               <Note tone="warn">
                 <strong>{overview?.app_name ?? appKey}</strong> has a Journey KB but is not an application yet.
-                Crawling and the Automation KB screens need one: add it in Test Data with its address for each environment.
+                Crawling and the Automation KB screens need one: register it with its address for each environment.
               </Note>
-              <Link
-                to={`/test-data?add=${encodeURIComponent(appKey)}`}
-                className="w-fit rounded-[12px] bg-[#B71920] px-4 py-2 text-[13px] font-bold text-white hover:opacity-95"
+              <button
+                type="button"
+                onClick={() => setNewApp({ existingKb: { app_key: appKey, name: appName } })}
+                disabled={!canExecute}
+                className="w-fit rounded-[12px] bg-[#B71920] px-4 py-2 text-[13px] font-bold text-white hover:opacity-95 disabled:opacity-50"
               >
-                Add this application in Test Data
-              </Link>
+                Register this application
+              </button>
             </Card>
           )}
           {stage === 'crawl' && selectedApp && (
@@ -337,6 +419,7 @@ const KnowledgeBase: React.FC = () => {
           )}
         </>
       )}
+      {newApp && <NewApplicationDialog existingKb={newApp.existingKb} onClose={() => setNewApp(null)} onCreated={registered} />}
       {drawer && appKey && (
         <ChangeSetsDrawer
           appKey={appKey}

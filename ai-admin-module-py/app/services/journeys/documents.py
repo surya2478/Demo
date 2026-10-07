@@ -853,6 +853,26 @@ def extract(kb: store.JourneyKB, doc: KbSourceDocument) -> Dict[str, Any]:
     }
 
 
+def rematch(db: Session, kb: store.JourneyKB, doc: KbSourceDocument) -> KbSourceDocument:
+    """Check the stored proposal against the Journey KB as it is now -- no model call.
+
+    After journeys the document described are added to the master list, its
+    "not in master list" items can be placed without paying for (and waiting
+    on) a second extraction that may also word things differently.
+    """
+    if doc.status != "extracted" or not (doc.extraction or {}).get("proposal"):
+        raise DocumentError("Only an extracted document that is not drafted yet can be matched again.")
+    proposal = XDocument.model_validate(doc.extraction["proposal"])
+    items = build_items(kb, doc, proposal, read_pages(kb, doc), vision=bool(doc.extraction.get("vision")))
+    counts: Dict[str, int] = {}
+    for item in items:
+        counts[f"{item['kind']}.{item['action']}"] = counts.get(f"{item['kind']}.{item['action']}", 0) + 1
+    doc.extraction = {**doc.extraction, "items": items, "counts": counts}
+    db.commit()
+    db.refresh(doc)
+    return doc
+
+
 def start_extraction(db: Session, doc_id: int) -> KbSourceDocument:
     doc = db.get(KbSourceDocument, doc_id)
     if doc is None:

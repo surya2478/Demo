@@ -138,28 +138,58 @@ def rename(db: Session, kb: store.JourneyKB, journey_id: str, title: str, *, act
 
 def add(db: Session, kb: store.JourneyKB, parent_id: Optional[str], title: str, *, actor: Optional[str]) -> KbChangeSet:
     """A new journey under `parent_id`, or a new top-level chapter when None."""
-    title = _clean_title(title)
-    parent = _node(kb, parent_id) if parent_id else None
+    return add_many(db, kb, [(parent_id, title)], actor=actor)
+
+
+def add_many(db: Session, kb: store.JourneyKB, wanted: List[tuple], *, actor: Optional[str],
+             description: Optional[str] = None) -> KbChangeSet:
+    """Several new journeys, each (parent_id | None, title), in one change set.
+
+    One change set rather than one each: every add rewrites the overlay's
+    added_nodes, so a second draft made before the first is published would
+    conflict with it.
+    """
+    if not wanted:
+        raise EditError("Name at least one journey to add.")
     overlay = _overlay(kb)
-    existing = {n["id"] for n in kb.taxonomy.get("nodes", [])} | {a["id"] for a in overlay.get("added_nodes", [])}
-    if parent is not None:
-        siblings = [n for n in kb.taxonomy.get("nodes", []) if n.get("parent") == parent["id"]]
-        if any(s["title"].lower() == title.lower() for s in siblings):
-            raise EditError(f"'{parent['title']}' already has a journey named '{title}'.")
-        base = f"{parent['id']}.{taxonomy._slug(title, overlay.get('id_aliases', {}))}"
-    else:
-        prefix = kb.manifest.get("id_prefix", "B2B")
-        base = f"{prefix}.{taxonomy._slug(title, overlay.get('id_aliases', {}))}"
-    new_id, n = base, 2
-    while new_id in existing:
-        new_id, n = f"{base}_{n}", n + 1
+    aliases = overlay.get("id_aliases", {})
+    nodes = kb.taxonomy.get("nodes", [])
+    existing = {n["id"] for n in nodes} | {a["id"] for a in overlay.get("added_nodes", [])}
     added = copy.deepcopy(overlay.get("added_nodes", []))
-    added.append({"id": new_id, "title": title, "parent": parent["id"] if parent else None})
-    where = f"under {parent['title']}" if parent else "as a new chapter"
+    titles: List[str] = []
+    # A parent may be ("new", title): a chapter added earlier in this same batch.
+    batch: Dict[str, Dict[str, Any]] = {}
+    for parent_id, raw_title in wanted:
+        title = _clean_title(raw_title)
+        if isinstance(parent_id, tuple):
+            parent = batch.get(parent_id[1].strip().lower())
+            if parent is None:
+                raise EditError(f"Add the chapter '{parent_id[1]}' before the journeys under it.")
+        else:
+            parent = _node(kb, parent_id) if parent_id else None
+        if parent is not None:
+            siblings = [n["title"] for n in nodes if n.get("parent") == parent["id"]]
+            siblings += [a["title"] for a in added if a.get("parent") == parent["id"]]
+            if any(s.lower() == title.lower() for s in siblings):
+                raise EditError(f"'{parent['title']}' already has a journey named '{title}'.")
+            base = f"{parent['id']}.{taxonomy._slug(title, aliases)}"
+        else:
+            base = f"{kb.manifest.get('id_prefix', 'B2B')}.{taxonomy._slug(title, aliases)}"
+        new_id, n = base, 2
+        while new_id in existing:
+            new_id, n = f"{base}_{n}", n + 1
+        existing.add(new_id)
+        added.append({"id": new_id, "title": title, "parent": parent["id"] if parent else None})
+        if parent is None:
+            batch[title.lower()] = {"id": new_id, "title": title}
+        titles.append(f"{title} {'under ' + parent['title'] if parent else 'as a new chapter'}")
+    first = added[-len(wanted)]
+    summary = f"Add journey: {titles[0]}" if len(titles) == 1 else f"Add {len(titles)} journeys to the master list"
     return _draft(
-        db, kb, title=f"Add journey: {title} {where}",
-        changes=[{"file": OVERLAY, "op": "set", "path": "added_nodes", "value": added, "note": new_id}],
-        description=None, actor=actor, journey_id=new_id,
+        db, kb, title=summary,
+        changes=[{"file": OVERLAY, "op": "set", "path": "added_nodes", "value": added,
+                  "note": ", ".join(a["id"] for a in added[-len(wanted):])}],
+        description=description or ("; ".join(titles) if len(titles) > 1 else None), actor=actor, journey_id=first["id"],
     )
 
 

@@ -56,6 +56,17 @@ api.interceptors.request.use((config) => {
       // storage unavailable: the request goes as before
     }
   }
+  // A file upload must not go as JSON. With the instance-wide application/json
+  // header, axios turns a FormData body into a JSON object and the file is
+  // dropped (the server answers 422 "file: Field required"). Without it the
+  // browser sends multipart/form-data with its boundary.
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    const type = String((config.headers as any)?.get?.('Content-Type') ?? (config.headers as any)?.['Content-Type'] ?? '')
+    if (type.includes('application/json')) {
+      if (typeof (config.headers as any)?.delete === 'function') (config.headers as any).delete('Content-Type')
+      else delete (config.headers as any)['Content-Type']
+    }
+  }
   return config
 })
 

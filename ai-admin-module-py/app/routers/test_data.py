@@ -200,8 +200,13 @@ def update_app(
     clash = db.query(AutomationDataApp).filter(AutomationDataApp.name == name, AutomationDataApp.id != app_id).first()
     if clash:
         raise HTTPException(status_code=409, detail=f"An application called {name} already exists.")
+    # Without a kb_app_id the crawl key is the name's slug, so a rename would
+    # point the application at a different (empty) Knowledge Base. Keep the key.
+    old_key = registry.crawl_key(app)
     app.name = name
     app.kb_app_id = (body.kb_app_id or "").strip() or None
+    if app.kb_app_id is None and registry.crawl_key(app) != old_key:
+        app.kb_app_id = old_key
     if body.run_environment is not None:
         app.run_environment = _run_environment(body.run_environment) or "SIT"
     warnings = _apply_addresses(db, app, body, _actor(current_user))

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import knowledgeBaseService, { errorText, type CatalogScreen, type DocumentAddition, type KbImpact, type ReviewItem, type SourceDocument } from '../../services/knowledgeBaseService'
 import ImpactSummary from './ImpactSummary'
-import { Card, CardHead, Chip, Failed, Loading, Note, TONE } from './kbUi'
+import { Card, CardHead, Chip, Failed, Loading, Note, TONE, chapterTitle, useLoad } from './kbUi'
 
 // Design documents in, reviewed knowledge out. Upload a PDF or BRD, let the
 // model propose what it describes, then keep, edit or drop each item next to
@@ -457,6 +457,121 @@ const PageViewer: React.FC<{ docId: number; page: number; pages: { page: number;
   )
 }
 
+// Journeys the document describes that the master topic list does not have.
+// Extraction never invents a place for a journey; the reviewer gives it one
+// here -- an existing chapter, or a new chapter -- in one change set, and the
+// stored extraction is matched again (no second model call).
+const NEW_CHAPTER = '__new__'
+
+const UnplacedCard: React.FC<{
+  doc: SourceDocument
+  items: ReviewItem[]
+  onDocument: (doc: SourceDocument) => void
+  /** Told once the journeys are placed: this card goes away with them, so the review shows the outcome. */
+  onPlaced: (text: string) => void
+}> = ({ doc, items, onDocument, onPlaced }) => {
+  const [taxonomy] = useLoad(doc.app_id, () => knowledgeBaseService.taxonomy(doc.app_id))
+  const [rows, setRows] = useState(() => items.map(i => ({ item_id: i.item_id, keep: true, title: i.title, parent: '', chapter: '' })))
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<{ tone: 'plain' | 'warn'; text: string; rematch?: boolean } | null>(null)
+  // Reset only when the unplaced journeys change (a re-match), not on every render.
+  const itemKey = items.map(i => i.item_id).join('|')
+  useEffect(() => {
+    setRows(items.map(i => ({ item_id: i.item_id, keep: true, title: i.title, parent: '', chapter: '' })))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemKey])
+
+  // Where a journey may go: chapters and the groups under them, in tree order.
+  const parents = useMemo(() => {
+    const nodes = taxonomy?.nodes ?? []
+    const byId = new Map(nodes.map(n => [n.id, n]))
+    const out: { id: string; label: string }[] = []
+    const walk = (id: string, depth: number) => {
+      const n = byId.get(id)
+      if (!n || !(n.kind === 'chapter' || n.kind === 'group')) return
+      out.push({ id, label: `${'\u00a0\u00a0'.repeat(depth)}${n.kind === 'chapter' ? chapterTitle(n.title) : n.title}` })
+      n.children.forEach(c => walk(c, depth + 1))
+    }
+    ;(taxonomy?.roots ?? []).forEach(r => walk(r, 0))
+    return out
+  }, [taxonomy])
+
+  const kept = rows.filter(r => r.keep)
+  const ready = kept.length > 0 && kept.every(r => r.title.trim() && (r.parent === NEW_CHAPTER ? r.chapter.trim() : r.parent))
+  const set = (i: number, patch: Partial<(typeof rows)[number]>) => setRows(prev => prev.map((r, j) => (j === i ? { ...r, ...patch } : r)))
+
+  const place = async () => {
+    setBusy(true)
+    setResult(null)
+    try {
+      const r = await knowledgeBaseService.placeDocumentJourneys(doc.id, kept.map(row => ({
+        title: row.title.trim(),
+        ...(row.parent === NEW_CHAPTER ? { new_chapter: row.chapter.trim() } : { parent_id: row.parent })
+      })), true)
+      if (r.published) {
+        onPlaced(`${kept.length} journey${kept.length === 1 ? '' : 's'} added to the master list (version ${r.version?.number ?? ''}) and the document matched again: they are now proposed below.`)
+        onDocument(r.document)
+      } else {
+        onDocument(r.document)
+        setResult({ tone: 'warn', text: `${r.message ?? 'Saved as a change set.'} Once change set #${r.change_set.id} is approved, match the document again.`, rematch: true })
+      }
+    } catch (err) {
+      setResult({ tone: 'warn', text: errorText(err) })
+    } finally {
+      setBusy(false)
+    }
+  }
+  const rematch = async () => {
+    setBusy(true)
+    try {
+      onDocument(await knowledgeBaseService.rematchDocument(doc.id))
+      setResult(null)
+    } catch (err) {
+      setResult({ tone: 'warn', text: errorText(err), rematch: true })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card label="Not in the master list">
+      <CardHead
+        title={`Not in the master list · ${items.length}`}
+        hint="Journeys this document describes that the master topic list does not have yet. Choose where each one belongs; they are added in one change set and the document is matched again, without another model call."
+      />
+      <ul className="m-0 flex list-none flex-col gap-2 px-5 pb-3">
+        {rows.map((row, i) => (
+          <li key={row.item_id} className="grid items-center gap-2 text-[12.5px] sm:grid-cols-[18px_minmax(0,1.2fr)_minmax(0,1fr)]">
+            <input type="checkbox" aria-label={`Add ${row.title}`} className="h-4 w-4 accent-[#B71920]" checked={row.keep} onChange={e => set(i, { keep: e.target.checked })} />
+            <input aria-label="Journey name" className="h-8 rounded-[8px] border border-[#E8EAEE] px-2" value={row.title} disabled={!row.keep}
+              onChange={e => set(i, { title: e.target.value })} />
+            <div className="flex gap-2">
+              <select aria-label={`Where ${row.title} goes`} className="h-8 min-w-0 flex-1 rounded-[8px] border border-[#E8EAEE] bg-white px-2" value={row.parent} disabled={!row.keep}
+                onChange={e => set(i, { parent: e.target.value })}>
+                <option value="">Choose a chapter…</option>
+                {parents.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+                <option value={NEW_CHAPTER}>+ New chapter…</option>
+              </select>
+              {row.parent === NEW_CHAPTER && (
+                <input aria-label="New chapter name" placeholder="Chapter name" className="h-8 min-w-0 flex-1 rounded-[8px] border border-[#E8EAEE] px-2"
+                  value={row.chapter} onChange={e => set(i, { chapter: e.target.value })} />
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+      <div className="flex flex-wrap items-center gap-2 px-5 pb-5">
+        <button type="button" className={BTN_PRIMARY} disabled={busy || !ready} onClick={() => void place()}
+          title={!ready ? 'Each kept journey needs a name and a place' : undefined}>
+          {busy ? 'Adding…' : `Add ${kept.length} to the master list`}
+        </button>
+        {result?.rematch && <button type="button" className={BTN_PLAIN} disabled={busy} onClick={() => void rematch()}>Match again</button>}
+        {result && <Note tone={result.tone}>{result.text}</Note>}
+      </div>
+    </Card>
+  )
+}
+
 export const DocumentReview: React.FC<{
   docId: number
   canExecute: boolean
@@ -577,6 +692,11 @@ export const DocumentReview: React.FC<{
   const ex = doc.extraction
   const proposed = items.filter(i => i.selectable)
   const known = items.filter(i => !i.selectable)
+  const unplaced = items.filter(i => i.kind === 'journey' && i.action === 'no_place')
+  const takeDocument = (next: SourceDocument) => {
+    setDoc(prev => (prev ? { ...prev, ...next } : next))
+    setSelected(new Set((next.extraction?.items ?? []).filter(i => i.selected).map(i => i.item_id)))
+  }
 
   const row = (item: ReviewItem) => {
     const on = closure.has(item.item_id)
@@ -722,6 +842,7 @@ export const DocumentReview: React.FC<{
             {proposed.length === 0 && <div className="px-5 pb-5 text-[12.5px] text-[#6B7280]">Nothing new: everything this document describes is already in the Journey KB.</div>}
             {(['journey', 'screen', 'element', 'rule'] as const).map(k => group(proposed, k))}
           </Card>
+          {unplaced.length > 0 && canExecute && doc.status === 'extracted' && <UnplacedCard doc={doc} items={unplaced} onDocument={takeDocument} onPlaced={text => setResult({ tone: 'plain', text })} />}
           {known.length > 0 && (
             <Card label="Already known">
               <CardHead title={`Already known or not placeable · ${known.length}`} hint="Shown for comparison; nothing here is written. Label differences are settled in Reconcile." />

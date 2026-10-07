@@ -45,9 +45,7 @@ class MapError(ValueError):
 # --- Reading ---------------------------------------------------------------------------------
 
 def _profile(kb: store.JourneyKB) -> Dict[str, Any]:
-    from ..automation import knowledge_base as automation_kb
-
-    return automation_kb.load_app_profile(kb.automation_app_id) or {}
+    return store.automation_profile(kb)
 
 
 def _flows(kb: store.JourneyKB) -> Dict[str, Dict[str, Any]]:

@@ -53,6 +53,159 @@ def list_apps(current_user: dict = Depends(require_permission(PERM_VIEW))) -> di
     return {"apps": apps}
 
 
+# --- Registering an application and naming it -------------------------------------------
+
+class ApplicationIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    # The folder both Knowledge Bases share; derived from the name when omitted.
+    app_key: Optional[str] = Field(default=None, max_length=100)
+    # {environment: address}, e.g. {"SIT": "https://sit.example.com/portal"}
+    addresses: dict[str, str] = Field(default_factory=dict)
+    default_environment: Optional[str] = Field(default=None, max_length=40)
+    id_prefix: Optional[str] = Field(default=None, max_length=12)
+    # The master topic list: one journey per line, two spaces per level.
+    outline: Optional[str] = Field(default=None, max_length=200_000)
+
+
+class JourneyKbIn(BaseModel):
+    name: Optional[str] = Field(default=None, max_length=200)
+    id_prefix: Optional[str] = Field(default=None, max_length=12)
+    outline: Optional[str] = Field(default=None, max_length=200_000)
+
+
+class NameIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+
+
+def _registration(db: Session, app_key: str) -> dict[str, Any]:
+    from ..models.automation import AutomationApplication
+    from ..services.automation import registry
+
+    data_app = registry.data_app_for_kb(db, app_key)
+    crawl = db.query(AutomationApplication).filter(AutomationApplication.app_key == app_key).first()
+    return {
+        "data_app_id": data_app.id if data_app else None,
+        "crawl_app_id": crawl.id if crawl and crawl.is_active else None,
+        **registry.environments_for_kb(db, app_key),
+    }
+
+
+@router.post("/applications")
+def register_application(body: ApplicationIn, db: Session = Depends(get_db),
+                         current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    """One step from nothing to a usable application: registered with its
+    address per environment (as Test Data does) and given a Journey KB --
+    unless one already exists under that key, which is then linked."""
+    from ..models.automation import AutomationDataApp
+    from ..services.automation import registry
+    from ..services.journeys import onboarding
+    from .test_data import AppIn, _apply_addresses, _run_environment
+
+    name = re.sub(r"\s+", " ", body.name).strip()
+    key = (body.app_key or "").strip().lower() or onboarding.slug(name)
+    if not onboarding.KEY.match(key):
+        raise HTTPException(status_code=400, detail="The key is 2-100 lower-case letters, digits, '_' or '-'.")
+    if db.query(AutomationDataApp).filter(AutomationDataApp.name == name).first():
+        raise HTTPException(status_code=409, detail=f"An application called {name} already exists.")
+    if registry.data_app_for_kb(db, key):
+        raise HTTPException(status_code=409, detail=f"An application with the key {key} is already registered.")
+    addresses = {k.strip().upper(): (v or "").strip() for k, v in body.addresses.items() if k.strip() and (v or "").strip()}
+    if not addresses:
+        raise HTTPException(status_code=400, detail="Give the address of at least one environment.")
+    environment = _run_environment(body.default_environment) or next(iter(addresses))
+    if environment not in addresses:
+        raise HTTPException(status_code=400, detail=f"The default environment {environment} needs an address.")
+
+    actor = _actor(current_user)
+    app = AutomationDataApp(name=name, kb_app_id=key, run_environment=environment, created_by=actor)
+    db.add(app)
+    db.flush()
+    warnings = _apply_addresses(db, app, AppIn(name=name, addresses=addresses), actor)
+    registry.sync_crawl_app(db, app, actor=actor)
+
+    created_kb = False
+    if store.load(key) is None:
+        try:
+            onboarding.create(key, name, id_prefix=body.id_prefix, outline=body.outline)
+            created_kb = True
+        except onboarding.OnboardingError as exc:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:  # noqa: BLE001 - nothing is registered without its KB
+            db.rollback()
+            logger.exception("Creating the Journey KB for %s failed", key)
+            raise HTTPException(status_code=500, detail=f"The Journey KB could not be written: {exc}") from exc
+    else:
+        onboarding.rename(key, name)
+    db.commit()
+    return {"app_key": key, "name": name, "journey_kb_created": created_kb, "warnings": warnings, **_registration(db, key)}
+
+
+@router.post("/{app_id}/journey-kb")
+def create_journey_kb(app_id: str, body: JourneyKbIn, db: Session = Depends(get_db),
+                      current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    """A Journey KB for an application registered without one."""
+    from ..services.automation import registry
+    from ..services.journeys import onboarding
+
+    data_app = registry.data_app_for_kb(db, app_id)
+    name = (body.name or "").strip() or (data_app.name if data_app else "")
+    try:
+        kb = onboarding.create(app_id, name, id_prefix=body.id_prefix, outline=body.outline)
+    except onboarding.OnboardingError as exc:
+        raise HTTPException(status_code=409 if "already exists" in str(exc) else 400, detail=str(exc)) from exc
+    if data_app is not None and not data_app.kb_app_id:
+        data_app.kb_app_id = app_id  # pin it, so a later rename keeps this folder
+        db.commit()
+    return {"app_id": kb.app_id, "app_name": kb.app_name, "automation_app_id": kb.automation_app_id}
+
+
+@router.get("/{app_id}/registration")
+def get_registration(app_id: str, db: Session = Depends(get_db),
+                     current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
+    """Where an application stands: registered, its environments, a Journey KB."""
+    kb = store.load(app_id)
+    return {"app_key": app_id, "journey_kb": bool(kb), "app_name": kb.app_name if kb else None, **_registration(db, app_id)}
+
+
+@router.put("/{app_id}/name")
+def rename_application(app_id: str, body: NameIn, db: Session = Depends(get_db),
+                       current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    """Rename an application everywhere it is shown: Test Data, the crawl
+    registry and the Journey KB. Its key -- the folder, and every id that
+    names it -- stays, so nothing that points at it breaks."""
+    from ..models.automation import AutomationApplication, AutomationDataApp
+    from ..services.automation import registry
+    from ..services.journeys import onboarding
+
+    name = re.sub(r"\s+", " ", body.name).strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="The application needs a name.")
+    data_app = registry.data_app_for_kb(db, app_id)
+    found = False
+    if data_app is not None:
+        clash = db.query(AutomationDataApp).filter(AutomationDataApp.name == name, AutomationDataApp.id != data_app.id).first()
+        if clash:
+            raise HTTPException(status_code=409, detail=f"An application called {name} already exists.")
+        if not data_app.kb_app_id:
+            data_app.kb_app_id = registry.crawl_key(data_app)
+        data_app.name = name
+        registry.sync_crawl_app(db, data_app, actor=_actor(current_user))
+        found = True
+    crawl = db.query(AutomationApplication).filter(AutomationApplication.app_key == app_id).first()
+    if crawl is not None:
+        crawl.name = name
+        found = True
+    db.flush()
+    if onboarding.rename(app_id, name) is not None:
+        found = True
+    if not found:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=f"No application '{app_id}'.")
+    db.commit()
+    return {"app_key": app_id, "name": name}
+
+
 @router.get("/{app_id}/overview")
 def get_overview(app_id: str, current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
     return workspace.overview(_kb(app_id))
@@ -880,6 +1033,57 @@ def extract_document(doc_id: int, db: Session = Depends(get_db),
     except Exception as exc:  # noqa: BLE001
         _fail(exc)
     return documents.view(db, doc)
+
+
+class PlacementIn(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    # The chapter or journey to add it under, or a chapter to create for it.
+    parent_id: Optional[str] = None
+    new_chapter: Optional[str] = Field(default=None, max_length=200)
+
+
+class PlaceIn(BaseModel):
+    placements: list[PlacementIn] = Field(min_length=1, max_length=100)
+    publish: bool = True
+
+
+@router.post("/documents/{doc_id}/place")
+def place_document_journeys(doc_id: int, body: PlaceIn, db: Session = Depends(get_db),
+                            current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    """Add the journeys a document describes but the master list lacks, then
+    match the document again. One change set; published at once when the user
+    may approve, otherwise it waits in the drawer and Match again follows."""
+    doc = _document(db, doc_id)
+    kb = _kb(doc.app_id)
+    try:
+        chapters = list(dict.fromkeys(p.new_chapter.strip() for p in body.placements if (p.new_chapter or "").strip()))
+        wanted = [(None, c) for c in chapters]
+        wanted += [(("new", p.new_chapter.strip()) if (p.new_chapter or "").strip() else p.parent_id, p.title) for p in body.placements]
+        if any(parent is None for parent, _ in wanted[len(chapters):]):
+            raise editing.EditError("Choose where each journey goes: a chapter, or a new one.")
+        created = editing.add_many(db, kb, wanted, actor=_actor(current_user),
+                                   description=f"Journeys described by {doc.filename}")
+    except Exception as exc:  # noqa: BLE001
+        _fail(exc)
+    result = _edited(db, created, current_user, body.publish)
+    if result.get("published"):
+        db.refresh(doc)
+        try:
+            documents.rematch(db, store.load(doc.app_id), doc)
+        except documents.DocumentError as exc:
+            result["message"] = str(exc)
+    return {**result, "document": documents.view(db, doc, with_extraction=True)}
+
+
+@router.post("/documents/{doc_id}/rematch")
+def rematch_document(doc_id: int, db: Session = Depends(get_db),
+                     current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    doc = _document(db, doc_id)
+    try:
+        documents.rematch(db, _kb(doc.app_id), doc)
+    except Exception as exc:  # noqa: BLE001
+        _fail(exc)
+    return documents.view(db, doc, with_extraction=True)
 
 
 class DocumentDraftIn(BaseModel):

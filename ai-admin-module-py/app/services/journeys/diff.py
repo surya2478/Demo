@@ -350,9 +350,7 @@ def diff_case(
 
     kb = match.kb
     if automation_profile is None:
-        from ..automation import knowledge_base as automation_kb
-
-        automation_profile = automation_kb.load_app_profile(kb.automation_app_id) or {}
+        automation_profile = store.automation_profile(kb)
 
     chain = store.journey_scope(kb, match.journey, full_text)
     rows = [diff_step(s, kb, chain, automation_profile) for s in steps]
