@@ -12,7 +12,8 @@ import {
   HiOutlineLightningBolt,
   HiOutlineGlobeAlt,
   HiOutlineBookOpen,
-  HiOutlineDatabase
+  HiOutlineDatabase,
+  HiOutlineChartPie
 } from 'react-icons/hi'
 
 export const menuIcons = {
@@ -26,6 +27,7 @@ export const menuIcons = {
   'test-assistant': HiOutlineSparkles,
   'manager-review': HiClipboardCheck,
   'approved-test-cases': HiCheckCircle,
+  'coverage-analysis': HiOutlineChartPie,
   automation: HiOutlineLightningBolt,
   'automation/discovery': HiOutlineGlobeAlt,
   discovery: HiOutlineGlobeAlt,

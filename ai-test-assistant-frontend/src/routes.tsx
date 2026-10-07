@@ -44,6 +44,7 @@ import Changes from './pages/test-assistant/Changes'
 import Unit from './pages/test-assistant/Unit'
 import KB from './pages/test-assistant/KB'
 import FigmaVlmPrompt from './pages/FigmaVlmPrompt'
+import AnalysisCoveragePrompt from './pages/AnalysisCoveragePrompt'
 import SquadKnowledgeBaseIngestion from './pages/SquadKnowledgeBaseIngestion'
 
 const LayoutShell: React.FC = () => {
@@ -257,6 +258,15 @@ const AppRoutes: React.FC = () => {
           <Route path="unit" element={<Unit />} />
           <Route path="kb" element={<KB />} />
         </Route>
+
+        <Route
+          path="settings/analysis-coverage-prompt"
+          element={
+            <ProtectedRoute allowedPermissions={['testassistant.view']}>
+              <AnalysisCoveragePrompt />
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="settings/figma-vlm-prompt"
