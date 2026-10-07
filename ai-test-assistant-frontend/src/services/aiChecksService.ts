@@ -34,7 +34,7 @@ export interface CheckItem {
   expected_result: string | null
   test_data: string | null
   steps_structured: CheckedStep[] | null
-  /** KB Diff (Journey KB only): counts per status for the row. */
+  /** KB Diff (Automation KB cases a design journey recognises): counts per status for the row. */
   journey_diff: JourneyDiffBrief | null
   /** The step-by-step diff, sent with the edit view. */
   journey_diff_steps?: JourneyDiffStep[] | null

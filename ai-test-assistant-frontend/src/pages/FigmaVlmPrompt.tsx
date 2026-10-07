@@ -48,7 +48,7 @@ const FigmaVlmPrompt: React.FC = () => {
           <div>
             <h1 className="text-xl font-bold text-app-primary">Figma PDF VLM Prompt</h1>
             <p className="mt-1 text-sm text-app-secondary">
-              This server-side prompt is used exclusively when GPT-5.1 extracts text from uploaded Figma PDFs.
+              This server-side prompt is used exclusively when the Azure OpenAI model extracts text from uploaded Figma PDFs.
             </p>
           </div>
           <div className="rounded-[12px] border border-app bg-white px-3 py-2 text-right">

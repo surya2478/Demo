@@ -178,14 +178,16 @@ def _reference(check: AutomationAICheck) -> dict[str, Any]:
 
 
 def _diff(db: Session, check: AutomationAICheck, case: AutomationTestCase) -> None:
-    """Step 4: compare the case with the Journey KB and the Automation KB.
+    """Step 4: compare the case with the design journey and the crawled application.
 
-    Journey KB only. Other KBs carry no design journey to compare against, and
-    reporting "no journey" on every one of their cases would be noise.
+    Automation KB only (Journey KB, its older name, too). Other KBs carry no
+    design journey to compare against, and reporting "no journey" on every one
+    of their cases would be noise; an Automation KB case no journey recognises
+    is skipped below.
     """
-    from ..generation.testcases import JOURNEY_KB
+    from ..generation.testcases import APPLICATION_KBS
 
-    if (check.knowledge_base or "").strip() != JOURNEY_KB:
+    if (check.knowledge_base or "").strip() not in APPLICATION_KBS:
         case.journey_diff = None
         _set_step(db, check, "diff", "skipped")
         return

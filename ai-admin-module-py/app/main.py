@@ -271,3 +271,12 @@ except Exception:  # noqa: BLE001
 # instead of on the external service.
 app.include_router(generate.router, prefix="/generate", tags=["Generation"])
 app.include_router(generate.router, tags=["Generation & Chat"])
+# --- Coverage Analysis: requirement documents vs an existing test case sheet ---
+# Loaded like the R&D Lab: routers/coverage.py (and app/schemas/coverage.py) come
+# from the team's tree, and the app must start without them.
+try:
+    from .routers import coverage
+    app.include_router(coverage.router, prefix="/coverage", tags=["Coverage Analysis"])
+except Exception:  # noqa: BLE001
+    import logging as _logging
+    _logging.getLogger(__name__).warning("Coverage Analysis did not load (routers/coverage.py or schemas/coverage.py missing); /coverage is unavailable.")

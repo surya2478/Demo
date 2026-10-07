@@ -109,16 +109,19 @@ def _post(path: str, body: dict, *, stream: bool = False) -> requests.Response:
 
 
 def _chat_body(
-    system_prompt: str, user_input: str, max_tokens: int, temperature: float | None
+    system_prompt: str, user_input: str, max_tokens: int | None, temperature: float | None
 ) -> dict[str, Any]:
+    """None leaves a limit to the deployment: Device Squad generation sends
+    neither, so a long test table is not cut at a token cap."""
     body: dict[str, Any] = {
         "model": model_name(),
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_input},
         ],
-        "max_completion_tokens": max_tokens,
     }
+    if max_tokens:
+        body["max_completion_tokens"] = max_tokens
     if temperature is not None:
         body["temperature"] = temperature
     return body
@@ -211,7 +214,7 @@ def stream_chat(
     *,
     system_prompt: str,
     user_input: str,
-    max_tokens: int = 16000,
+    max_tokens: int | None = 16000,
     temperature: float | None = None,
 ) -> Iterator[str]:
     """Stream a chat completion as plain text chunks, ending with the token-usage marker.

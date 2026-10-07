@@ -1,16 +1,18 @@
 """
 --- AI Checks: the selected Knowledge Base reaches every step -------------------
 
-Runs one generated case through AI Checks twice -- once with "Journey KB"
-selected and once with no KB -- against a throwaway SQLite database, with the
-model replaced by a recorder that answers each call with a canned result.
+Runs one generated case through AI Checks with "Automation KB" selected (the
+application's one Knowledge Base, whose design-journey layer recognises this
+case), with "Journey KB" (its old name) and with no KB -- against a throwaway
+SQLite database, with the model replaced by a recorder that answers each call
+with a canned result.
 
 What it proves:
   1. Refine, Quality Review and Auto-Improve receive the selected KB's context
      (as reference_knowledge inside the fenced payload), and receive nothing
      when no KB was selected.
-  2. KB Diff runs for Journey KB, stores its report on the case, and is
-     skipped for any other choice.
+  2. KB Diff runs for Automation KB (and Journey KB, its old name), stores its
+     report on the case, and is skipped for any other choice.
   3. The batch view reports the new step and the diff counts.
 
 No network, no browser, no real model. Run from ai-admin-module-py:
@@ -122,16 +124,16 @@ def run(knowledge_base):
     return result
 
 
-print("1. Journey KB selected")
-view, record, case, seen = run("Journey KB")
+print("1. Automation KB selected (a design journey recognises the case)")
+view, record, case, seen = run("Automation KB")
 item = view["items"][0]
 check(record.status == "done", f"check finished ({record.status}: {record.error})")
 check([c["model"] for c in seen] == ["_ArrayAdapter", "TestCaseReviewLLMOutput", "ImprovedTestCaseLLM", "TestCaseReviewLLMOutput"],
       f"refine, review, improve, re-review all called ({[c['model'] for c in seen]})")
 for c in seen:
     ref = c["payload"].get("reference_knowledge") or {}
-    check(ref.get("knowledge_base") == "Journey KB" and "JOURNEY KNOWLEDGE BASE" in ref.get("content", ""),
-          f"{c['model']} received the Journey KB context")
+    check(ref.get("knowledge_base") == "Automation KB" and "JOURNEY KNOWLEDGE BASE" in ref.get("content", ""),
+          f"{c['model']} received the design journey's context")
 check("No Customer assosiated" in seen[0]["payload"]["reference_knowledge"]["content"],
       "context carries the design's verbatim labels")
 check(record.steps == {"refine": "done", "review": "done", "improve": "done", "diff": "done", "classify": "done"},
@@ -144,7 +146,14 @@ check(statuses[2] == "LABEL_DRIFT" and statuses[4] == "NOT_CRAWLED",
 check(item["journey_diff"]["summary"] == diff["summary"], "batch view carries the diff counts")
 check(len(item["journey_diff_steps"] or []) == len(STEPS), "edit view carries the step-by-step diff")
 check(view["pipeline"]["diff"]["done"] == 1, "pipeline counts the KB Diff step")
-check(case.review_findings.get("reference_kb") == "Journey KB", "review records which KB it judged labels against")
+check(case.review_findings.get("reference_kb") == "Automation KB", "review records which KB it judged labels against")
+
+print("1b. Journey KB (the old name) is the same KB")
+view, record, case, seen = run("Journey KB")
+check(record.steps.get("diff") == "done" and (case.journey_diff or {}).get("journey_id") == "B2B.REG.EXISTING.SIGNIN.OTP",
+      f"KB Diff still runs ({record.steps.get('diff')})")
+check(all((c["payload"].get("reference_knowledge") or {}).get("knowledge_base") == "Automation KB" for c in seen),
+      "every step receives it as Automation KB")
 
 print("2. No KB selected")
 view, record, case, seen = run(None)

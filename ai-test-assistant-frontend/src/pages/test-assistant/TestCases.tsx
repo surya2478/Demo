@@ -40,7 +40,6 @@ import RqmDownload, { type RqmVersion } from '../../components/test-assistant/Rq
 import { downloadRqm } from '../../utils/rqmTemplate'
 
 
-
 interface FilePreviewData {
   name: string
   // preview holds HTML for display (DOCX converted HTML or text->HTML)
@@ -86,7 +85,10 @@ const TestCases: React.FC = () => {
   const userAuth = useAuth();
   const [approvalNotification, setApprovalNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [submittedTestCaseCount, setSubmittedTestCaseCount] = useState<number | null>(null)
-  const [workflowStageRequestId, setWorkflowStageRequestId] = useState<string | null>(null)
+  const [workflowStageRequestId, setWorkflowStageRequestId] = useState<string | null>(null)  
+  const [knowledgeBaseError, setKnowledgeBaseError] = useState('')
+  const [figmaCopyStatus, setFigmaCopyStatus] = useState<'copied' | 'failed' | null>(null)
+
   // Mandatory before Generate: the cases carry it to Automation, where their
   // scripts run against it and read that environment's Test Data.
   const environmentOptions = [
@@ -108,19 +110,19 @@ const TestCases: React.FC = () => {
   type FocusOption = (typeof focusOptions)[number]['value']
   const [selectedEnvironment, setSelectedEnvironment] = useState<EnvironmentOption>('')
   const [selectedFocus, setSelectedFocus] = useState<FocusOption>('')
+  const [conciseTestCases, setConciseTestCases] = useState(false)
   // Shown once Generate was attempted without an environment.
   const [environmentMissing, setEnvironmentMissing] = useState(false)
-  // Select KB. Default KB is the default application route (BASE_URL). The
-  // other two are served by the admin backend and answered by the Squad KB's
-  // model; `knowledgeBase` is the form value the backend expects.
-  type KnowledgeBaseChoice = 'default' | 'squad' | 'automation' | 'journey'
+  // Select KB. Default KB is the default application route (BASE_URL); Device
+  // Squad KB posts to /generate/squad-testcases, Automation KB to
+  // /generate/kb-testcases. Automation KB is the application's one Knowledge
+  // Base: a matching design journey grounds the cases, else the crawled flows.
+  // `knowledgeBase` is the form value the backend expects.
+  type KnowledgeBaseChoice = 'default' | 'squad' | 'automation'
   const knowledgeBaseOptions: readonly (KnowledgeBaseOption<KnowledgeBaseChoice> & { knowledgeBase: string })[] = [
     { value: 'default', label: 'Default KB', short: 'Default application', description: 'Generates with the default application, as before', isDefault: true, knowledgeBase: '' },
     { value: 'squad', label: 'Device Squad KB', short: 'Device Squad', description: "Grounds test cases in the Device Squad's knowledge base", knowledgeBase: 'Device Squad' },
-    { value: 'automation', label: 'Automation KB', short: 'App profiles & flows', description: 'Grounds test cases in the application profiles and flows Automation uses', knowledgeBase: 'Automation KB' },
-    // Journey KB is hidden from Select KB for now; its value stays known so a
-    // session saved with it is recognised rather than breaking the page.
-    // { value: 'journey', label: 'Journey KB', short: 'Design journeys', description: 'Grounds test cases in the business-designed journeys, screen labels and rules', knowledgeBase: 'Journey KB' }
+    { value: 'automation', label: 'Automation KB', short: 'Journeys & flows', description: "Grounds test cases in the application's design journeys, or its crawled flows when no journey matches", knowledgeBase: 'Automation KB' },
   ]
   const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState<KnowledgeBaseChoice>('default')
   const selectedKnowledgeBaseOption = knowledgeBaseOptions.find((option) => option.value === selectedKnowledgeBase) ?? knowledgeBaseOptions[0]
@@ -986,7 +988,7 @@ const TestCases: React.FC = () => {
       artifactType: 'Figma PDF Text',
       stages: [
         'Uploading Figma PDF',
-        'Reading visual pages with GPT-5.1',
+        'Reading visual pages with the AI model',
         'Extracting visible labels and requirements',
         'Preparing editable text'
       ],
@@ -1003,9 +1005,10 @@ const TestCases: React.FC = () => {
           })
           const extractedText = normalizeText(result.data?.text || '')
           if (!extractedText) {
-            throw new Error('GPT-5.1 returned no readable text from the Figma PDF')
+            throw new Error('The AI model returned no readable text from the Figma PDF')
           }
-
+          setFigmaCopyStatus(null)
+          console.log("================================== extractedText ===========",extractedText)
           setCombinedContent(extractedText)
           setCombinedPreviewHtml(textToHtml(extractedText))
           setDocumentsProcessed(true)
@@ -1022,6 +1025,29 @@ const TestCases: React.FC = () => {
         }
       }
     })
+  }
+
+const copyFigmaExtractedText = async () => {
+    if (!combinedContent) return
+    try {
+      await navigator.clipboard.writeText(combinedContent)
+      setFigmaCopyStatus('copied')
+      window.setTimeout(() => setFigmaCopyStatus(null), 2000)
+    } catch {
+      setFigmaCopyStatus('failed')
+    }
+  }
+ 
+  const downloadFigmaExtractedText = () => {
+    if (!combinedContent) return
+    const blob = new Blob([combinedContent], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    const baseName = fileInputs[0]?.name.replace(/\.pdf$/i, '') || 'figma-extracted-content'
+    anchor.href = url
+    anchor.download = `${baseName}.txt`
+    anchor.click()
+    URL.revokeObjectURL(url)
   }
 
   // Process Documents: convert DOCX now, combine all file texts (or use combinedContent if user edited it),
@@ -1268,9 +1294,34 @@ const TestCases: React.FC = () => {
     })
   }
 
+// The backend picks the model, so only the requirements and the squad are sent.
+  const generateWithSquadKnowledgeBase = (promptText: string) => {
+    const formData = new FormData()
+    formData.append('text', promptText)
+    console.log("selectedKnowledgeBaseOption.knowledgeBase text ::::::: ",selectedKnowledgeBaseOption.knowledgeBase)
+    formData.append('knowledge_base', selectedKnowledgeBaseOption.knowledgeBase)
+    const backendUrl = String((import.meta as any).env?.VITE_API_URL || '').replace(/\/$/, '')
+
+
+    console.log("prompt text ::::::: ",promptText)
+    console.log("backendUrl text ::::::: ",backendUrl)
+
+    return trackedFetchWithTokens(`${backendUrl}/generate/squad-testcases`, {
+      tab: 'testcases',
+      method: 'POST',
+      body: formData,
+      user: userAuth.user?.username || 'anonymous',
+      sessionId: sessionStorage.getItem('client_session_id') || undefined,
+      externalStream: true
+    })
+  }
+
   let fullText = ''
   const handleGenerate = async () => {
     setSubmittedTestCaseCount(null)
+
+    
+    setKnowledgeBaseError('')
 
     // Check token allocation before making request
     if (!isAdminUser && userTokenAllocation > 0 && userTokensUsed >= userTokenAllocation) {
@@ -1338,7 +1389,9 @@ const TestCases: React.FC = () => {
           provider: String(aiConfig.PARAMETERS.provider ?? ''),
           temperature: String(aiConfig.PARAMETERS.temperature ?? 0),
           model: String(aiConfig.PARAMETERS.model ?? ''),
-          endpoint: aiConfig.ENDPOINTS.generateTestCases
+          endpoint: selectedKnowledgeBase === 'squad'
+            ? '/generate/squad-testcases'
+            : selectedKnowledgeBaseOption.knowledgeBase ? '/generate/kb-testcases' : aiConfig.ENDPOINTS.generateTestCases
         };
 
         console.log('Request payload for generating test cases:', requestPayload);
@@ -1346,13 +1399,13 @@ const TestCases: React.FC = () => {
         let responsePayload: any = null;
 
         try {
-          const config = getConfig();
-          const formData = new FormData();
-          formData.append('provider', config.PARAMETERS.provider);
-          formData.append('model_name', String(config.PARAMETERS.model));
-          formData.append('temperature', String(config.PARAMETERS.temperature));
-          formData.append('max_tokens', String(config.PARAMETERS.maxTokens));
-          formData.append('response_format', 'text');
+          // const config = getConfig();
+          // const formData = new FormData();
+          // formData.append('provider', config.PARAMETERS.provider);
+          // formData.append('model_name', String(config.PARAMETERS.model));
+          // formData.append('temperature', String(config.PARAMETERS.temperature));
+          // formData.append('max_tokens', String(config.PARAMETERS.maxTokens));
+          // formData.append('response_format', 'text');
 
           const sourceText = (() => {
             if (inputType === 'text') return textValue
@@ -1366,13 +1419,13 @@ const TestCases: React.FC = () => {
           })()
 
           const promptText = buildPromptTextWithSelection(sourceText)
-          formData.append('text', promptText)
-          if (selectedKnowledgeBaseOption.knowledgeBase) {
-            formData.append('knowledge_base', selectedKnowledgeBaseOption.knowledgeBase)
-          }
-          if (inputType === 'figma-pdf') {
-            formData.append('generation_mode', 'figma_pdf')
-          }
+          // formData.append('text', promptText)
+          // // if (isSquadKnowledgeBaseEnabled && selectedKnowledgeBase) {
+          // //   formData.append('knowledge_base', selectedKnowledgeBase)
+          // // }
+          // if (inputType === 'figma-pdf') {
+          //   formData.append('generation_mode', 'figma_pdf')
+          // }
           console.log('Prompt text being sent to API:', promptText)
 
       // console.log('Generating test cases with formData:', Array.from(formData.keys()));
@@ -1403,25 +1456,59 @@ const TestCases: React.FC = () => {
       // Start timer for duration calculation
       const startedAt = Date.now();
 
-      // Squad KB and Automation KB exist only on the admin backend, so they go
-      // there whatever BASE_URL says. Default KB is the default application
-      // route and keeps using BASE_URL.
-      const generationBackendUrl = String((import.meta as any).env?.VITE_API_URL || 'http://localhost:8002').replace(/\/$/, '')
-      const generationUrl = selectedKnowledgeBaseOption.knowledgeBase
-        ? `${generationBackendUrl}/generate/kb-testcases`
-        : `${config.BASE_URL}${config.ENDPOINTS.generateTestCases}`
-      // Call tracked fetch but handle streaming locally
-      const { response: res, status, logId } = await trackedFetchWithTokens(
-        generationUrl,
-        {
-          tab: 'testcases',
-          method: 'POST',
-          body: formData,
-          user: userAuth.user?.username || 'anonymous',
-          sessionId: sessionStorage.getItem('client_session_id') || undefined,
-          externalStream: true
+      // const generationBackendUrl = String((import.meta as any).env?.VITE_API_URL || '').replace(/\/$/, '')
+      // // console.log("selectedKnowledgeBase =============== ", `${config.BASE_URL}${config.ENDPOINTS.generateTestCases}`)
+      // const generationUrl = selectedKnowledgeBase === 'squad'
+      //     ? `${generationBackendUrl}/generate/squad-testcases`
+      //     : `${config.BASE_URL}${config.ENDPOINTS.generateTestCases}`;
+
+
+        // console.log("generationBackendUrl ============ > "+generationBackendUrl)
+        // console.log("generationUrl ============ > "+generationUrl)
+        let tracked: { response: Response; status: number; logId: string }
+        console.log(" selectedKnowledgeBase === : "+selectedKnowledgeBase)
+
+      if (selectedKnowledgeBase === 'squad') {
+        console.log("if ============ ",selectedKnowledgeBase)
+        tracked = await generateWithSquadKnowledgeBase(promptText)
+      } else {
+
+           console.log("else ============ ",selectedKnowledgeBase)
+        const config = getConfig();
+        const formData = new FormData();
+        formData.append('provider', config.PARAMETERS.provider);
+        formData.append('model_name', String(config.PARAMETERS.model));
+        formData.append('temperature', String(config.PARAMETERS.temperature));
+        formData.append('max_tokens', String(config.PARAMETERS.maxTokens));
+        formData.append('response_format', 'text');
+        formData.append('text', promptText)
+        if (inputType === 'figma-pdf') {
+          formData.append('generation_mode', 'figma_pdf')
         }
-      );
+
+        // Automation KB exists only on the admin backend, so it
+        // goes there whatever BASE_URL says, with the KB named. Default KB is the
+        // default application route and keeps using BASE_URL.
+        let generationUrl = `${config.BASE_URL}${config.ENDPOINTS.generateTestCases}`
+        if (selectedKnowledgeBaseOption.knowledgeBase) {
+          const generationBackendUrl = String((import.meta as any).env?.VITE_API_URL || 'http://localhost:8002').replace(/\/$/, '')
+          formData.append('knowledge_base', selectedKnowledgeBaseOption.knowledgeBase)
+          generationUrl = `${generationBackendUrl}/generate/kb-testcases`
+        }
+        tracked = await trackedFetchWithTokens(
+          generationUrl,
+          {
+            tab: 'testcases',
+            method: 'POST',
+            body: formData,
+            user: userAuth.user?.username || 'anonymous',
+            sessionId: sessionStorage.getItem('client_session_id') || undefined,
+            externalStream: true
+          }
+        );
+      }
+      const { response: res, status, logId } = tracked
+      console.log("======== tracked =========== : ",tracked);
       setGenStagesDone(1)
       // Stream and accumulate response here
       if (!res.body) {
@@ -1801,7 +1888,9 @@ const TestCases: React.FC = () => {
       setCombinedContent(g.document_text || '')
       setRestoredDocumentNames(g.document_names || [])
       if (g.ppm_id) setPpmId(g.ppm_id)
-      if (knowledgeBaseOptions.some((option) => option.value === g.knowledge_base)) setSelectedKnowledgeBase(g.knowledge_base as KnowledgeBaseChoice)
+      // A session saved while Journey KB was its own choice opens on Automation KB, which now covers it.
+      const savedKb = g.knowledge_base === 'journey' ? 'automation' : g.knowledge_base
+      if (knowledgeBaseOptions.some((option) => option.value === savedKb)) setSelectedKnowledgeBase(savedKb as KnowledgeBaseChoice)
       setSelectedEnvironment((g.environment || '') as EnvironmentOption)
       setSelectedFocus((g.focus || '') as FocusOption)
       setGenerationError('')
@@ -2038,6 +2127,7 @@ const TestCases: React.FC = () => {
     brdDetectedForRef.current = ''
     setWorkflowStageRequestId(null)
     setSelectedKnowledgeBase('default')
+    setKnowledgeBaseError('')
     window.dispatchEvent(new CustomEvent('test-case-workflow-updated'))
   }
 
@@ -2365,12 +2455,45 @@ const TestCases: React.FC = () => {
                     </span>
                   )}
                 </span>
-                <span className="flex flex-shrink-0 items-center gap-3">
+                <span className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
                   {(inputType === 'file' || inputType === 'figma-pdf') && (
                     <button type="button" onClick={() => setUploadOpen(true)} data-audit-name="Open document upload" className="text-[12px] font-semibold text-[#B71920] hover:text-[#941216]">
                       {fileInputs.length > 0 ? 'Change documents' : 'Upload documents'}
                     </button>
                   )}
+
+                  {inputType === 'figma-pdf' && documentsProcessed && combinedContent.trim() && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={copyFigmaExtractedText}
+                        aria-label="Copy extracted Figma text"
+                        title={figmaCopyStatus === 'copied' ? 'Copied extracted Figma text' : 'Copy extracted Figma text'}
+                        data-audit-name="Copy Figma Text"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-[10px] border border-[#E8EAEE] bg-white px-2.5 text-[11.5px] font-semibold text-[#374151] transition hover:border-[#F1A4A6] hover:text-[#941216] focus:outline-none focus:ring-2 focus:ring-[#FDEBEC]"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
+                          <rect x="9" y="9" width="10" height="10" rx="1.5" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 15H5a2 2 0 01-2-2V5a2 2 0 012-2h8a2 2 0 012 2v1" />
+                        </svg>
+                        {figmaCopyStatus === 'copied' ? 'Copied' : figmaCopyStatus === 'failed' ? 'Copy failed' : 'Copy Text'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={downloadFigmaExtractedText}
+                        aria-label="Download extracted Figma text"
+                        title="Download extracted Figma text"
+                        data-audit-name="Download Figma Text"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-[10px] border border-[#E8EAEE] bg-white px-2.5 text-[11.5px] font-semibold text-[#374151] transition hover:border-[#F1A4A6] hover:text-[#941216] focus:outline-none focus:ring-2 focus:ring-[#FDEBEC]"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" />
+                        </svg>
+                        Download Text
+                      </button>
+                    </>
+                  )}
+                  
                   {inputType !== 'text' && documentsProcessed && (
                     <button type="button" onClick={() => setExpandedPreview(true)} className="text-[12px] font-semibold text-[#B71920] hover:text-[#941216]">
                       Full preview
@@ -2496,6 +2619,29 @@ const TestCases: React.FC = () => {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" aria-hidden><path d="M6 9l6 6 6-6" /></svg>
               </span>
             </label>
+                  {/* Concise the E2E Test Cases */}
+            <div className="flex flex-col gap-1.5">
+              <span id="concise-e2e-label" className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6B7280]">
+                Concise the E2E Test Cases
+              </span>
+              <div className="flex h-10 items-center gap-2">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={conciseTestCases}
+                  aria-labelledby="concise-e2e-label"
+                  data-audit-name="Concise the E2E Test Cases"
+                  // disabled={loading || selectedKnowledgeBase === 'squad'}
+                  // title={selectedKnowledgeBase === 'squad' ? 'Available for default BRD generation' : 'Concise the E2E Test Cases'}
+                  onClick={() => setConciseTestCases((current) => !current)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#F1A4A6] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${conciseTestCases ? 'bg-[#B71920]' : 'bg-[#D1D5DB]'}`}
+                >
+                  <span className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${conciseTestCases ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                </button>
+                <span className="w-6 text-[12px] font-semibold text-[#6B7280]">{conciseTestCases ? 'On' : 'Off'}</span>
+              </div>
+            </div>
+
             <div className="ml-auto flex gap-2.5">
               <button
                 type="button"

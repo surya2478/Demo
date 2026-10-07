@@ -141,6 +141,8 @@ class Settings(BaseSettings):
     AI_SERVICE_AUTH_TOKEN: str = Field(default="")
 
     ROLES: List[str] = Field(default=["Admin", "Manager", "QA", "Tester"])
+    # Coverage Analysis (services/generation/coverage.py): log each step.
+    COVERAGE_DEBUG_LOGS: bool = Field(default=False)
 
     # --- Automation Module: runtime settings ----------------------------------
     # All defaulted, so existing deployments start unchanged with the module
@@ -272,8 +274,14 @@ class Settings(BaseSettings):
     OPENAI_TIMEOUT_SECONDS: int = Field(default=120)
     FIGMA_VLM_MODEL: str = Field(default="gpt-5.1")
     SQUAD_KB_GENERATION_MODEL: str = Field(default="gpt-5.1")
-    SQUAD_KB_GENERATION_PROVIDER: str = Field(default="openai")
+    # Provider for Automation KB and Journey KB generation (/generate/kb-testcases).
+    # Empty: "openai" when OPENAI_* is configured, else "azure" when
+    # AZURE_OPENAI_* is (testcases.kb_generation_provider). Device Squad KB
+    # generation (/generate/squad-testcases) always uses Azure OpenAI.
+    SQUAD_KB_GENERATION_PROVIDER: str = Field(default="")
 
+    # --- Azure OpenAI: Device Squad KB generation, Figma extraction, Coverage --
+    # Analysis, and AI Refine when AUTOMATION_LLM_PROVIDER=azure.
     # Azure OpenAI v1 API (services/generation/azure_llm.py). Selected for
     # Knowledge Base generation by SQUAD_KB_GENERATION_PROVIDER=azure. The
     # model is the deployment name; the key stays server-side.
@@ -297,6 +305,7 @@ class Settings(BaseSettings):
     SQUAD_KB_DATABASE_URL: str = Field(default="")
     SQUAD_KB_EMBEDDING_MODEL: str = Field(default="octen-embedding")
     SQUAD_KB_EMBEDDING_BASE_URL: str = Field(default="")
+    SQUAD_KB_EMBEDDING_TIMEOUT_SECONDS: int = Field(default=120)
     # Secret. Key for SQUAD_KB_EMBEDDING_BASE_URL. Kept separate from
     # OPENAI_API_KEY because the embedding server is usually a different host,
     # and the OpenAI key must not be sent to it. Blank sends no Authorization.
@@ -308,7 +317,7 @@ class Settings(BaseSettings):
     AZURE_AI_CHAT_COMPLETIONS_URL: str = Field(default="")
     AZURE_AI_API_KEY: str = Field(default="")
     AZURE_AI_API_VERSION: str = Field(default="")
-    AZURE_AI_MODEL: str = Field(default="gpt-5.1")
+    AZURE_AI_MODEL: str = Field(default="gpt-6-sol")
     AZURE_AI_AUTH_MODE: str = Field(default="api-key")
     AZURE_AI_TIMEOUT_SECONDS: int = Field(default=120)
 
@@ -323,6 +332,15 @@ class Settings(BaseSettings):
     # refine, healing) to a different AI service host than ai_config.BASE_URL.
     # Empty: they use ai_config.BASE_URL, like the Test Assistant tabs.
     AI_SERVICE_CHAT_BASE_URL: str = Field(default="")
+
+    # --- Ollama (LLM_PROVIDER=ollama, or a caller's own provider) ---------------
+    # A self-hosted Ollama server, called on its native /api/chat. Coverage
+    # Analysis passes LLM_PROVIDER through, so these apply only when it is
+    # "ollama". OLLAMA_NUM_CTX overrides Ollama's 2048-token default context,
+    # which would otherwise truncate a requirements document silently.
+    OLLAMA_BASE_URL: str = Field(default="")
+    OLLAMA_MODEL: str = Field(default="")
+    OLLAMA_NUM_CTX: int = Field(default=8192)
 
     # Secret. Empty means "not configured" -- see openrouter_missing_keys(),
     # which names what is absent rather than failing on an anonymous 401.

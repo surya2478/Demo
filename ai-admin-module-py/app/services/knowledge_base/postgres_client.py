@@ -6,12 +6,15 @@ import logging
 import os
 from datetime import datetime, timezone
 from importlib import import_module
+from threading import Lock
 from typing import Any, Optional
 
 from ...config import settings
 
 logger = logging.getLogger(__name__)
 TABLE_NAME = "squad_knowledge_base"
+_SYSTEMS_SCHEMA_LOCK = Lock()
+_SYSTEMS_SCHEMA_READY = False
 
 try:
     psycopg = import_module("psycopg")
@@ -48,6 +51,24 @@ def get_connection(register: bool = True):
     return connection
 
 
+def _ensure_systems_column() -> None:
+    """Upgrade an existing KB table once per process before inserting metadata."""
+    global _SYSTEMS_SCHEMA_READY
+    if _SYSTEMS_SCHEMA_READY:
+        return
+    with _SYSTEMS_SCHEMA_LOCK:
+        if _SYSTEMS_SCHEMA_READY:
+            return
+        with get_connection(register=False) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"ALTER TABLE {TABLE_NAME} ADD COLUMN IF NOT EXISTS "
+                    "systems TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]"
+                )
+            connection.commit()
+        _SYSTEMS_SCHEMA_READY = True
+
+
 def init_db(dimensions: int = 1024) -> None:
     """Create the existing KB schema and retrieval indexes if absent."""
     with get_connection(register=False) as connection:
@@ -59,6 +80,7 @@ def init_db(dimensions: int = 1024) -> None:
                 CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
                     id TEXT PRIMARY KEY,
                     squad_name TEXT NOT NULL,
+                    systems TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
                     document_name TEXT NOT NULL DEFAULT 'Legacy_Import',
                     content TEXT NOT NULL,
                     embedding VECTOR({int(dimensions)}) NOT NULL,
@@ -68,6 +90,10 @@ def init_db(dimensions: int = 1024) -> None:
                     ) STORED
                 )
                 """
+            )
+            cursor.execute(
+                f"ALTER TABLE {TABLE_NAME} ADD COLUMN IF NOT EXISTS "
+                "systems TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]"
             )
             cursor.execute(f"CREATE INDEX IF NOT EXISTS skb_squad_idx ON {TABLE_NAME} (squad_name)")
             cursor.execute(
@@ -83,25 +109,33 @@ def init_db(dimensions: int = 1024) -> None:
         connection.commit()
 
 
-def save_kb_entry(squad_name: str, document_name: str, content: str, embedding_list: list[float]) -> None:
+def save_kb_entry(
+    squad_name: str,
+    document_name: str,
+    content: str,
+    embedding_list: list[float],
+    systems: list[str] | None = None,
+) -> None:
     """Insert one normalized chunk, ignoring exact duplicate fingerprints."""
     normalized = " ".join((content or "").lower().split())
     if not squad_name.strip() or not normalized:
         return
 
+    _ensure_systems_column()
     chunk_id = hashlib.md5(normalized.encode("utf-8")).hexdigest()
     with get_connection() as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 f"""
                 INSERT INTO {TABLE_NAME}
-                    (id, squad_name, document_name, content, embedding, created_date_time)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (id) DO NOTHING
+                    (id, squad_name, systems, document_name, content, embedding, created_date_time)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE SET systems = EXCLUDED.systems
                 """,
                 (
                     chunk_id,
                     squad_name,
+                    systems or [],
                     document_name or "Legacy_Import",
                     content,
                     embedding_list,
@@ -114,6 +148,7 @@ def save_kb_entry(squad_name: str, document_name: str, content: str, embedding_l
 def list_documents(squad_name: str | list[str] | tuple[str, ...]) -> list[str]:
     """Return distinct document names for a squad, newest first."""
     squad_names = [squad_name] if isinstance(squad_name, str) else list(squad_name)
+    print(f" ============ postgres client =========== list_documents ===== {squad_name} ")
     squad_names = [name.strip() for name in squad_names if name and name.strip()]
     if not squad_names:
         return []
@@ -130,6 +165,7 @@ def list_documents(squad_name: str | list[str] | tuple[str, ...]) -> list[str]:
                     """,
                     (squad_names,),
                 )
+                print(f" ============ postgres client =========== list_documents ")
                 return [row[0] for row in cursor.fetchall() if row[0]]
     except Exception:
         logger.exception("Failed to list Squad Knowledge Base documents for squad=%s", squad_name)

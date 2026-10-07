@@ -18,20 +18,19 @@ a logged-in user like every other write on this API.
 from __future__ import annotations
 
 import logging
-import base64
 import json
 from pathlib import Path
 from threading import Lock
 from itertools import chain
 
-import requests
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from ..config import settings
-from ..services.generation import testcases
+from ..services.generation import azure_llm, testcases
+from ..services.knowledge_base import ingestion, squads
 from ..services.knowledge_base.ingestion import ingest_docx
 from ..services.knowledge_base import postgres_client
 from ..services.generation.stream import GenerationUnavailable
@@ -52,29 +51,26 @@ _STREAM_HEADERS = {
 
 _FIGMA_PROMPT_PATH = Path(__file__).resolve().parent.parent / "figma_vlm_prompt.json"
 _FIGMA_PROMPT_LOCK = Lock()
-_SQUAD_KNOWLEDGE_BASES = set(testcases.SQUAD_KBS)
 # Paths that exist only to generate from a chosen Knowledge Base; a request to
 # one of them without a recognised KB is refused instead of silently running
 # ungrounded on a different model.
+#   /kb-testcases     Automation KB or Journey KB (a squad is accepted too)
+#   /squad-testcases  a registered squad only -- Device Squad KB generation
 _KB_GENERATION_PATHS = ("/kb-testcases", "/squad-testcases")
 SQUAD_DATABASE_NAMES = ("B2B", "BCRM", "SMB")
 
 
 def _normalize_knowledge_base(value: str) -> str:
     """Any KB the Select KB dropdown offers, in its canonical spelling, or ""."""
-    normalized = " ".join((value or "").split()).casefold()
-    return next(
-        (allowed for allowed in testcases.KNOWLEDGE_BASES if allowed.casefold() == normalized),
-        "",
-    )
+    return testcases.normalize_knowledge_base(value)
 
 
 def _normalize_squad_name(value: str) -> str:
-    normalized = " ".join((value or "").split()).casefold()
-    return next(
-        (allowed for allowed in _SQUAD_KNOWLEDGE_BASES if allowed.casefold() == normalized),
-        "",
-    )
+    return squads.normalize_squad_name(value)
+
+
+class SquadPayload(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
 
 
 class FigmaVlmPromptPayload(BaseModel):
@@ -97,7 +93,7 @@ def _read_figma_vlm_prompt() -> str:
 def get_figma_vlm_prompt(current_user=Depends(get_current_user_strict)):
     """Return the server-side prompt used for Figma PDF vision extraction."""
     with _FIGMA_PROMPT_LOCK:
-        return {"prompt": _read_figma_vlm_prompt(), "model": settings.FIGMA_VLM_MODEL}
+        return {"prompt": _read_figma_vlm_prompt(), "model": azure_llm.model_name()}
 
 
 @router.put("/figma/vlm-prompt")
@@ -112,7 +108,7 @@ def update_figma_vlm_prompt(
             json.dumps({"prompt": prompt}, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
-    return {"prompt": prompt, "model": settings.FIGMA_VLM_MODEL}
+    return {"prompt": prompt, "model": azure_llm.model_name()}
 
 
 @router.post("/figma/extract-text")
@@ -120,93 +116,111 @@ async def extract_figma_pdf_text(
     file: UploadFile = File(...),
     current_user=Depends(get_current_user_strict),
 ):
-    """Extract text from a Figma PDF using the saved GPT-5.1 vision prompt."""
+    """Extract text from a Figma PDF with the Azure OpenAI model and the saved Figma prompt."""
     filename = file.filename or "figma.pdf"
     if not filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
-
-    if not settings.OPENAI_API_KEY or not settings.OPENAI_BASE_URL:
-        raise HTTPException(status_code=503, detail="OpenAI vision extraction is not configured")
+    if azure_llm.missing_settings():
+        raise HTTPException(
+            status_code=503,
+            detail="Figma extraction is not configured. Missing: " + ", ".join(azure_llm.missing_settings()),
+        )
 
     pdf_bytes = await file.read()
     if not pdf_bytes:
         raise HTTPException(status_code=400, detail="The uploaded PDF is empty")
     if len(pdf_bytes) > 50 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="The PDF exceeds the 50 MB extraction limit")
-
-    payload = {
-        "model": settings.FIGMA_VLM_MODEL,
-        "input": [{
-            "role": "user",
-            "content": [
-                {
-                    "type": "input_file",
-                    "filename": filename,
-                    "file_data": f"data:application/pdf;base64,{base64.b64encode(pdf_bytes).decode('ascii')}",
-                },
-                {"type": "input_text", "text": _read_figma_vlm_prompt()},
-            ],
-        }],
-    }
-
-    # These handlers are async (they await the upload), so a plain blocking
-    # call here would stall the event loop -- every other request on this
-    # worker -- for as long as the model takes. The pool keeps it off the loop.
+    # A blocking model call; the pool keeps it off the event loop.
     try:
-        response = await run_in_threadpool(
-            requests.post,
-            f"{settings.OPENAI_BASE_URL.rstrip('/')}/responses",
-            headers={
-                "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-            timeout=settings.OPENAI_TIMEOUT_SECONDS,
+        text = await run_in_threadpool(
+            azure_llm.extract_pdf_text, filename=filename, pdf_bytes=pdf_bytes, prompt=_read_figma_vlm_prompt()
         )
-    except requests.RequestException as exc:
-        raise HTTPException(status_code=502, detail=f"OpenAI vision request failed: {exc}") from exc
+    except azure_llm.AzureLLMError as exc:
+        raise HTTPException(status_code=502, detail=f"Figma extraction failed: {exc}") from exc
 
-    if response.status_code >= 400:
-        detail = response.text[:500]
-        raise HTTPException(status_code=502, detail=f"OpenAI vision extraction failed: {detail}")
-
-    result = response.json()
-    extracted_text = result.get("output_text", "")
-    if not extracted_text:
-        output_items = result.get("output") or []
-        extracted_text = "\n".join(
-            content.get("text", "")
-            for item in output_items
-            for content in item.get("content", [])
-            if content.get("type") in {"output_text", "text"}
-        )
-    if not extracted_text.strip():
-        raise HTTPException(status_code=502, detail="OpenAI returned no extractable text")
-
-    return {"filename": filename, "text": extracted_text.strip(), "model": settings.FIGMA_VLM_MODEL}
+    return {"filename": filename, "text": text, "model": azure_llm.model_name()}
 
 
 @router.post("/squad-knowledge-base/ingest-docx")
+@router.post("/squad-knowledge-base/ingest-document")
 async def ingest_squad_knowledge_base_docx(
     squad_name: str = Form(...),
+    systems: list[str] = Form(default=[]),
     file: UploadFile = File(...),
     current_user=Depends(get_current_user_strict),
 ):
-    """Extract, embed, and store a DOCX in the selected squad knowledge base."""
+    """Extract, embed, and store DOCX, PDF or XLSX in the squad knowledge base."""
     filename = file.filename or "knowledge-base.docx"
-    if not filename.lower().endswith(".docx"):
-        raise HTTPException(status_code=400, detail="Only DOCX files are supported")
-
     content = await file.read()
-    if not content:
-        raise HTTPException(status_code=400, detail="The DOCX file is empty")
     try:
-        return await run_in_threadpool(ingest_docx, squad_name.strip(), filename, content)
+        ingestion.validate_document(filename, content)
+        return await run_in_threadpool(ingest_docx, squad_name.strip(), filename, content, systems)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
-        logger.exception("Squad Knowledge Base DOCX ingestion failed")
-        raise HTTPException(status_code=502, detail=f"DOCX ingestion failed: {exc}") from exc
+        logger.exception("Squad Knowledge Base document ingestion failed")
+        raise HTTPException(status_code=502, detail=f"Document ingestion failed: {exc}") from exc
+
+
+@router.get("/squad-knowledge-base/squads")
+def list_squad_knowledge_bases(current_user=Depends(get_current_user_strict)):
+    """List the persisted Squad Knowledge Base names."""
+    return {"squads": squads.list_squads()}
+
+
+@router.post("/squad-knowledge-base/squads", status_code=201)
+def add_squad_knowledge_base(
+    payload: SquadPayload,
+    current_user=Depends(get_current_user_strict),
+):
+    """Persist a new squad name and return the refreshed list."""
+    try:
+        updated = squads.add_squad(payload.name)
+        added = next(name for name in updated if name.casefold() == " ".join(payload.name.split()).casefold())
+        return {"squads": updated, "added": added}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _ingestion_event(event: dict) -> str:
+    return json.dumps(event, ensure_ascii=False) + "\n"
+
+
+@router.post("/squad-knowledge-base/ingest-docx-stream")
+@router.post("/squad-knowledge-base/ingest-document-stream")
+async def ingest_squad_knowledge_base_docx_stream(
+    squad_name: str = Form(...),
+    systems: list[str] = Form(default=[]),
+    file: UploadFile = File(...),
+    current_user=Depends(get_current_user_strict),
+):
+    """Stream real extraction, embedding and storage progress as NDJSON."""
+    filename = file.filename or "knowledge-base.docx"
+    canonical_squad = _normalize_squad_name(squad_name)
+    if not canonical_squad:
+        raise HTTPException(status_code=400, detail="Select a registered squad.")
+    content = await file.read()
+    try:
+        ingestion.validate_document(filename, content)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # A sync generator: StreamingResponse runs it in the thread pool, so the
+    # embedding and database calls never block the event loop.
+    def events():
+        stage = "extract"
+        try:
+            for event in ingestion.ingest_docx_progress(canonical_squad, filename, content, systems):
+                stage = event.get("stage", stage)
+                yield _ingestion_event(event)
+        except ValueError as exc:
+            yield _ingestion_event({"type": "error", "stage": stage, "detail": str(exc)})
+        except Exception as exc:
+            logger.exception("Streamed document ingestion failed for squad=%s", canonical_squad)
+            yield _ingestion_event({"type": "error", "stage": stage, "detail": f"Document ingestion failed: {exc}"})
+
+    return StreamingResponse(events(), media_type="application/x-ndjson", headers=_STREAM_HEADERS)
 
 
 @router.get("/squad-knowledge-base/documents/{squad_name}")
@@ -249,9 +263,13 @@ def generate_brd_testcases(
     break the tab for no gain, but the model is chosen server-side -- see
     stream_chat's docstring for why a browser-supplied model id is not honoured.
 
-    `knowledge_base` is the Select KB choice: "Automation KB" or a squad
-    (testcases.KNOWLEDGE_BASES). "Default KB" never reaches this backend on
-    that path -- it goes to ai_config.BASE_URL -- so empty means no KB.
+    `knowledge_base` is the Select KB choice. The frontend routes it:
+
+      Default KB      -> ai_config.BASE_URL + generateTestCases (no KB here)
+      Device Squad KB -> /generate/squad-testcases, a registered squad; Azure
+                         OpenAI with the team's squad prompt (testcases)
+      Automation KB,
+      Journey KB      -> /generate/kb-testcases; testcases.kb_generation_provider
 
     The first chunk is pulled before the response is returned. That is the only
     window in which a failure can still become a real status code: once
@@ -282,9 +300,12 @@ def generate_brd_testcases(
             "document, or import an SSD before generating.",
         )
 
-    kb_path = request.url.path.rstrip("/").endswith(_KB_GENERATION_PATHS)
+    path = request.url.path.rstrip("/")
+    kb_path = path.endswith(_KB_GENERATION_PATHS)
     if knowledge_base:
         knowledge_base = _normalize_knowledge_base(knowledge_base)
+    if path.endswith("/squad-testcases") and not testcases.is_squad(knowledge_base):
+        raise HTTPException(status_code=400, detail="Unsupported Squad Knowledge Base selection.")
     if not knowledge_base and kb_path:
         raise HTTPException(
             status_code=400,
@@ -309,16 +330,12 @@ def generate_brd_testcases(
         max_tokens=max_tokens,
         knowledge_base=knowledge_base,
         generation_mode=generation_mode,
-        generation_provider=(
-            settings.SQUAD_KB_GENERATION_PROVIDER
-            if kb_path
-            else None
-        ),
+        generation_provider=testcases.kb_generation_provider() if kb_path else None,
     )
 
     try:
         first = next(chunks, None)
-    except GenerationUnavailable as exc:
+    except (GenerationUnavailable, azure_llm.AzureLLMError) as exc:
         # 502, not 500: this backend is fine, the model behind it is not, and
         # the message names what an operator has to fix.
         logger.error("Generation unavailable: %s", exc)
