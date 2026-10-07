@@ -206,6 +206,122 @@ def rename_application(app_id: str, body: NameIn, db: Session = Depends(get_db),
     return {"app_key": app_id, "name": name}
 
 
+def _deletion(db: Session, app_id: str) -> dict[str, Any]:
+    """Everything deleting `app_id` would touch, for the confirmation and the delete itself."""
+    from ..models.automation import AutomationApplication, AutomationDiscoveryRun
+    from ..services.automation import knowledge_base as automation_kb, registry
+
+    data_app = registry.data_app_for_kb(db, app_id)
+    crawl = db.query(AutomationApplication).filter(AutomationApplication.app_key == app_id).first()
+    runs = (db.query(AutomationDiscoveryRun).filter(AutomationDiscoveryRun.application_id == crawl.id).count()
+            if crawl is not None else 0)
+    kb = store.load(app_id)
+    journey_dir = store.journey_kb_root() / app_id
+    automation_dir = automation_kb.KB_ROOT_DIR / app_id
+    # Another Journey KB built on this crawled folder keeps it.
+    shared = any(getattr(store.load(other), "automation_app_id", None) == app_id
+                 for other in store.list_apps() if other != app_id)
+    name = (data_app.name if data_app else None) or (crawl.name if crawl else None) or (kb.app_name if kb else None)
+    return {
+        "app_key": app_id,
+        "name": name,
+        "data_app": data_app,
+        "crawl": crawl,
+        "summary": {
+            "app_key": app_id,
+            "name": name,
+            "test_data": {
+                "registered": data_app is not None,
+                "environments": sorted(e.environment for e in data_app.environments) if data_app else [],
+                "values": len(data_app.entries) if data_app else 0,
+            },
+            "crawl": {"registered": crawl is not None, "runs": runs},
+            "journey_kb": {
+                "exists": kb is not None,
+                "journeys": len(kb.journeys) if kb else 0,
+                "screens": len(kb.screens) if kb else 0,
+                "documents": db.query(KbSourceDocument).filter(KbSourceDocument.app_id == app_id).count(),
+            },
+            "automation_kb": {"exists": automation_dir.exists(), "shared": shared},
+            "pending_change_sets": db.query(KbChangeSet).filter(KbChangeSet.app_id == app_id, KbChangeSet.status == "draft").count(),
+        },
+        "folders": {
+            **({"journey_kb": journey_dir} if journey_dir.exists() else {}),
+            **({"automation_kb": automation_dir} if automation_dir.exists() and not shared else {}),
+        },
+    }
+
+
+@router.get("/{app_id}/deletion")
+def preview_application_deletion(app_id: str, db: Session = Depends(get_db),
+                                 current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
+    """What deleting this application would remove, shown before anyone confirms."""
+    found = _deletion(db, app_id)
+    if found["name"] is None:
+        raise HTTPException(status_code=404, detail=f"No application '{app_id}'.")
+    return found["summary"]
+
+
+@router.delete("/{app_id}")
+def delete_application(app_id: str, confirm: str = Query(..., description="The application's name, typed exactly"),
+                       db: Session = Depends(get_db),
+                       current_user: dict = Depends(require_permission(PERM_APPROVE))) -> dict[str, Any]:
+    """Delete an application from the Knowledge Base page, Test Data and the crawl list.
+
+    Its Journey KB and crawled Automation KB folders are moved to
+    knowledge_base/_deleted/, never erased, so they can be restored by hand.
+    A crawl application with discovery runs is deactivated rather than
+    deleted: test cases grounded on those runs still point at them. Change
+    sets, versions and uploaded-document records stay as history.
+    """
+    from ..services.audit_logger import audit_log
+    from ..services.journeys import onboarding
+
+    found = _deletion(db, app_id)
+    name = found["name"]
+    if name is None:
+        raise HTTPException(status_code=404, detail=f"No application '{app_id}'.")
+    if re.sub(r"\s+", " ", confirm or "").strip() != name:
+        raise HTTPException(status_code=400, detail=f"Type the application's name, {name}, exactly to delete it.")
+
+    crawl = found["crawl"]
+    if found["data_app"] is not None:
+        db.delete(found["data_app"])
+    if crawl is not None:
+        if found["summary"]["crawl"]["runs"]:
+            crawl.is_active = False
+        else:
+            db.delete(crawl)
+    db.flush()
+    try:
+        archived = onboarding.archive(app_id, found["folders"])
+    except Exception as exc:  # noqa: BLE001 - nothing is deleted unless the folders moved
+        db.rollback()
+        logger.exception("Archiving the Knowledge Base folders of %s failed", app_id)
+        raise HTTPException(status_code=500, detail=f"The Knowledge Base folders could not be moved, so nothing was deleted: {exc}") from exc
+    db.commit()
+
+    actor = _actor(current_user)
+    audit_log(
+        actor=actor,
+        actor_role=(current_user or {}).get("role") or ", ".join((current_user or {}).get("roles") or []) or "user",
+        module="Automation Studio",
+        action="delete",
+        resource_type="knowledge_base_application",
+        resource_id=app_id,
+        resource_name=name,
+        status="success",
+        details={"description": f"{actor} deleted application {name}", "archived_to": str(archived) if archived else None},
+    )
+    logger.info("Application %s (%s) deleted by %s; folders archived to %s", name, app_id, actor, archived)
+    return {
+        "deleted": app_id,
+        "name": name,
+        "archived_to": archived.name if archived else None,
+        "crawl_deactivated": bool(crawl is not None and found["summary"]["crawl"]["runs"]),
+    }
+
+
 @router.get("/{app_id}/overview")
 def get_overview(app_id: str, current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
     return workspace.overview(_kb(app_id))

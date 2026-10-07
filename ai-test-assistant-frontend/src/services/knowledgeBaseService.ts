@@ -615,6 +615,17 @@ export interface JourneyRemovalPreview {
 }
 
 /** Where an application stands: registered for crawling, its environments, a Journey KB. */
+/** What deleting an application would touch (GET /{app}/deletion). */
+export interface AppDeletion {
+  app_key: string
+  name: string
+  test_data: { registered: boolean; environments: string[]; values: number }
+  crawl: { registered: boolean; runs: number }
+  journey_kb: { exists: boolean; journeys: number; screens: number; documents: number }
+  automation_kb: { exists: boolean; shared: boolean }
+  pending_change_sets: number
+}
+
 export interface AppRegistration {
   app_key: string
   journey_kb: boolean
@@ -654,6 +665,10 @@ const knowledgeBaseService = {
   /** Renames it in Test Data, the crawl registry and the Journey KB; the key stays. */
   renameApplication: async (app: string, name: string): Promise<{ app_key: string; name: string }> =>
     (await api.put(`${BASE}/${enc(app)}/name`, { name })).data,
+  deletionPreview: async (app: string): Promise<AppDeletion> => (await api.get(`${BASE}/${enc(app)}/deletion`)).data,
+  /** Deletes it everywhere; its KB folders are moved to knowledge_base/_deleted. `confirm` is its exact name. */
+  deleteApplication: async (app: string, confirm: string): Promise<{ deleted: string; name: string; archived_to: string | null; crawl_deactivated: boolean }> =>
+    (await api.delete(`${BASE}/${enc(app)}`, { params: { confirm } })).data,
   overview: async (app: string): Promise<KbOverview> => (await api.get(`${BASE}/${enc(app)}/overview`)).data,
   sources: async (app: string): Promise<KbSource[]> => (await api.get(`${BASE}/${enc(app)}/sources`)).data.sources,
   taxonomy: async (app: string): Promise<KbTaxonomy> => (await api.get(`${BASE}/${enc(app)}/taxonomy`)).data,

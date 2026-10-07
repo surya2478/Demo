@@ -44,7 +44,7 @@ import ReconcileStage from '../../components/knowledge-base/ReconcileStage'
 import JourneyCrawlStage from '../../components/knowledge-base/JourneyCrawlStage'
 import HealStage from '../../components/knowledge-base/HealStage'
 import JourneyMapStage from '../../components/knowledge-base/JourneyMapStage'
-import { CreateJourneyKbCard, NewApplicationDialog, RenameApplication, SetupStage } from '../../components/knowledge-base/ApplicationSetup'
+import { CreateJourneyKbCard, DeleteApplication, NewApplicationDialog, RenameApplication, SetupStage } from '../../components/knowledge-base/ApplicationSetup'
 
 type StageId = 'setup' | 'sources' | 'journeys' | 'map' | 'model' | 'testdata' | 'crawl' | 'automation' | 'reconcile' | 'heal'
 type StageState = 'done' | 'attn' | 'idle'
@@ -225,6 +225,15 @@ const KnowledgeBase: React.FC = () => {
     openStage('setup')
   }
   const refreshApp = () => { setAppsTick(t => t + 1); setRevision(r => r + 1) }
+  const [deletedNote, setDeletedNote] = useState<string | null>(null)
+  const deleted = (result: { name: string; archived_to: string | null }) => {
+    try { window.localStorage.removeItem(SELECTION_STORAGE_KEY) } catch { /* storage unavailable */ }
+    setSelection(null)
+    setOverview(null)
+    setDeletedNote(`${result.name} was deleted.${result.archived_to ? ` Its Knowledge Base folders were moved to knowledge_base/_deleted/${result.archived_to}.` : ''}`)
+    openStage('setup')
+    refreshApp()
+  }
 
   const stages = useMemo(() => {
     const r = overview?.reconcile ?? {}
@@ -257,10 +266,11 @@ const KnowledgeBase: React.FC = () => {
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="m-0 text-[26px] font-bold tracking-[-0.02em] text-[#1F2937]">{appName}</h1>
             {kbKey && <RenameApplication appKey={kbKey} name={appName} canEdit={canExecute} onRenamed={refreshApp} />}
+            {kbKey && <DeleteApplication appKey={kbKey} name={appName} canDelete={canApprove} onDeleted={deleted} />}
             <select
               aria-label="Application"
               value={selection ?? ''}
-              onChange={e => setSelection(e.target.value || null)}
+              onChange={e => { setSelection(e.target.value || null); setDeletedNote(null) }}
               className="h-[30px] rounded-[10px] border border-[#E8EAEE] bg-white px-2.5 text-[12.5px] font-semibold text-[#374151]"
             >
               {applications.length === 0 && unregisteredKbs.length === 0 && <option value="">No application</option>}
@@ -311,6 +321,7 @@ const KnowledgeBase: React.FC = () => {
       </header>
 
       {appsError && <Note tone="warn">{appsError}</Note>}
+      {deletedNote && <Note>{deletedNote}</Note>}
 
       <nav aria-label="Knowledge Base stages" className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(150px,0.7fr)_repeat(3,minmax(0,2fr))]">
         {PHASES.map((phase, p) => (

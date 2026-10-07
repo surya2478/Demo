@@ -191,3 +191,35 @@ def rename(app_key: str, app_name: str) -> Optional[Dict[str, Any]]:
     manifest["app_name"] = app_name
     _write(path, manifest)
     return manifest
+
+
+def archive_root() -> Path:
+    """Where deleted applications' Knowledge Base folders are kept, beside journeys/ and applications/."""
+    return store.journey_kb_root().parent / "_deleted"
+
+
+def archive(app_key: str, folders: Dict[str, Path]) -> Optional[Path]:
+    """Move an application's KB folders under _deleted/<key>-<time>/; None when there were none.
+
+    Nothing is erased: a deleted application can be restored by moving its
+    folders back. A move that fails puts back what had already moved.
+    """
+    import shutil
+    from datetime import datetime
+
+    present = {label: path for label, path in folders.items() if path.exists()}
+    if not present:
+        return None
+    target = archive_root() / f"{app_key}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    target.mkdir(parents=True, exist_ok=False)
+    moved: List[tuple] = []
+    try:
+        for label, path in present.items():
+            shutil.move(str(path), str(target / label))
+            moved.append((target / label, path))
+    except Exception:
+        for archived, original in reversed(moved):
+            shutil.move(str(archived), str(original))
+        shutil.rmtree(target, ignore_errors=True)
+        raise
+    return target

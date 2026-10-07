@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import knowledgeBaseService, { errorText, type AppRegistration, type KbOverview } from '../../services/knowledgeBaseService'
+import knowledgeBaseService, { errorText, type AppDeletion, type AppRegistration, type KbOverview } from '../../services/knowledgeBaseService'
 import testDataService, { type DataApp } from '../../services/testDataService'
 import { Card, CardHead, Chip, Failed, Loading, Note, useLoad } from './kbUi'
 
@@ -240,6 +240,148 @@ export const RenameApplication: React.FC<{
       <button type="button" className={BTN_PLAIN} disabled={busy} onClick={() => setEditing(false)}>Cancel</button>
       {error && <span className="text-[12px] text-[#A3231C]">{error}</span>}
     </span>
+  )
+}
+
+// --- Deleting an application ----------------------------------------------------------
+//
+// Deliberately slow: the dialog first lists everything the delete touches,
+// then asks for a tick and the name typed exactly. The backend moves the KB
+// folders to knowledge_base/_deleted rather than erasing them, so an
+// administrator can still restore a mistake -- but nothing on this page can.
+
+export const DeleteApplication: React.FC<{
+  appKey: string
+  name: string
+  canDelete: boolean
+  onDeleted: (result: { name: string; archived_to: string | null }) => void
+}> = ({ appKey, name, canDelete, onDeleted }) => {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button type="button" disabled={!canDelete} onClick={() => setOpen(true)}
+        title={canDelete ? 'Delete this application and its Knowledge Bases' : 'Needs the automation.approve permission'}
+        className="h-[30px] rounded-[10px] px-2 text-[12.5px] font-semibold text-[#A3231C] hover:bg-[#FDECEC] disabled:cursor-not-allowed disabled:text-[#9CA3AF] disabled:hover:bg-transparent">
+        Delete
+      </button>
+      {open && <DeleteApplicationDialog appKey={appKey} name={name} onClose={() => setOpen(false)}
+        onDeleted={r => { setOpen(false); onDeleted(r) }} />}
+    </>
+  )
+}
+
+const DeleteApplicationDialog: React.FC<{
+  appKey: string
+  name: string
+  onClose: () => void
+  onDeleted: (result: { name: string; archived_to: string | null }) => void
+}> = ({ appKey, name, onClose, onDeleted }) => {
+  const [preview, setPreview] = useState<AppDeletion | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [typed, setTyped] = useState('')
+  const [understood, setUnderstood] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let live = true
+    knowledgeBaseService.deletionPreview(appKey)
+      .then(p => { if (live) setPreview(p) })
+      .catch(err => { if (live) setLoadError(errorText(err)) })
+    return () => { live = false }
+  }, [appKey])
+
+  const exactName = preview?.name ?? name
+  const matches = typed.trim().replace(/\s+/g, ' ') === exactName
+  const ready = !!preview && matches && understood && !busy
+  const remove = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const r = await knowledgeBaseService.deleteApplication(appKey, typed.trim())
+      onDeleted({ name: r.name, archived_to: r.archived_to })
+    } catch (err) {
+      setError(errorText(err))
+      setBusy(false)
+    }
+  }
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+  const folders = !!preview && (preview.journey_kb.exists || (preview.automation_kb.exists && !preview.automation_kb.shared))
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 px-4 py-10" role="alertdialog" aria-modal="true"
+      aria-label={`Delete ${exactName}`} onClick={() => !busy && onClose()}>
+      <div className="flex w-full max-w-[600px] flex-col gap-4 rounded-[20px] border-2 border-[#F1A4A6] bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-start gap-3">
+          <span aria-hidden className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#FDECEC] text-[16px] font-bold text-[#A3231C]">!</span>
+          <div>
+            <h2 className="m-0 text-[18px] font-bold text-[#A3231C]">Delete {exactName}?</h2>
+            <p className="m-0 mt-1 text-[12.5px] text-[#4B5563]">
+              This removes the application for every user. Test case generation, scripts and crawls that use it lose it.
+              It cannot be undone from this page.
+            </p>
+          </div>
+        </div>
+
+        {!preview && !loadError && <p className="m-0 text-[12.5px] text-[#6B7280]">Checking what this would delete…</p>}
+        {loadError && <div className="text-[12.5px] text-[#A3231C]">{loadError}</div>}
+        {preview && (
+          <div className="rounded-[12px] border border-[#F6D4D5] bg-[#FFF7F7] p-4 text-[12.5px] text-[#374151]">
+            <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#A3231C]">What will happen</div>
+            <ul className="m-0 flex list-disc flex-col gap-1.5 pl-5">
+              {preview.test_data.registered && (
+                <li>
+                  Removed from Test Data, with {plural(preview.test_data.environments.length, 'environment')}
+                  {preview.test_data.environments.length > 0 && ` (${preview.test_data.environments.join(', ')})`} and {plural(preview.test_data.values, 'stored value')}.{' '}
+                  {preview.test_data.values > 0 && <strong>The stored values are erased.</strong>}
+                </li>
+              )}
+              {preview.crawl.registered && (preview.crawl.runs > 0
+                ? <li>Removed from the crawl list. Its {plural(preview.crawl.runs, 'discovery run')} {preview.crawl.runs === 1 ? 'is' : 'are'} kept, because test cases may point at {preview.crawl.runs === 1 ? 'it' : 'them'}.</li>
+                : <li>Removed from the crawl list.</li>)}
+              {preview.journey_kb.exists && (
+                <li>Its Journey KB ({plural(preview.journey_kb.journeys, 'journey')}, {plural(preview.journey_kb.screens, 'screen')}, {plural(preview.journey_kb.documents, 'uploaded document')}) is taken off this page.</li>
+              )}
+              {preview.automation_kb.exists && (preview.automation_kb.shared
+                ? <li>Its crawled Automation KB is kept: another Journey KB is built on it.</li>
+                : <li>Its crawled Automation KB (objects, flows and selectors) is taken off this page.</li>)}
+              {folders && (
+                <li>The Knowledge Base folders are moved to <code className="text-[11.5px]">knowledge_base/_deleted/</code> on the server. Only an administrator can restore them.</li>
+              )}
+            </ul>
+            {preview.pending_change_sets > 0 && (
+              <p className="m-0 mt-3 font-semibold text-[#A3231C]">
+                {plural(preview.pending_change_sets, 'change set')} {preview.pending_change_sets === 1 ? 'is' : 'are'} still waiting for review and will be abandoned.
+              </p>
+            )}
+          </div>
+        )}
+
+        {preview && (
+          <>
+            <label className="flex items-start gap-2 text-[12.5px] text-[#374151]">
+              <input type="checkbox" className="mt-0.5" checked={understood} onChange={e => setUnderstood(e.target.checked)} />
+              I understand this deletes {exactName} for everyone and cannot be undone from this page.
+            </label>
+            <label className={LABEL}>
+              <span>Type <span className="normal-case tracking-normal text-[#1F2937]">{exactName}</span> to confirm</span>
+              <input aria-label="Type the application name to confirm" className={INPUT} value={typed} autoComplete="off" spellCheck={false}
+                onChange={e => setTyped(e.target.value)} onPaste={e => e.preventDefault()}
+                onKeyDown={e => { if (e.key === 'Enter' && ready) void remove() }} />
+            </label>
+          </>
+        )}
+        {error && <div className="text-[12.5px] text-[#A3231C]">{error}</div>}
+
+        <div className="flex justify-end gap-2">
+          <button type="button" autoFocus className={BTN_PLAIN} disabled={busy} onClick={onClose}>Cancel</button>
+          <button type="button" disabled={!ready} onClick={() => void remove()}
+            className="h-[34px] rounded-[10px] bg-[#A3231C] px-3.5 text-[12.5px] font-bold text-white hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-40">
+            {busy ? 'Deleting…' : 'Delete application'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
