@@ -5,7 +5,7 @@ import logging
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..database.connection import get_db
@@ -114,15 +114,10 @@ async def list_approved_document_ids(
     current_user=Depends(get_current_user_strict),
     db: Session = Depends(get_db),
 ):
-    """List distinct document IDs belonging to fully approved review requests."""
-    approved_request_ids = (
-        db.query(TestCaseReviewDetail.request_id)
-        .filter(TestCaseReviewDetail.overall_status == 'APPROVED')
-        .subquery()
-    )
+    """List distinct document IDs that have approved test cases."""
     rows = (
         db.query(TestCaseDetail.document_id)
-        .filter(TestCaseDetail.request_id.in_(approved_request_ids), TestCaseDetail.document_id.isnot(None), TestCaseDetail.document_id != '')
+        .filter(func.upper(TestCaseDetail.status) == 'APPROVED', TestCaseDetail.document_id.isnot(None), TestCaseDetail.document_id != '')
         .distinct()
         .all()
     )
@@ -135,17 +130,20 @@ async def get_approved_test_cases_by_request(
     current_user=Depends(get_current_user_strict),
     db: Session = Depends(get_db),
 ):
-    """Retrieve test cases for a fully approved review request."""
+    """The approved test cases of a review request (drafts, pending and rejected ones are not listed)."""
     if not request_id or not request_id.strip():
         raise HTTPException(status_code=422, detail='request_id is required')
 
     detail = db.query(TestCaseReviewDetail).filter(TestCaseReviewDetail.request_id == request_id).first()
     if not detail:
         raise HTTPException(status_code=404, detail='Review request not found')
-    if detail.overall_status != 'APPROVED':
-        raise HTTPException(status_code=409, detail='Review request is not fully approved')
-
-    test_cases = db.query(TestCaseDetail).filter(TestCaseDetail.request_id == request_id).all()
+    test_cases = (
+        db.query(TestCaseDetail)
+        .filter(TestCaseDetail.request_id == request_id, func.upper(TestCaseDetail.status) == 'APPROVED')
+        .all()
+    )
+    if not test_cases:
+        raise HTTPException(status_code=409, detail='No test case in this request is approved yet')
     return {'items': [_serialize_test_case_detail(item) for item in test_cases]}
 
 
@@ -162,7 +160,7 @@ async def get_approved_test_cases_by_document(
     test_cases = (
         db.query(TestCaseDetail)
         .join(TestCaseReviewDetail, TestCaseDetail.request_id == TestCaseReviewDetail.request_id)
-        .filter(TestCaseReviewDetail.overall_status == 'APPROVED', TestCaseDetail.document_id == document_id)
+        .filter(func.upper(TestCaseDetail.status) == 'APPROVED', TestCaseDetail.document_id == document_id)
         .all()
     )
     return {'items': [_serialize_test_case_detail(item) for item in test_cases]}
@@ -630,9 +628,20 @@ def _require_review_manager(current_user: Dict[str, Any]) -> None:
     if 'admin' not in user_roles and 'manager' not in user_roles:
         raise HTTPException(status_code=403, detail='Manager access required')
 
-# Helper function to determine the cutoff datetime for recent reviews
 def _recent_cutoff() -> datetime:
-    return _dubai_now() - timedelta(minutes=5)
+    # "Recent / Current" was the last 5 minutes: an approval dropped out of it
+    # almost at once into the collapsed history list and looked lost.
+    return _dubai_now() - timedelta(hours=24)
+
+
+def _has_approved_cases():
+    """Requests with at least one approved test case.
+
+    Only overall_status == APPROVED used to count, so a request with some
+    cases approved and others still pending (PARTIALLY_APPROVED), or out-voted
+    by rejections (REJECTED), never reached the Approved area at all.
+    """
+    return or_(TestCaseReviewDetail.overall_status == 'APPROVED', TestCaseReviewDetail.approved_count > 0)
 
 # Helper function to serialize approved review details into a dictionary
 def _serialize_approved_review_details(details: List[TestCaseReviewDetail]) -> Dict[str, Any]:
@@ -829,7 +838,7 @@ async def list_recent_approved_review_details(
     details = (
         db.query(TestCaseReviewDetail)
         .filter(
-            TestCaseReviewDetail.overall_status == 'APPROVED',
+            _has_approved_cases(),
             TestCaseReviewDetail.reviewed_date_time >= _recent_cutoff(),
             ~TestCaseReviewDetail.request_id.like('ADO-%'),
         )
@@ -848,7 +857,7 @@ async def list_ado_approved_review_details(
     _require_review_manager(current_user)
     details = (
         db.query(TestCaseReviewDetail)
-        .filter(TestCaseReviewDetail.overall_status == 'APPROVED', TestCaseReviewDetail.source.in_(['ADO', 'AZURE_DEVOPS']))
+        .filter(_has_approved_cases(), TestCaseReviewDetail.source.in_(['ADO', 'AZURE_DEVOPS']))
         .order_by(TestCaseReviewDetail.request_date_time.desc())
         .all()
     )
@@ -865,7 +874,7 @@ async def list_approved_review_history(
     details = (
         db.query(TestCaseReviewDetail)
         .filter(
-            TestCaseReviewDetail.overall_status == 'APPROVED',
+            _has_approved_cases(),
             TestCaseReviewDetail.reviewed_date_time < _recent_cutoff(),
             ~TestCaseReviewDetail.request_id.like('ADO-%'),
         )

@@ -175,7 +175,7 @@ const ApprovedTestCases: React.FC = () => {
         document_id: item.document_id ?? '',
         reviewed_by: item.reviewed_by ?? '',
         reviewed_datetime: item.reviewed_date_time ?? null,
-        test_case_count: item.no_of_test_cases ?? 0,
+        test_case_count: item.approved_count || item.no_of_test_cases || 0,
         test_cases: []
       }))
       setGroups(toGroups(currentResponse.data?.items ?? []))
