@@ -950,12 +950,20 @@ def assess(case: Any, context: Optional[ClassificationContext] = None) -> dict:
     # A refinement blocker is the model's own reading of the case and outranks
     # everything the regexes below can see, so it leads the list.
     for blocker in list(getattr(case, "automation_blockers", None) or []):
+        text = str(blocker)
+        if text.startswith("Open question: "):
+            # Something to confirm, not something that stops a script: it is
+            # shown with the case and does not change the verdict.
+            findings.append(
+                Finding(code="refine.question", severity=SEVERITY_NOTE, scope="steps", message=text)
+            )
+            continue
         findings.append(
             Finding(
                 code="refine.blocker",
                 severity=SEVERITY_BLOCKER,
                 scope="steps",
-                message=f"Refinement found something that cannot be automated: {blocker}",
+                message=f"Refinement found something that cannot be automated: {text}",
             )
         )
     for check in checks.values():

@@ -35,6 +35,7 @@ classification.assess), called earlier in the journey than before.
 """
 from __future__ import annotations
 
+import copy
 import logging
 import re
 import threading
@@ -421,11 +422,35 @@ def _run_check_steps(check_id: int) -> None:
             _set_step(db, check, step, "skipped")
         else:
             _set_step(db, check, step, "running")
+            before = {name: copy.deepcopy(getattr(case, name)) for name in _IMPROVE_FIELDS}
             improved = auto_improve_test_case(case, db, review_data=review, reference=reference)
             db.refresh(case)
-            check.score_after = (improved.get("review") or {}).get("overall_score", case.review_score)
-            check.improved = True
-            _set_step(db, check, step, "done")
+            score_after = (improved.get("review") or {}).get("overall_score", case.review_score)
+            if check.score_before is not None and score_after is not None and score_after < check.score_before:
+                # An improvement that scores worse is not one. It happened when
+                # the improver swapped values it could not source for <<TODO>>
+                # placeholders: the re-review marked data readiness down
+                # (3.6 -> 2.1) and the case went to Manual. Keep the case as
+                # it was reviewed, and say what was discarded.
+                for name, value in before.items():
+                    setattr(case, name, value)
+                findings = dict(case.review_findings or {})
+                findings["auto_improve_discarded"] = {
+                    "score_before": check.score_before,
+                    "score_after": score_after,
+                    "reason": "Auto-Improve scored lower than the reviewed case, so the reviewed case was kept.",
+                }
+                case.review_findings = findings
+                check.score_after = check.score_before
+                check.improved = False
+                logger.info("AI Checks: check %s kept its reviewed case; Auto-Improve scored %s against %s",
+                            check.id, score_after, check.score_before)
+                db.commit()
+                _set_step(db, check, step, "skipped")
+            else:
+                check.score_after = score_after
+                check.improved = True
+                _set_step(db, check, step, "done")
 
         # 4. KB Diff, on the case as it will be approved.
         if _stopping(check.batch_id):
@@ -454,6 +479,15 @@ def _run_check_steps(check_id: int) -> None:
             logger.exception("Could not record the AI Checks failure for check %s", check_id)
     finally:
         db.close()
+
+
+# What Auto-Improve and its re-review change on a case; restored together when
+# the improvement scores lower than the case it started from.
+_IMPROVE_FIELDS = (
+    "objective", "preconditions", "steps_structured", "steps_raw", "expected_result", "priority",
+    "test_type", "test_data_required", "test_data_status", "test_data_notes",
+    "review_score", "review_verdict", "review_scores", "review_findings", "reviewed_at",
+)
 
 
 def _mark_stopped(db: Session, check_id: int) -> None:

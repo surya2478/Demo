@@ -56,6 +56,9 @@ STEPS = [
 ]
 
 
+WORSE_AFTER_IMPROVE = False
+
+
 def fake_complete_json(*, system_prompt, user_input, model_cls, **_):
     payload = json.loads(user_input.split("<user_content>", 1)[1].rsplit("</user_content>", 1)[0])
     name = model_cls.__name__
@@ -69,6 +72,10 @@ def fake_complete_json(*, system_prompt, user_input, model_cls, **_):
             "priority": "High", "test_type": "Positive", "test_data_requirements": [],
             "test_data_required": False, "test_data_notes": None, "automation_blockers": [],
         }])
+    if name == "TestCaseReviewLLMOutput" and WORSE_AFTER_IMPROVE and any(c["model"] == "ImprovedTestCaseLLM" for c in calls):
+        return model_cls(test_case_id="x", step_quality_score=2, data_readiness_score=1,
+                         expected_result_clarity_score=2, coverage_score=2,
+                         coverage_gaps=["resend path"], issues=["placeholders"], suggestions=[])
     if name == "TestCaseReviewLLMOutput":
         # A coverage gap forces Auto-Improve to run, so all three steps are seen.
         return model_cls(test_case_id="x", step_quality_score=3, data_readiness_score=4,
@@ -166,6 +173,19 @@ check(all("reference_knowledge" not in c["payload"] for c in seen), "no step rec
 check({c["provider"] for c in seen} == {"ai_service"}, f"every step runs on the AI service, like Default generation ({ {c['provider'] for c in seen} })")
 check(record.steps.get("diff") == "skipped" and case.journey_diff is None, "KB Diff skipped, nothing stored")
 check(view["items"][0]["journey_diff"] is None, "batch view reports no diff")
+
+print("2b. An Auto-Improve that scores lower is discarded")
+WORSE_AFTER_IMPROVE = True
+view, record, case, seen = run("Automation KB")
+WORSE_AFTER_IMPROVE = False
+discarded = (case.review_findings or {}).get("auto_improve_discarded") or {}
+check(record.status == "done" and record.steps.get("improve") == "skipped",
+      f"check finished, improve skipped ({record.status}, {record.steps.get('improve')})")
+check(record.score_after == record.score_before and not record.improved,
+      f"score kept at {record.score_before} (after {record.score_after})")
+check(discarded.get("score_after") is not None and discarded["score_after"] < discarded["score_before"],
+      f"the discarded attempt is recorded ({discarded})")
+check(case.review_score == record.score_before, "the case keeps its reviewed score")
 
 print("3. A batch checked before KB Diff existed")
 db = SessionLocal()
