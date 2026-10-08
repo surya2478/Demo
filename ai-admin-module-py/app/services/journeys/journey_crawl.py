@@ -387,6 +387,11 @@ def _recorded_item(step: Dict[str, Any], data_profile: Dict[str, Any]) -> Dict[s
         out["at"] = rec["at"]
     if fills:
         field = rec.get("field") or "text"
+        # Recorded before the recorder checked for an email box first: a single
+        # field labelled "Enter your email to receive OTP" (userEmailField) was
+        # saved as an OTP field, and every walk typed the code into it.
+        if field == "otp" and not otp and re.search(r"e-?mail", f"{label} {rec.get('target') or ''}", re.I):
+            field = "email"
         words = {"username": ("username", "email", "user"), "email": ("email", "username", "user"), "password": ("password",),
                  "otp": ("otp",), "mobile": ("mobile", "phone")}.get(field, (field,))
         variable = _profile_variable(data_profile, *words) or (f"TESTDATA_{field.upper()}" if field != "text" else None)

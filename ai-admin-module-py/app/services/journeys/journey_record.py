@@ -412,8 +412,10 @@ function recorder() {
     const type = (el.getAttribute('type') || '').toLowerCase();
     const words = [el.getAttribute('name'), el.id, el.getAttribute('placeholder'), el.getAttribute('autocomplete'), el.getAttribute('aria-label'), labelOf(el)].join(' ').toLowerCase();
     if (type === 'password' || /pass(word|code)?\b/.test(words)) return 'password';
-    if (el.getAttribute('maxlength') === '1' || /\b(otp|one[- ]?time|verification code|pin)\b|otp/.test(words)) return 'otp';
+    if (el.getAttribute('maxlength') === '1') return 'otp';
+    // Before the OTP words: "Enter your email to receive OTP" is the email box.
     if (type === 'email' || /e-?mail/.test(words)) return /user/.test(words) ? 'username' : 'email';
+    if (/\b(otp|one[- ]?time|verification code|pin)\b|otp/.test(words)) return 'otp';
     if (/user|login/.test(words)) return 'username';
     if (type === 'tel' || /mobile|phone|msisdn/.test(words)) return 'mobile';
     if (type === 'search' || /search/.test(words)) return 'search';
