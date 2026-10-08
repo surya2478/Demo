@@ -360,7 +360,7 @@ export interface JourneyCrawl {
   created_at: string | null
   finished_at: string | null
   summary: Partial<Record<CrawlOutcome, number>> | null
-  source?: 'journey' | 'flow' | 'record'
+  source?: 'journey' | 'flow' | 'record' | 'capture'
   stop_before?: number | null
   stop_reason?: string | null
   result?: {
@@ -374,7 +374,20 @@ export interface JourneyCrawl {
     derailed?: { after: number; reason: string } | null
     scenario?: CrawlScenario | null
     routes?: { screen_id: string; path: string; known: string | null; state: 'same' | 'new' | 'differs' }[]
+    /** A browser capture (source 'capture'): the uploaded pages and the screen each was matched to. */
+    capture?: CaptureInfo
   } | null
+}
+
+export interface CaptureInfo {
+  file: string
+  format: string
+  host?: string | null
+  started_at?: string | null
+  finished_at?: string | null
+  uploaded_by?: string | null
+  pages: { page_id: string; name: string; url: string | null; screen_id: string | null; elements: number }[]
+  notes: string[]
 }
 
 export type ChangeSetStatus = 'draft' | 'published' | 'rejected' | 'conflicted'
@@ -758,6 +771,18 @@ const knowledgeBaseService = {
   proposeFromCrawl: async (id: number, body?: { additions?: string[]; picks?: { screen_id: string; element_id: string; selector: string }[] }): Promise<JourneyCrawl> =>
     (await api.post(`${BASE}/journey-crawls/${id}/propose`, body ?? {})).data,
   /** Record a journey: a browser opens on the server's machine for someone to do it in. */
+  /** The browser capture tool's source, for a bookmarklet or the DevTools console. */
+  captureTool: async (): Promise<string> =>
+    (await api.get(`${BASE}/capture-tool.js`, { responseType: 'text', transformResponse: [(d: string) => d] })).data,
+  /** A capture zip (or .json) uploaded as a walk of `journey_id`; reviewed like one. */
+  importCapture: async (app: string, body: { file: File; journey_id: string; application_id?: number | null; environment?: string | null }): Promise<JourneyCrawl> => {
+    const form = new FormData()
+    form.append('file', body.file)
+    form.append('journey_id', body.journey_id)
+    if (body.application_id != null) form.append('application_id', String(body.application_id))
+    if (body.environment) form.append('environment', body.environment)
+    return (await api.post(`${BASE}/${enc(app)}/journey-crawl/import`, form)).data
+  },
   startRecording: async (app: string, body: { journey_id: string; application_id: number; environment?: string | null }): Promise<JourneyCrawl> =>
     (await api.post(`${BASE}/${enc(app)}/journey-record`, body)).data,
   finishRecording: async (id: number): Promise<void> => { await api.post(`${BASE}/journey-crawls/${id}/finish`) },

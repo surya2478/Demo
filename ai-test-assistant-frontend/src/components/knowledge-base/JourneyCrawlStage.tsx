@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import knowledgeBaseService, {
   errorText, type CrawlOutcome, type CrawlPlan, type CrawlPlanItem, type CrawlStep, type InventoryPage, type JourneyCrawl, type WalkCapabilities, type WalkFlow, type WalkLive
@@ -257,6 +257,94 @@ const ScreenInventory: React.FC<{
 // one), stop before anything that changes data, then replay it. A journey walk
 // also looks for every element the design says each screen has and proposes
 // what it captured as change sets; nothing is written until approved.
+// --- A capture from the person's own browser -------------------------------------------
+//
+// Where Playwright cannot run, the capture tool does the walk's browser half in
+// the person's own browser: they open each page of the journey, capture it
+// (every control, heading, column header and message, with a selector that
+// matches only that element) and pick and name anything else. The zip it
+// downloads is uploaded here against the journey and reviewed like a walk.
+
+const CaptureUpload: React.FC<{
+  appKey: string
+  journeyId: string
+  application: { id: number; environment: string; base_url: string }
+  canExecute: boolean
+  onImported: (id: number) => void
+}> = ({ appKey, journeyId, application, canExecute, onImported }) => {
+  const [code, setCode] = useState<string | null>(null)
+  const [codeError, setCodeError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [file, setFile] = useState<File | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const bookmarklet = useRef<HTMLAnchorElement | null>(null)
+  useEffect(() => {
+    knowledgeBaseService.captureTool().then(setCode).catch(err => setCodeError(errorText(err)))
+  }, [])
+  // Set outside React: it refuses javascript: URLs in href, and a bookmarklet is one.
+  useEffect(() => {
+    if (bookmarklet.current && code) bookmarklet.current.setAttribute('href', `javascript:${encodeURIComponent(code)}`)
+  }, [code])
+  const copy = async () => {
+    if (!code) return
+    try { await navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2500) } catch { setCodeError('Copy failed; the browser blocked the clipboard.') }
+  }
+  const upload = async () => {
+    if (!file) return
+    setBusy(true)
+    setError(null)
+    try {
+      const crawl = await knowledgeBaseService.importCapture(appKey, { file, journey_id: journeyId, application_id: application.id, environment: application.environment })
+      setFile(null)
+      onImported(crawl.id)
+    } catch (err) {
+      setError(errorText(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="flex flex-col gap-3 rounded-[12px] border border-[#E8EAEE] p-4 text-[12.5px] text-[#374151]">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="flex flex-col gap-2">
+          <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#6B7280]">1 · Capture in your browser</span>
+          <ol className="m-0 flex list-decimal flex-col gap-1 pl-5">
+            <li>Open {application.base_url} ({application.environment}) in your own Edge or Chrome and sign in.</li>
+            <li>Start the tool: drag <a ref={bookmarklet} href="#capture-tool" onClick={e => e.preventDefault()} draggable
+              className="rounded-[6px] bg-[#B71920] px-1.5 py-0.5 font-bold text-white no-underline" title="Drag me to the bookmarks bar, then click the bookmark on the application's page">KB capture</a> to your bookmarks bar and click it there, or paste the copied code into the DevTools Console.</li>
+            <li>On every page of the journey — and every dialog, open — press <strong>Capture page</strong>. Use <strong>Pick element</strong> to name anything the journey needs that is not a button or field.</li>
+            <li>Press <strong>Download zip</strong>. Nothing you type is recorded.</li>
+          </ol>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => void copy()} disabled={!code}
+              className="h-[30px] rounded-[9px] border border-[#E8EAEE] bg-white px-3 text-[12.5px] font-bold text-[#1F2937] hover:border-[#F6D4D5] disabled:opacity-50">
+              {copied ? 'Copied' : 'Copy for the DevTools Console'}
+            </button>
+          </div>
+          {codeError && <Note tone="warn">{codeError}</Note>}
+        </div>
+        <div className="flex flex-col gap-2">
+          <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#6B7280]">2 · Upload it against this journey</span>
+          <input type="file" accept=".zip,.json,application/zip,application/json" aria-label="Capture file"
+            onChange={e => { setFile(e.target.files?.[0] ?? null); setError(null) }}
+            className="text-[12.5px] file:mr-3 file:h-[30px] file:rounded-[9px] file:border file:border-[#E8EAEE] file:bg-white file:px-3 file:font-bold" />
+          <span className="text-[#6B7280]">
+            Each page is matched to a screen of the journey by its address and what is on it; each step's element is found by its label.
+            The result opens below like a walk: pick suggestions, propose changes, then Generate flow. A zip in the page-object layout (journey.json + pages/*.json) is read too.
+          </span>
+          <button type="button" onClick={() => void upload()} disabled={!canExecute || !file || !journeyId || busy}
+            title={!canExecute ? 'Needs the automation.execute permission' : undefined}
+            className="h-[34px] w-fit rounded-[10px] bg-[#B71920] px-4 text-[13px] font-bold text-white hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50">
+            {busy ? 'Matching…' : 'Upload and match'}
+          </button>
+          {error && <Note tone="warn">{error}</Note>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const JourneyCrawlStage: React.FC<{
   appKey: string
   application: { id: number; environment: string; base_url: string }
@@ -278,7 +366,7 @@ const JourneyCrawlStage: React.FC<{
   // What to do: walk a journey or a flow blueprint (?flow=<id> opens on one),
   // or record a journey by doing it (?record=1, from the Journey Map).
   const askedFlow = params.get('flow')
-  const [source, setSource] = useState<'journey' | 'flow' | 'record'>(askedFlow ? 'flow' : params.get('record') ? 'record' : 'journey')
+  const [source, setSource] = useState<'journey' | 'flow' | 'record' | 'capture'>(askedFlow ? 'flow' : params.get('record') ? 'record' : params.get('capture') ? 'capture' : 'journey')
   const [journeyId, setJourneyId] = useState<string>('')
   const [flowId, setFlowId] = useState<string>(askedFlow ?? '')
   const [profileId, setProfileId] = useState<string>('')
@@ -294,6 +382,8 @@ const JourneyCrawlStage: React.FC<{
   useEffect(() => { if (!flowId && flowList?.length) setFlowId(flowList[0].flow_id) }, [flowList, flowId])
   const sourceId = source === 'flow' ? (flowId ? `flow:${flowId}` : '') : journeyId
   const recording = source === 'record'
+  // A capture is uploaded, not run: none of the walk's run controls apply.
+  const capturing = source === 'capture'
   useEffect(() => { setStopBefore(null); setAllowRisky(false) }, [sourceId])
 
   const [plan, setPlan] = useState<CrawlPlan | null>(null)
@@ -460,10 +550,10 @@ const JourneyCrawlStage: React.FC<{
             <div className={LABEL}>
               Walk
               <div role="radiogroup" aria-label="What to walk" className="flex h-[34px] overflow-hidden rounded-[10px] border border-[#E8EAEE]">
-                {(['journey', 'flow', 'record'] as const).map(s => (
+                {(['journey', 'flow', 'record', 'capture'] as const).map(s => (
                   <button key={s} type="button" role="radio" aria-checked={source === s} onClick={() => setSource(s)}
                     className={`px-3 text-[12.5px] font-semibold normal-case tracking-normal ${source === s ? 'bg-[#1F2937] text-white' : 'bg-white text-[#374151]'}`}>
-                    {s === 'journey' ? 'A journey' : s === 'flow' ? 'A flow blueprint' : 'Record it myself'}
+                    {s === 'journey' ? 'A journey' : s === 'flow' ? 'A flow blueprint' : s === 'record' ? 'Record it myself' : 'Upload a capture'}
                   </button>
                 ))}
               </div>
@@ -483,7 +573,7 @@ const JourneyCrawlStage: React.FC<{
                 </select>
               </label>
             )}
-            {!recording && <>
+            {!recording && !capturing && <>
             <label className={LABEL}>
               Test data
               <select aria-label="Test data profile" value={profileId || plan?.profile_id || ''} onChange={e => setProfileId(e.target.value)} className={`${SELECT} max-w-[300px]`}>
@@ -529,7 +619,11 @@ const JourneyCrawlStage: React.FC<{
                 : `Opens a browser window on this machine at ${application.base_url} (${application.environment}). Do the journey yourself: every click, field and choice becomes a step with the selector it used, and nothing you type is kept. Afterwards you review the steps and save them as this journey's steps.`}
             </Note>
           )}
-          {!recording && <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[12.5px] text-[#374151]">
+          {capturing && (
+            <CaptureUpload appKey={appKey} journeyId={journeyId} application={application} canExecute={canExecute}
+              onImported={id => { setSelectedId(id); loadCrawls() }} />
+          )}
+          {!recording && !capturing && <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[12.5px] text-[#374151]">
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={allowRisky} onChange={e => setAllowRisky(e.target.checked)} className="accent-[#B71920]" />
               Allow steps that change data
@@ -546,7 +640,7 @@ const JourneyCrawlStage: React.FC<{
           </div>}
           {blocked && <Note tone="warn">Walks do not run against {application.environment}: they fill in forms and click through journeys. Choose SIT, QA, UAT or RC in the header.</Note>}
           {planError && <Note tone="warn">{planError}</Note>}
-          {missing.length > 0 && (
+          {missing.length > 0 && !capturing && (
             <Note tone="warn">Test Data has no value in {application.environment} for {missing.join(', ')}. Add it on the Test Data stage, or stop the walk before the step that needs it.</Note>
           )}
           {actionError && <Note tone="warn">{actionError}</Note>}
@@ -594,7 +688,7 @@ const JourneyCrawlStage: React.FC<{
               </ol>
             </details>
           )}
-          {!recording && <p className="m-0 text-[12px] text-[#6B7280]">
+          {!recording && !capturing && <p className="m-0 text-[12px] text-[#6B7280]">
             {plan?.source !== 'flow' && plan?.entry ? <>Starts at {plan.entry} and lets the application open its first screen; each screen is recognised by what is on it. </> : null}
             Values come from Test Data at run time and are never recorded; typed fields are painted over in screenshots and live frames (the video and trace still show them). A journey walk keeps a selector only if it matched exactly one element.
           </p>}
@@ -603,17 +697,17 @@ const JourneyCrawlStage: React.FC<{
 
       <Card label="Walk results">
         <CardHead
-          title={detail ? `${detail.source === 'record' ? 'Recording' : 'Walk'} #${detail.id} · ${detail.journey_name ?? detail.journey_id}` : 'Walk results'}
-          hint={detail ? `${detail.source === 'flow' ? 'Flow blueprint' : detail.source === 'record' ? 'Recorded by a person' : 'Journey'} · ${detail.environment ?? ''} · ${detail.profile_id ?? 'no profile'} · started ${detail.created_at ? new Date(detail.created_at + 'Z').toLocaleString() : '—'}${detail.created_by ? ` by ${detail.created_by}` : ''}` : 'Nothing has been walked for this application yet'}
+          title={detail ? `${detail.source === 'record' ? 'Recording' : detail.source === 'capture' ? 'Capture' : 'Walk'} #${detail.id} · ${detail.journey_name ?? detail.journey_id}` : 'Walk results'}
+          hint={detail ? `${detail.source === 'flow' ? 'Flow blueprint' : detail.source === 'record' ? 'Recorded by a person' : detail.source === 'capture' ? 'Captured in a browser' : 'Journey'} · ${detail.environment ?? ''} · ${detail.source === 'capture' ? (detail.result?.capture?.file ?? 'uploaded') : (detail.profile_id ?? 'no profile')} · started ${detail.created_at ? new Date(detail.created_at + 'Z').toLocaleString() : '—'}${detail.created_by ? ` by ${detail.created_by}` : ''}` : 'Nothing has been walked for this application yet'}
           right={
             <div className="flex flex-wrap items-center gap-2">
               {crawls && crawls.length > 1 && (
                 <select aria-label="Walk" value={shownId ?? ''} onChange={e => setSelectedId(Number(e.target.value))} className={SELECT}>
-                  {crawls.map(c => <option key={c.id} value={c.id}>#{c.id} · {c.source === 'record' ? 'recording · ' : ''}{c.journey_name ?? c.journey_id} · {c.environment} · {c.status}</option>)}
+                  {crawls.map(c => <option key={c.id} value={c.id}>#{c.id} · {c.source === 'record' ? 'recording · ' : c.source === 'capture' ? 'capture · ' : ''}{c.journey_name ?? c.journey_id} · {c.environment} · {c.status}</option>)}
                 </select>
               )}
               {detail && <Chip tone={STATUS_TONE[detail.status]}>{detail.status}</Chip>}
-              {detail?.status === 'completed' && detail.source === 'journey' && ranSteps && (
+              {detail?.status === 'completed' && (detail.source === 'journey' || detail.source === 'capture') && ranSteps && (
                 <button type="button" onClick={() => void generateFlow(detail.id)} disabled={!canExecute || busy !== null}
                   title="Regenerates the journey's own flow blueprint from its steps and the selectors walks confirmed (as the Journey Map does) — drafted for review"
                   className="h-[34px] rounded-[10px] border border-[#E8EAEE] bg-white px-4 text-[13px] font-bold text-[#1F2937] hover:border-[#F6D4D5] disabled:opacity-50">
@@ -653,7 +747,20 @@ const JourneyCrawlStage: React.FC<{
               <div className="px-5 pb-3"><Note>Stopped before step {detail.stop_before}: {detail.stop_reason}.</Note></div>
             )}
             {detail.result.blockers.length > 0 && <div className="px-5 pb-3"><Note tone="warn">Stopped early: {detail.result.blockers.join('; ')}</Note></div>}
-            {detail.result.entry && (
+            {detail.result.capture && (
+              <div className="flex flex-col gap-2 px-5 pb-3">
+                {detail.result.capture.notes.map(n => <Note key={n} tone="warn">{n}</Note>)}
+                <div className="flex flex-wrap gap-1.5 text-[12px] text-[#4B5563]">
+                  <span className="font-semibold">Pages:</span>
+                  {detail.result.capture.pages.map(p => (
+                    <span key={p.page_id} title={p.url ?? undefined} className={`rounded-full border px-2 py-0.5 ${p.screen_id ? 'border-[#D5E9DD] bg-[#F1F8F4]' : 'border-[#F6D4D5] bg-[#FFF7F7]'}`}>
+                      {p.name || p.page_id} → {p.screen_id ? (detailPlan?.screen_names?.[p.screen_id] ?? p.screen_id) : 'no screen'} · {p.elements}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {detail.result.entry && detail.source !== 'capture' && (
               <div className="px-5 pb-3 text-[12px] text-[#4B5563]">
                 Started at <span className="font-mono">{detail.result.entry.address}</span>
                 {detail.result.entry.landed && <> → the application opened <span className="font-mono">{detail.result.entry.landed}</span></>}

@@ -912,6 +912,43 @@ def start_crawl(
     return crawl_runs.view(run)
 
 
+@router.get("/capture-tool.js")
+def capture_tool(current_user: dict = Depends(require_permission(PERM_VIEW))) -> Response:
+    """The browser capture tool: run as a bookmarklet or pasted into the DevTools console."""
+    from ..services.journeys import journey_capture
+
+    return Response(content=journey_capture.snippet_js(), media_type="application/javascript; charset=utf-8",
+                    headers={"Cache-Control": "no-store"})
+
+
+@router.post("/{app_id}/journey-crawl/import", status_code=201)
+async def import_capture(
+    app_id: str,
+    file: UploadFile = File(...),
+    journey_id: str = Form(...),
+    application_id: Optional[int] = Form(default=None),
+    environment: Optional[str] = Form(default=None),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+) -> dict[str, Any]:
+    """A capture from the browser tool (zip or .json), evaluated as a walk of `journey_id`."""
+    from fastapi.concurrency import run_in_threadpool
+    from ..services.journeys import journey_capture
+
+    data = await file.read(journey_capture.MAX_BYTES + 1)
+    try:
+        crawl = await run_in_threadpool(
+            journey_capture.import_capture, db, app_id=app_id, journey_id=journey_id, application_id=application_id,
+            environment=(environment or "").strip() or None, filename=file.filename or "capture.zip", data=data,
+            actor=_actor(current_user),
+        )
+    except journey_capture.CaptureError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        _fail(exc)
+    return crawl_runs.view(crawl)
+
+
 @router.get("/{app_id}/journey-crawls")
 def list_crawls(
     app_id: str,
