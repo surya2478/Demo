@@ -69,51 +69,44 @@
     {
       "step_number": 1,
       "action": "Open e& UAE B2B Portal (Business Online) at the environment's address",
-      "target": "/b2bportal/loginV2.html",
-      "expected_result": "The page /b2bportal/loginV2.html opens",
+      "target": "/b2bportal/login.html",
+      "expected_result": "The page /b2bportal/login.html opens",
       "journey_step": 1
     },
     {
       "step_number": 2,
-      "action": "Click 'CLICK HERE' link",
-      "target": "//a[normalize-space(.)='CLICK HERE']",
-      "expected_result": "The page /b2bportal/loginV2.html opens",
+      "action": "Enter Email ID in 'Enter your email to receive OTP'",
+      "target": "//input[@id='userEmailField']",
+      "expected_result": "",
       "journey_step": 2
     },
     {
       "step_number": 3,
-      "action": "Enter the username in 'Email'",
-      "target": "//input[@id='userEmailField']",
-      "expected_result": "",
+      "action": "Click 'RECEIVE OTP'",
+      "target": "//button[normalize-space(.)='RECEIVE OTP']",
+      "expected_result": "The page /b2bportal/otp-verification.html opens",
       "journey_step": 3
     },
     {
       "step_number": 4,
-      "action": "Enter the password in 'Password'",
-      "target": "//input[@id='passField']",
-      "expected_result": "",
+      "action": "Enter the one-time password (6 boxes)",
+      "target": "//input[contains(@name,'opt-field[]')]",
+      "expected_result": "The page /b2bportal/app/accounts/dashboard360 opens",
       "journey_step": 4
     },
     {
       "step_number": 5,
-      "action": "Click 'SIGN IN'",
-      "target": "//div[@id='use-pass']/div/div/div[4]/div/button",
-      "expected_result": "The page /b2bportal/app/accounts/dashboard360 opens",
+      "action": "Click 'Dashboard' link",
+      "target": "//div[@id='navbarCollapse']//a[normalize-space(.)='Dashboard']",
+      "expected_result": "",
       "journey_step": 5
     },
     {
       "step_number": 6,
-      "action": "Click 'Dashboard' link",
-      "target": "//div[@id='navbarCollapse']//a[normalize-space(.)='Dashboard']",
-      "expected_result": "",
-      "journey_step": 6
-    },
-    {
-      "step_number": 7,
       "action": "Verify the landing page /b2bportal/app/accounts/dashboard360 is shown",
       "target": "/b2bportal/app/accounts/dashboard360",
       "expected_result": "The page /b2bportal/app/accounts/dashboard360 is showing",
-      "journey_step": 7
+      "journey_step": 6
     }
   ],
   "test_data_notes": {
@@ -123,6 +116,6 @@
   },
   "generated_from": {
     "journey_id": "B2B.REG.EXISTING.SIGNIN.OTP",
-    "generated_at": "2026-10-06T08:26:14Z"
+    "generated_at": "2026-10-08T12:04:44Z"
   }
 }

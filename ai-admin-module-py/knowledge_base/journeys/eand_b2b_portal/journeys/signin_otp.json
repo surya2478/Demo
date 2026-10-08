@@ -61,82 +61,68 @@
     {
       "step_number": 1,
       "action": "Open e& UAE B2B Portal (Business Online) at the environment's address",
-      "expected_result": "The page /b2bportal/loginV2.html opens",
+      "expected_result": "The page /b2bportal/login.html opens",
       "recorded": {
         "kind": "goto",
-        "route": "/b2bportal/loginV2.html",
-        "url": "/b2bportal/loginV2.html",
+        "route": "/b2bportal/login.html",
+        "url": "/b2bportal/login.html",
         "screenshot": "shot-0.png",
-        "recording": 21,
+        "recording": 25,
         "environment": "RC"
       }
     },
     {
       "step_number": 2,
-      "action": "Click 'CLICK HERE' link",
-      "expected_result": "The page /b2bportal/loginV2.html opens",
+      "action": "Enter Email ID in 'Enter your email to receive OTP'",
+      "expected_result": "",
       "recorded": {
-        "kind": "click",
-        "target": "//a[normalize-space(.)='CLICK HERE']",
-        "label": "CLICK HERE",
+        "kind": "fill",
+        "target": "//input[@id='userEmailField']",
+        "field": "otp",
+        "label": "Enter your email to receive OTP*",
         "url": "/b2bportal/login.html",
-        "led_to": "/b2bportal/loginV2.html",
         "screenshot": "shot-1.png",
         "unique": true,
-        "recording": 21,
+        "recording": 25,
         "environment": "RC"
       }
     },
     {
       "step_number": 3,
-      "action": "Enter the username in 'Email'",
-      "expected_result": "",
+      "action": "Click 'RECEIVE OTP'",
+      "expected_result": "The page /b2bportal/otp-verification.html opens",
       "recorded": {
-        "kind": "fill",
-        "target": "//input[@id='userEmailField']",
-        "field": "username",
-        "label": "Email*",
-        "url": "/b2bportal/loginV2.html",
+        "kind": "click",
+        "target": "//button[normalize-space(.)='RECEIVE OTP']",
+        "label": "RECEIVE OTP",
+        "url": "/b2bportal/login.html",
+        "led_to": "/b2bportal/otp-verification.html",
         "screenshot": "shot-2.png",
         "unique": true,
-        "recording": 21,
+        "recording": 25,
         "environment": "RC"
       }
     },
     {
       "step_number": 4,
-      "action": "Enter the password in 'Password'",
-      "expected_result": "",
+      "action": "Enter the one-time password (6 boxes)",
+      "expected_result": "The page /b2bportal/app/accounts/dashboard360 opens",
       "recorded": {
-        "kind": "fill",
-        "target": "//input[@id='passField']",
-        "field": "password",
-        "label": "Password*",
-        "url": "/b2bportal/loginV2.html",
-        "screenshot": "shot-3.png",
+        "kind": "otp",
+        "target": "//input[contains(@name,'opt-field[]')]",
+        "field": "otp",
+        "label": "opt-field[]",
+        "url": "/b2bportal/otp-verification.html",
+        "led_to": "/b2bportal/app/accounts/dashboard360",
+        "boxes": 6,
+        "screenshot": "shot-8.png",
         "unique": true,
-        "recording": 21,
+        "recording": 25,
         "environment": "RC"
       }
     },
     {
       "step_number": 5,
-      "action": "Click 'SIGN IN'",
-      "expected_result": "The page /b2bportal/app/accounts/dashboard360 opens",
-      "recorded": {
-        "kind": "click",
-        "target": "//div[@id='use-pass']/div/div/div[4]/div/button",
-        "label": "SIGN IN",
-        "url": "/b2bportal/loginV2.html",
-        "led_to": "/b2bportal/app/accounts/dashboard360",
-        "screenshot": "shot-4.png",
-        "unique": true,
-        "recording": 21,
-        "environment": "RC"
-      }
-    },
-    {
-      "step_number": 6,
       "action": "Click 'Dashboard' link",
       "expected_result": "",
       "recorded": {
@@ -144,14 +130,14 @@
         "target": "//div[@id='navbarCollapse']//a[normalize-space(.)='Dashboard']",
         "label": "Dashboard",
         "url": "/b2bportal/app/accounts/dashboard360",
-        "screenshot": "shot-5.png",
+        "screenshot": "shot-9.png",
         "unique": true,
-        "recording": 21,
+        "recording": 25,
         "environment": "RC"
       }
     },
     {
-      "step_number": 7,
+      "step_number": 6,
       "action": "Verify the landing page /b2bportal/app/accounts/dashboard360 is shown",
       "expected_result": "The page /b2bportal/app/accounts/dashboard360 is showing",
       "recorded": {
@@ -159,7 +145,7 @@
         "route": "/b2bportal/app/accounts/dashboard360",
         "url": "/b2bportal/app/accounts/dashboard360",
         "screenshot": "shot-end.png",
-        "recording": 21,
+        "recording": 25,
         "environment": "RC"
       }
     }
