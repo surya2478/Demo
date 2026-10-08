@@ -487,7 +487,12 @@ def build_output(plan: Dict[str, Any], pages: List[Dict[str, Any]], assignment: 
             sweep.append(record(el, hit, page))
 
     steps = []
-    all_pages = list(range(len(pages)))
+    # Steps without a screen of their own (recorded ones) are looked for in
+    # page order: a step that leads to a page is on a page captured before it,
+    # and nothing after it is earlier than the page it reached. Without this,
+    # a "click here" on the dashboard answered the sign-in page's CLICK HERE.
+    paths = [_path(p.get("url")) for p in pages]
+    floor = 0
     for order, item in enumerate(plan.get("items", []), start=1):
         out = {"order": order, "journey_id": item.get("journey_id"), "step_number": item.get("step_number"),
                "kind": item.get("kind"), "screen_id": item.get("screen_id") or None}
@@ -495,7 +500,9 @@ def build_output(plan: Dict[str, Any], pages: List[Dict[str, Any]], assignment: 
             steps.append({**out, "status": "skipped", "reason": item.get("reason")})
             continue
         sid = item.get("screen_id")
-        indexes = by_screen.get(sid, []) if sid else all_pages
+        led_to = (item.get("led_to") or "").rstrip("/") or None
+        reached = next((i for i, path in enumerate(paths) if led_to and path == led_to and i >= floor), None)
+        indexes = by_screen.get(sid, []) if sid else list(range(floor, reached if reached is not None else len(pages)))
         if sid and not indexes:
             name = ((plan.get("signatures") or {}).get(sid) or {}).get("name") or sid
             steps.append({**out, "status": "not_reached", "reason": f"no captured page shows {name}"})
@@ -506,9 +513,16 @@ def build_output(plan: Dict[str, Any], pages: List[Dict[str, Any]], assignment: 
             continue
         hit, page = find(el, indexes)
         capture = record(el, hit, page)
+        if not sid:
+            if hit and page is not None:
+                floor = max(floor, pages.index(page))
+            if reached is not None:
+                floor = max(floor, reached)
         label = el.get("clean_label") or el.get("label")
         if hit:
             status, reason = "done", None
+        elif not sid and not indexes and reached is not None:
+            status, reason = "not_reached", f"'{label}' is on the page before {led_to}, which was not captured"
         elif item.get("setup") and not sid:
             # A step of the journey run first (signing in): its pages are
             # usually not in a capture of this journey, which is not a miss.
@@ -562,14 +576,22 @@ def import_capture(
     pages = bundle["pages"]
     assignment = assign_screens(plan, pages)
     result = journey_crawl.evaluate(plan, build_output(plan, pages, assignment))
-    unassigned = [p["name"] or p["page_id"] for i, p in enumerate(pages) if not assignment.get(i)]
+    # Which journey steps each page answered. A recorded journey has no named
+    # screens, so this -- not a screen -- is how its pages are used.
+    used: Dict[int, List[int]] = {}
+    urls = [p.get("url") for p in pages]
+    for step in result.get("steps", []):
+        if step.get("status") == "done" and step.get("url") in urls:
+            used.setdefault(urls.index(step["url"]), []).append(step.get("step_number"))
+    unassigned = [p["name"] or p["page_id"] for i, p in enumerate(pages) if not assignment.get(i) and not used.get(i)]
     manifest = bundle["manifest"]
     result["capture"] = {
         "file": filename, "format": manifest.get("format") or ("page-objects" if bundle["journey"] else "json"),
         "host": manifest.get("host"), "started_at": manifest.get("started_at"), "finished_at": manifest.get("finished_at"),
         "uploaded_by": actor, "pages": [{"page_id": p["page_id"], "name": p["name"], "url": p.get("url"),
-                                         "screen_id": assignment.get(i), "elements": len(p["elements"])} for i, p in enumerate(pages)],
-        "notes": bundle["notes"] + ([f"Not matched to a screen of this journey: {', '.join(unassigned)}."] if unassigned else []),
+                                         "screen_id": assignment.get(i), "steps": used.get(i, []), "elements": len(p["elements"])}
+                  for i, p in enumerate(pages)],
+        "notes": bundle["notes"] + ([f"Not used by any step of this journey: {', '.join(unassigned)}."] if unassigned else []),
     }
     crawl = KbCrawlRun(
         app_id=app_id, journey_id=journey_id, application_id=application.id if application else None,

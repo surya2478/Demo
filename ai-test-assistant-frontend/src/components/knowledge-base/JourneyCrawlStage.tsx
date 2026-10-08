@@ -753,8 +753,8 @@ const JourneyCrawlStage: React.FC<{
                 <div className="flex flex-wrap gap-1.5 text-[12px] text-[#4B5563]">
                   <span className="font-semibold">Pages:</span>
                   {detail.result.capture.pages.map(p => (
-                    <span key={p.page_id} title={p.url ?? undefined} className={`rounded-full border px-2 py-0.5 ${p.screen_id ? 'border-[#D5E9DD] bg-[#F1F8F4]' : 'border-[#F6D4D5] bg-[#FFF7F7]'}`}>
-                      {p.name || p.page_id} → {p.screen_id ? (detailPlan?.screen_names?.[p.screen_id] ?? p.screen_id) : 'no screen'} · {p.elements}
+                    <span key={p.page_id} title={p.url ?? undefined} className={`rounded-full border px-2 py-0.5 ${p.screen_id || p.steps?.length ? 'border-[#D5E9DD] bg-[#F1F8F4]' : 'border-[#F6D4D5] bg-[#FFF7F7]'}`}>
+                      {p.name || p.page_id} → {p.screen_id ? (detailPlan?.screen_names?.[p.screen_id] ?? p.screen_id) : p.steps?.length ? `step${p.steps.length > 1 ? 's' : ''} ${p.steps.join(', ')}` : 'not used'} · {p.elements} elements
                     </span>
                   ))}
                 </div>

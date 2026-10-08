@@ -386,7 +386,7 @@ export interface CaptureInfo {
   started_at?: string | null
   finished_at?: string | null
   uploaded_by?: string | null
-  pages: { page_id: string; name: string; url: string | null; screen_id: string | null; elements: number }[]
+  pages: { page_id: string; name: string; url: string | null; screen_id: string | null; steps?: number[]; elements: number }[]
   notes: string[]
 }
 
