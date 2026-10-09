@@ -265,6 +265,12 @@ class Settings(BaseSettings):
     # LLM_PROVIDER. "azure" sends them to AZURE_OPENAI_* while everything else
     # stays on LLM_PROVIDER; "ai_service" and "openrouter" work here too.
     AUTOMATION_LLM_PROVIDER: str = Field(default="")
+    # AI Checks on Default KB cases (no KB selected). "azure" by default: the
+    # AI service wraps our refine instructions in its own chat prompt, and
+    # Azure Prompt Shield rejects that as a jailbreak. Empty falls back to
+    # AUTOMATION_LLM_PROVIDER / LLM_PROVIDER. Squad and Automation KB checks
+    # always run on Azure (testcases.provider_for_kb).
+    AI_CHECKS_DEFAULT_KB_PROVIDER: str = Field(default="azure")
 
     # Direct OpenAI-compatible generation settings. Keep the key server-side;
     # the browser must never receive or choose it.

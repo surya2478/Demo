@@ -46,6 +46,7 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
+from ...config import settings
 from ...database.connection import SessionLocal
 from ...models.automation import AutomationAICheck, AutomationTestCase
 from . import knowledge_base as kb
@@ -348,7 +349,9 @@ def _run_check(check_id: int) -> None:
         knowledge_base = check.knowledge_base if check else None
     finally:
         db.close()
-    provider = provider_for_kb(knowledge_base)
+    # Default KB cases go to AI_CHECKS_DEFAULT_KB_PROVIDER (Azure), not the AI
+    # service generation uses: Prompt Shield blocks refine sent through it.
+    provider = provider_for_kb(knowledge_base) or (settings.AI_CHECKS_DEFAULT_KB_PROVIDER or "").strip() or None
     logger.info("AI Checks: check %s (KB %s) uses provider %s", check_id, knowledge_base or "Default",
                 provider or "AUTOMATION_LLM_PROVIDER / LLM_PROVIDER")
     with use_provider(provider):

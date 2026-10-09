@@ -170,9 +170,15 @@ print("2. No KB selected")
 view, record, case, seen = run(None)
 check(record.status == "done", f"check finished ({record.status}: {record.error})")
 check(all("reference_knowledge" not in c["payload"] for c in seen), "no step received KB context")
-check({c["provider"] for c in seen} == {"ai_service"}, f"every step runs on the AI service, like Default generation ({ {c['provider'] for c in seen} })")
+check({c["provider"] for c in seen} == {"azure"}, f"every step runs on Azure (AI_CHECKS_DEFAULT_KB_PROVIDER), not the AI service ({ {c['provider'] for c in seen} })")
 check(record.steps.get("diff") == "skipped" and case.journey_diff is None, "KB Diff skipped, nothing stored")
 check(view["items"][0]["journey_diff"] is None, "batch view reports no diff")
+
+print("2a. AI_CHECKS_DEFAULT_KB_PROVIDER empty: Default KB checks follow LLM_PROVIDER again")
+_settings.AI_CHECKS_DEFAULT_KB_PROVIDER = ""
+view, record, case, seen = run(None)
+_settings.AI_CHECKS_DEFAULT_KB_PROVIDER = "azure"
+check({c["provider"] for c in seen} == {"ai_service"}, f"every step runs on the AI service ({ {c['provider'] for c in seen} })")
 
 print("2b. An Auto-Improve that scores lower is discarded")
 WORSE_AFTER_IMPROVE = True
