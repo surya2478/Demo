@@ -119,6 +119,17 @@ slices = documents.page_images(kb, tall_doc, 1)
 check(len(slices) == 4 and all(s[:3] == b"\xff\xd8\xff" for s in slices), f"1440x9000 page -> 4 JPEG slices ({len(slices)})")
 check(len(documents.page_images(kb, tall_doc, 2)) == 1, "a normal page -> one picture")
 
+print("2b. A huge Figma canvas still gets a page picture")
+huge = pymupdf.open()
+huge.new_page(width=2880, height=40000).insert_text((100, 100), "Device Enrollment", fontsize=60)
+r = client.post(f"/kb/{APP}/documents", files={"file": ("Device Enrollment.pdf", huge.tobytes(), "application/pdf")}, data={"doc_kind": "screen_flow"})
+huge_id = r.json()["id"]
+r = client.get(f"/kb/documents/{huge_id}/pages/1.png")
+pix = pymupdf.Pixmap(r.content) if r.status_code == 200 else None
+check(r.status_code == 200 and pix.height <= documents.VIEW_MAX_HEIGHT and pix.width * pix.height <= documents.VIEW_MAX_PIXELS * 1.01,
+      f"2880x40000 pt page drawn within the caps ({r.status_code}, {pix.width if pix else '-'}x{pix.height if pix else '-'})")
+client.delete(f"/kb/documents/{huge_id}")
+
 print("3. Extraction on Azure with screenshots")
 r = client.post(f"/kb/{APP}/documents", files={"file": (PDF.name, PDF.read_bytes(), "application/pdf")}, data={"doc_kind": "screen_flow"})
 pdf_id = r.json()["id"]

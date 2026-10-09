@@ -223,6 +223,11 @@ def read_pages(kb: store.JourneyKB, doc: KbSourceDocument) -> List[Dict[str, Any
     return parts
 
 
+VIEW_MAX_WIDTH = 1600  # px
+VIEW_MAX_HEIGHT = 30000  # px; taller pictures fail in some browsers
+VIEW_MAX_PIXELS = 24_000_000
+
+
 def page_png(kb: store.JourneyKB, doc: KbSourceDocument, page: int, zoom: float = 1.4) -> bytes:
     if _file_type(doc.filename) != "pdf":
         raise DocumentError("Only a PDF has page images.")
@@ -230,7 +235,17 @@ def page_png(kb: store.JourneyKB, doc: KbSourceDocument, page: int, zoom: float 
     if not 1 <= page <= len(pdf):
         raise DocumentError(f"This document has {len(pdf)} page(s).")
     pymupdf = _pymupdf()
-    return pdf[page - 1].get_pixmap(matrix=pymupdf.Matrix(zoom, zoom)).tobytes("png")
+    pg = pdf[page - 1]
+    # A Figma export is often one huge canvas: drawn whole at 1.4x it can be
+    # hundreds of millions of pixels, more than the server's memory allows.
+    # Cap the picture; the Text tab still has every word.
+    w, h = max(pg.rect.width, 1), max(pg.rect.height, 1)
+    zoom = min(zoom, VIEW_MAX_WIDTH / w, VIEW_MAX_HEIGHT / h, (VIEW_MAX_PIXELS / (w * h)) ** 0.5)
+    try:
+        return pg.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), alpha=False).tobytes("png")
+    except Exception as exc:  # noqa: BLE001 -- MemoryError, PyMuPDF's own errors
+        raise DocumentError(f"Page {page} could not be drawn as a picture ({exc.__class__.__name__}: {exc}). "
+                            "Its text is under Text.") from exc
 
 
 # --- What the model returns ----------------------------------------------------------------
