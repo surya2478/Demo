@@ -42,6 +42,21 @@ if not PDF.exists():
 work = Path(tempfile.mkdtemp())
 shutil.copytree(ROOT / "knowledge_base" / "journeys", work / "journeys")
 os.environ["JOURNEY_KB_PATH"] = str(work / "journeys")
+# The scenario proposes Sign-in using Password as a new journey: start from a KB
+# where it is not authored yet (the real KB has it since it was published).
+(work / "journeys" / "eand_b2b_portal" / "journeys" / "signin_password.json").unlink(missing_ok=True)
+_tax = work / "journeys" / "eand_b2b_portal" / "taxonomy.json"
+_tax_doc = json.loads(_tax.read_text(encoding="utf-8"))
+for _node in _tax_doc.get("nodes", []) if isinstance(_tax_doc, dict) else []:
+    if _node.get("id") == "B2B.REG.EXISTING.SIGNIN.PASSWORD":
+        _node["status"] = "source_available"
+_tax.write_text(json.dumps(_tax_doc, indent=2), encoding="utf-8")
+_overlay = work / "journeys" / "eand_b2b_portal" / "sources" / "taxonomy_overlay.json"
+_overlay_doc = json.loads(_overlay.read_text(encoding="utf-8"))
+for _key, _entry in _overlay_doc.items():
+    if isinstance(_entry, dict) and isinstance(_entry.get("B2B.REG.EXISTING.SIGNIN.PASSWORD"), dict):
+        _entry["B2B.REG.EXISTING.SIGNIN.PASSWORD"]["status"] = "source_available"
+_overlay.write_text(json.dumps(_overlay_doc, indent=2), encoding="utf-8")
 os.environ["DATABASE_URL"] = f"sqlite:///{(work / 'kb.db').as_posix()}"
 os.environ["JOURNEY_EXTRACTION_VISION_MODEL"] = ""
 
@@ -54,6 +69,7 @@ import app.models.kb_changes  # noqa: E402,F401
 from app.routers import knowledge_base_page  # noqa: E402
 from app.services.automation import llm  # noqa: E402
 from app.services.journeys import changesets, documents, store  # noqa: E402
+from app.config import settings  # noqa: E402
 from app.utils.security import get_current_user_strict  # noqa: E402
 import app.services.authz as authz  # noqa: E402
 
@@ -113,10 +129,12 @@ REPLY = {
     "open_questions": ["Is there a password expiry screen?"],
 }
 prompts = []
+providers = []
 
 
 def fake_complete_json(*, system_prompt, user_input, model_cls, **kwargs):
     prompts.append((system_prompt, user_input))
+    providers.append(kwargs.get("provider"))
     return model_cls.model_validate(json.loads(json.dumps(REPLY)))
 
 
@@ -379,6 +397,13 @@ check(kb.node("B2B.REG.EXISTING.REGISTER.POA")["status"] == "source_available", 
 chain = [j["journey_id"] for j in store.journey_chain(kb, kb.journeys[OWNER])]
 check(chain == [REG, OWNER], f"the Owner journey runs the shared steps first ({chain})")
 db.close()
+
+print("Extraction provider")
+check(providers and set(providers) == {"azure"}, f"page text goes to Azure (JOURNEY_EXTRACTION_PROVIDER) ({set(providers)})")
+check(documents.text_model().startswith("azure"), f"extraction records the Azure deployment ({documents.text_model()})")
+settings.JOURNEY_EXTRACTION_PROVIDER = ""
+check(documents.text_provider() is None, "empty setting falls back to the Automation LLM choice")
+settings.JOURNEY_EXTRACTION_PROVIDER = "azure"
 
 shutil.rmtree(work, ignore_errors=True)
 if failures:

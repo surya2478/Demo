@@ -399,6 +399,10 @@ class Settings(BaseSettings):
     # says so on every result.
     JOURNEY_EXTRACTION_VISION_MODEL: str = Field(default="")
     JOURNEY_EXTRACTION_TIMEOUT_SECONDS: int = Field(default=300)
+    # Where the page-text extraction goes. "azure" by default (AZURE_OPENAI_*),
+    # like Squad / Automation KB generation; empty falls back to
+    # AUTOMATION_LLM_PROVIDER / LLM_PROVIDER. The vision path above is separate.
+    JOURNEY_EXTRACTION_PROVIDER: str = Field(default="azure")
 
     # Optional attribution, sent as HTTP-Referer and X-Title. OpenRouter uses
     # them to identify the calling app in its dashboards and rankings; both are

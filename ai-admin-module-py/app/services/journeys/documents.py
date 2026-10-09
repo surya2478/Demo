@@ -409,7 +409,7 @@ def _call_model(kb: store.JourneyKB, doc: KbSourceDocument, batch: List[Dict[str
     # A large allowance: reasoning models spend part of it thinking, and a batch
     # of screen-flow pages yields a long reply (see PAGES_PER_CALL).
     return llm.complete_json(system_prompt=SYSTEM_PROMPT, user_input=user, model_cls=XDocument, timeout=timeout,
-                             max_tokens=EXTRACTION_MAX_TOKENS)
+                             max_tokens=EXTRACTION_MAX_TOKENS, provider=text_provider())
 
 
 def _merge(parts: List[XDocument]) -> XDocument:
@@ -821,6 +821,23 @@ def step_delta(current: List[Dict[str, Any]], proposed: List[Dict[str, Any]]) ->
 
 # --- Running an extraction -----------------------------------------------------------------
 
+def text_provider() -> Optional[str]:
+    """JOURNEY_EXTRACTION_PROVIDER (Azure by default); None: the usual Automation LLM choice."""
+    return (settings.JOURNEY_EXTRACTION_PROVIDER or "").strip() or None
+
+
+def text_model() -> str:
+    """The model that read the page text, as recorded on the extraction."""
+    status = llm.provider_status() if text_provider() is None else None
+    provider = text_provider() or (status or {}).get("provider")
+    if provider == "azure":
+        from ..generation import azure_llm
+        return f"azure:{azure_llm.model_name()}" if azure_llm.model_name() else "azure"
+    if provider == "openrouter":
+        return settings.OPENROUTER_MODEL or "openrouter"
+    return provider or "ai_service"
+
+
 def vision_model() -> Optional[str]:
     model = (settings.JOURNEY_EXTRACTION_VISION_MODEL or "").strip()
     return model if model and (settings.LLM_PROVIDER or "").strip().lower() == "openrouter" else None
@@ -845,7 +862,7 @@ def extract(kb: store.JourneyKB, doc: KbSourceDocument) -> Dict[str, Any]:
     for item in items:
         counts[f"{item['kind']}.{item['action']}"] = counts.get(f"{item['kind']}.{item['action']}", 0) + 1
     return {
-        "model": vision or settings.OPENROUTER_MODEL or "ai_service", "vision": bool(vision),
+        "model": vision or text_model(), "vision": bool(vision),
         "pages": [{"page": p["page"], "chars": len(p["text"])} for p in pages],
         "calls": len(parts), "seconds": round(time.monotonic() - started, 1),
         "items": items, "counts": counts, "open_questions": proposal.open_questions,
