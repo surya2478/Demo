@@ -66,7 +66,7 @@ from . import changesets, store
 logger = logging.getLogger(__name__)
 
 DOCUMENTS_DIR = "sources/documents"
-MAX_BYTES = 25 * 1024 * 1024
+MAX_BYTES = 30 * 1024 * 1024  # Figma exports run large; extraction just takes longer
 ACCEPTED = {"pdf", "docx"}
 DOC_KINDS = ("screen_flow", "brd")
 # Pages per model call. What limits a batch is the reply, not the input: a
@@ -74,6 +74,7 @@ DOC_KINDS = ("screen_flow", "brd")
 # and several steps, and 8 pages of registration flow overran the reply and
 # came back cut off. Batches are also capped by characters for long BRD pages.
 PAGES_PER_CALL = 4
+VISION_PAGES_PER_CALL = 2  # with screenshots: each page may be several image slices
 EXTRACTION_MAX_TOKENS = 32_000
 CHARS_PER_CALL = 30_000
 PART_CHARS = 5_000  # a .docx has no pages; its text is cut into parts this size
@@ -375,12 +376,12 @@ def _context(kb: store.JourneyKB, found_so_far: List[XScreen]) -> str:
             + "\n\nEXISTING RULES (rule id: statement):\n" + "\n".join(f"{rid}: {r.get('statement')}" for rid, r in kb.rules.items()))
 
 
-def _batches(pages: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
+def _batches(pages: List[Dict[str, Any]], per_call: int = PAGES_PER_CALL) -> List[List[Dict[str, Any]]]:
     out: List[List[Dict[str, Any]]] = []
     cur: List[Dict[str, Any]] = []
     size = 0
     for page in pages:
-        if cur and (len(cur) >= PAGES_PER_CALL or size + len(page["text"]) > CHARS_PER_CALL):
+        if cur and (len(cur) >= per_call or size + len(page["text"]) > CHARS_PER_CALL):
             out.append(cur)
             cur, size = [], 0
         cur.append(page)
@@ -396,12 +397,17 @@ def _call_model(kb: store.JourneyKB, doc: KbSourceDocument, batch: List[Dict[str
     kind = "business requirements document" if doc.doc_kind == "brd" else "screen-flow help document"
     user = (f"{_context(kb, found)}\n\nDOCUMENT: {doc.filename} ({kind}), pages "
             f"{batch[0]['page']}-{batch[-1]['page']} of {doc.pages or len(batch)}\n"
-            + ("Each page's screenshot is attached in page order.\n" if vision_model else
+            + ("Each page's screenshot is attached in page order; a tall page comes as several slices, top to bottom.\n" if vision_model else
                "Screenshots are NOT available: only the page text below. Do not guess what a screenshot shows.\n")
             + llm.wrap_user_content(body))
     if doc.doc_kind == "brd":
         user = user.replace("\nDOCUMENT: ", f"\n\nEXISTING JOURNEY STEPS:\n{_journey_steps(kb)}\n{BRD_PROMPT}\n\nDOCUMENT: ", 1)
     timeout = float(settings.JOURNEY_EXTRACTION_TIMEOUT_SECONDS or 300)
+    if vision_model and vision_model.startswith("azure"):
+        images = [img for p in batch for img in page_images(kb, doc, p["page"])]
+        return llm.complete_json_with_images(system_prompt=SYSTEM_PROMPT, user_input=user, images=images,
+                                             model=vision_model, model_cls=XDocument, timeout=timeout,
+                                             max_tokens=EXTRACTION_MAX_TOKENS, provider="azure")
     if vision_model:
         images = [page_png(kb, doc, p["page"], zoom=1.2) for p in batch]
         return llm.complete_json_with_images(system_prompt=SYSTEM_PROMPT, user_input=user, images=images,
@@ -822,8 +828,17 @@ def step_delta(current: List[Dict[str, Any]], proposed: List[Dict[str, Any]]) ->
 # --- Running an extraction -----------------------------------------------------------------
 
 def text_provider() -> Optional[str]:
-    """JOURNEY_EXTRACTION_PROVIDER (Azure by default); None: the usual Automation LLM choice."""
-    return (settings.JOURNEY_EXTRACTION_PROVIDER or "").strip() or None
+    """JOURNEY_EXTRACTION_PROVIDER (Azure by default); None: the usual Automation LLM choice.
+
+    Azure without AZURE_OPENAI_* (a laptop on OpenRouter) also means the usual
+    choice, rather than an extraction that can only fail.
+    """
+    provider = (settings.JOURNEY_EXTRACTION_PROVIDER or "").strip().lower() or None
+    if provider == "azure":
+        from ..generation import azure_llm
+        if azure_llm.missing_settings():
+            return None
+    return provider
 
 
 def text_model() -> str:
@@ -839,6 +854,17 @@ def text_model() -> str:
 
 
 def vision_model() -> Optional[str]:
+    """Who reads the page screenshots, or None for text only.
+
+    Azure (the AZURE_OPENAI_* deployment) when extraction runs on Azure and
+    JOURNEY_EXTRACTION_VISION is not "off"; otherwise the OpenRouter model in
+    JOURNEY_EXTRACTION_VISION_MODEL, when LLM_PROVIDER is openrouter.
+    """
+    if (settings.JOURNEY_EXTRACTION_VISION or "").strip().lower() in ("off", "false", "no", "0"):
+        return None
+    if text_provider() == "azure":
+        from ..generation import azure_llm
+        return f"azure:{azure_llm.model_name()}"
     model = (settings.JOURNEY_EXTRACTION_VISION_MODEL or "").strip()
     return model if model and (settings.LLM_PROVIDER or "").strip().lower() == "openrouter" else None
 
@@ -852,7 +878,7 @@ def extract(kb: store.JourneyKB, doc: KbSourceDocument) -> Dict[str, Any]:
     vision = vision_model() if _file_type(doc.filename) == "pdf" else None
     parts: List[XDocument] = []
     found: List[XScreen] = []
-    for batch in _batches(pages):
+    for batch in _batches(pages, VISION_PAGES_PER_CALL if vision else PAGES_PER_CALL):
         part = _call_model(kb, doc, batch, found, vision)
         parts.append(part)
         found += part.screens
@@ -890,6 +916,59 @@ def rematch(db: Session, kb: store.JourneyKB, doc: KbSourceDocument) -> KbSource
     return doc
 
 
+IMAGE_WIDTH = 1400  # px a page is drawn at for a vision model
+SLICE_RATIO = 1.6  # a slice is at most this many widths tall
+MAX_SLICES = 6
+
+
+def page_images(kb: store.JourneyKB, doc: KbSourceDocument, page: int) -> List[bytes]:
+    """A PDF page as JPEG pictures a vision model can read.
+
+    Figma exports put a whole flow on one very tall page; shrunk into a single
+    picture its labels become unreadable, so a tall page is cut top to bottom
+    into slices (at most MAX_SLICES, the last one taking what is left).
+    """
+    try:
+        import pymupdf
+    except ImportError:
+        import fitz as pymupdf  # type: ignore
+    pdf = _open_pdf(document_path(kb, doc).read_bytes())
+    if not 1 <= page <= len(pdf):
+        raise DocumentError(f"This document has {len(pdf)} page(s).")
+    pg = pdf[page - 1]
+    rect = pg.rect
+    zoom = min(IMAGE_WIDTH / max(rect.width, 1), 3.0)
+    slice_h = rect.width * SLICE_RATIO
+    count = max(1, min(MAX_SLICES, int(-(-rect.height // slice_h))))
+    step = rect.height / count
+    images: List[bytes] = []
+    for i in range(count):
+        clip = pymupdf.Rect(rect.x0, rect.y0 + i * step, rect.x1, rect.y0 + (i + 1) * step)
+        # A slice drawn taller than ~2000 px is downscaled by the model anyway.
+        z = min(zoom, 2000 / max(clip.height, 1)) if count == MAX_SLICES else zoom
+        pix = pg.get_pixmap(matrix=pymupdf.Matrix(z, z), clip=clip, alpha=False)
+        images.append(pix.tobytes("jpeg", jpg_quality=80))
+    return images
+
+
+# Documents this process is extracting. A thread does not survive a backend
+# restart (a deploy, or --reload on a laptop), and its row would say
+# "extracting" for ever; recover_stalled() marks such rows failed.
+_active: set[int] = set()
+
+
+def recover_stalled(db: Session, app_id: Optional[str] = None) -> None:
+    q = db.query(KbSourceDocument).filter(KbSourceDocument.status == "extracting")
+    if app_id:
+        q = q.filter(KbSourceDocument.app_id == app_id)
+    stalled = [d for d in q.all() if d.id not in _active]
+    for doc in stalled:
+        logger.warning("Extraction of document %s was cut off by a backend restart", doc.id)
+        doc.status, doc.error = "failed", "The extraction stopped when the backend restarted. Click Extract again."
+    if stalled:
+        db.commit()
+
+
 def start_extraction(db: Session, doc_id: int) -> KbSourceDocument:
     doc = db.get(KbSourceDocument, doc_id)
     if doc is None:
@@ -899,6 +978,7 @@ def start_extraction(db: Session, doc_id: int) -> KbSourceDocument:
     if doc.status == "drafted" and _open_draft(db, doc):
         raise DocumentError("A change set from this document is awaiting review; approve, reject or discard it first.")
     doc.status, doc.error, doc.extraction, doc.change_set_id = "extracting", None, None, None
+    _active.add(doc.id)
     db.commit()
     threading.Thread(target=_run, args=(doc.id,), name=f"kb-extract-{doc.id}", daemon=True).start()
     db.refresh(doc)
@@ -925,6 +1005,7 @@ def _run(doc_id: int) -> None:
         doc.extracted_at = datetime.utcnow()
         db.commit()
     finally:
+        _active.discard(doc_id)
         db.close()
 
 
@@ -1347,6 +1428,9 @@ def delete(db: Session, kb: store.JourneyKB, doc_id: int) -> None:
     path = document_path(kb, doc)
     if path.exists():
         path.unlink()
+    # Its Word conversion (doc_convert), if one was made.
+    for extra in (_kb_dir(kb) / "sources" / "conversions").glob(f"{Path(doc.stored_as).stem}.*"):
+        extra.unlink(missing_ok=True)
     db.delete(doc)
     db.commit()
 

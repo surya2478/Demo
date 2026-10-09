@@ -59,6 +59,7 @@ for _key, _entry in _overlay_doc.items():
 _overlay.write_text(json.dumps(_overlay_doc, indent=2), encoding="utf-8")
 os.environ["DATABASE_URL"] = f"sqlite:///{(work / 'kb.db').as_posix()}"
 os.environ["JOURNEY_EXTRACTION_VISION_MODEL"] = ""
+os.environ["JOURNEY_EXTRACTION_VISION"] = "off"  # text only here; smoke_doc_convert covers screenshots
 
 from fastapi import FastAPI  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -139,6 +140,9 @@ def fake_complete_json(*, system_prompt, user_input, model_cls, **kwargs):
 
 
 llm.complete_json = fake_complete_json
+from app.services.generation import azure_llm  # noqa: E402
+_azure_missing = azure_llm.missing_settings
+azure_llm.missing_settings = lambda: []  # Azure "configured"
 
 api = FastAPI()
 api.include_router(knowledge_base_page.router, prefix="/kb")
@@ -404,6 +408,9 @@ check(documents.text_model().startswith("azure"), f"extraction records the Azure
 settings.JOURNEY_EXTRACTION_PROVIDER = ""
 check(documents.text_provider() is None, "empty setting falls back to the Automation LLM choice")
 settings.JOURNEY_EXTRACTION_PROVIDER = "azure"
+azure_llm.missing_settings = lambda: ["AZURE_OPENAI_API_KEY"]
+check(documents.text_provider() is None, "Azure not configured (a laptop): the usual Automation LLM choice")
+azure_llm.missing_settings = lambda: []
 
 shutil.rmtree(work, ignore_errors=True)
 if failures:

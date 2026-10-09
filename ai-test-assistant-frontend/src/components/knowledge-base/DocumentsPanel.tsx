@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import knowledgeBaseService, { errorText, type CatalogScreen, type DocumentAddition, type KbImpact, type ReviewItem, type SourceDocument } from '../../services/knowledgeBaseService'
+import knowledgeBaseService, { errorText, type CatalogScreen, type DocumentAddition, type DocumentConversion, type KbImpact, type ReviewItem, type SourceDocument } from '../../services/knowledgeBaseService'
 import ImpactSummary from './ImpactSummary'
 import { Card, CardHead, Chip, Failed, Loading, Note, TONE, chapterTitle, useLoad } from './kbUi'
 
@@ -280,6 +280,105 @@ const StepsEditor: React.FC<{
   )
 }
 
+// --- PDF to structured Word ----------------------------------------------------------------
+// A large Figma PDF that extraction struggles with can be written up page by
+// page as a Word document: download it to read, or add it as a document of
+// its own and extract that instead (backend services/journeys/doc_convert.py).
+
+const saveBlob = (blob: Blob, name: string) => {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = name
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+const ConvertPanel: React.FC<{
+  doc: SourceDocument
+  vision: string | null
+  canExecute: boolean
+  onChanged: () => void
+  onMessage: (text: string, tone?: 'plain' | 'warn') => void
+}> = ({ doc, vision, canExecute, onChanged, onMessage }) => {
+  const conv: DocumentConversion = doc.conversion ?? { status: 'none' }
+  const [mode, setMode] = useState<'ai' | 'text'>(conv.mode ?? 'ai')
+  const [images, setImages] = useState(conv.images ?? true)
+  const [busy, setBusy] = useState<string | null>(null)
+  const running = conv.status === 'running'
+  const total = conv.pages || doc.pages || 0
+  const act = async (key: string, action: () => Promise<void>) => {
+    setBusy(key)
+    try { await action() } catch (err) { onMessage(errorText(err), 'warn') } finally { setBusy(null); onChanged() }
+  }
+  const radio = 'flex items-start gap-2 rounded-[10px] border px-3 py-2 text-[12.5px]'
+  return (
+    <div className="mt-2 flex flex-col gap-3 rounded-[12px] border border-[#E8EAEE] bg-[#FAFAFB] p-3 text-[12.5px]">
+      <div className="text-[#374151]">
+        <strong>Convert to Word.</strong> Writes the PDF up page by page as a structured .docx, useful when a large Figma export is too much for
+        extraction. Download it to read, or add it as a document and extract that instead. A large file takes a while; you can leave this page.
+      </div>
+      <div className="grid gap-2 md:grid-cols-2">
+        <label className={`${radio} ${mode === 'ai' ? 'border-[#F6D4D5] bg-white' : 'border-[#E8EAEE]'}`}>
+          <input type="radio" name={`mode-${doc.id}`} checked={mode === 'ai'} onChange={() => setMode('ai')} disabled={running} className="mt-0.5" />
+          <span><strong>AI-structured</strong>: each page as a screen with its purpose, sections, UI elements, actions and notes.{' '}
+            {vision ? <>Reads the text and the screenshots ({vision}).</> : <>Reads the page text only (no vision model).</>}</span>
+        </label>
+        <label className={`${radio} ${mode === 'text' ? 'border-[#F6D4D5] bg-white' : 'border-[#E8EAEE]'}`}>
+          <input type="radio" name={`mode-${doc.id}`} checked={mode === 'text'} onChange={() => setMode('text')} disabled={running} className="mt-0.5" />
+          <span><strong>Text only</strong>: each page&apos;s own text, no model call. Fast.</span>
+        </label>
+      </div>
+      <label className="flex items-center gap-2 text-[#374151]">
+        <input type="checkbox" checked={images} onChange={e => setImages(e.target.checked)} disabled={running} />
+        Include page pictures (tall pages in slices): a larger file, but each screen is visible
+      </label>
+      {running && (
+        <div>
+          <div className="mb-1 text-[#374151]">Converting… page {conv.page ?? 0} of {total || '?'}</div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-[#E8EAEE]">
+            <div className="h-full bg-[#B71920] transition-all" style={{ width: `${Math.round(100 * (conv.page ?? 0) / Math.max(1, total))}%` }} />
+          </div>
+        </div>
+      )}
+      {conv.status === 'failed' && conv.error && <Note tone="warn">{conv.error}</Note>}
+      {conv.ready && (
+        <div className="text-[#374151]">
+          Ready: <strong>{conv.filename}</strong>
+          {conv.size_bytes != null && <> · {(conv.size_bytes / (1024 * 1024)).toFixed(1)} MB</>}
+          {conv.mode && <> · {conv.mode === 'ai' ? 'AI-structured' : 'text only'}</>}
+          {conv.finished_at && <> · {new Date(`${conv.finished_at}Z`).toLocaleString()}</>}
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className={BTN_PRIMARY} disabled={!canExecute || running || busy !== null}
+          title={canExecute ? undefined : 'Needs the automation.execute permission'}
+          onClick={() => void act('convert', async () => { await knowledgeBaseService.convertDocument(doc.id, mode, images) })}>
+          {running ? 'Converting…' : conv.ready ? 'Convert again' : 'Convert to Word'}
+        </button>
+        {conv.ready && (
+          <>
+            <button type="button" className={BTN_PLAIN} disabled={busy !== null}
+              onClick={() => void act('download', async () => saveBlob(await knowledgeBaseService.downloadConversion(doc.id), conv.filename || 'structured.docx'))}>
+              {busy === 'download' ? 'Downloading…' : 'Download .docx'}
+            </button>
+            <button type="button" className={BTN_PLAIN} disabled={!canExecute || busy !== null}
+              title="Add the Word document to this list, then Extract it"
+              onClick={() => void act('add', async () => {
+                const added = await knowledgeBaseService.addConversion(doc.id)
+                onMessage(added.duplicate ? `${added.filename} is already in the list.` : `${added.filename} added. Extract it to see what it proposes.`)
+              })}>
+              {busy === 'add' ? 'Adding…' : 'Add as document'}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // --- The list of uploaded documents --------------------------------------------------------
 
 export const DocumentsCard: React.FC<{
@@ -294,6 +393,7 @@ export const DocumentsCard: React.FC<{
   const [message, setMessage] = useState<{ tone: 'plain' | 'warn'; text: string } | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [kind, setKind] = useState<'screen_flow' | 'brd'>('screen_flow')
+  const [converting, setConverting] = useState<number | null>(null)
   const input = useRef<HTMLInputElement>(null)
 
   const load = useCallback(() => {
@@ -302,7 +402,7 @@ export const DocumentsCard: React.FC<{
       .catch(err => setError(errorText(err)))
   }, [appKey])
   useEffect(load, [load])
-  const extracting = docs?.some(d => d.status === 'extracting')
+  const extracting = docs?.some(d => d.status === 'extracting' || d.conversion?.status === 'running')
   useEffect(() => {
     if (!extracting) return
     const t = window.setInterval(load, 3000)
@@ -339,7 +439,7 @@ export const DocumentsCard: React.FC<{
             </select>
             <input ref={input} type="file" accept=".pdf,.docx" className="hidden" onChange={e => upload(e.target.files)} />
             <button type="button" onClick={() => input.current?.click()} disabled={!canExecute || busy !== null}
-              title={canExecute ? 'PDF or Word .docx, up to 25 MB' : 'Needs the automation.execute permission'} className={BTN_PRIMARY}>
+              title={canExecute ? 'PDF or Word .docx, up to 30 MB' : 'Needs the automation.execute permission'} className={BTN_PRIMARY}>
               {busy === 'upload' ? 'Uploading…' : 'Upload PDF or BRD'}
             </button>
           </div>
@@ -349,10 +449,10 @@ export const DocumentsCard: React.FC<{
         {!vision && (
           <Note>
             Extraction reads the page <strong>text</strong> only: no vision model is configured, so screenshots are not read and a label that appears only in a
-            screenshot is marked <em>inferred</em> for you to check. Set <code>JOURNEY_EXTRACTION_VISION_MODEL</code> on the backend to read pages as pictures.
+            screenshot is marked <em>inferred</em> for you to check. Configure Azure OpenAI (<code>AZURE_OPENAI_*</code>) on the backend to read pages as pictures.
           </Note>
         )}
-        {vision && <Note>Pages are read as text and as pictures by <code>{vision}</code>.</Note>}
+        {vision && <Note>Pages are read as text and as pictures by <code>{vision}</code>; a tall Figma page is read in slices. Files up to 30 MB; a large one takes a while.</Note>}
         {kind === 'brd' && (
           <Note>
             A <strong>BRD</strong> describes a change, so it may also <em>rename</em> elements, <em>revise</em> the steps of authored journeys and
@@ -370,7 +470,8 @@ export const DocumentsCard: React.FC<{
           const add = Object.entries(doc.counts ?? {}).filter(([k]) => k.endsWith('.add')).reduce((n, [, v]) => n + v, 0)
           const openDraft = doc.change_set_id && ['draft', 'conflicted'].includes(doc.change_set_status ?? '')
           return (
-            <li key={doc.id} className="flex flex-col gap-2 border-t border-[#F1F2F4] px-5 py-3 text-[12.5px] md:flex-row md:items-center md:justify-between">
+            <li key={doc.id} className="border-t border-[#F1F2F4] px-5 py-3 text-[12.5px]">
+             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div className="min-w-0">
                 <div className="truncate font-semibold text-[#1F2937]" title={doc.filename}>{doc.filename}</div>
                 <div className="flex flex-wrap items-center gap-x-2 text-[11.5px] text-[#6B7280]">
@@ -395,6 +496,12 @@ export const DocumentsCard: React.FC<{
                     {doc.status === 'uploaded' ? 'Extract' : 'Extract again'}
                   </button>
                 )}
+                {doc.filename.toLowerCase().endsWith('.pdf') && (
+                  <button type="button" className={BTN_PLAIN} aria-expanded={converting === doc.id}
+                    onClick={() => setConverting(converting === doc.id ? null : doc.id)}>
+                    {doc.conversion?.status === 'running' ? 'Converting to Word…' : doc.conversion?.ready ? 'Word version' : 'Convert to Word'}
+                  </button>
+                )}
                 {doc.status !== 'extracting' && !openDraft && (
                   <button type="button" className={`${BTN} text-[#A3231C] hover:underline`} disabled={!canExecute || busy !== null}
                     onClick={() => { if (window.confirm(`Delete ${doc.filename} and its extraction? Knowledge already published from it stays.`)) void run(`d${doc.id}`, () => knowledgeBaseService.deleteDocument(doc.id)) }}>
@@ -402,6 +509,11 @@ export const DocumentsCard: React.FC<{
                   </button>
                 )}
               </div>
+             </div>
+              {converting === doc.id && (
+                <ConvertPanel doc={doc} vision={vision} canExecute={canExecute} onChanged={load}
+                  onMessage={(text, tone = 'plain') => setMessage({ tone, text })} />
+              )}
             </li>
           )
         })}

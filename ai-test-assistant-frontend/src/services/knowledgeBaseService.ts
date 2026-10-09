@@ -454,6 +454,20 @@ export interface CatalogScreen {
   elements: { element_id: string; label: string; source: 'kb' | 'proposed' }[]
 }
 
+export interface DocumentConversion {
+  status: 'none' | 'running' | 'done' | 'failed'
+  mode?: 'ai' | 'text'
+  images?: boolean
+  page?: number
+  pages?: number
+  model?: string | null
+  error?: string | null
+  size_bytes?: number
+  filename?: string
+  finished_at?: string
+  ready?: boolean
+}
+
 export interface SourceDocument {
   id: number
   app_id: string
@@ -472,6 +486,8 @@ export interface SourceDocument {
   vision: boolean | null
   model: string | null
   duplicate?: boolean
+  // Its structured Word conversion (PDF only; backend services/journeys/doc_convert.py).
+  conversion?: DocumentConversion
   // Screens and elements an added journey step may link to (with extraction only).
   catalog?: CatalogScreen[]
   // Rules a step may cite, and journeys a journey may name as next / prerequisite.
@@ -800,7 +816,8 @@ const knowledgeBaseService = {
     const form = new FormData()
     form.append('file', file)
     form.append('doc_kind', docKind)
-    return (await api.post(`${BASE}/${enc(app)}/documents`, form, { timeout: 120_000 })).data
+    // Up to 30 MB: allow a slow link the time it needs.
+    return (await api.post(`${BASE}/${enc(app)}/documents`, form, { timeout: 600_000 })).data
   },
   document: async (id: number): Promise<SourceDocument> => (await api.get(`${BASE}/documents/${id}`)).data,
   documentPages: async (id: number): Promise<{ pages: { page: number; text: string }[]; images: boolean }> =>
@@ -818,6 +835,14 @@ const knowledgeBaseService = {
     Promise<{ document: SourceDocument; change_set: ChangeSet; auto_included: string[] }> =>
     (await api.post(`${BASE}/documents/${id}/draft`, { selected, edits, additions })).data,
   deleteDocument: async (id: number): Promise<void> => { await api.delete(`${BASE}/documents/${id}`) },
+  /** Write a PDF up as a structured Word document, page by page (runs in the background). */
+  convertDocument: async (id: number, mode: 'ai' | 'text', images: boolean): Promise<DocumentConversion> =>
+    (await api.post(`${BASE}/documents/${id}/convert`, { mode, images })).data,
+  conversion: async (id: number): Promise<DocumentConversion> => (await api.get(`${BASE}/documents/${id}/convert`)).data,
+  downloadConversion: async (id: number): Promise<Blob> =>
+    (await api.get(`${BASE}/documents/${id}/convert.docx`, { responseType: 'blob', timeout: 600_000 })).data,
+  /** Keep the structured Word document as a Knowledge Base document of its own. */
+  addConversion: async (id: number): Promise<SourceDocument> => (await api.post(`${BASE}/documents/${id}/convert/add`)).data,
   documentImpact: async (id: number, selected: string[], edits: Record<string, Record<string, unknown>>, additions: DocumentAddition[] = []): Promise<KbImpact> =>
     (await api.post(`${BASE}/documents/${id}/impact`, { selected, edits, additions })).data,
 

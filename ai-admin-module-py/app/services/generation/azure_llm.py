@@ -114,15 +114,20 @@ def _post(path: str, body: dict, *, stream: bool = False) -> requests.Response:
 
 
 def _chat_body(
-    system_prompt: str, user_input: str, max_tokens: int | None, temperature: float | None
+    system_prompt: str, user_input: str, max_tokens: int | None, temperature: float | None,
+    images: list[bytes] | None = None,
 ) -> dict[str, Any]:
     """None leaves a limit to the deployment: Device Squad generation sends
-    neither, so a long test table is not cut at a token cap."""
+    neither, so a long test table is not cut at a token cap. `images` (PNG or
+    JPEG bytes) go after the text in the user message, for a vision deployment."""
+    content: Any = user_input
+    if images:
+        content = [{"type": "text", "text": user_input}, *(_image_part(img) for img in images)]
     body: dict[str, Any] = {
         "model": model_name(),
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_input},
+            {"role": "user", "content": content},
         ],
     }
     if max_tokens:
@@ -130,6 +135,14 @@ def _chat_body(
     if temperature is not None:
         body["temperature"] = temperature
     return body
+
+
+def _image_part(image: bytes) -> dict[str, Any]:
+    import base64
+
+    mime = "image/jpeg" if image.startswith(bytes((0xFF, 0xD8, 0xFF))) else "image/png"
+    url = f"data:{mime};base64," + base64.b64encode(image).decode("ascii")
+    return {"type": "image_url", "image_url": {"url": url, "detail": "high"}}
 
 
 def _chat(body: dict) -> str:
@@ -180,8 +193,11 @@ def complete_json(
     max_tokens: int = 16000,
     temperature: float | None = 0.1,
     attempts: int = 2,
+    images: list[bytes] | None = None,
 ) -> TModel:
     """Ask for a JSON object and return it validated against `model_cls`.
+
+    `images` sends pictures with the text (page screenshots for extraction).
 
     A reply that fails parsing or validation is retried once, with the error
     handed back to the model. Transport failures are not retried.
@@ -189,7 +205,7 @@ def complete_json(
     last_error: Exception | None = None
     prompt = user_input
     for attempt in range(1, max(1, attempts) + 1):
-        body = _chat_body(system_prompt, prompt, max_tokens, temperature)
+        body = _chat_body(system_prompt, prompt, max_tokens, temperature, images)
         body["response_format"] = {"type": "json_object"}
         raw = _chat(body)
         try:

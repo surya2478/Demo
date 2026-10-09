@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from ..database.connection import get_db
 from ..services.authz import require_permission, user_has_permission
 from ..models.kb_changes import KbChangeSet, KbCrawlRun, KbHeal, KbSourceDocument, KbVersion
-from ..services.journeys import changesets, crawl_runs, diff, documents, editing, heal, impact, journey_map, journey_record, store, workspace
+from ..services.journeys import changesets, crawl_runs, diff, doc_convert, documents, editing, heal, impact, journey_map, journey_record, store, workspace
 
 logger = logging.getLogger(__name__)
 
@@ -1124,9 +1124,11 @@ def _document(db: Session, doc_id: int) -> KbSourceDocument:
 @router.get("/{app_id}/documents")
 def list_documents(app_id: str, db: Session = Depends(get_db),
                    current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
-    _kb(app_id)
+    kb = _kb(app_id)
+    documents.recover_stalled(db, app_id)
     rows = db.query(KbSourceDocument).filter(KbSourceDocument.app_id == app_id).order_by(KbSourceDocument.id.desc()).all()
-    return {"documents": [documents.view(db, d) for d in rows], "vision_model": documents.vision_model()}
+    return {"documents": [{**documents.view(db, d), "conversion": doc_convert.state(kb, d)} for d in rows],
+            "vision_model": documents.vision_model()}
 
 
 @router.post("/{app_id}/documents", status_code=201)
@@ -1153,6 +1155,7 @@ async def upload_document(
 @router.get("/documents/{doc_id}")
 def get_document(doc_id: int, db: Session = Depends(get_db),
                  current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
+    documents.recover_stalled(db)
     return documents.view(db, _document(db, doc_id), with_extraction=True)
 
 
@@ -1186,6 +1189,61 @@ def extract_document(doc_id: int, db: Session = Depends(get_db),
     except Exception as exc:  # noqa: BLE001
         _fail(exc)
     return documents.view(db, doc)
+
+
+class ConvertIn(BaseModel):
+    mode: Literal["ai", "text"] = "ai"
+    images: bool = True
+
+
+@router.get("/documents/{doc_id}/convert")
+def get_conversion(doc_id: int, db: Session = Depends(get_db),
+                   current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
+    doc = _document(db, doc_id)
+    return doc_convert.state(_kb(doc.app_id), doc)
+
+
+@router.post("/documents/{doc_id}/convert", status_code=202)
+def convert_document(doc_id: int, body: ConvertIn, db: Session = Depends(get_db),
+                     current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    """Write the PDF up as a structured Word document, page by page, in the background."""
+    doc = _document(db, doc_id)
+    try:
+        return doc_convert.start(_kb(doc.app_id), doc, mode=body.mode, images=body.images)
+    except documents.DocumentError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/documents/{doc_id}/convert.docx")
+def download_conversion(doc_id: int, db: Session = Depends(get_db),
+                        current_user: dict = Depends(require_permission(PERM_VIEW))) -> Response:
+    doc = _document(db, doc_id)
+    try:
+        blob = doc_convert.docx_bytes(_kb(doc.app_id), doc)
+    except documents.DocumentError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    name = doc_convert.docx_name(doc)
+    ascii_name = re.sub(r"[^A-Za-z0-9._ ()-]+", "_", name)
+    from urllib.parse import quote
+    return Response(content=blob, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    headers={"Content-Disposition": f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name)}"})
+
+
+@router.post("/documents/{doc_id}/convert/add", status_code=201)
+def add_conversion(doc_id: int, response: Response, db: Session = Depends(get_db),
+                   current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    """Keep the structured Word document as a Knowledge Base document of its own, ready to extract."""
+    doc = _document(db, doc_id)
+    kb = _kb(doc.app_id)
+    try:
+        new, is_new = documents.store_upload(db, kb, filename=doc_convert.docx_name(doc),
+                                             contents=doc_convert.docx_bytes(kb, doc), doc_kind=doc.doc_kind,
+                                             actor=_actor(current_user))
+    except documents.DocumentError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not is_new:
+        response.status_code = 200
+    return {**documents.view(db, new), "duplicate": not is_new}
 
 
 class PlacementIn(BaseModel):

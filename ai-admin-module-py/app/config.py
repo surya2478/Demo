@@ -393,16 +393,19 @@ class Settings(BaseSettings):
 
     # Journey KB extraction from design PDFs (services/journeys/documents.py).
     # Screen-flow PDFs carry their labels in screenshots, which a text model
-    # never sees. Set this to an OpenRouter model that accepts images (for
-    # example a Claude or GPT-4o class model) and extraction also sends each
-    # page as a picture; left empty, extraction reads the page text only and
-    # says so on every result.
+    # never sees. With extraction on Azure (below) the Azure deployment reads
+    # them. Otherwise set this to an OpenRouter model that accepts images (for
+    # example a Claude or GPT-4o class model); left empty, extraction reads the
+    # page text only and says so on every result.
     JOURNEY_EXTRACTION_VISION_MODEL: str = Field(default="")
     JOURNEY_EXTRACTION_TIMEOUT_SECONDS: int = Field(default=300)
     # Where the page-text extraction goes. "azure" by default (AZURE_OPENAI_*),
     # like Squad / Automation KB generation; empty falls back to
     # AUTOMATION_LLM_PROVIDER / LLM_PROVIDER. The vision path above is separate.
     JOURNEY_EXTRACTION_PROVIDER: str = Field(default="azure")
+    # Screenshots: with extraction on Azure the same deployment also reads each
+    # PDF page as a picture (tall Figma pages in slices). "off" reads text only.
+    JOURNEY_EXTRACTION_VISION: str = Field(default="on")
 
     # Optional attribution, sent as HTTP-Referer and X-Title. OpenRouter uses
     # them to identify the calling app in its dashboards and rankings; both are

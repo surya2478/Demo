@@ -639,16 +639,29 @@ def complete_json_with_images(
     temperature: float = 0.1,
     timeout: float = 300,
     attempts: int = 2,
+    provider: str | None = None,
 ) -> TModel:
-    """complete_json, with pictures: PNG bytes sent alongside the text.
+    """complete_json, with pictures: PNG or JPEG bytes sent alongside the text.
 
-    OpenRouter only, and only with a model that accepts images -- the AI
-    service's chat endpoint takes text. The caller names the model because a
-    vision model is a deliberate, separately configured choice
-    (JOURNEY_EXTRACTION_VISION_MODEL), not the text model used everywhere else.
+    provider "azure": the Azure OpenAI deployment (AZURE_OPENAI_MODEL) reads
+    them; `model` is ignored. Otherwise OpenRouter, with a model that accepts
+    images -- the AI service's chat endpoint takes text. There the caller names
+    the model (JOURNEY_EXTRACTION_VISION_MODEL), not the text model used
+    everywhere else.
     """
     import base64
 
+    if provider == "azure":
+        from ..generation import azure_llm
+
+        try:
+            return azure_llm.complete_json(system_prompt=system_prompt, user_input=user_input, model_cls=model_cls,
+                                           max_tokens=max_tokens, temperature=temperature, attempts=attempts,
+                                           images=images)
+        except azure_llm.AzureLLMUnavailable as exc:
+            raise LLMUnavailable(str(exc)) from exc
+        except azure_llm.AzureLLMInvalidResponse as exc:
+            raise LLMInvalidResponse(str(exc)) from exc
     if (settings.LLM_PROVIDER or "ai_service").strip().lower() != "openrouter":
         raise LLMUnavailable("Reading page images needs LLM_PROVIDER=openrouter; the AI service accepts text only.")
     missing = [k for k in settings.openrouter_missing_keys() if k != "OPENROUTER_MODEL"]
