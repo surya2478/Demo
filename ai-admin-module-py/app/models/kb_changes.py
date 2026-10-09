@@ -172,3 +172,37 @@ class KbHeal(Base):
     crawls = Column(JSON, nullable=True)
     created_by = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class KbCapture(Base):
+    """A browser capture sent straight from the capture tool, waiting to be reviewed.
+
+    The tool hands its pages to the app's receiving page (window.postMessage),
+    which stores them here. On the Crawl stage the reviewer sees them as a
+    flow -- pages in order, each page's objects and which journey step each
+    answers -- edits it (`edits`: page order, dropped pages or objects, a
+    page's screen, the object a step uses) and imports it as a walk
+    (`crawl_run_id`), which then goes through the usual review, change sets,
+    approval and publishing. services/journeys/journey_capture.py.
+    """
+
+    __tablename__ = "kb_captures"
+
+    id = Column(Integer, primary_key=True, index=True)
+    # Unknown until the reviewer chooses it, when the host matched no application.
+    app_id = Column(String(100), nullable=True, index=True)
+    environment = Column(String(40), nullable=True)
+    journey_id = Column(String(200), nullable=True)
+    name = Column(String(200), nullable=True)
+    host = Column(String(255), nullable=True)
+    # Where the tool ran (the page that sent it), as the browser reported it.
+    origin = Column(String(255), nullable=True)
+    # inbox | imported | discarded
+    status = Column(String(20), nullable=False, default="inbox", index=True)
+    manifest = Column(JSON, nullable=True)
+    pages = Column(JSON, nullable=False)
+    edits = Column(JSON, nullable=True)
+    crawl_run_id = Column(Integer, nullable=True)
+    created_by = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

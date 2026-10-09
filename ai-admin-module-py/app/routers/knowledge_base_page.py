@@ -949,6 +949,127 @@ async def import_capture(
     return crawl_runs.view(crawl)
 
 
+# --- Captures inbox: sent straight from the capture tool -------------------------------------
+
+class CaptureReceiveIn(BaseModel):
+    capture: dict[str, Any]
+    # The page the tool ran on, as the browser reported it to the receiving page.
+    origin: Optional[str] = Field(default=None, max_length=255)
+
+
+class CaptureEditIn(BaseModel):
+    app_id: Optional[str] = Field(default=None, max_length=100)
+    environment: Optional[str] = Field(default=None, max_length=40)
+    name: Optional[str] = Field(default=None, max_length=200)
+    edits: Optional[dict[str, Any]] = None
+    status: Optional[Literal["inbox", "discarded"]] = None
+
+
+class CaptureMatchIn(BaseModel):
+    journey_id: str = Field(min_length=1, max_length=200)
+    application_id: Optional[int] = None
+    environment: Optional[str] = Field(default=None, max_length=40)
+
+
+def _capture(db: Session, capture_id: int):
+    from ..models.kb_changes import KbCapture
+
+    capture = db.get(KbCapture, capture_id)
+    if capture is None:
+        raise HTTPException(status_code=404, detail="No such capture.")
+    return capture
+
+
+@router.post("/captures", status_code=201)
+def receive_capture(body: CaptureReceiveIn, db: Session = Depends(get_db),
+                    current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    """What the capture tool handed the receiving page: kept in the inbox for review."""
+    from ..services.journeys import journey_capture
+
+    try:
+        capture = journey_capture.receive(db, body.capture, actor=_actor(current_user), origin=body.origin)
+    except journey_capture.CaptureError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return journey_capture.view(capture)
+
+
+@router.get("/captures")
+def list_captures(app_id: Optional[str] = Query(default=None), include_done: bool = Query(default=False),
+                  db: Session = Depends(get_db),
+                  current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
+    """The inbox: captures for this application, and those no application has claimed yet."""
+    from sqlalchemy import or_
+    from ..models.kb_changes import KbCapture
+    from ..services.journeys import journey_capture
+
+    q = db.query(KbCapture)
+    if app_id:
+        q = q.filter(or_(KbCapture.app_id == app_id, KbCapture.app_id.is_(None)))
+    if not include_done:
+        q = q.filter(KbCapture.status == "inbox")
+    rows = q.order_by(KbCapture.id.desc()).limit(50).all()
+    return {"captures": [journey_capture.view(c) for c in rows]}
+
+
+@router.patch("/captures/{capture_id}")
+def edit_capture(capture_id: int, body: CaptureEditIn, db: Session = Depends(get_db),
+                 current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    from ..services.journeys import journey_capture
+
+    capture = _capture(db, capture_id)
+    if body.app_id:
+        _kb(body.app_id)
+    try:
+        journey_capture.update(db, capture, app_id=body.app_id, environment=body.environment, name=body.name,
+                               edits=body.edits, status=body.status)
+    except journey_capture.CaptureError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return journey_capture.view(capture)
+
+
+@router.post("/captures/{capture_id}/preview")
+def preview_capture(capture_id: int, body: CaptureMatchIn, db: Session = Depends(get_db),
+                    current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
+    """The capture as a flow matched to the journey; nothing is stored."""
+    from ..services.journeys import journey_capture
+
+    capture = _capture(db, capture_id)
+    try:
+        return journey_capture.preview(db, capture, journey_id=body.journey_id, application_id=body.application_id,
+                                       environment=(body.environment or "").strip() or None)
+    except journey_capture.CaptureError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        _fail(exc)
+
+
+@router.post("/captures/{capture_id}/import", status_code=201)
+def import_inbox_capture(capture_id: int, body: CaptureMatchIn, db: Session = Depends(get_db),
+                         current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    """Import the capture, as edited, as a walk of the journey; it is then reviewed like one."""
+    from ..services.journeys import journey_capture
+
+    capture = _capture(db, capture_id)
+    try:
+        crawl = journey_capture.import_inbox(db, capture, journey_id=body.journey_id, application_id=body.application_id,
+                                             environment=(body.environment or "").strip() or None,
+                                             actor=_actor(current_user))
+    except journey_capture.CaptureError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        _fail(exc)
+    return crawl_runs.view(crawl)
+
+
+@router.delete("/captures/{capture_id}", status_code=204)
+def delete_capture(capture_id: int, db: Session = Depends(get_db),
+                   current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> Response:
+    capture = _capture(db, capture_id)
+    db.delete(capture)
+    db.commit()
+    return Response(status_code=204)
+
+
 @router.get("/{app_id}/journey-crawls")
 def list_crawls(
     app_id: str,

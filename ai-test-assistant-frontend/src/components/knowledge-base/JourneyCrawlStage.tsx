@@ -7,6 +7,7 @@ import automationService from '../../services/automationService'
 import { Card, CardHead, Chip, Failed, Loading, Note, TONE, useLoad } from './kbUi'
 import { RecordingLive, RecordingReview } from './JourneyRecording'
 import { useAuthedImage } from './walkImage'
+import CaptureInbox from './CaptureFlow'
 
 const OUTCOME: Record<CrawlOutcome, { label: string; tone: keyof typeof TONE; hint: string }> = {
   confirmed: { label: 'Confirmed', tone: 'good', hint: 'The Automation KB selector still finds it' },
@@ -262,16 +263,19 @@ const ScreenInventory: React.FC<{
 // Where Playwright cannot run, the capture tool does the walk's browser half in
 // the person's own browser: they open each page of the journey, capture it
 // (every control, heading, column header and message, with a selector that
-// matches only that element) and pick and name anything else. The zip it
-// downloads is uploaded here against the journey and reviewed like a walk.
+// matches only that element) and pick and name anything else. "Send to
+// Knowledge Base" hands it to this app (CaptureReceive) and it waits in the
+// inbox below, shown as a flow to edit before it is imported as a walk;
+// "Download zip" is the fallback, uploaded here against the journey.
 
 const CaptureUpload: React.FC<{
   appKey: string
   journeyId: string
   application: { id: number; environment: string; base_url: string }
   canExecute: boolean
+  openInbox?: number | null
   onImported: (id: number) => void
-}> = ({ appKey, journeyId, application, canExecute, onImported }) => {
+}> = ({ appKey, journeyId, application, canExecute, openInbox, onImported }) => {
   const [code, setCode] = useState<string | null>(null)
   const [codeError, setCodeError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -280,7 +284,9 @@ const CaptureUpload: React.FC<{
   const [error, setError] = useState<string | null>(null)
   const bookmarklet = useRef<HTMLAnchorElement | null>(null)
   useEffect(() => {
-    knowledgeBaseService.captureTool().then(setCode).catch(err => setCodeError(errorText(err)))
+    // The tool's Send to Knowledge Base opens this app's receiving page.
+    const receiver = `${window.location.origin}/automation/knowledge-base/capture-receive`
+    knowledgeBaseService.captureTool().then(js => setCode(js.split('__KB_RECEIVER__').join(receiver))).catch(err => setCodeError(errorText(err)))
   }, [])
   // Set outside React: it refuses javascript: URLs in href, and a bookmarklet is one.
   useEffect(() => {
@@ -306,7 +312,9 @@ const CaptureUpload: React.FC<{
   }
   return (
     <div className="flex flex-col gap-3 rounded-[12px] border border-[#E8EAEE] p-4 text-[12.5px] text-[#374151]">
-      <div className="grid gap-4 lg:grid-cols-2">
+      <CaptureInbox appKey={appKey} journeyId={journeyId} application={application} canExecute={canExecute}
+        openId={openInbox} onImported={onImported} />
+      <div className="grid gap-4 border-t border-[#F1F2F4] pt-3 lg:grid-cols-2">
         <div className="flex flex-col gap-2">
           <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#6B7280]">1 · Capture in your browser</span>
           <ol className="m-0 flex list-decimal flex-col gap-1 pl-5">
@@ -314,7 +322,7 @@ const CaptureUpload: React.FC<{
             <li>Start the tool: drag <a ref={bookmarklet} href="#capture-tool" onClick={e => e.preventDefault()} draggable
               className="rounded-[6px] bg-[#B71920] px-1.5 py-0.5 font-bold text-white no-underline" title="Drag me to the bookmarks bar, then click the bookmark on the application's page">KB capture</a> to your bookmarks bar and click it there, or paste the copied code into the DevTools Console.</li>
             <li>On every page of the journey — and every dialog, open — press <strong>Capture page</strong>. Use <strong>Pick element</strong> to name anything the journey needs that is not a button or field.</li>
-            <li>Press <strong>Download zip</strong>. Nothing you type is recorded.</li>
+            <li>Press <strong>Send to Knowledge Base</strong>: this app opens in a new tab; press <strong>Save to inbox</strong> there. It appears in the inbox below as a flow to review. (Or <strong>Download zip</strong> and upload it on the right.) Nothing you type is recorded.</li>
           </ol>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => void copy()} disabled={!code}
@@ -325,7 +333,7 @@ const CaptureUpload: React.FC<{
           {codeError && <Note tone="warn">{codeError}</Note>}
         </div>
         <div className="flex flex-col gap-2">
-          <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#6B7280]">2 · Upload it against this journey</span>
+          <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#6B7280]">Or upload a downloaded zip against this journey</span>
           <input type="file" accept=".zip,.json,application/zip,application/json" aria-label="Capture file"
             onChange={e => { setFile(e.target.files?.[0] ?? null); setError(null) }}
             className="text-[12.5px] file:mr-3 file:h-[30px] file:rounded-[9px] file:border file:border-[#E8EAEE] file:bg-white file:px-3 file:font-bold" />
@@ -366,7 +374,7 @@ const JourneyCrawlStage: React.FC<{
   // What to do: walk a journey or a flow blueprint (?flow=<id> opens on one),
   // or record a journey by doing it (?record=1, from the Journey Map).
   const askedFlow = params.get('flow')
-  const [source, setSource] = useState<'journey' | 'flow' | 'record' | 'capture'>(askedFlow ? 'flow' : params.get('record') ? 'record' : params.get('capture') ? 'capture' : 'journey')
+  const [source, setSource] = useState<'journey' | 'flow' | 'record' | 'capture'>(askedFlow ? 'flow' : params.get('record') ? 'record' : params.get('capture') || params.get('inbox') ? 'capture' : 'journey')
   const [journeyId, setJourneyId] = useState<string>('')
   const [flowId, setFlowId] = useState<string>(askedFlow ?? '')
   const [profileId, setProfileId] = useState<string>('')
@@ -621,6 +629,7 @@ const JourneyCrawlStage: React.FC<{
           )}
           {capturing && (
             <CaptureUpload appKey={appKey} journeyId={journeyId} application={application} canExecute={canExecute}
+              openInbox={Number(params.get('inbox')) || null}
               onImported={id => { setSelectedId(id); loadCrawls() }} />
           )}
           {!recording && !capturing && <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[12.5px] text-[#374151]">

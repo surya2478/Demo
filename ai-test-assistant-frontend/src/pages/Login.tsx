@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
+import { AFTER_LOGIN_KEY } from '../components/auth/ProtectedRoute';
 
 const Login: React.FC = () => {
   const [credentials, setCredentials] = useState({ username: '', password: '' });
@@ -13,7 +14,13 @@ const Login: React.FC = () => {
     setError(null);
     try {
       await login(credentials.username, credentials.password);
-      navigate('/dashboard', { replace: true });
+      let next = '/dashboard';
+      try {
+        const saved = sessionStorage.getItem(AFTER_LOGIN_KEY);
+        sessionStorage.removeItem(AFTER_LOGIN_KEY);
+        if (saved && saved.startsWith('/')) next = saved;
+      } catch { /* private mode */ }
+      navigate(next, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invalid credentials or server error');
     }

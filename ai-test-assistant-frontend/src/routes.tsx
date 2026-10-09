@@ -37,6 +37,7 @@ import Workbench from './pages/automation/Workbench'
 import ScriptLab from './pages/automation/ScriptLab'
 import TestData from './pages/automation/TestData'
 import KnowledgeBase from './pages/automation/KnowledgeBase'
+import CaptureReceive from './pages/automation/CaptureReceive'
 import RndLab from './pages/automation/RndLab'
 import Visual from './pages/test-assistant/Visual'
 import DataTab from './pages/test-assistant/DataTab'
@@ -296,6 +297,14 @@ const AppRoutes: React.FC = () => {
         <Route
           path="automation/discovery"
           element={<Navigate to="/automation/knowledge-base" replace />}
+        />
+        <Route
+          path="automation/knowledge-base/capture-receive"
+          element={
+            <ProtectedRoute allowedPermissions={['automation.view']}>
+              <CaptureReceive />
+            </ProtectedRoute>
+          }
         />
         <Route
           path="automation/knowledge-base"

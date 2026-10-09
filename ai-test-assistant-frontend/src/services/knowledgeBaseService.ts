@@ -379,6 +379,91 @@ export interface JourneyCrawl {
   } | null
 }
 
+/** A capture the tool sent straight to the app, waiting in the inbox. */
+export interface InboxCapture {
+  id: number
+  app_id: string | null
+  environment: string | null
+  journey_id: string | null
+  name: string | null
+  host: string | null
+  origin: string | null
+  status: 'inbox' | 'imported' | 'discarded'
+  pages: number
+  elements: number
+  first_url: string | null
+  crawl_run_id: number | null
+  edits: CaptureEdits
+  created_by: string | null
+  created_at: string | null
+}
+
+/** The reviewer's changes to a capture, applied when it is matched or imported. */
+export interface CaptureEdits {
+  order?: string[]
+  dropped_pages?: string[]
+  /** page_id -> selectors left out */
+  dropped_elements?: Record<string, string[]>
+  names?: Record<string, string>
+  /** page_id -> screen_id ('' = none) */
+  screens?: Record<string, string>
+  /** step number -> the object the step uses */
+  steps?: Record<string, { page_id: string; selector: string }>
+}
+
+export interface CaptureUse {
+  screen_id: string
+  element_id: string
+  design_label: string | null
+  step: number | null
+  outcome: string | null
+  label_differs: boolean
+  app_label: string | null
+}
+
+export interface CaptureFlowPage {
+  page_id: string
+  name: string
+  url: string | null
+  path: string | null
+  title: string | null
+  screen_id: string | null
+  screen_name: string | null
+  screen_chosen: boolean
+  auto_screen: string | null
+  steps: number[]
+  elements: { selector: string; name: string; role: string | null; tag: string | null; kind: 'control' | 'text' | 'picked' | string; action: string | null; chrome: boolean; uses: CaptureUse[] }[]
+}
+
+export interface CaptureFlowStep {
+  order: number
+  step_number: number | null
+  kind: string
+  text: string | null
+  setup: boolean
+  element_label: string | null
+  has_element: boolean
+  status: string
+  reason: string | null
+  page_id: string | null
+  selector: string | null
+  app_label: string | null
+  outcome: string | null
+  label_differs: boolean
+  chosen: boolean
+}
+
+export interface CapturePreview {
+  capture: InboxCapture
+  journey_id: string
+  pages: CaptureFlowPage[]
+  steps: CaptureFlowStep[]
+  screens: { screen_id: string; name: string }[]
+  dropped_pages: { page_id: string; name: string }[]
+  summary: Record<string, number>
+  notes: string[]
+}
+
 export interface CaptureInfo {
   file: string
   format: string
@@ -799,6 +884,18 @@ const knowledgeBaseService = {
     if (body.environment) form.append('environment', body.environment)
     return (await api.post(`${BASE}/${enc(app)}/journey-crawl/import`, form)).data
   },
+  // The captures inbox: captures the tool sent straight to the app (journey_capture.py).
+  receiveCapture: async (capture: unknown, origin: string | null): Promise<InboxCapture> =>
+    (await api.post(`${BASE}/captures`, { capture, origin })).data,
+  captures: async (app?: string | null, includeDone = false): Promise<InboxCapture[]> =>
+    (await api.get(`${BASE}/captures`, { params: { app_id: app || undefined, include_done: includeDone } })).data.captures,
+  editCapture: async (id: number, body: { app_id?: string; environment?: string; name?: string; edits?: CaptureEdits; status?: 'inbox' | 'discarded' }): Promise<InboxCapture> =>
+    (await api.patch(`${BASE}/captures/${id}`, body)).data,
+  previewCapture: async (id: number, body: { journey_id: string; application_id?: number | null; environment?: string | null }): Promise<CapturePreview> =>
+    (await api.post(`${BASE}/captures/${id}/preview`, body)).data,
+  importInboxCapture: async (id: number, body: { journey_id: string; application_id?: number | null; environment?: string | null }): Promise<JourneyCrawl> =>
+    (await api.post(`${BASE}/captures/${id}/import`, body)).data,
+  deleteCapture: async (id: number): Promise<void> => { await api.delete(`${BASE}/captures/${id}`) },
   startRecording: async (app: string, body: { journey_id: string; application_id: number; environment?: string | null }): Promise<JourneyCrawl> =>
     (await api.post(`${BASE}/${enc(app)}/journey-record`, body)).data,
   finishRecording: async (id: number): Promise<void> => { await api.post(`${BASE}/journey-crawls/${id}/finish`) },
@@ -824,7 +921,7 @@ const knowledgeBaseService = {
     (await api.get(`${BASE}/documents/${id}/pages`)).data,
   // Fetched with the auth header, so an <img> cannot load it directly.
   documentPageImage: async (id: number, page: number): Promise<string> =>
-    URL.createObjectURL((await api.get(`${BASE}/documents/${id}/pages/${page}.png`, { responseType: 'blob' })).data),
+    URL.createObjectURL((await blobRequest(() => api.get(`${BASE}/documents/${id}/pages/${page}.png`, { responseType: 'blob' }))).data),
   extractDocument: async (id: number): Promise<SourceDocument> => (await api.post(`${BASE}/documents/${id}/extract`)).data,
   /** Add journeys the master list lacks (one change set), then match the document again. */
   placeDocumentJourneys: async (id: number, placements: { title: string; parent_id?: string | null; new_chapter?: string | null }[], publish: boolean): Promise<JourneyEditResult & { document: SourceDocument }> =>
@@ -840,7 +937,7 @@ const knowledgeBaseService = {
     (await api.post(`${BASE}/documents/${id}/convert`, { mode, images })).data,
   conversion: async (id: number): Promise<DocumentConversion> => (await api.get(`${BASE}/documents/${id}/convert`)).data,
   downloadConversion: async (id: number): Promise<Blob> =>
-    (await api.get(`${BASE}/documents/${id}/convert.docx`, { responseType: 'blob', timeout: 600_000 })).data,
+    (await blobRequest(() => api.get(`${BASE}/documents/${id}/convert.docx`, { responseType: 'blob', timeout: 600_000 }))).data,
   /** Keep the structured Word document as a Knowledge Base document of its own. */
   addConversion: async (id: number): Promise<SourceDocument> => (await api.post(`${BASE}/documents/${id}/convert/add`)).data,
   documentImpact: async (id: number, selected: string[], edits: Record<string, Record<string, unknown>>, additions: DocumentAddition[] = []): Promise<KbImpact> =>
@@ -856,6 +953,19 @@ const knowledgeBaseService = {
 }
 
 /** The API's message for a failed call, including a 409's conflict list. */
+/** A blob request whose error body (JSON {detail}) is read back, so errorText can show it. */
+async function blobRequest<T>(request: () => Promise<T>): Promise<T> {
+  try {
+    return await request()
+  } catch (err: any) {
+    const data = err?.response?.data
+    if (typeof Blob !== 'undefined' && data instanceof Blob) {
+      try { err.response.data = JSON.parse(await data.text()) } catch { /* not JSON: keep the generic message */ }
+    }
+    throw err
+  }
+}
+
 export const errorText = (err: any): string => {
   const detail = err?.response?.data?.detail
   if (detail && typeof detail === 'object' && 'conflicts' in detail) {

@@ -120,6 +120,7 @@ const KnowledgeBase: React.FC = () => {
   // Requiring a registration hid a Journey KB entirely -- the B2B Portal has
   // one and was not registered, so the page could not reach it.
   const [selection, setSelection] = useState<string | null>(null)
+  const askedApp = params.get('app')
   const [appsError, setAppsError] = useState<string | null>(null)
   const [overview, setOverview] = useState<KbOverview | null>(null)
   // Bumped after registering or renaming, so the picker and environments reload.
@@ -138,8 +139,13 @@ const KnowledgeBase: React.FC = () => {
         const valid = (key: string | null) =>
           !!key && (list.some(a => `reg:${a.id}` === key) || kbApps.some(k => `kb:${k.app_id}` === key))
         const firstWithKb = list.find(a => kbApps.some(k => k.app_id === a.app_key))
+        // ?app=<Knowledge Base app id> (a link from the capture inbox) wins.
+        const askedKey = askedApp
+          ? (list.find(a => a.app_key === askedApp) ? `reg:${list.find(a => a.app_key === askedApp)!.id}` : kbApps.some(k => k.app_id === askedApp) ? `kb:${askedApp}` : null)
+          : null
         setSelection(
-          valid(stored) ? stored
+          askedKey ? askedKey
+            : valid(stored) ? stored
             : firstWithKb ? `reg:${firstWithKb.id}`
               : kbApps[0] ? `kb:${kbApps[0].app_id}`
                 : list[0] ? `reg:${list[0].id}` : null
