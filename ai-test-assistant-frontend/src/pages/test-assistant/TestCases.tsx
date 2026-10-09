@@ -38,6 +38,9 @@ import aiChecksService, { type CheckBatch, type CheckItem, type EditedStep } fro
 import { publishTokenUsage } from '../../components/test-assistant/TokenUsageChip'
 import RqmDownload, { type RqmVersion } from '../../components/test-assistant/RqmDownload'
 import { downloadRqm } from '../../utils/rqmTemplate'
+import { useEnvironments } from '../../hooks/useEnvironments'
+import ManageEnvironmentsButton from '../../components/ManageEnvironments'
+import { environmentLabel } from '../../services/testDataService'
 
 
 interface FilePreviewData {
@@ -91,14 +94,12 @@ const TestCases: React.FC = () => {
 
   // Mandatory before Generate: the cases carry it to Automation, where their
   // scripts run against it and read that environment's Test Data.
+  // The managed list (Manage environments), shared with Test Data and the Workbench.
+  const { names: environmentNames } = useEnvironments()
   const environmentOptions = [
     { label: 'Select', value: '' },
-    { label: 'SIT', value: 'SIT' },
-    { label: 'QA', value: 'QA' },
-    { label: 'UAT', value: 'UAT' },
-    { label: 'RC', value: 'RC' },
-    { label: 'Preproduction', value: 'PREPRODUCTION' }
-  ] as const
+    ...environmentNames.map(name => ({ label: environmentLabel(name), value: name }))
+  ]
   const focusOptions = [
     { label: 'Select', value: '' },
     { label: 'Edge', value: 'Edge' },
@@ -106,7 +107,7 @@ const TestCases: React.FC = () => {
     { label: 'Positive', value: 'Positive' },
     { label: 'Channel', value: 'Channel' }
   ] as const
-  type EnvironmentOption = (typeof environmentOptions)[number]['value']
+  type EnvironmentOption = string
   type FocusOption = (typeof focusOptions)[number]['value']
   const [selectedEnvironment, setSelectedEnvironment] = useState<EnvironmentOption>('')
   const [selectedFocus, setSelectedFocus] = useState<FocusOption>('')
@@ -2580,7 +2581,10 @@ const copyFigmaExtractedText = async () => {
               disabled={loading}
             />
             <label className="relative flex flex-col gap-1.5" title="The environment these test cases target. Their scripts run against it and use its Test Data.">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6B7280]">Environment <span className="text-[#B71920]">*</span></span>
+              <span className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6B7280]">
+                <span>Environment <span className="text-[#B71920]">*</span></span>
+                <ManageEnvironmentsButton label="Manage" className="text-[10.5px] font-semibold normal-case tracking-normal text-[#1D4ED8] hover:underline" />
+              </span>
               <span className="relative">
                 <select
                   value={selectedEnvironment}

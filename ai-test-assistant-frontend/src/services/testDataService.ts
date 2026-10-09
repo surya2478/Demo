@@ -13,6 +13,17 @@ export const ALL_ENVIRONMENTS = '*'
 const ENVIRONMENT_LABELS: Record<string, string> = { [ALL_ENVIRONMENTS]: 'All environments', PREPRODUCTION: 'Preproduction' }
 export const environmentLabel = (env: string | null | undefined) => (env ? ENVIRONMENT_LABELS[env.toUpperCase()] ?? env : '')
 
+/** An environment on the managed list (Manage environments). */
+export interface ManagedEnvironment {
+  name: string
+  label: string
+  position: number
+  /** {"test data values": 3, "application addresses": 1, ...}; zeros left out. */
+  usage: Record<string, number>
+  /** Why it cannot be deleted, if it cannot. */
+  blocked: string[]
+}
+
 export interface TestDataEntry {
   id: number
   environment: string
@@ -121,7 +132,19 @@ const testDataService = {
   /** No environment: the application's own, which is what a dry run uses. */
   check: async (scriptId: number): Promise<ScriptDataCheck> =>
     (await api.get(`${BASE}/check`, { params: { script_id: scriptId } })).data,
-  knowledgeBase: async (appId: number): Promise<KbUsage> => (await api.get(`${BASE}/apps/${appId}/knowledge-base`)).data
+  knowledgeBase: async (appId: number): Promise<KbUsage> => (await api.get(`${BASE}/apps/${appId}/knowledge-base`)).data,
+
+  // The one list of environments every environment choice offers.
+  environments: async (): Promise<ManagedEnvironment[]> => (await api.get(`${BASE}/environments`)).data.environments,
+  addEnvironment: async (name: string, after?: string): Promise<ManagedEnvironment[]> =>
+    (await api.post(`${BASE}/environments`, { name, after })).data.environments,
+  /** Renames it everywhere it is stored; returns what changed. */
+  renameEnvironment: async (name: string, to: string): Promise<{ changed: Record<string, number>; environments: ManagedEnvironment[] }> =>
+    (await api.patch(`${BASE}/environments/${encodeURIComponent(name)}`, { name: to })).data,
+  deleteEnvironment: async (name: string, removeData: boolean): Promise<{ removed: Record<string, number>; environments: ManagedEnvironment[] }> =>
+    (await api.delete(`${BASE}/environments/${encodeURIComponent(name)}`, { params: { remove_data: removeData } })).data,
+  reorderEnvironments: async (names: string[]): Promise<ManagedEnvironment[]> =>
+    (await api.put(`${BASE}/environments/order`, { names })).data.environments
 }
 
 /** A stored key for a KB variable: TESTDATA_DEFAULT_ORG_EMAIL -> default_org.email. */

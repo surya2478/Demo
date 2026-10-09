@@ -85,7 +85,6 @@ const EMPTY_COUNTS: WorkbenchCounts = {
   needs_data: 0
 }
 
-const ENVIRONMENTS = ['SIT', 'UAT', 'QA', 'DEV']
 
 
 

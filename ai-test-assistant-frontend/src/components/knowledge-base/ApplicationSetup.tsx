@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react'
+import ManageEnvironmentsButton from '../ManageEnvironments'
+import { useEnvironments } from '../../hooks/useEnvironments'
 import { Link } from 'react-router-dom'
 import knowledgeBaseService, { errorText, type AppDeletion, type AppRegistration, type KbOverview } from '../../services/knowledgeBaseService'
 import testDataService, { type DataApp } from '../../services/testDataService'
@@ -24,7 +26,6 @@ const FIELD = 'w-full rounded-[10px] border border-[#E8EAEE] bg-white px-2.5 tex
 const INPUT = `h-[34px] ${FIELD}`
 const TEXTAREA = `min-h-[150px] py-2 font-mono text-[12.5px] normal-case tracking-normal ${FIELD}`
 const LABEL = 'flex flex-col gap-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[#6B7280]'
-const COMMON_ENVIRONMENTS = ['SIT', 'UAT', 'RC', 'PREPRODUCTION', 'PROD']
 
 export const keyFromName = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 100)
 
@@ -49,6 +50,8 @@ const EnvironmentRows: React.FC<{
   onDefault: (env: string) => void
 }> = ({ rows, defaultEnv, onRows, onDefault }) => {
   const set = (i: number, patch: Partial<EnvRow>) => onRows(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)))
+  // The managed list (Manage environments), in release order.
+  const { names: COMMON_ENVIRONMENTS } = useEnvironments()
   const unused = COMMON_ENVIRONMENTS.find(e => !rows.some(r => r.env.toUpperCase() === e)) ?? ''
   return (
     <div className="flex flex-col gap-2">
@@ -75,9 +78,12 @@ const EnvironmentRows: React.FC<{
         </div>
       ))}
       <datalist id="kb-environments">{COMMON_ENVIRONMENTS.map(e => <option key={e} value={e} />)}</datalist>
-      <button type="button" className="w-fit text-[12.5px] font-semibold text-[#1D4ED8] hover:underline" onClick={() => onRows([...rows, { env: unused, address: '' }])}>
-        + Add environment
-      </button>
+      <div className="flex flex-wrap items-center gap-4">
+        <button type="button" className="w-fit text-[12.5px] font-semibold text-[#1D4ED8] hover:underline" onClick={() => onRows([...rows, { env: unused, address: '' }])}>
+          + Add environment
+        </button>
+        <ManageEnvironmentsButton label="Manage the environment list" className="text-[12.5px] font-semibold text-[#6B7280] hover:text-[#1D4ED8] hover:underline" />
+      </div>
     </div>
   )
 }

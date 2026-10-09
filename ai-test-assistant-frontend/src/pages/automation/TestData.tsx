@@ -23,6 +23,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useConfirm } from '../../components/ui/ConfirmDialog'
+import ManageEnvironmentsButton from '../../components/ManageEnvironments'
+import { publishEnvironments, useEnvironments } from '../../hooks/useEnvironments'
 import testDataService, {
   ALL_ENVIRONMENTS, environmentLabel, isSecretVariable, keyForVariable, readableName,
   type DataApp, type EntryInput, type EnvironmentSummary, type KbApp, type KbUsage
@@ -83,9 +85,6 @@ const STATUS_CHIP: Record<string, string> = {
 
 // --- Add application --------------------------------------------------------------
 
-// The environments an application can be added for, in the order a release
-// moves through them; the page's list (from the server) adds any others.
-const DIALOG_ENVIRONMENTS = ['SIT', 'UAT', 'RC', 'PREPRODUCTION']
 
 const AddAppDialog: React.FC<{
   kbApps: KbApp[]
@@ -101,8 +100,8 @@ const AddAppDialog: React.FC<{
   const kb = kbApps.find(a => a.kb_app_id === kbId) ?? null
   const [name, setName] = useState(kb?.name ?? '')
   const [prefix, setPrefix] = useState(kb?.url_prefix ?? '')
-  const envChoices = Array.from(new Set([...DIALOG_ENVIRONMENTS, ...environments.map(e => e.toUpperCase())]))
-    .filter(e => e && e !== ALL_ENVIRONMENTS)
+  // The managed list (Manage environments), in release order.
+  const envChoices = Array.from(new Set(environments.map(e => e.toUpperCase()))).filter(e => e && e !== ALL_ENVIRONMENTS)
   const [runEnvironment, setRunEnvironment] = useState('SIT')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -143,7 +142,7 @@ const AddAppDialog: React.FC<{
             <select value={runEnvironment} onChange={e => setRunEnvironment(e.target.value)} className={FIELD} aria-label="Environment">
               {envChoices.map(e => <option key={e} value={e}>{envLabel(e)}</option>)}
             </select>
-            <span className="text-[11.5px] text-[#9CA3AF]">Where the address below runs. Add the other environments' addresses after it is created.</span>
+            <span className="text-[11.5px] text-[#9CA3AF]">Where the address below runs. Add the other environments' addresses after it is created. <ManageEnvironmentsButton label="Manage environments" className="font-semibold text-[#1D4ED8] hover:underline" /></span>
           </label>
           <label className="flex flex-col gap-1.5">
             <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#6B7280]">Knowledge Base application</span>
@@ -180,7 +179,8 @@ const TestData: React.FC = () => {
   const confirm = useConfirm()
   const [params, setParams] = useSearchParams()
   const [apps, setApps] = useState<DataApp[]>([])
-  const [environments, setEnvironments] = useState<string[]>(['SIT', 'QA', 'UAT', 'RC', 'PREPRODUCTION'])
+  // The managed list (Manage environments); the page follows its changes.
+  const { names: environments } = useEnvironments()
   const [kbApps, setKbApps] = useState<KbApp[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -213,7 +213,6 @@ const TestData: React.FC = () => {
     try {
       const [data, kb] = await Promise.all([testDataService.apps(), testDataService.kbApps()])
       setApps(data.apps)
-      setEnvironments(data.environments.length ? data.environments : ['SIT', 'QA', 'UAT', 'RC', 'PREPRODUCTION'])
       setKbApps(kb)
       setError('')
     } catch (err: any) {
@@ -224,6 +223,16 @@ const TestData: React.FC = () => {
   }, [])
 
   useEffect(() => { void load() }, [load])
+  // A rename or delete in Manage environments changes the stored values and
+  // addresses: read them again, unless there are unsaved edits to keep.
+  const envKey = environments.join('|')
+  const seenEnvKey = React.useRef(envKey)
+  useEffect(() => {
+    if (seenEnvKey.current === envKey) return
+    seenEnvKey.current = envKey
+    if (!dirty) void load()
+    else setNotice('The environment list changed. Save or discard your edits to see it.')
+  }, [envKey, dirty, load])
 
   const reset = useCallback((next: DataApp | null) => {
     setName(next?.name ?? '')
@@ -519,14 +528,19 @@ const TestData: React.FC = () => {
                     e.preventDefault()
                     const value = newEnv.trim().toUpperCase()
                     if (!value) return
-                    if (!environments.includes(value)) setEnvironments(current => [...current, value])
-                    setEnv(value)
-                    setNewEnv('')
+                    if (environments.includes(value)) { setEnv(value); setNewEnv(''); return }
+                    // Added to the managed list, so every environment choice offers it.
+                    testDataService.addEnvironment(value)
+                      .then(list => { publishEnvironments(list); setEnv(value); setNewEnv(''); setError('') })
+                      .catch((err: any) => setNotice(err?.response?.data?.detail || `${value} could not be added.`))
                   }}
                   className="flex items-center"
                 >
-                  <input value={newEnv} onChange={e => setNewEnv(e.target.value)} placeholder="+ environment" maxLength={40} className="h-8 w-[120px] rounded-full border border-dashed border-[#D6D9DF] bg-white px-3 text-[12.5px] outline-none focus:border-[#F1A4A6]" />
+                  <input value={newEnv} onChange={e => setNewEnv(e.target.value)} placeholder="+ environment" maxLength={40} aria-label="Add an environment" className="h-8 w-[120px] rounded-full border border-dashed border-[#D6D9DF] bg-white px-3 text-[12.5px] outline-none focus:border-[#F1A4A6]" />
                 </form>
+              )}
+              {canExecute && (
+                <ManageEnvironmentsButton label="Manage environments" className="ml-1 text-[12px] font-semibold text-[#1D4ED8] hover:underline" />
               )}
             </div>
 

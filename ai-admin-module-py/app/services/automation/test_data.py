@@ -48,10 +48,20 @@ def environment_label(env: Optional[str]) -> str:
     return {ALL_ENVIRONMENTS: "all environments", "PREPRODUCTION": "Preproduction"}.get((env or "").upper(), env or "")
 
 
+# The managed list's order (services/automation/environments.py), once read;
+# until then the defaults.
+_ORDER: list[str] = []
+
+
+def set_environment_order(order: list[str]) -> None:
+    _ORDER[:] = list(order)
+
+
 def ordered_environments(extra=()) -> list[str]:
-    """The default environments in release order, then any others alphabetically."""
-    others = sorted({e for e in extra if e and e != ALL_ENVIRONMENTS} - set(DEFAULT_ENVIRONMENTS))
-    return [*DEFAULT_ENVIRONMENTS, *others]
+    """The managed environments in their order, then any others alphabetically."""
+    base = _ORDER or list(DEFAULT_ENVIRONMENTS)
+    others = sorted({e for e in extra if e and e != ALL_ENVIRONMENTS} - set(base))
+    return [*base, *others]
 PREFIX = "TESTDATA_"
 
 # --- Encryption ---------------------------------------------------------------

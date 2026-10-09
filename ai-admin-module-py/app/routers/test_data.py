@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 from ..database.connection import get_db
 from ..models.automation import AutomationDataApp, AutomationScript, AutomationTestData
 from ..services.authz import require_permission
-from ..services.automation import registry, test_data
+from ..services.automation import environments, registry, test_data
 
 router = APIRouter()
 
@@ -127,11 +127,74 @@ class EntriesIn(BaseModel):
 
 
 def _environments(db: Session) -> list[str]:
-    from ..models.automation import AutomationDataAppEnvironment
+    """The managed list (Manage environments), which also takes in any name in use."""
+    return environments.names(db)
 
-    used = [e for (e,) in db.query(AutomationTestData.environment).distinct()]
-    used += [e for (e,) in db.query(AutomationDataAppEnvironment.environment).distinct()]
-    return test_data.ordered_environments(e for e in used if e != test_data.ALL_ENVIRONMENTS)
+
+# --- Environments: the one list every environment choice offers --------------------------
+
+class EnvironmentIn(BaseModel):
+    name: str = Field(min_length=1, max_length=40)
+    after: Optional[str] = Field(default=None, max_length=40)
+
+
+class EnvironmentRenameIn(BaseModel):
+    name: str = Field(min_length=1, max_length=40)
+
+
+class EnvironmentOrderIn(BaseModel):
+    names: list[str] = Field(min_length=1, max_length=100)
+
+
+def _env_error(exc: Exception):
+    if isinstance(exc, LookupError):
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/environments")
+def list_environments(db: Session = Depends(get_db), current_user: dict = Depends(require_permission(PERM_VIEW))):
+    return {"environments": environments.view(db)}
+
+
+@router.post("/environments", status_code=201)
+def add_environment(body: EnvironmentIn, db: Session = Depends(get_db),
+                    current_user: dict = Depends(require_permission(PERM_EXECUTE))):
+    try:
+        name = environments.add(db, body.name, actor=current_user.get("username"), after=body.after)
+    except environments.EnvironmentError_ as exc:
+        _env_error(exc)
+    return {"name": name, "environments": environments.view(db)}
+
+
+@router.patch("/environments/{name}")
+def rename_environment(name: str, body: EnvironmentRenameIn, db: Session = Depends(get_db),
+                       current_user: dict = Depends(require_permission(PERM_EXECUTE))):
+    try:
+        changed = environments.rename(db, name, body.name)
+    except (environments.EnvironmentError_, LookupError) as exc:
+        _env_error(exc)
+    return {"changed": changed, "environments": environments.view(db)}
+
+
+@router.delete("/environments/{name}")
+def delete_environment(name: str, remove_data: bool = Query(False), db: Session = Depends(get_db),
+                       current_user: dict = Depends(require_permission(PERM_EXECUTE))):
+    try:
+        removed = environments.delete(db, name, remove_data=remove_data)
+    except (environments.EnvironmentError_, LookupError) as exc:
+        _env_error(exc)
+    return {"removed": removed, "environments": environments.view(db)}
+
+
+@router.put("/environments/order")
+def reorder_environments(body: EnvironmentOrderIn, db: Session = Depends(get_db),
+                         current_user: dict = Depends(require_permission(PERM_EXECUTE))):
+    try:
+        environments.reorder(db, body.names)
+    except environments.EnvironmentError_ as exc:
+        _env_error(exc)
+    return {"environments": environments.view(db)}
 
 
 @router.get("/apps")

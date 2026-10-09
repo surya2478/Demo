@@ -754,6 +754,27 @@ class AutomationAICheck(Base):
     finished_at = Column(DateTime, nullable=True)
 
 
+# --- Environments ----------------------------------------------------------------
+
+
+class AutomationEnvironment(Base):
+    """One environment the platform knows (SIT, UAT, RC...), in release order.
+
+    The one list behind every environment choice: Generate Test Cases, Test
+    Data, an application's addresses, the Workbench. Managed on the Test Data
+    page (services/automation/environments.py); seeded from
+    test_data.DEFAULT_ENVIRONMENTS the first time it is read.
+    """
+
+    __tablename__ = "automation_environments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(40), nullable=False, unique=True)
+    position = Column(Integer, nullable=False, default=0)
+    created_by = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 # --- Test data vault -----------------------------------------------------------
 
 
