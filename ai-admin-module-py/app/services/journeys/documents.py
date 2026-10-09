@@ -148,8 +148,18 @@ def store_upload(db: Session, kb: store.JourneyKB, *, filename: str, contents: b
     safe = re.sub(r"[^A-Za-z0-9._ -]+", "_", name).strip() or f"document.{kind}"
     stored_as = f"{DOCUMENTS_DIR}/{sha[:10]}_{safe[-120:]}"
     target = _kb_dir(kb) / stored_as
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(contents)
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(contents)
+    except OSError as exc:
+        # Typically a bind-mounted Knowledge Base folder the backend's user
+        # (uid 10001 in the image) does not own.
+        uid = getattr(__import__("os"), "getuid", lambda: None)()
+        raise DocumentError(
+            f"The document could not be saved in the Knowledge Base folder ({target.parent}): {exc.strerror or exc}. "
+            + (f"The backend runs as uid {uid}; give it write access to the Knowledge Base folder on the host, "
+               f"e.g. sudo chown -R {uid}:{uid} <host knowledge_base folder>." if uid is not None else "")
+        ) from exc
     doc = KbSourceDocument(app_id=kb.app_id, filename=name, stored_as=stored_as, sha256=sha,
                            size_bytes=len(contents), pages=pages, doc_kind=doc_kind, status="uploaded",
                            created_by=actor)

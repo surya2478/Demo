@@ -212,6 +212,48 @@ async def start_background_tasks():
     except Exception as exc:  # noqa: BLE001 - never block startup on this
         print(f"[Automation] Startup hook skipped: {exc}")
 
+class _ErrorsAsJson:
+    """An unhandled error becomes a JSON 500 *inside* CORS.
+
+    Starlette answers an unhandled exception from its outermost layer, outside
+    CORSMiddleware, so the 500 carries no Access-Control-Allow-Origin and the
+    browser reports "blocked by CORS policy" / "Network Error" -- hiding the
+    real message. Caught here, the page shows what went wrong and the log has
+    the traceback.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        started = False
+
+        async def tracked(message):
+            nonlocal started
+            if message["type"] == "http.response.start":
+                started = True
+            await send(message)
+
+        try:
+            await self.app(scope, receive, tracked)
+        except Exception as exc:  # noqa: BLE001
+            import json as _json
+            import logging as _log
+
+            _log.getLogger("app.errors").exception("Unhandled error on %s %s", scope.get("method"), scope.get("path"))
+            if started:
+                raise
+            body = _json.dumps({"detail": f"Server error: {exc.__class__.__name__}: {exc}"[:500]}).encode()
+            await send({"type": "http.response.start", "status": 500,
+                        "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode())]})
+            await send({"type": "http.response.body", "body": body})
+
+
+# Added before CORS, so CORS wraps it and its 500s carry the CORS headers.
+app.add_middleware(_ErrorsAsJson)
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
