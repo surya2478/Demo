@@ -150,10 +150,7 @@ def _structure(kb: store.JourneyKB, doc: KbSourceDocument, page: Dict[str, Any],
 
 
 def _pictures(kb: store.JourneyKB, doc: KbSourceDocument, page: int) -> List[bytes]:
-    try:
-        import pymupdf
-    except ImportError:
-        import fitz as pymupdf  # type: ignore
+    pymupdf = documents._pymupdf()
     pdf = documents._open_pdf(documents.document_path(kb, doc).read_bytes())
     pg = pdf[page - 1]
     rect = pg.rect

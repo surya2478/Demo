@@ -169,11 +169,23 @@ def store_upload(db: Session, kb: store.JourneyKB, *, filename: str, contents: b
     return doc, True
 
 
-def _open_pdf(contents: bytes):
+def _pymupdf():
+    """PyMuPDF (requirements.txt), or a message saying it is missing rather than a 500."""
     try:
         import pymupdf
     except ImportError:  # older PyMuPDF
-        import fitz as pymupdf  # type: ignore
+        try:
+            import fitz as pymupdf  # type: ignore
+        except ImportError as exc:
+            raise DocumentError(
+                "PDF support is not installed on the backend: PyMuPDF is missing. Add PyMuPDF==1.28.2 to "
+                "ai-admin-module-py/requirements.txt and rebuild the backend image (or pip install PyMuPDF==1.28.2)."
+            ) from exc
+    return pymupdf
+
+
+def _open_pdf(contents: bytes):
+    pymupdf = _pymupdf()
     try:
         doc = pymupdf.open(stream=contents, filetype="pdf")
     except Exception as exc:  # noqa: BLE001
@@ -217,10 +229,7 @@ def page_png(kb: store.JourneyKB, doc: KbSourceDocument, page: int, zoom: float 
     pdf = _open_pdf(document_path(kb, doc).read_bytes())
     if not 1 <= page <= len(pdf):
         raise DocumentError(f"This document has {len(pdf)} page(s).")
-    try:
-        import pymupdf
-    except ImportError:
-        import fitz as pymupdf  # type: ignore
+    pymupdf = _pymupdf()
     return pdf[page - 1].get_pixmap(matrix=pymupdf.Matrix(zoom, zoom)).tobytes("png")
 
 
@@ -938,10 +947,7 @@ def page_images(kb: store.JourneyKB, doc: KbSourceDocument, page: int) -> List[b
     picture its labels become unreadable, so a tall page is cut top to bottom
     into slices (at most MAX_SLICES, the last one taking what is left).
     """
-    try:
-        import pymupdf
-    except ImportError:
-        import fitz as pymupdf  # type: ignore
+    pymupdf = _pymupdf()
     pdf = _open_pdf(document_path(kb, doc).read_bytes())
     if not 1 <= page <= len(pdf):
         raise DocumentError(f"This document has {len(pdf)} page(s).")
