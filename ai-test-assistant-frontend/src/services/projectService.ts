@@ -48,12 +48,15 @@ export interface GenerationSnapshot {
   text_input?: string
   ppm_id?: string
   stopped?: boolean
+  /** The application(s) chosen on Generate Test Cases (Test Data applications). */
+  applications?: { id: number; name: string }[]
 }
 
 export interface SessionDetail extends SessionSummary {
   generation: GenerationSnapshot
   brd_document: { name?: string }[] | null
-  rows: { test_case_id: string; display_id: string; status: string }[]
+  /** `application`: the chosen application the case is linked to, null when unassigned. */
+  rows: { test_case_id: string; display_id: string; status: string; application?: string | null }[]
 }
 
 const projectService = {

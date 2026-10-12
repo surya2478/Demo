@@ -37,6 +37,9 @@ class StartChecksRequest(BaseModel):
     # SIT, UAT...: chosen on Generate Test Cases. The saved session's own
     # choice is used when this is left out.
     environment: Optional[str] = Field(default=None, max_length=40)
+    # Test Data application ids chosen on Generate Test Cases. The saved
+    # session's own choice is used when this is left out.
+    applications: Optional[list[int]] = Field(default=None, max_length=50)
 
 
 class EditedStep(BaseModel):
@@ -70,14 +73,28 @@ def start_checks(
         session = db.query(TestCaseReviewDetail).filter(TestCaseReviewDetail.request_id == body.request_id).first()
         if session is None:
             raise HTTPException(status_code=404, detail="The saved session was not found.")
+    from ..services.automation import applications as app_scope
+
     try:
+        scope = app_scope.choices(
+            db, body.applications or ((session.generation or {}).get("applications") if session is not None else None) or []
+        )
+        rows = [dict(row) for row in body.rows]
+        if session is not None and scope:
+            # An application the author picked by hand for a case (Unassigned,
+            # or matched wrongly) lives on the saved row, not in the table text.
+            from ..models.database import TestCaseDetail
+
+            saved = db.query(TestCaseDetail).filter(TestCaseDetail.request_id == session.request_id).all()
+            app_scope.carry_by_case(rows, [item.test_case_details for item in saved])
         batch_id = ai_checks.start_batch(
             db,
-            body.rows,
+            rows,
             actor=_actor(current_user),
             knowledge_base=body.knowledge_base,
             project_id=session.project_id if session is not None else None,
             environment=body.environment or ((session.generation or {}).get("environment") if session is not None else None),
+            applications=scope,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

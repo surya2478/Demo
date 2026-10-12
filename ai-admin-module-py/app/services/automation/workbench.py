@@ -629,8 +629,17 @@ def sync_approved_test_cases(db: Session) -> int:
             detail_value(details, "expected"),
             detail_value(details, "test_data"),
         ))
-        app_url_match = re.search(r"https?://[^\s'\"\)]+", full_case_text)
-        if app_url_match:
+        # A case linked to the application the user chose runs there, and
+        # nowhere else; one from a generation that chose applications but
+        # could not be told apart gets no URL rather than a guess. Only an
+        # older, unlinked case goes through the inference below.
+        from . import applications as app_scope
+
+        choice, chosen = app_scope.for_row(details)
+        app_url_match = None if chosen else re.search(r"https?://[^\s'\"\)]+", full_case_text)
+        if chosen:
+            app_url = app_scope.url_for(db, choice, full_case_text) if choice else None
+        elif app_url_match:
             app_url = app_url_match.group(0).rstrip(".,)")
             flow = kb.match_flow_blueprint(full_case_text)
             matched_app = (flow.get("_app_id") if flow else None) or kb.identify_app_id(full_case_text)
@@ -688,6 +697,7 @@ def sync_approved_test_cases(db: Session) -> int:
                 expected_result=detail_value(details, "expected") or None,
                 steps_structured=structured,
                 application_url=app_url,
+                application_id=app_scope.crawl_application_id(db, choice),
                 priority=detail_value(details, "priority") or "High",
                 origin="imported",
                 classification=CLASSIFICATION_UNDECIDED,
@@ -729,7 +739,12 @@ def sync_approved_test_cases(db: Session) -> int:
                 existing.origin_test_case_id = origin_id
             if not existing.origin_request_id:
                 existing.origin_request_id = row.request_id
-            if app_url and (not existing.application_url or "smb" in full_case_text.lower() and "smb" not in (existing.application_url or "")):
+            if chosen:
+                if choice and not existing.application_id:
+                    existing.application_id = app_scope.crawl_application_id(db, choice)
+                if app_url and not existing.application_url:
+                    existing.application_url = app_url
+            elif app_url and (not existing.application_url or "smb" in full_case_text.lower() and "smb" not in (existing.application_url or "")):
                 existing.application_url = app_url
 
             # Repair a row that is still showing the fallback.

@@ -727,8 +727,12 @@ class ClassificationContext:
     use_kb: bool = True
     _profiles: dict[str, Optional[dict]] = field(default_factory=dict, repr=False)
 
-    def profile_for(self, case_text: str) -> tuple[Optional[str], Optional[dict]]:
+    def profile_for(self, case_text: str, linked_app: Optional[str] = None) -> tuple[Optional[str], Optional[dict]]:
         """The KB profile this case's text identifies, or (None, None).
+
+        `linked_app` is the application the case is linked to (chosen on
+        Generate Test Cases): its own profile, exactly, instead of reading one
+        out of the text.
 
         Every failure here is swallowed deliberately. The Knowledge Base is a
         directory bind-mounted into the container, not part of the image; when
@@ -737,6 +741,10 @@ class ClassificationContext:
         """
         if not self.use_kb:
             return None, None
+        if linked_app:
+            if linked_app not in self._profiles:
+                self._profiles[linked_app] = kb.load_exact_profile(linked_app)
+            return linked_app, self._profiles.get(linked_app)
         try:
             app_id = kb.identify_app_id(case_text)
         except Exception:  # pragma: no cover - KB is optional infrastructure
@@ -754,7 +762,7 @@ class ClassificationContext:
 
 
 def check_knowledge_base(
-    steps: list[dict], case_text: str, context: ClassificationContext
+    steps: list[dict], case_text: str, context: ClassificationContext, linked_app: Optional[str] = None
 ) -> dict:
     """Do the controls these steps name exist in anything we know about?
 
@@ -765,7 +773,7 @@ def check_knowledge_base(
     same green badge as one whose controls were all found.
     """
     findings: list[Finding] = []
-    app_id, profile = context.profile_for(case_text)
+    app_id, profile = context.profile_for(case_text, linked_app)
 
     catalog = context.catalog or []
     summary = grounding.ground_test_case(
@@ -904,6 +912,15 @@ def check_test_data(steps: list[dict], case_test_data: Any, requirements: Any) -
 
 # ── The verdict ──────────────────────────────────────────────────────────────
 
+def _linked_app(case: Any) -> Optional[str]:
+    try:
+        from .applications import kb_key_for_case
+
+        return kb_key_for_case(case)
+    except Exception:  # pragma: no cover - a detached or plain object has no link
+        return None
+
+
 def assess(case: Any, context: Optional[ClassificationContext] = None) -> dict:
     """Run every check over one case and combine them into a verdict.
 
@@ -938,7 +955,7 @@ def assess(case: Any, context: Optional[ClassificationContext] = None) -> dict:
             has_expected_result=bool(_text(getattr(case, "expected_result", None))),
         ),
         "channel": check_channel(steps, case_text),
-        "knowledge_base": check_knowledge_base(steps, case_text, context),
+        "knowledge_base": check_knowledge_base(steps, case_text, context, _linked_app(case)),
         "test_data": check_test_data(
             steps,
             getattr(case, "test_data", None),

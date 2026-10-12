@@ -24,6 +24,7 @@ import Notification from '../../components/Notification'
 import { authHeaderFor, isOwnBackend } from '../../utils/trackedFetchWithTokens'
 import api from '../../services/api'
 import SelectKB, { type KnowledgeBaseOption } from '../../components/test-assistant/SelectKB'
+import SelectApplications, { fetchTargetApplications, type TargetApplication } from '../../components/test-assistant/SelectApplications'
 import JourneyBar from '../../components/test-assistant/JourneyBar'
 import { CaseGrid, InputSummary, ProgressPanel, normalizeLegacyTable, parseStreamingCases, removeCasesFromMarkdown } from '../../components/test-assistant/GenerationOutput'
 import AIChecksPanel, { isSettled } from '../../components/test-assistant/AIChecksPanel'
@@ -127,6 +128,52 @@ const TestCases: React.FC = () => {
   ]
   const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState<KnowledgeBaseChoice>('default')
   const selectedKnowledgeBaseOption = knowledgeBaseOptions.find((option) => option.value === selectedKnowledgeBase) ?? knowledgeBaseOptions[0]
+
+  // Application, after Select KB: the Test Data application(s) the document is
+  // for. Mandatory for every KB, and several may be ticked. Generation is
+  // grounded in those applications only, and every case is linked to the one
+  // it is for when it is saved -- nothing after that infers the application
+  // from the case text, which is how a case sharing words like "Business" or
+  // "Payment" with the B2B Portal used to be stamped with the B2B URL.
+  const [applicationOptions, setApplicationOptions] = useState<TargetApplication[]>([])
+  const [applicationsLoading, setApplicationsLoading] = useState(true)
+  const [selectedApplicationIds, setSelectedApplicationIds] = useState<number[]>([])
+  const [applicationMissing, setApplicationMissing] = useState(false)
+  // {generated Test Case ID: application name, or null when it could not be told} from the save.
+  const [caseApplications, setCaseApplications] = useState<Record<string, string | null>>({})
+  const selectedApplications = applicationOptions.filter((app) => selectedApplicationIds.includes(app.id))
+  const unassignedCount = Object.values(caseApplications).filter((app) => app === null).length
+  // The case whose picked application is being saved.
+  const [pickingCase, setPickingCase] = useState<string | null>(null)
+  useEffect(() => {
+    let live = true
+    fetchTargetApplications()
+      .then((apps) => { if (live) setApplicationOptions(apps) })
+      .catch((error) => console.warn('[TestCases] Could not load applications:', error))
+      .finally(() => { if (live) setApplicationsLoading(false) })
+    return () => { live = false }
+  }, [])
+  // The environments the chosen applications have an address in; all of them
+  // while none of the chosen applications has an address yet.
+  const applicationEnvironments = new Set(
+    selectedApplications.flatMap((app) => Object.keys(app.addresses || {}).map((env) => env.toUpperCase()))
+  )
+  const visibleEnvironmentOptions = applicationEnvironments.size
+    ? environmentOptions.filter((option) => !option.value || applicationEnvironments.has(option.value.toUpperCase()))
+    : environmentOptions
+  useEffect(() => {
+    if (selectedEnvironment && applicationEnvironments.size && !applicationEnvironments.has(selectedEnvironment.toUpperCase())) {
+      setSelectedEnvironment('')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedApplicationIds.join(','), applicationOptions])
+  const applicationRefs = () => selectedApplications.map(({ id, name }) => ({ id, name }))
+  // The admin backend builds its own prompt block from these (Automation and
+  // Squad KB); Default KB's AI service only reads the text.
+  const appendApplicationFields = (formData: FormData) => {
+    selectedApplicationIds.forEach((id) => formData.append('applications', String(id)))
+    formData.append('environment', selectedEnvironment || '')
+  }
 
   const sourceOptions = [
     { value: 'text', label: 'Text Input', audit: 'Text Input', icon: 'M4 20h4L19 9l-4-4L4 16z' },
@@ -437,6 +484,12 @@ const TestCases: React.FC = () => {
   const buildPromptTextWithSelection = (baseText: string) => {
     const trimmedBaseText = (baseText || '').trim()
     const selectedValues: string[] = []
+
+    if (selectedKnowledgeBase === 'default' && selectedApplications.length) {
+      selectedValues.push(selectedApplications.length === 1
+        ? `Application: ${selectedApplications[0].name}`
+        : `Applications: ${selectedApplications.map((app) => app.name).join(', ')}. Write test cases for these applications only, and add a last column "Application" naming which of them each test case is for.`)
+    }
 
     if (selectedEnvironment && selectedEnvironment.trim()) {
       selectedValues.push(`Environment: ${selectedEnvironment}`)
@@ -1301,6 +1354,7 @@ const copyFigmaExtractedText = async () => {
     formData.append('text', promptText)
     console.log("selectedKnowledgeBaseOption.knowledgeBase text ::::::: ",selectedKnowledgeBaseOption.knowledgeBase)
     formData.append('knowledge_base', selectedKnowledgeBaseOption.knowledgeBase)
+    appendApplicationFields(formData)
     const backendUrl = String((import.meta as any).env?.VITE_API_URL || '').replace(/\/$/, '')
 
 
@@ -1383,6 +1437,7 @@ const copyFigmaExtractedText = async () => {
         
         const requestPayload = {
           inputType,
+          applications: selectedApplications.map((app) => app.name),
           environment: selectedEnvironment || '',
           focus: selectedFocus || '',
           documentCount: fileInputs.length,
@@ -1494,6 +1549,7 @@ const copyFigmaExtractedText = async () => {
         if (selectedKnowledgeBaseOption.knowledgeBase) {
           const generationBackendUrl = String((import.meta as any).env?.VITE_API_URL || 'http://localhost:8002').replace(/\/$/, '')
           formData.append('knowledge_base', selectedKnowledgeBaseOption.knowledgeBase)
+          appendApplicationFields(formData)
           generationUrl = `${generationBackendUrl}/generate/kb-testcases`
         }
         tracked = await trackedFetchWithTokens(
@@ -1636,6 +1692,7 @@ const copyFigmaExtractedText = async () => {
     setAiEditing(null)
     setAiEditError('')
     aiAutoSelectedRef.current = new Set()
+    setCaseApplications({})
   }
 
   // Same rows Review & Send uses, so the checks start from exactly the table
@@ -1659,7 +1716,7 @@ const copyFigmaExtractedText = async () => {
         if (!saved) return
       }
       // 2. AI Checks.
-      const batchId = await aiChecksService.start(rows, selectedKnowledgeBaseOption.knowledgeBase || undefined, savedRequestIdRef.current || undefined, selectedEnvironment || undefined)
+      const batchId = await aiChecksService.start(rows, selectedKnowledgeBaseOption.knowledgeBase || undefined, savedRequestIdRef.current || undefined, selectedEnvironment || undefined, selectedApplicationIds)
       setAiBatchId(batchId)
       setAiBatch(await aiChecksService.get(batchId))
     } catch (error: any) {
@@ -1674,6 +1731,7 @@ const copyFigmaExtractedText = async () => {
     input_type: inputType,
     knowledge_base: selectedKnowledgeBase,
     knowledge_base_label: selectedKnowledgeBaseOption.label,
+    applications: applicationRefs(),
     environment: selectedEnvironment || '',
     focus: selectedFocus || '',
     document_text: inputType === 'text' ? '' : combinedContent,
@@ -1709,7 +1767,7 @@ const copyFigmaExtractedText = async () => {
       }
     })
     try {
-      await api.post('/test-case-reviews/save', {
+      const res = await api.post('/test-case-reviews/save', {
         request_id: requestId,
         stage_request_id: workflowStageRequestId || requestId,
         source: inputType === 'e2e-spark' ? 'AZURE_DEVOPS' : inputType.toUpperCase(),
@@ -1719,14 +1777,44 @@ const copyFigmaExtractedText = async () => {
         brd_document: documents,
         rows: saveRows,
         project_id: projectRef.current?.id ?? null,
+        applications: selectedApplicationIds,
         generation: generation ?? generationSnapshot(response || output || '')
       })
+      // Which chosen application the server linked each case to.
+      const assigned: Record<string, string | null> = res.data?.applications || {}
+      const byCase: Record<string, string | null> = {}
+      ids.forEach((testCaseId, displayId) => {
+        if (testCaseId in assigned) byCase[displayId] = assigned[testCaseId]
+      })
+      setCaseApplications(byCase)
       savedCaseIdsRef.current = ids
       setSavedRequestId(requestId)
       return true
     } catch (error: any) {
       setAiError(`The test cases could not be saved. ${error?.response?.data?.detail || error?.message || ''}`.trim())
       return false
+    }
+  }
+
+  // An Unassigned case (or one matched wrongly) linked to the application the
+  // author picks. The server re-checks a case AI Checks already refined.
+  const handlePickApplication = async (displayId: string, applicationId: number) => {
+    const requestId = savedRequestIdRef.current
+    const testCaseId = savedCaseIdsRef.current.get(displayId)
+    if (!requestId || !testCaseId) return
+    setPickingCase(displayId)
+    setAiError('')
+    try {
+      const res = await api.post(`/test-case-reviews/saved/${encodeURIComponent(requestId)}/application`, {
+        test_case_id: testCaseId,
+        application_id: applicationId
+      })
+      setCaseApplications((current) => ({ ...current, [displayId]: res.data.application }))
+      if (res.data.rechecked?.length && aiBatchId) await refreshAiBatch(aiBatchId)
+    } catch (error: any) {
+      setAiError(error?.response?.data?.detail || 'The application could not be changed.')
+    } finally {
+      setPickingCase(null)
     }
   }
 
@@ -1892,6 +1980,7 @@ const copyFigmaExtractedText = async () => {
       // A session saved while Journey KB was its own choice opens on Automation KB, which now covers it.
       const savedKb = g.knowledge_base === 'journey' ? 'automation' : g.knowledge_base
       if (knowledgeBaseOptions.some((option) => option.value === savedKb)) setSelectedKnowledgeBase(savedKb as KnowledgeBaseChoice)
+      setSelectedApplicationIds((g.applications || []).map((app) => app.id))
       setSelectedEnvironment((g.environment || '') as EnvironmentOption)
       setSelectedFocus((g.focus || '') as FocusOption)
       setGenerationError('')
@@ -1903,6 +1992,9 @@ const copyFigmaExtractedText = async () => {
       if (session.project && session.project.id !== projectRef.current?.id) setProject(session.project)
       setSavedRequestId(session.request_id)
       savedCaseIdsRef.current = new Map(session.rows.map((row) => [row.display_id, row.test_case_id] as [string, string]))
+      setCaseApplications(Object.fromEntries(
+        session.rows.filter((row) => row.application !== undefined).map((row) => [row.display_id, row.application ?? null])
+      ))
       const sentRows = session.rows.filter((row) => row.status !== 'DRAFT').length
       setSubmittedTestCaseCount(sentRows > 0 ? sentRows : null)
       if (session.ai_batch_id) {
@@ -2177,6 +2269,10 @@ const copyFigmaExtractedText = async () => {
   // A project is asked for before generating -- from the BRD first, then the
   // author, who may go on without.
   const requestGenerate = async () => {
+    if (!selectedApplicationIds.length) {
+      setApplicationMissing(true)
+      return
+    }
     if (!selectedEnvironment) {
       setEnvironmentMissing(true)
       return
@@ -2392,6 +2488,7 @@ const copyFigmaExtractedText = async () => {
           <InputSummary
             source={inputSummarySource}
             knowledgeBase={selectedKnowledgeBaseOption.label}
+            applications={selectedApplications.map((app) => app.name).join(', ') || undefined}
             environment={selectedEnvironment || undefined}
             focus={selectedFocus || undefined}
             project={projectLabel(project) || undefined}
@@ -2580,6 +2677,14 @@ const copyFigmaExtractedText = async () => {
               onChange={setSelectedKnowledgeBase}
               disabled={loading}
             />
+            <SelectApplications
+              options={applicationOptions}
+              value={selectedApplicationIds}
+              onChange={(ids) => { setSelectedApplicationIds(ids); setApplicationMissing(false) }}
+              disabled={loading}
+              loading={applicationsLoading}
+              missing={applicationMissing}
+            />
             <label className="relative flex flex-col gap-1.5" title="The environment these test cases target. Their scripts run against it and use its Test Data.">
               <span className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6B7280]">
                 <span>Environment <span className="text-[#B71920]">*</span></span>
@@ -2597,7 +2702,7 @@ const copyFigmaExtractedText = async () => {
                     environmentMissing && !selectedEnvironment ? 'border-[#B71920] ring-2 ring-[#FDEBEC]' : 'border-[#E8EAEE]'
                   }`}
                 >
-                  {environmentOptions.map((option) => (
+                  {visibleEnvironmentOptions.map((option) => (
                     <option key={option.label} value={option.value}>{option.label}</option>
                   ))}
                 </select>
@@ -2671,7 +2776,7 @@ const copyFigmaExtractedText = async () => {
                 }}
                 data-audit-name={getGenerateButtonLabel()}
                 disabled={!isGenerateEnabled || loading || tokenLimitReached}
-                title={tokenLimitReached ? 'Token allocation limit reached' : !selectedEnvironment ? 'Choose the environment these test cases target first' : ''}
+                title={tokenLimitReached ? 'Token allocation limit reached' : !selectedApplicationIds.length ? 'Choose the application(s) these test cases are for first' : !selectedEnvironment ? 'Choose the environment these test cases target first' : ''}
                 className={`flex h-10 items-center gap-2 rounded-[12px] px-4 text-[13px] font-bold transition ${
                   isGenerateEnabled && !loading && !tokenLimitReached
                     ? 'bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] hover:opacity-95'
@@ -2883,7 +2988,20 @@ const copyFigmaExtractedText = async () => {
                     }),
                     onToggleAll: (ids, on) => setGridSelected(on ? new Set(ids) : new Set())
                   }}
-                  footerNote={isGenerationStreaming ? 'You can switch testing tools — generation keeps running.' : undefined}
+                  applicationOf={selectedApplications.length > 1
+                    ? (item) => (item.id in caseApplications ? caseApplications[item.id] : (item.application || ''))
+                    : undefined}
+                  applicationPicker={selectedApplications.length > 1 && savedRequestId ? {
+                    options: selectedApplications.map(({ id, name }) => ({ id, name })),
+                    onPick: (item, applicationId) => { void handlePickApplication(item.id, applicationId) },
+                    busyId: pickingCase,
+                    locked: (item) => !(item.id in caseApplications)
+                  } : undefined}
+                  footerNote={isGenerationStreaming
+                    ? 'You can switch testing tools — generation keeps running.'
+                    : unassignedCount
+                      ? `${unassignedCount} case${unassignedCount === 1 ? '' : 's'} could not be matched to one application — pick it in the Application column`
+                      : undefined}
                 />
               ) : isGenerationStreaming ? (
                 <CaseGrid cases={[]} streaming footerNote="You can switch testing tools — generation keeps running." />

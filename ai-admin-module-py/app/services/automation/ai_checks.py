@@ -49,6 +49,7 @@ from sqlalchemy.orm import Session
 from ...config import settings
 from ...database.connection import SessionLocal
 from ...models.automation import AutomationAICheck, AutomationTestCase
+from . import applications as app_scope
 from . import knowledge_base as kb
 from . import workbench as wb
 from .refine import refine_case_content, refined_to_columns
@@ -112,19 +113,33 @@ def _pending_steps() -> dict[str, str]:
 
 # --- Where the case runs ------------------------------------------------------
 
-def _resolve_application(details: dict[str, Any]) -> tuple[Optional[str], Optional[str]]:
+def _resolve_application(
+    details: dict[str, Any], db: Optional[Session] = None, environment: Optional[str] = None
+) -> tuple[Optional[str], Optional[str]]:
     """(application_url, application_name) for a generated case, or (None, None).
 
-    The same rule sync_approved_test_cases applies when a case is mirrored:
-    a URL the case names keeps its path and moves onto the host the matched
-    Knowledge Base profile registers; a case naming no URL takes the profile's
-    base URL; a case matching no application gets no URL at all, rather than
-    whichever profile happens to be listed first.
+    A case linked to the application the user chose (applications.py) runs
+    there: its URL comes from that application alone, and a case of a
+    generation that chose applications but could not be told apart gets no
+    URL rather than a guess across every application.
+
+    An older case with no choice keeps the earlier rule, the same one
+    sync_approved_test_cases applies: a URL the case names keeps its path and
+    moves onto the host the matched Knowledge Base profile registers; a case
+    naming no URL takes the profile's base URL; a case matching no
+    application gets no URL at all.
     """
     text = " ".join(
         wb.detail_value(details, field)
         for field in ("preconditions", "steps", "description", "expected", "test_data")
     )
+    choice, chosen = app_scope.for_row(details)
+    if chosen:
+        if choice is None:
+            return None, None
+        if db is None:
+            return (app_scope.profile(choice).get("base_url") or "").strip() or None, choice.name
+        return app_scope.url_for(db, choice, text, environment), choice.name
     try:
         flow = kb.match_flow_blueprint(text)
         app_id = (flow.get("_app_id") if flow else None) or kb.identify_app_id(text)
@@ -172,7 +187,12 @@ def _reference(check: AutomationAICheck) -> dict[str, Any]:
         wb.detail_value(row, field)
         for field in ("description", "preconditions", "steps", "expected", "test_data")
     )
+    # The case's own application only: refine and review judge it against
+    # the Knowledge Base of the application it was generated for.
+    choice, chosen = app_scope.for_row(row)
     try:
+        if chosen:
+            return reference_context(check.knowledge_base, text, [choice] if choice else [])
         return reference_context(check.knowledge_base, text)
     except Exception:  # noqa: BLE001 - a KB problem downgrades to ungrounded, never fails the check
         logger.warning("Knowledge Base lookup failed for check %s", check.id, exc_info=True)
@@ -205,7 +225,17 @@ def _diff(db: Session, check: AutomationAICheck, case: AutomationTestCase) -> No
         [case.description or "", case.objective or "", case.preconditions or ""]
         + [wb.detail_value(check.source_row or {}, "description")]
     )
-    report = journey_diff.diff_case(steps, text)
+    choice, chosen = app_scope.for_row(check.source_row or {})
+    if chosen:
+        journeys = app_scope.journey_app_ids(choice)
+        if not journeys:
+            # The application has no design journey to compare against.
+            case.journey_diff = None
+            _set_step(db, check, "diff", "skipped")
+            return
+        report = journey_diff.diff_case(steps, text, app_id=journeys[0])
+    else:
+        report = journey_diff.diff_case(steps, text)
     report["compared_at"] = datetime.utcnow().isoformat()
     case.journey_diff = report
     # No journey recognised: nothing was compared, so the step did not run.
@@ -233,8 +263,13 @@ def start_batch(
     knowledge_base: Optional[str] = None,
     project_id: Optional[int] = None,
     environment: Optional[str] = None,
+    applications: Optional[list[app_scope.AppChoice]] = None,
 ) -> str:
-    """Create a draft case and a check per row, then run the batch in the background."""
+    """Create a draft case and a check per row, then run the batch in the background.
+
+    `applications` are the ones chosen on Generate Test Cases: each row is
+    linked to the one it is for (applications.stamp) before anything reads it.
+    """
     if not rows:
         raise ValueError("There are no test cases to check.")
     if len(rows) > MAX_CASES:
@@ -246,7 +281,9 @@ def start_batch(
             raise ValueError("Each test case must be an object of its table columns.")
         display_id = wb.detail_value(row, "display_id") or f"TC-{position + 1:03d}"
         description = wb.detail_value(row, "description") or display_id
-        application_url, _ = _resolve_application(row)
+        row = dict(row)
+        choice = app_scope.stamp(row, applications) if applications else app_scope.linked(row)
+        application_url, _ = _resolve_application(row, db, environment)
         application_url = _for_environment(db, application_url, environment)
         case = AutomationTestCase(
             source="refined",
@@ -261,6 +298,7 @@ def start_batch(
             expected_result=wb.detail_value(row, "expected") or None,
             priority=wb.detail_value(row, "priority") or "Medium",
             application_url=application_url,
+            application_id=app_scope.crawl_application_id(db, choice),
             classification=wb.CLASSIFICATION_UNDECIDED,
             approval_status=wb.APPROVAL_DRAFT,
             created_by=actor,
@@ -376,7 +414,7 @@ def _run_check_steps(check_id: int) -> None:
         # 2 and 4 here, and running them inside refine would do both twice.
         _set_step(db, check, step, "running")
         row = check.source_row or {}
-        application_url, application_name = _resolve_application(row)
+        application_url, application_name = _resolve_application(row, db, case.environment)
         application_url = _for_environment(db, application_url, case.environment)
         reference = _reference(check)
         refined = refine_case_content(
@@ -543,6 +581,44 @@ def retry(db: Session, batch_id: str, check_id: int) -> None:
     _reset(check)
     db.commit()
     _launch(batch_id, [check.id])
+
+
+def relink(
+    db: Session, batch_id: str, display_id: str, choice: app_scope.AppChoice, scope: list[app_scope.AppChoice]
+) -> list[int]:
+    """Move the batch's check(s) for `display_id` to the application the author picked.
+
+    The draft case takes that application's address, and a case already
+    refined is checked again: its steps were written for the old application
+    (or for none), so keeping them would carry the drift past the pick.
+    Returns the ids of the checks queued again. A case still being checked is
+    refused -- its refine may already have read the old application.
+    """
+    checks = [
+        c for c in _batch_checks(db, batch_id)
+        if wb.detail_value(c.source_row or {}, "display_id") == display_id
+    ]
+    if any(c.status in ("queued", "running") for c in checks) and _is_active(batch_id):
+        raise ValueError("This case is still being checked. Pick its application when its checks finish.")
+    again = []
+    for check in checks:
+        row = dict(check.source_row or {})
+        app_scope.link(row, choice, scope)
+        check.source_row = row
+        case = db.get(AutomationTestCase, check.case_id) if check.case_id else None
+        if case is not None:
+            if case.origin_request_id:
+                continue  # already sent for approval; the review row carries it from here
+            url, _ = _resolve_application(row, db, case.environment)
+            case.application_url = _for_environment(db, url, case.environment)
+            case.application_id = app_scope.crawl_application_id(db, choice)
+            if check.status != "queued":
+                _reset(check)
+                again.append(check.id)
+    db.commit()
+    if again:
+        _launch(batch_id, again)
+    return again
 
 
 def save_edits(db: Session, batch_id: str, check_id: int, edits: dict[str, Any]) -> None:

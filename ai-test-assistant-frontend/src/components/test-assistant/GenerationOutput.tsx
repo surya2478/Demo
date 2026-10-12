@@ -13,6 +13,8 @@ export interface StreamedCase {
   type: CaseType
   priority: string
   steps: number
+  /** The "Application" column, when the table has one (several applications chosen). */
+  application: string
 }
 
 export type CaseType = 'Positive' | 'Negative' | 'Boundary'
@@ -318,7 +320,8 @@ export const parseStreamingCases = (text: string, complete: boolean): StreamPars
         ? col('test case type')[0].toUpperCase() + col('test case type').slice(1).toLowerCase()
         : inferCaseType(`${title} ${col('expected')}`)) as CaseType,
       priority: col('priority') || '—',
-      steps: countSteps(col('steps'))
+      steps: countSteps(col('steps')),
+      application: col('application')
     })
   }
   return { headerSeen: header !== null, cases }
@@ -340,11 +343,12 @@ const Chip: React.FC<{ tone?: 'neutral' | 'brand'; children: React.ReactNode; ti
 export const InputSummary: React.FC<{
   source: string
   knowledgeBase: string
+  applications?: string
   environment?: string
   focus?: string
   project?: string
   onShowInputs: () => void
-}> = ({ source, knowledgeBase, environment, focus, project, onShowInputs }) => (
+}> = ({ source, knowledgeBase, applications, environment, focus, project, onShowInputs }) => (
   <section className="flex items-center gap-3 rounded-[16px] border border-[#E8EAEE] bg-white px-[18px] py-3 shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]">
     <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[10px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)]">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" aria-hidden><path d="M12 3l1.8 4.9L19 9.7l-4.2 3.1 1.5 5.2L12 15l-4.3 3 1.5-5.2L5 9.7l5.2-1.8z" /></svg>
@@ -357,6 +361,7 @@ export const InputSummary: React.FC<{
         <span className="truncate">{source}</span>
       </Chip>
       <Chip tone="brand">KB · {knowledgeBase}</Chip>
+      {applications && <Chip title={applications}>{applications}</Chip>}
       {environment && <Chip>{environment}</Chip>}
       {focus && <Chip>{focus}</Chip>}
     </div>
@@ -455,6 +460,9 @@ const TYPE_TONE: Record<CaseType, string> = {
 
 const ROW = 'grid grid-cols-[88px_minmax(0,1fr)_130px_90px_64px] items-center gap-3 border-b border-[#F1F2F4] px-4'
 const ROW_SELECT = 'grid grid-cols-[22px_88px_minmax(0,1fr)_130px_90px_64px] items-center gap-3 border-b border-[#F1F2F4] px-4'
+// With the Application column, when several applications were chosen.
+const ROW_APP = 'grid grid-cols-[88px_minmax(0,1fr)_150px_130px_90px_64px] items-center gap-3 border-b border-[#F1F2F4] px-4'
+const ROW_SELECT_APP = 'grid grid-cols-[22px_88px_minmax(0,1fr)_150px_130px_90px_64px] items-center gap-3 border-b border-[#F1F2F4] px-4'
 
 interface CaseSelection {
   selected: Set<string>
@@ -468,8 +476,20 @@ export const CaseGrid: React.FC<{
   footerNote?: string
   /** Checkboxes, once the cases are all written. */
   selection?: CaseSelection
-}> = ({ cases, streaming, footerNote, selection }) => {
-  const row = selection && !streaming ? ROW_SELECT : ROW
+  /** Several applications chosen: which one each case is for ("" = not yet known, null = could not be told). */
+  applicationOf?: (item: StreamedCase) => string | null
+  /** The chosen applications, once the cases are saved: the cell becomes a picker. */
+  applicationPicker?: {
+    options: { id: number; name: string }[]
+    onPick: (item: StreamedCase, applicationId: number) => void
+    /** The case whose pick is being saved. */
+    busyId?: string | null
+    /** Cases that can no longer change (sent for approval). */
+    locked?: (item: StreamedCase) => boolean
+  }
+}> = ({ cases, streaming, footerNote, selection, applicationOf, applicationPicker }) => {
+  const withSelect = Boolean(selection) && !streaming
+  const row = applicationOf ? (withSelect ? ROW_SELECT_APP : ROW_APP) : (withSelect ? ROW_SELECT : ROW)
   const ids = cases.map((item) => item.id)
   const allOn = Boolean(selection) && ids.length > 0 && ids.every((id) => selection!.selected.has(id))
   const counts = cases.reduce<Record<CaseType, number>>(
@@ -483,7 +503,7 @@ export const CaseGrid: React.FC<{
     <div className="mx-[22px] mb-4 mt-3.5 overflow-hidden rounded-[16px] border border-[#E8EAEE]">
       <div className="max-h-[440px] overflow-y-auto">
         <div className={`${row} sticky top-0 z-10 h-9 border-b-[#F6D4D5] bg-[#F4F5F7] text-[11px] font-semibold uppercase tracking-[0.12em] text-[#1F2937]`}>
-          {row === ROW_SELECT && (
+          {withSelect && (
             <input
               type="checkbox"
               aria-label="Select all test cases"
@@ -494,11 +514,11 @@ export const CaseGrid: React.FC<{
               className="h-4 w-4 accent-[#B71920]"
             />
           )}
-          <span>TC ID</span><span>Title</span><span title="Inferred from each case's description">Type</span><span>Priority</span><span>Steps</span>
+          <span>TC ID</span><span>Title</span>{applicationOf && <span>Application</span>}<span title="Inferred from each case's description">Type</span><span>Priority</span><span>Steps</span>
         </div>
         {cases.map((item) => (
-          <div key={item.id} className={`${row} h-11 text-[13px] text-[#1F2937] ${row === ROW_SELECT && selection!.selected.has(item.id) ? 'bg-[#FFF8F8]' : ''}`}>
-            {row === ROW_SELECT && (
+          <div key={item.id} className={`${row} h-11 text-[13px] text-[#1F2937] ${withSelect && selection!.selected.has(item.id) ? 'bg-[#FFF8F8]' : ''}`}>
+            {withSelect && (
               <input
                 type="checkbox"
                 aria-label={`Select ${item.id}`}
@@ -509,6 +529,36 @@ export const CaseGrid: React.FC<{
             )}
             <span className="font-semibold">{item.id}</span>
             <span className="truncate" title={item.title}>{item.title}</span>
+            {applicationOf && (() => {
+              const app = applicationOf(item)
+              const picker = !streaming && applicationPicker && !applicationPicker.locked?.(item) ? applicationPicker : undefined
+              if (picker) {
+                const current = picker.options.find((option) => option.name === app)
+                return (
+                  <select
+                    aria-label={`Application of ${item.id}`}
+                    data-audit-name="Case application"
+                    value={current ? String(current.id) : ''}
+                    disabled={picker.busyId === item.id}
+                    title={app === null ? 'Could not be matched to one of the chosen applications. Pick the one this case is for.' : 'Change the application this case is for'}
+                    onChange={(event) => { if (event.target.value) picker.onPick(item, Number(event.target.value)) }}
+                    className={`h-8 w-full min-w-0 truncate rounded-[9px] border bg-white px-2 text-[12.5px] font-semibold outline-none focus:border-[#B71920] focus:ring-2 focus:ring-[#FDEBEC] disabled:opacity-60 ${
+                      current ? 'border-[#E8EAEE] text-[#1F2937]' : 'border-[#F5C26B] bg-[#FFFBEB] text-[#B45309]'
+                    }`}
+                  >
+                    {!current && <option value="" disabled>Unassigned — pick</option>}
+                    {picker.options.map((option) => (
+                      <option key={option.id} value={option.id}>{option.name}</option>
+                    ))}
+                  </select>
+                )
+              }
+              return app === null ? (
+                <span className="truncate text-[12px] font-semibold text-[#B45309]" title="Could not be matched to one of the chosen applications, so it carries no URL. Set its application before automating it.">Unassigned</span>
+              ) : (
+                <span className="truncate text-[12.5px]" title={app || undefined}>{app || '—'}</span>
+              )
+            })()}
             <span>
               <span className={`inline-flex h-6 items-center rounded-full px-[9px] text-[11.5px] font-semibold ${TYPE_TONE[item.type]}`}>{item.type}</span>
             </span>
@@ -517,9 +567,10 @@ export const CaseGrid: React.FC<{
           </div>
         ))}
         {streaming && (
-          <div className={`${ROW} h-11 bg-[#FFF8F8] text-[13px]`} aria-label="Writing the next test case">
+          <div className={`${applicationOf ? ROW_APP : ROW} h-11 bg-[#FFF8F8] text-[13px]`} aria-label="Writing the next test case">
             <span className="font-semibold text-[#B71920]">{nextId}</span>
             <span className="flex flex-col gap-1.5"><span className="tc-shim w-[70%]" /><span className="tc-shim w-[45%]" /></span>
+            {applicationOf && <span><span className="tc-shim block w-[90px]" /></span>}
             <span><span className="tc-shim block w-[70px]" /></span>
             <span><span className="tc-shim block w-10" /></span>
             <span><span className="tc-shim block w-5" /></span>

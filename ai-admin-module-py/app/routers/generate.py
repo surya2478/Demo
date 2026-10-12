@@ -27,8 +27,11 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from ..config import settings
+from ..database.connection import get_db
+from ..services.automation import applications as app_scope
 from ..services.generation import azure_llm, testcases
 from ..services.knowledge_base import ingestion, squads
 from ..services.knowledge_base.ingestion import ingest_docx
@@ -240,6 +243,20 @@ def list_squad_knowledge_base_documents(
         raise HTTPException(status_code=503, detail="Squad Knowledge Base is unavailable.") from exc
 
 
+@router.get("/target-applications")
+def list_generation_applications(
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    """The applications Generate Test Cases offers: every Test Data application,
+    with whether it has an Automation KB, flows, journeys, and its addresses.
+
+    Here rather than under /automation/test-data so it needs only a login --
+    the people generating test cases may not hold Automation Studio access.
+    """
+    return {"applications": app_scope.catalogue(db)}
+
+
 @router.post("/brd-testcases")
 @router.post("/kb-testcases")
 @router.post("/squad-testcases")
@@ -253,8 +270,11 @@ def generate_brd_testcases(
     response_format: str = Form(default="text"),
     knowledge_base: str = Form(default=""),
     generation_mode: str = Form(default=""),
+    applications: list[str] = Form(default=[]),
+    environment: str = Form(default=""),
     files: list[UploadFile] = File(default=[]),
     current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
 ):
     """Generate test cases from requirements text and stream them back.
 
@@ -270,6 +290,13 @@ def generate_brd_testcases(
                          OpenAI with the team's squad prompt (testcases)
       Automation KB,
       Journey KB      -> /generate/kb-testcases; testcases.kb_generation_provider
+
+    `applications` are the Test Data application ids chosen on the page (one
+    form field per id) and `environment` the chosen environment. Grounding is
+    read for those applications only, and the prompt names them with their
+    addresses -- see services/automation/applications.py for why nothing is
+    inferred across applications any more. Callers that send none keep the
+    earlier behaviour; the page requires a choice.
 
     The first chunk is pulled before the response is returned. That is the only
     window in which a failure can still become a real status code: once
@@ -324,8 +351,17 @@ def generate_brd_testcases(
         len(text),
     )
 
+    try:
+        scope = app_scope.choices(db, applications)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if scope:
+        logger.info("Generating for application(s): %s", ", ".join(c.name for c in scope))
+
     chunks = testcases.stream_test_cases(
         requirements=text,
+        applications=scope,
+        application_scope=app_scope.scope_prompt(db, scope, environment),
         temperature=temperature,
         max_tokens=max_tokens,
         knowledge_base=knowledge_base,

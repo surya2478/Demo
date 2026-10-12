@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from ..database.connection import get_db
 from ..models.database import Project, TestCaseReview, TestCaseReviewDetail, TestCaseDetail
 from .projects import serialize_project
+from ..services.automation import applications as app_scope
 from ..utils.security import get_current_user_strict
 
 logger = logging.getLogger(__name__)
@@ -203,6 +204,8 @@ def create_review_submission(
 
     # One document_id shared by every test case in this request
     document_id = _get_document_id(payload, request_id)
+    scope = _application_scope(db, payload)
+    assigned: Dict[str, Optional[str]] = {}
 
     detail = TestCaseReviewDetail(
         request_id=request_id,
@@ -237,6 +240,11 @@ def create_review_submission(
         # approves on is what the checks produced, not what a browser said.
         # They live under "_ai", apart from the case's own columns.
         _attach_ai(db, test_case_payload, test_case_id=test_case_id, request_id=request_id, attach=not saved)
+        # Each case is linked to the chosen application it is for, here, once:
+        # everything after (AI Checks, approval, the Workbench) reads the link.
+        if scope:
+            choice = app_scope.stamp(test_case_payload, scope)
+            assigned[test_case_id] = choice.name if choice else None
 
         test_case = TestCaseDetail(
             test_case_id=test_case_id,
@@ -253,7 +261,7 @@ def create_review_submission(
 
     db.commit()
     db.refresh(detail)
-    return {'success': True, 'data': _serialize_review_detail(detail), 'request_id': request_id}
+    return {'success': True, 'data': _serialize_review_detail(detail), 'request_id': request_id, 'applications': assigned}
 
 
 # A request saved when AI Checks start, and its cases, until they are sent.
@@ -298,6 +306,7 @@ def _send_saved_request(
     }
     document_id = next((row.document_id for row in saved_rows.values() if row.document_id), None) or _get_document_id(payload, detail.request_id)
     request_by = str(payload.get('request_by') or username)
+    scope = _application_scope(db, payload, detail.generation)
 
     for row_index, row in enumerate(rows_payload):
         details = row.get('test_case_details') if isinstance(row, dict) and 'test_case_details' in row else row
@@ -311,6 +320,12 @@ def _send_saved_request(
             db.add(item)
         elif str(item.status).upper() != DRAFT_STATUS:
             continue  # already sent
+        # The page sends the checked text back without the link the save
+        # wrote; keep it, and link a case that never had one.
+        if item.test_case_details:
+            app_scope.carry(details, item.test_case_details)
+        if scope and not app_scope.linked(details):
+            app_scope.stamp(details, scope)
         item.test_case_details = details
         item.status = 'PENDING'
         item.generated_by = request_by
@@ -352,8 +367,20 @@ def _project_id(db: Session, value: Any) -> Optional[int]:
 _GENERATION_TEXT_LIMIT = 400_000
 _GENERATION_KEYS = (
     'output', 'input_type', 'knowledge_base', 'knowledge_base_label', 'environment', 'focus',
-    'document_text', 'document_names', 'text_input', 'ppm_id', 'stopped',
+    'document_text', 'document_names', 'text_input', 'ppm_id', 'stopped', 'applications',
 )
+
+
+def _application_scope(db: Session, payload: Dict[str, Any], generation: Any = None) -> List[app_scope.AppChoice]:
+    """The applications the cases were generated for: the payload's own
+    `applications`, else the generation snapshot's. A stale choice is a 400."""
+    chosen = payload.get('applications')
+    if not chosen:
+        chosen = ((payload.get('generation') or generation or {}) or {}).get('applications') or []
+    try:
+        return app_scope.choices(db, chosen)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _generation(value: Any) -> Optional[Dict[str, Any]]:
@@ -511,10 +538,76 @@ def get_session(
                 'test_case_id': case.test_case_id,
                 'display_id': str((case.test_case_details or {}).get('Test Case ID') or '').strip(),
                 'status': case.status,
+                **_row_application(case.test_case_details),
             }
             for case in cases
         ],
     }
+
+
+def _row_application(details: Any) -> Dict[str, Any]:
+    """{'application': name or None} for a case of a generation that chose
+    applications (None = not matched to one yet); {} for an older case."""
+    choice, chosen = app_scope.for_row(details if isinstance(details, dict) else {})
+    if not chosen:
+        return {}
+    return {'application': choice.name if choice else None}
+
+
+@router.post("/saved/{request_id}/application")
+def assign_case_application(
+    request_id: str,
+    payload: Dict[str, Any],
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    """Link one generated case to the application the author picked.
+
+    For a case the save could not match to one of the chosen applications
+    (Unassigned), or one it matched wrongly. Only the request's own chosen
+    applications are allowed, and only while the case is not yet approved --
+    an approved case has moved on to the Workbench. A case already through AI
+    Checks is checked again for its new application.
+    """
+    detail = db.query(TestCaseReviewDetail).filter(TestCaseReviewDetail.request_id == request_id).first()
+    if detail is None:
+        raise HTTPException(status_code=404, detail='Saved request not found')
+    scope = _application_scope(db, {}, detail.generation)
+    if not scope:
+        raise HTTPException(status_code=400, detail='This request was generated without choosing applications.')
+    try:
+        application_id = int(payload.get('application_id'))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail='application_id is required.') from None
+    choice = next((c for c in scope if c.id == application_id), None)
+    if choice is None:
+        raise HTTPException(status_code=400, detail='Choose one of the applications this request was generated for.')
+
+    test_case_id = str(payload.get('test_case_id') or '')
+    row = (
+        db.query(TestCaseDetail)
+        .filter(TestCaseDetail.request_id == request_id, TestCaseDetail.test_case_id == test_case_id)
+        .first()
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail='Test case not found in this request.')
+    if str(row.status).upper() == 'APPROVED':
+        raise HTTPException(status_code=409, detail='This test case is already approved; change its application in the Workbench.')
+
+    details = dict(row.test_case_details or {})
+    app_scope.link(details, choice, scope)
+    rechecked: List[int] = []
+    if detail.ai_batch_id:
+        from ..services.automation import ai_checks
+
+        display_id = str(details.get('Test Case ID') or '').strip()
+        try:
+            rechecked = ai_checks.relink(db, detail.ai_batch_id, display_id, choice, scope) if display_id else []
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+    row.test_case_details = details
+    db.commit()
+    return {'test_case_id': test_case_id, 'application': choice.name, 'rechecked': rechecked}
 
 
 @router.patch("/saved/{request_id}")

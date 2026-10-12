@@ -13,7 +13,7 @@ import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from ...config import settings
 
@@ -310,8 +310,40 @@ def _looks_like_folder_name(hint: str) -> bool:
     return not any(ch.isspace() for ch in hint)
 
 
+def load_exact_profile(app_id: Optional[str]) -> Optional[Dict[str, Any]]:
+    """The profile in folder `app_id`, or None. Never another application's.
+
+    --- Automation Module: the application the user chose ---------------------
+    load_app_profile() below cannot answer "no profile": a miss walks through
+    base-URL, keyword and domain matching and finally returns the first
+    profile on disk. That suits a caller with only free text to go on. It is
+    wrong once the user has CHOSEN the application on Generate Test Cases: an
+    application registered in Test Data with no Knowledge Base yet would be
+    handed whichever profile sorts first -- another application's URL,
+    selectors and flows, the very drift choosing an application exists to
+    end. So a chosen application is looked up here, and None means "this
+    application has no Knowledge Base yet", which callers report as such.
+    """
+    key = (app_id or "").strip()
+    if not key or not _looks_like_folder_name(key) or not KB_ROOT_DIR.exists():
+        return None
+    path = KB_ROOT_DIR / key / "app_profile.json"
+    if not path.exists():
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:  # noqa: BLE001 - an unreadable profile is no profile
+        logger.warning("Unreadable application profile %s", path, exc_info=True)
+        return None
+
+
 def load_app_profile(app_id_or_domain: Optional[str] = None) -> Optional[Dict[str, Any]]:
-    """Load an application profile by folder name, app_id, domain or base URL."""
+    """Load an application profile by folder name, app_id, domain or base URL.
+
+    Falls back to the first profile on disk. For an application the user
+    chose, use load_exact_profile instead.
+    """
     if not KB_ROOT_DIR.exists():
         return None
 
@@ -621,13 +653,29 @@ def product_configuration_url(
 
 
 def match_flow_blueprint(
-    query_or_url: str, app_id: Optional[str] = None
+    query_or_url: str,
+    app_id: Optional[str] = None,
+    only_apps: Optional[Sequence[str]] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Match a user query, BRD text, or URL against the registered Flow Blueprints."""
+    """Match a user query, BRD text, or URL against the registered Flow Blueprints.
+
+    `only_apps` is the applications the user chose on Generate Test Cases:
+    only their flows compete, so a requirement whose words ("Business",
+    "Payment", "OTP") also appear in another application's flows cannot be
+    matched to that application. No inference crosses the boundary, and an
+    application with no flows simply matches nothing.
+    """
     text_lower = (query_or_url or "").lower().strip()
+    chosen = bool(only_apps)
 
     direct_app = app_id
-    if not direct_app and (query_or_url or "").strip():
+    if chosen:
+        scope = [a for a in only_apps if a]
+        if direct_app and direct_app not in scope:
+            return None
+        if not direct_app and len(scope) == 1:
+            direct_app = scope[0]
+    if not direct_app and not chosen and (query_or_url or "").strip():
         # identify_app_id, not resolve_app_id: narrowing to one application is
         # only correct when the text names one. See identify_app_id's docstring
         # for what the falling-back version cost.
@@ -635,6 +683,8 @@ def match_flow_blueprint(
 
     if direct_app:
         candidate_apps = [direct_app]
+    elif chosen:
+        candidate_apps = scope
     else:
         all_apps = [a.get("app_id") for a in list_applications() if a.get("app_id")]
         candidate_apps = all_apps if all_apps else ([default_app_id()] if default_app_id() else [])
@@ -645,7 +695,9 @@ def match_flow_blueprint(
 
     for cand_app in candidate_apps:
         flows = list_flows(cand_app)
-        profile = load_app_profile(cand_app) or {}
+        # Exact: a candidate is always a folder name here, and the falling-back
+        # lookup would lend an app without a profile another app's stopwords.
+        profile = load_exact_profile(cand_app) or {}
         common_words = {
             str(w).lower() for w in (profile.get("product_name_stopwords") or []) if w
         }
@@ -699,7 +751,7 @@ def match_flow_blueprint(
     # Base; it was never in the part that got sent.
     fallback_app = direct_app or app_id
     if fallback_app:
-        fallback_profile = load_app_profile(fallback_app) or {}
+        fallback_profile = load_exact_profile(fallback_app) or {}
         fallback_flows = list_flows(fallback_app)
         default_flow_id = fallback_profile.get("default_flow_id")
         if default_flow_id:
@@ -721,7 +773,7 @@ def build_flow_context_prompt(query_or_brd: str, app_id: Optional[str] = None) -
         return ""
 
     matched_app_id = flow.get("_app_id") or app_id or resolve_app_id(query_or_brd) or default_app_id()
-    app_prof = load_app_profile(matched_app_id) or {}
+    app_prof = (load_exact_profile(matched_app_id) if app_id else load_app_profile(matched_app_id)) or {}
     app_name = app_prof.get("app_name") or matched_app_id or "the target application"
     base_url = app_prof.get("base_url", "")
     flow_name = flow.get("flow_name", "Standard Flow")
@@ -911,8 +963,12 @@ def ground_case_structured_steps(
         f"{getattr(case, 'steps_raw', '')} {getattr(case, 'test_data', '')}"
     )
     flow = match_flow_blueprint(full_text, app_id)
-    matched_app_id = (flow.get("_app_id") if flow else None) or app_id or resolve_app_id(full_text) or default_app_id()
-    profile = load_app_profile(matched_app_id) or {}
+    if app_id:
+        # The case's own application: its profile or none, never a guess.
+        profile = load_exact_profile(app_id) or {}
+    else:
+        matched_app_id = (flow.get("_app_id") if flow else None) or resolve_app_id(full_text) or default_app_id()
+        profile = load_app_profile(matched_app_id) or {}
 
     steps = list(getattr(case, "steps_structured", []) or [])
     if not steps and getattr(case, "steps_raw", None):

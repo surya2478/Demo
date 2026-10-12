@@ -101,8 +101,14 @@ export interface EditedStep {
 const BASE = '/test-assistant/ai-checks'
 
 const aiChecksService = {
-  start: async (rows: Record<string, string>[], knowledgeBase?: string, requestId?: string, environment?: string): Promise<string> => {
-    const res = await api.post(`${BASE}/start`, { rows, knowledge_base: knowledgeBase || null, request_id: requestId || null, environment: environment || null })
+  start: async (rows: Record<string, string>[], knowledgeBase?: string, requestId?: string, environment?: string, applications?: number[]): Promise<string> => {
+    const res = await api.post(`${BASE}/start`, {
+      rows,
+      knowledge_base: knowledgeBase || null,
+      request_id: requestId || null,
+      environment: environment || null,
+      applications: applications && applications.length ? applications : null
+    })
     return res.data.batch_id
   },
   get: async (batchId: string): Promise<CheckBatch> => {

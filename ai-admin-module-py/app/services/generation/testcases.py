@@ -26,7 +26,7 @@ from __future__ import annotations
 import itertools
 import logging
 import re
-from typing import Any, Dict, Iterator
+from typing import Any, Dict, Iterator, Optional, Sequence
 
 from ...config import settings
 from . import azure_llm, stream
@@ -221,8 +221,12 @@ def wrap_user_content(text: str) -> str:
     return f"<user_content>\n{text}\n</user_content>"
 
 
-def describe_grounding(requirements: str) -> Dict[str, Any]:
+def describe_grounding(requirements: str, app_id: Optional[str] = None) -> Dict[str, Any]:
     """What the Knowledge Base knows about this requirement, as data.
+
+    `app_id` is an application the user chose (its Automation KB folder):
+    only its flows are considered, and an application with no flows is
+    reported as no_flow_matched rather than grounded in another's.
 
     ONE function decides, and both consumers read it: the prompt built below
     and the badge the Test Assistant shows. Computing the two separately is the
@@ -264,11 +268,11 @@ def describe_grounding(requirements: str) -> Dict[str, Any]:
     try:
         from ..automation import knowledge_base as kb
 
-        flow_context = kb.build_flow_context_prompt(requirements)
+        flow_context = kb.build_flow_context_prompt(requirements, app_id)
         if flow_context:
-            flow = kb.match_flow_blueprint(requirements) or {}
+            flow = kb.match_flow_blueprint(requirements, app_id) or {}
             app_id = flow.get("_app_id")
-            profile = (kb.load_app_profile(app_id) or {}) if app_id else {}
+            profile = (kb.load_exact_profile(app_id) or {}) if app_id else {}
             text_lower = (requirements or "").lower()
             hits = [
                 str(k)
@@ -455,8 +459,14 @@ def kb_generation_provider() -> str:
     return "openai"  # names what is missing when it is used
 
 
-def reference_context(knowledge_base: str | None, text: str) -> Dict[str, Any]:
+def reference_context(knowledge_base: str | None, text: str, applications: Optional[Sequence[Any]] = None) -> Dict[str, Any]:
     """What the selected Knowledge Base knows about `text`, as prompt context.
+
+    `applications` are the applications the user chose (applications.AppChoice).
+    With them, the Automation KB is read for those applications ONLY -- each
+    one's design journeys, else its crawled flows -- and never matched across
+    every application; an application with no Knowledge Base contributes
+    nothing. detail["applications"] reports what each one grounded on.
 
     ONE place maps a Select KB choice to its knowledge, and both generation and
     AI Checks read it. Otherwise the two would each have their own mapping, and
@@ -472,6 +482,22 @@ def reference_context(knowledge_base: str | None, text: str) -> Dict[str, Any]:
     kb = (knowledge_base or "").strip()
     result: Dict[str, Any] = {"knowledge_base": kb or None, "kind": "none", "context": "", "detail": {}}
 
+    if kb in APPLICATION_KBS and applications:
+        result.update(knowledge_base=AUTOMATION_KB, kind="automation")
+        contexts, per_app = [], []
+        for choice in applications:
+            context, detail = _application_reference(choice, text)
+            per_app.append(detail)
+            if context:
+                contexts.append(context)
+        result["context"] = "\n\n".join(contexts)
+        grounded = [d for d in per_app if d.get("source")]
+        result["detail"] = {
+            **({k: v for k, v in grounded[0].items() if k != "application"} if len(grounded) == 1 else {}),
+            "source": grounded[0]["source"] if len(grounded) == 1 else ("mixed" if grounded else None),
+            "applications": per_app,
+        }
+        return result
     if kb in APPLICATION_KBS:
         result.update(knowledge_base=AUTOMATION_KB, kind="automation")
         # Design journey first: curated labels, steps and rules.
@@ -519,6 +545,35 @@ def reference_context(knowledge_base: str | None, text: str) -> Dict[str, Any]:
     return result
 
 
+def _application_reference(choice: Any, text: str) -> tuple[str, Dict[str, Any]]:
+    """One chosen application's Automation KB context: its design journey, else its flows."""
+    from ..automation import applications as apps
+
+    detail: Dict[str, Any] = {"application": choice.name, "kb_app_id": choice.kb_app_id, "source": None}
+    try:
+        from ..journeys import store as journey_store
+
+        for journey_app in apps.journey_app_ids(choice):
+            journey = journey_store.describe(text, journey_app)
+            if journey.get("grounded"):
+                detail.update({k: v for k, v in journey.items() if k != "context"})
+                detail["source"] = "journey"
+                logger.info("Grounded in %s's design journey %s", choice.name, journey["journey_id"])
+                return journey["context"], detail
+    except Exception:  # noqa: BLE001 - the journey layer is optional; fall back to the flows
+        logger.warning("Journey lookup failed for %s; trying its crawled flows", choice.name, exc_info=True)
+    if not choice.kb_app_id or not apps.profile(choice):
+        detail["reason"] = "no_knowledge_base"
+        logger.info("%s has no Automation KB yet; its cases are written from the requirements alone", choice.name)
+        return "", detail
+    grounding = describe_grounding(text, choice.kb_app_id)
+    detail.update({k: v for k, v in grounding.items() if k != "context"})
+    if grounding["grounded"]:
+        detail["source"] = "flows"
+        return grounding["context"], detail
+    return "", detail
+
+
 def stream_test_cases(
     *,
     requirements: str,
@@ -527,6 +582,8 @@ def stream_test_cases(
     knowledge_base: str = "",
     generation_mode: str = "",
     generation_provider: str | None = None,
+    applications: Optional[Sequence[Any]] = None,
+    application_scope: str = "",
 ) -> Iterator[str]:
     """Stream a markdown table of test cases derived from `requirements`.
 
@@ -549,17 +606,24 @@ def stream_test_cases(
     Provider "azure" is Azure OpenAI (azure_llm, AZURE_OPENAI_*), whose model
     is its deployment.
 
+    `applications` / `application_scope` are the applications the user chose
+    and the prompt block naming them (applications.scope_prompt): grounding
+    is read for those applications only, and the block tells the model to
+    write for them alone and, with several, which one each case is for.
+
     Raises GenerationUnavailable before yielding anything if the selected
     provider is not configured or cannot be reached, so the caller can still
     answer with a proper status code.
     """
     kb = (knowledge_base or "").strip()
     if is_squad(kb):
-        return _stream_squad_test_cases(requirements=requirements, squad=kb)
+        return _stream_squad_test_cases(
+            requirements=requirements, squad=kb, applications=applications, application_scope=application_scope
+        )
 
     system_prompt = f"{SYSTEM_PROMPT}\n\n{UNGROUNDED_GUIDANCE}"
 
-    reference = reference_context(kb, requirements)
+    reference = reference_context(kb, requirements, applications)
     if reference["context"]:
         if reference["kind"] == "squad":
             # A squad's passages add to the disciplined prompt; they are
@@ -569,6 +633,8 @@ def stream_test_cases(
             # Ungrounded is an outcome, not a failure: no match, no Knowledge
             # Base or an outright error all keep the disciplined prompt above.
             system_prompt = f"{SYSTEM_PROMPT}\n\n{reference['context']}"
+    if application_scope:
+        system_prompt = f"{system_prompt}\n\n{application_scope}"
 
     provider = generation_provider or (kb_generation_provider() if kb else None)
     # Azure is azure_llm (AZURE_OPENAI_*) whether a KB chose it or LLM_PROVIDER did.
@@ -611,7 +677,9 @@ def _first_read(chunks: Iterator[str]) -> Iterator[str]:
     return itertools.chain([first], chunks)
 
 
-def _stream_squad_test_cases(*, requirements: str, squad: str) -> Iterator[str]:
+def _stream_squad_test_cases(
+    *, requirements: str, squad: str, applications: Optional[Sequence[Any]] = None, application_scope: str = ""
+) -> Iterator[str]:
     """Device Squad KB generation, as the team built it (2026-10-07).
 
     SQUAD_SYSTEM_PROMPT, then the Automation KB flow context when a flow
@@ -620,9 +688,16 @@ def _stream_squad_test_cases(*, requirements: str, squad: str) -> Iterator[str]:
     limits apply and a long table is not cut short.
     """
     system_prompt = SQUAD_SYSTEM_PROMPT
-    grounding = describe_grounding(requirements)
-    if grounding.get("grounded") and grounding.get("context"):
-        system_prompt = f"{system_prompt}\n\n{grounding['context']}"
+    if applications:
+        # The chosen applications' flows only, never every application's.
+        for choice in applications:
+            grounding = describe_grounding(requirements, choice.kb_app_id) if choice.kb_app_id else {}
+            if grounding.get("grounded") and grounding.get("context"):
+                system_prompt = f"{system_prompt}\n\n{grounding['context']}"
+    else:
+        grounding = describe_grounding(requirements)
+        if grounding.get("grounded") and grounding.get("context"):
+            system_prompt = f"{system_prompt}\n\n{grounding['context']}"
     try:
         from ..knowledge_base import hybrid_retrieval_engine as squad_kb
 
@@ -633,6 +708,8 @@ def _stream_squad_test_cases(*, requirements: str, squad: str) -> Iterator[str]:
             logger.info("Enhanced test case generation prompt with Squad Knowledge Base (%s) context", squad)
     except Exception:  # noqa: BLE001 - retrieval must never break generation
         logger.warning("Failed to enhance prompt with Squad Knowledge Base (%s)", squad, exc_info=True)
+    if application_scope:
+        system_prompt = f"{system_prompt}\n\n{application_scope}"
 
     return _first_read(azure_llm.stream_chat(
         system_prompt=system_prompt,

@@ -702,9 +702,12 @@ def compile_playwright(
     catalog = catalog or []
     locator_overrides = locator_overrides or {}
     unresolved: list[dict[str, Any]] = []
+    from .applications import kb_key_for_case
+
+    linked_app = kb_key_for_case(case)
     try:
         from .knowledge_base import ground_case_structured_steps
-        steps = ground_case_structured_steps(case)
+        steps = ground_case_structured_steps(case, linked_app)
     except Exception:
         steps = list(case.steps_structured or [])
     display_id = case.display_id or "test-case"
@@ -712,12 +715,18 @@ def compile_playwright(
     title = f"{display_id} - {case.objective or case.description or 'automated test'}"
     full_case_text = f"{getattr(case, 'description', '')} {getattr(case, 'objective', '')} {getattr(case, 'preconditions', '')} {getattr(case, 'steps_raw', '')} {getattr(case, 'test_data', '')}"
     from . import knowledge_base as kb
-    flow = kb.match_flow_blueprint(full_case_text)
-    # identify_app_id for the same reason as workbench.sync_approved_test_cases:
-    # the falling-back helpers always name an application, so an unmatched case
-    # was compiled against whichever profile sorted first.
-    matched_app_id = (flow.get("_app_id") if flow else None) or kb.identify_app_id(full_case_text)
-    prof = (kb.load_app_profile(matched_app_id) if matched_app_id else {}) or {}
+    # A case linked to its application (chosen on Generate Test Cases) compiles
+    # against that application's profile only, or none -- never a guess.
+    if linked_app:
+        flow = kb.match_flow_blueprint(full_case_text, linked_app)
+        prof = kb.load_exact_profile(linked_app) or {}
+    else:
+        flow = kb.match_flow_blueprint(full_case_text)
+        # identify_app_id for the same reason as workbench.sync_approved_test_cases:
+        # the falling-back helpers always name an application, so an unmatched case
+        # was compiled against whichever profile sorted first.
+        matched_app_id = (flow.get("_app_id") if flow else None) or kb.identify_app_id(full_case_text)
+        prof = (kb.load_app_profile(matched_app_id) if matched_app_id else {}) or {}
     flow_base_url = prof.get("base_url", "").strip()
 
     case_app_url = (getattr(case, "application_url", "") or "").strip()
