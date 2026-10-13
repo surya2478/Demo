@@ -229,7 +229,15 @@ export interface CrawlPlan {
 }
 
 export interface WalkFlow { flow_id: string; flow_name: string; category: string | null; steps: number }
-export interface WalkCapabilities { headed_available: boolean; blocked_environments: string[] }
+export type CrawlBrowser = 'chrome' | 'chromium'
+export interface WalkCapabilities {
+  headed_available: boolean
+  blocked_environments: string[]
+  /** The browser walks and crawls open unless one is chosen (AUTOMATION_CRAWL_BROWSER). */
+  default_browser?: CrawlBrowser
+  /** Whether Google Chrome is installed where the backend runs; without it Chrome falls back to Chromium. */
+  chrome_installed?: boolean
+}
 
 /** A walk as it runs. */
 export interface WalkLive {
@@ -363,6 +371,8 @@ export interface JourneyCrawl {
   source?: 'journey' | 'flow' | 'record' | 'capture'
   stop_before?: number | null
   stop_reason?: string | null
+  browser?: CrawlBrowser | null
+  browser_note?: string | null
   result?: {
     /** A recording (source 'record'): what the person did, as journey steps. */
     recording?: RecordedStep[]
@@ -855,7 +865,7 @@ const knowledgeBaseService = {
     })).data,
   startCrawl: async (app: string, body: {
     journey_id: string; application_id: number; profile_id?: string | null; environment?: string | null
-    stop_before?: number | null; allow_risky?: boolean; headed?: boolean
+    stop_before?: number | null; allow_risky?: boolean; headed?: boolean; browser?: CrawlBrowser
   }): Promise<JourneyCrawl> =>
     (await api.post(`${BASE}/${enc(app)}/journey-crawl`, body)).data,
   walkCapabilities: async (): Promise<WalkCapabilities> => (await api.get(`${BASE}/walk/capabilities`)).data,

@@ -20,7 +20,7 @@ import shutil
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -3447,6 +3447,9 @@ class DiscoveryRequest(BaseModel):
     application_url: Optional[str] = Field(default=None, max_length=2000)
     application_environment: Optional[str] = Field(default=None, max_length=50)
     max_pages: int = Field(default=discovery.DEFAULT_MAX_PAGES, ge=1, le=40)
+    # "chrome" (installed Google Chrome) or "chromium" (Playwright's); blank
+    # takes AUTOMATION_CRAWL_BROWSER.
+    browser: Optional[Literal["chrome", "chromium"]] = None
 
 
 class GroundRequest(BaseModel):
@@ -3693,7 +3696,8 @@ def start_discovery(
         framework="playwright",
         environment=environment,
         status="queued",
-        run_config={"headless": True, "slow_mo_ms": 1000, "mode": "discovery"},
+        run_config={"headless": True, "slow_mo_ms": 1000, "mode": "discovery",
+                    "browser": body.browser or ws.default_browser()},
         run_metadata={
             "code": discovery.build_discovery_spec(
                 target_url,

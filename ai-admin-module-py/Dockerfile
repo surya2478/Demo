@@ -8,6 +8,8 @@
 #   2. The container runs as an unprivileged uid instead of root.
 #   3. Node, @playwright/test and Chromium are installed so the Automation
 #      Module can execute generated specs. Optional via a build arg.
+#   4. Google Chrome is installed beside Chromium for walks and discovery
+#      crawls (AUTOMATION_CRAWL_BROWSER=chrome). Optional via a build arg.
 #
 # Build (with an authenticated proxy):
 #
@@ -24,6 +26,11 @@
 # failing at run time):
 #
 #   DOCKER_BUILDKIT=1 docker build --build-arg INSTALL_AUTOMATION_RUNTIME=false -t admin_module:latest .
+#
+# Build without Google Chrome (~350 MB smaller; walks and crawls set to Chrome
+# then fall back to Chromium and say so):
+#
+#   DOCKER_BUILDKIT=1 docker build --build-arg INSTALL_CHROME=false -t admin_module:latest .
 # ---------------------------------------------------------------------------
 
 # Pinned to bookworm rather than floating on `slim`. The Debian release decides
@@ -37,6 +44,7 @@ ARG NODE_MAJOR=20
 # the container".
 ARG PLAYWRIGHT_VERSION=1.55.0
 ARG INSTALL_AUTOMATION_RUNTIME=true
+ARG INSTALL_CHROME=true
 
 # --- Automation Module: proxy is now a build arg ----------------------------
 # The default is the value this file previously hardcoded, so a plain build is
@@ -142,7 +150,11 @@ RUN --mount=type=secret,id=build_proxy \
         "@playwright/test@${PLAYWRIGHT_VERSION}" \
         typescript@5.4.5 \
         @types/node@20.14.2; \
-    npx --yes playwright install chromium; \
+    npx --yes playwright install chromium;     # Google Chrome, for walks and crawls: enterprise endpoint protection
+    # blocks Playwright's Chromium where the signed Chrome is allowed. Lands in
+    # /opt/google/chrome, where Playwright's channel 'chrome' and the backend's
+    # chrome_installed() look. Google publishes it for amd64 only.
+    if [ "$INSTALL_CHROME" = "true" ]; then         if [ "$(dpkg --print-architecture)" = "amd64" ]; then             npx --yes playwright install chrome;         else             echo "Google Chrome has no $(dpkg --print-architecture) build -- walks and crawls use Chromium.";         fi;     fi; \
     # World-readable and traversable so the unprivileged runtime uid below can
     # launch Chromium.
     chmod -R a+rX /ms-playwright; \

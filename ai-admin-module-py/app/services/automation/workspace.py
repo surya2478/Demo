@@ -76,7 +76,7 @@ export default defineConfig({{
   ],
   use: {{
 {base_url_line}    headless: {headless_str},
-    actionTimeout: 20_000,
+{channel_line}    actionTimeout: 20_000,
     navigationTimeout: 45_000,
     trace: 'on',
     screenshot: 'on',
@@ -293,11 +293,56 @@ PROGRESS_FILE_NAME = "progress.ndjson"
 PROGRESS_REPORTER_FILE_NAME = "progress-reporter.cjs"
 
 
+# ── Browser ──────────────────────────────────────────────────────────────────
+#
+# Walks and discovery crawls can drive the Google Chrome installed on the
+# machine instead of Playwright's own Chromium. Enterprise endpoint protection
+# (Windows Defender) blocks the downloaded Chromium under ms-playwright, while
+# the signed, IT-approved Chrome starts. Other runs keep Chromium.
+BROWSERS = ("chrome", "chromium")
+
+
+def _chrome_paths() -> list[Path]:
+    """Where Playwright's channel 'chrome' looks for Google Chrome."""
+    paths: list[Path] = []
+    for var in ("LOCALAPPDATA", "PROGRAMFILES", "PROGRAMFILES(X86)"):
+        root = os.environ.get(var)
+        if root:
+            paths.append(Path(root) / "Google" / "Chrome" / "Application" / "chrome.exe")
+    paths.append(Path("/opt/google/chrome/chrome"))
+    paths.append(Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"))
+    return paths
+
+
+def chrome_installed() -> bool:
+    return any(p.is_file() for p in _chrome_paths())
+
+
+def default_browser() -> str:
+    value = (settings.AUTOMATION_CRAWL_BROWSER or "").strip().lower()
+    return value if value in BROWSERS else "chrome"
+
+
+def resolve_browser(requested: str | None) -> tuple[str, str | None]:
+    """The browser a run will use, and why it is not the one asked for.
+
+    Chrome that is not installed here falls back to Chromium rather than
+    failing the run before it starts.
+    """
+    browser = (requested or "").strip().lower() or default_browser()
+    if browser not in BROWSERS:
+        browser = default_browser()
+    if browser == "chrome" and not chrome_installed():
+        return "chromium", "Google Chrome is not installed on the server, so this run used Playwright's Chromium."
+    return browser, None
+
+
 def _render_playwright_config(
     base_url: str | None,
     test_dir: str,
     slow_mo_ms: int = 1000,
     headless: bool = True,
+    browser: str = "chromium",
 ) -> str:
     if base_url:
         # json.dumps gives a safely quoted string to embed in TypeScript.
@@ -309,6 +354,7 @@ def _render_playwright_config(
         test_dir=test_dir,
         slow_mo_ms=max(0, int(slow_mo_ms)),
         headless_str="true" if headless else "false",
+        channel_line="    channel: 'chrome',\n" if browser == "chrome" else "",
     )
 
 
@@ -318,6 +364,7 @@ def write_playwright_config(
     test_dir: str = ".",
     slow_mo_ms: int = 1000,
     headless: bool = True,
+    browser: str = "chromium",
 ) -> None:
     """Drop package.json and playwright.config.ts, and make @playwright/test
     resolvable from the workspace.
@@ -330,7 +377,7 @@ def write_playwright_config(
         json.dumps(PLAYWRIGHT_PACKAGE_JSON, indent=2), encoding="utf-8"
     )
     (workspace / "playwright.config.ts").write_text(
-        _render_playwright_config(base_url, test_dir, slow_mo_ms=slow_mo_ms, headless=headless),
+        _render_playwright_config(base_url, test_dir, slow_mo_ms=slow_mo_ms, headless=headless, browser=browser),
         encoding="utf-8",
     )
     (workspace / PROGRESS_REPORTER_FILE_NAME).write_text(

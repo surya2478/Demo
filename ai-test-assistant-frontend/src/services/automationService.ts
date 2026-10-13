@@ -490,6 +490,7 @@ const automationService = {
     application_url?: string | null
     application_environment?: string | null
     max_pages?: number
+    browser?: 'chrome' | 'chromium'
   }): Promise<DiscoveryRun> =>
     call<DiscoveryRun>(() => api.post(`${BASE}/discovery/run`, body, LONG)),
 

@@ -864,12 +864,18 @@ class CrawlIn(BaseModel):
     allow_risky: bool = False
     # A visible browser, where the server can show one (see /walk/capabilities).
     headed: bool = False
+    # "chrome" (installed Google Chrome) or "chromium" (Playwright's); blank
+    # takes AUTOMATION_CRAWL_BROWSER.
+    browser: Optional[Literal["chrome", "chromium"]] = None
 
 
 @router.get("/walk/capabilities")
 def walk_capabilities(current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
     """What a walk can do on this server: show a browser, and which environments it refuses."""
-    return {"headed_available": crawl_runs.headed_available(), "blocked_environments": crawl_runs.blocked_environments()}
+    from ..services.automation.workspace import chrome_installed, default_browser
+
+    return {"headed_available": crawl_runs.headed_available(), "blocked_environments": crawl_runs.blocked_environments(),
+            "default_browser": default_browser(), "chrome_installed": chrome_installed()}
 
 
 @router.get("/{app_id}/walk/flows")

@@ -131,9 +131,11 @@ def start(
     stop_before: Optional[int] = None,
     allow_risky: bool = False,
     headed: bool = False,
+    browser: Optional[str] = None,
 ) -> KbCrawlRun:
     from ..automation.job_manager import job_manager, new_run_key
     from ..automation.preflight import is_ready, runtime_status
+    from ..automation.workspace import default_browser
 
     if not settings.AUTOMATION_ENABLED:
         raise Unavailable("The Automation Module is disabled on this deployment (AUTOMATION_ENABLED=false).", 503)
@@ -171,11 +173,14 @@ def start(
     low = max(0, int(settings.AUTOMATION_STEP_DELAY_MIN_MS or 0))
     plan["step_delay_ms"] = [low, max(low, int(settings.AUTOMATION_STEP_DELAY_MAX_MS or 0))]
     slow_mo = max(0, int(settings.AUTOMATION_DEFAULT_SLOW_MO_MS or 0))
+    browser = browser or default_browser()
+    plan["browser"] = browser
     run_key = new_run_key()
     db.add(AutomationRun(
         run_key=run_key, framework="playwright", environment=environment, status="queued",
         # Headed is never faster than a person can follow.
-        run_config={"headless": not headed, "slow_mo_ms": max(slow_mo, 700) if headed else slow_mo, "mode": "journey_crawl"},
+        run_config={"headless": not headed, "slow_mo_ms": max(slow_mo, 700) if headed else slow_mo, "mode": "journey_crawl",
+                    "browser": browser},
         run_metadata={"code": journey_crawl.build_spec(plan), "base_url": base_url,
                       "file_name": journey_crawl.SPEC_FILE, "journey_id": journey_id},
         triggered_by=actor,
@@ -248,6 +253,11 @@ def absorb(db: Session, crawl: KbCrawlRun) -> KbCrawlRun:
     run = db.query(AutomationRun).filter(AutomationRun.run_key == crawl.run_key).first()
     if run is None or run.status in ("queued", "running"):
         return crawl
+    # The browser the run actually opened: Chrome falls back to Chromium where
+    # it is not installed.
+    meta = run.run_metadata or {}
+    if meta.get("browser"):
+        crawl.plan = {**(crawl.plan or {}), "browser": meta["browser"], "browser_note": meta.get("browser_note")}
     output = _output_path(run)
     if output is None:
         crawl.status = "failed"
@@ -423,6 +433,7 @@ def view(crawl: KbCrawlRun, *, with_result: bool = True) -> Dict[str, Any]:
         "source": (crawl.plan or {}).get("source") or "journey",
         "stop_before": (crawl.plan or {}).get("stop_before"), "stop_reason": (crawl.plan or {}).get("stop_reason"),
         "entry": (crawl.plan or {}).get("entry"), "scenario": (crawl.plan or {}).get("scenario"),
+        "browser": (crawl.plan or {}).get("browser"), "browser_note": (crawl.plan or {}).get("browser_note"),
         "environment": crawl.environment, "profile_id": crawl.profile_id, "base_url": crawl.base_url,
         "run_key": crawl.run_key, "status": crawl.status, "error": crawl.error,
         "automation_change_set_id": crawl.automation_change_set_id,

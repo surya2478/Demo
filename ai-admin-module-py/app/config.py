@@ -192,6 +192,10 @@ class Settings(BaseSettings):
     # security in front of the application rather than as a burst of clicks.
     AUTOMATION_STEP_DELAY_MIN_MS: int = Field(default=1000)
     AUTOMATION_STEP_DELAY_MAX_MS: int = Field(default=2000)
+    # The browser walks and discovery crawls open: "chrome" (the Google Chrome
+    # installed on the machine; Chromium when it is not there) or "chromium"
+    # (Playwright's own). Each walk or crawl can still choose the other.
+    AUTOMATION_CRAWL_BROWSER: str = Field(default="chrome")
     # How long a journey recording may stay open before it saves and closes.
     AUTOMATION_RECORD_MAX_MINUTES: int = Field(default=20)
     # --- AI R&D Lab ---------------------------------------------------------

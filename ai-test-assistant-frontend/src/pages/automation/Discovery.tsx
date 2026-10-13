@@ -35,6 +35,7 @@ import {
   HiOutlineSave
 } from 'react-icons/hi'
 import automationService from '../../services/automationService'
+import knowledgeBaseService, { type CrawlBrowser, type WalkCapabilities } from '../../services/knowledgeBaseService'
 import { useAuth } from '../../hooks/useAuth'
 import { usePageHeader } from '../../components/layout/PageHeaderContext'
 import SectionCard from '../../components/ui/SectionCard'
@@ -181,6 +182,14 @@ export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, 
   const [url, setUrl] = useState('')
   const [environment, setEnvironment] = useState('')
   const [maxPages, setMaxPages] = useState(8)
+  // Installed Chrome passes enterprise endpoint protection where Playwright's
+  // Chromium is blocked; blank follows the server's AUTOMATION_CRAWL_BROWSER.
+  const [browser, setBrowser] = useState<CrawlBrowser | ''>('')
+  const [browserCaps, setBrowserCaps] = useState<WalkCapabilities | null>(null)
+  useEffect(() => {
+    knowledgeBaseService.walkCapabilities().then(setBrowserCaps).catch(() => setBrowserCaps(null))
+  }, [])
+  const chosenBrowser: CrawlBrowser = browser || browserCaps?.default_browser || 'chrome'
   // On by default: a structural-only draft leaves every key the model compiler
   // reads blank, which is what made onboarding a new application an afternoon
   // of hand-editing. Off is the escape hatch for an air-gapped deployment, or
@@ -347,7 +356,8 @@ export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, 
         // Blank: the chosen environment's address in Test Data, else the registered one.
         application_url: url.trim() || appModel?.application_info?.target_address || null,
         application_environment: environment.trim() || appModel?.environments?.selected || null,
-        max_pages: maxPages
+        max_pages: maxPages,
+        browser: chosenBrowser
       })
       setDiscovery(started)
       void poll()
@@ -1123,6 +1133,16 @@ export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, 
                   aria-label="Environment, overriding the registered one"
                   title="Leave blank to use the application's registered environment"
                 />
+                <select
+                  value={chosenBrowser}
+                  onChange={e => setBrowser(e.target.value as CrawlBrowser)}
+                  className="app-input w-auto"
+                  aria-label="Browser"
+                  title="Installed Chrome is the signed browser IT already allows; Chromium is Playwright's own"
+                >
+                  <option value="chrome">Installed Chrome{browserCaps && browserCaps.chrome_installed === false ? ' (not found, uses Chromium)' : ''}</option>
+                  <option value="chromium">Chromium (Playwright)</option>
+                </select>
                 <input
                   type="number"
                   min={1}

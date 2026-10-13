@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import knowledgeBaseService, {
-  errorText, type CrawlOutcome, type CrawlPlan, type CrawlPlanItem, type CrawlStep, type InventoryPage, type JourneyCrawl, type WalkCapabilities, type WalkFlow, type WalkLive
+  errorText, type CrawlBrowser, type CrawlOutcome, type CrawlPlan, type CrawlPlanItem, type CrawlStep, type InventoryPage, type JourneyCrawl, type WalkCapabilities, type WalkFlow, type WalkLive
 } from '../../services/knowledgeBaseService'
 import automationService from '../../services/automationService'
 import { Card, CardHead, Chip, Failed, Loading, Note, TONE, useLoad } from './kbUi'
@@ -381,6 +381,9 @@ const JourneyCrawlStage: React.FC<{
   const [stopBefore, setStopBefore] = useState<number | null>(null)
   const [allowRisky, setAllowRisky] = useState(false)
   const [headed, setHeaded] = useState(false)
+  // Installed Chrome passes enterprise endpoint protection where Playwright's Chromium is blocked.
+  const [browser, setBrowser] = useState<CrawlBrowser | ''>('')
+  const chosenBrowser: CrawlBrowser = browser || caps?.default_browser || 'chrome'
   // ?journey= (from the Journey Map) picks the journey to walk; else the last one.
   const askedJourney = params.get('journey')
   useEffect(() => {
@@ -460,7 +463,8 @@ const JourneyCrawlStage: React.FC<{
     try {
       const run = await knowledgeBaseService.startCrawl(appKey, {
         journey_id: sourceId, application_id: application.id, profile_id: plan?.profile_id ?? (profileId || null),
-        environment: application.environment, stop_before: stopBefore, allow_risky: allowRisky, headed: headed && !!caps?.headed_available
+        environment: application.environment, stop_before: stopBefore, allow_risky: allowRisky, headed: headed && !!caps?.headed_available,
+        browser: chosenBrowser
       })
       setSelectedId(run.id)
       loadCrawls()
@@ -638,6 +642,14 @@ const JourneyCrawlStage: React.FC<{
               Allow steps that change data
               {plan?.first_risky ? <span className="text-[#8A5000]">({beforeLabel(plan.items[plan.first_risky - 1], plan.first_risky)}: {plan.items[plan.first_risky - 1]?.text.slice(0, 50)})</span> : <span className="text-[#9CA3AF]">(none in this walk)</span>}
             </label>
+            <label className="flex items-center gap-2" title="Installed Chrome is the signed browser IT already allows; Chromium is Playwright's own">
+              Browser
+              <select value={chosenBrowser} onChange={e => setBrowser(e.target.value as CrawlBrowser)}
+                className="h-[28px] rounded-[8px] border border-[#D1D5DB] bg-white px-2 text-[12.5px]">
+                <option value="chrome">Installed Chrome{caps && caps.chrome_installed === false ? ' (not found, uses Chromium)' : ''}</option>
+                <option value="chromium">Chromium (Playwright)</option>
+              </select>
+            </label>
             {caps?.headed_available ? (
               <label className="flex items-center gap-2" title="Opens a real browser window on the machine the backend runs on, slowed down so you can follow it">
                 <input type="checkbox" checked={headed} onChange={e => setHeaded(e.target.checked)} className="accent-[#B71920]" />
@@ -752,6 +764,7 @@ const JourneyCrawlStage: React.FC<{
         )}
         {detail?.result && detail.source !== 'record' && (
           <>
+            {detail.browser_note && <div className="px-5 pb-3"><Note tone="warn">{detail.browser_note}</Note></div>}
             {detail.stop_before && (
               <div className="px-5 pb-3"><Note>Stopped before step {detail.stop_before}: {detail.stop_reason}.</Note></div>
             )}

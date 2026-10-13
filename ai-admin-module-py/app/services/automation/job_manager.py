@@ -263,15 +263,23 @@ class JobManager:
                     else getattr(settings, "AUTOMATION_DEFAULT_SLOW_MO_MS", 1000)
                 )
                 headless = bool(run_cfg.get("headless", True))
+                # Only walks and crawls carry a browser choice; other runs stay
+                # on Playwright's Chromium.
+                browser, browser_note = (
+                    ws.resolve_browser(run_cfg.get("browser")) if run_cfg.get("browser") else ("chromium", None)
+                )
                 ws.write_playwright_config(
                     workspace,
                     base_url=base_url,
                     slow_mo_ms=slow_mo_ms,
                     headless=headless,
+                    browser=browser,
                 )
                 run.workspace_path = str(workspace)
                 run.run_metadata = {
                     **(run.run_metadata or {}),
+                    "browser": browser,
+                    "browser_note": browser_note,
                     "execution_phase": "Executing Playwright Engine",
                     "phase_step": 4,
                     # Counted from the spec rather than carried down from the
