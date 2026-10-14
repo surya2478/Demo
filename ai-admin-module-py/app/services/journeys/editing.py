@@ -141,13 +141,11 @@ def add(db: Session, kb: store.JourneyKB, parent_id: Optional[str], title: str, 
     return add_many(db, kb, [(parent_id, title)], actor=actor)
 
 
-def add_many(db: Session, kb: store.JourneyKB, wanted: List[tuple], *, actor: Optional[str],
-             description: Optional[str] = None) -> KbChangeSet:
-    """Several new journeys, each (parent_id | None, title), in one change set.
+def new_nodes(kb: store.JourneyKB, wanted: List[tuple]) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[str]]:
+    """The overlay's added_nodes with `wanted` appended: (all added, the new ones, their descriptions).
 
-    One change set rather than one each: every add rewrites the overlay's
-    added_nodes, so a second draft made before the first is published would
-    conflict with it.
+    Each wanted entry is (parent_id | ("new", chapter title) | None, title).
+    Drafts nothing; add_many and new journeys built from a capture use it.
     """
     if not wanted:
         raise EditError("Name at least one journey to add.")
@@ -183,13 +181,24 @@ def add_many(db: Session, kb: store.JourneyKB, wanted: List[tuple], *, actor: Op
         if parent is None:
             batch[title.lower()] = {"id": new_id, "title": title}
         titles.append(f"{title} {'under ' + parent['title'] if parent else 'as a new chapter'}")
-    first = added[-len(wanted)]
+    return added, added[-len(wanted):], titles
+
+
+def add_many(db: Session, kb: store.JourneyKB, wanted: List[tuple], *, actor: Optional[str],
+             description: Optional[str] = None) -> KbChangeSet:
+    """Several new journeys, each (parent_id | None, title), in one change set.
+
+    One change set rather than one each: every add rewrites the overlay's
+    added_nodes, so a second draft made before the first is published would
+    conflict with it.
+    """
+    added, fresh, titles = new_nodes(kb, wanted)
     summary = f"Add journey: {titles[0]}" if len(titles) == 1 else f"Add {len(titles)} journeys to the master list"
     return _draft(
         db, kb, title=summary,
         changes=[{"file": OVERLAY, "op": "set", "path": "added_nodes", "value": added,
-                  "note": ", ".join(a["id"] for a in added[-len(wanted):])}],
-        description=description or ("; ".join(titles) if len(titles) > 1 else None), actor=actor, journey_id=first["id"],
+                  "note": ", ".join(a["id"] for a in fresh)}],
+        description=description or ("; ".join(titles) if len(titles) > 1 else None), actor=actor, journey_id=fresh[0]["id"],
     )
 
 

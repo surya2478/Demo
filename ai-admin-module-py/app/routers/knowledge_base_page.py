@@ -1067,6 +1067,58 @@ def import_inbox_capture(capture_id: int, body: CaptureMatchIn, db: Session = De
     return crawl_runs.view(crawl)
 
 
+class CaptureJourneyStepIn(BaseModel):
+    action: str = Field(min_length=1, max_length=500)
+    expected_result: Optional[str] = Field(default=None, max_length=500)
+    page_id: str = Field(min_length=1, max_length=120)
+    selector: Optional[str] = Field(default=None, max_length=1000)
+
+
+class CaptureJourneyIn(BaseModel):
+    # An existing journey of the master list with no steps yet...
+    journey_id: Optional[str] = Field(default=None, max_length=200)
+    # ...or a new one, placed under this chapter, group or journey.
+    parent_id: Optional[str] = Field(default=None, max_length=200)
+    title: Optional[str] = Field(default=None, max_length=200)
+    steps: list[CaptureJourneyStepIn] = Field(min_length=1, max_length=80)
+    publish: bool = True
+
+
+@router.get("/captures/{capture_id}/journey-draft")
+def capture_journey_draft(capture_id: int, db: Session = Depends(get_db),
+                          current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
+    """Proposed steps and screens for a new journey made from the capture; nothing is stored."""
+    from ..services.journeys import capture_journey
+
+    capture = _capture(db, capture_id)
+    if not capture.app_id:
+        raise HTTPException(status_code=400, detail="Choose the application this capture belongs to first.")
+    try:
+        return capture_journey.propose(_kb(capture.app_id), capture)
+    except capture_journey.CaptureJourneyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/captures/{capture_id}/journey")
+def capture_journey_create(capture_id: int, body: CaptureJourneyIn, db: Session = Depends(get_db),
+                           current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    """The journey, its screens and its place in the master list, as one Journey KB change set."""
+    from ..services.journeys import capture_journey
+
+    capture = _capture(db, capture_id)
+    if not capture.app_id:
+        raise HTTPException(status_code=400, detail="Choose the application this capture belongs to first.")
+    try:
+        created, journey_id = capture_journey.build(
+            db, _kb(capture.app_id), capture, journey_id=body.journey_id, parent_id=body.parent_id, title=body.title,
+            steps=[s.model_dump() for s in body.steps], actor=_actor(current_user))
+    except capture_journey.CaptureJourneyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        _fail(exc)
+    return {**_edited(db, created, current_user, body.publish), "journey_id": journey_id}
+
+
 @router.delete("/captures/{capture_id}", status_code=204)
 def delete_capture(capture_id: int, db: Session = Depends(get_db),
                    current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> Response:

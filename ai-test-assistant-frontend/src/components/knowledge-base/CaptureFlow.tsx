@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import knowledgeBaseService, {
-  errorText, type CaptureEdits, type CaptureFlowPage, type CaptureFlowStep, type CapturePreview, type InboxCapture
+  errorText, type CaptureEdits, type CaptureFlowPage, type CaptureFlowStep, type CaptureJourneyDraft, type CaptureJourneyStep,
+  type CapturePreview, type InboxCapture, type KbTaxonomy
 } from '../../services/knowledgeBaseService'
 import { Chip, Note, TONE } from './kbUi'
 
@@ -244,6 +245,186 @@ const StepsPanel: React.FC<{
   )
 }
 
+// --- A new journey from the capture -------------------------------------------------------
+// Most of the master list has no steps yet, so the journey a capture shows may
+// not exist to match against. Proposed steps (backend capture_journey.py: open
+// the first page, fill what was picked, click what names the next page) are
+// edited here, then saved -- with the journey's place in the master list and
+// any new screens -- as one Journey KB change set.
+
+const FIELD = 'h-[30px] w-full min-w-0 rounded-[8px] border border-[#E8EAEE] bg-white px-2 text-[12px] text-[#1F2937]'
+
+const NewJourneyPanel: React.FC<{
+  capture: InboxCapture
+  appKey: string
+  canExecute: boolean
+  onCancel: () => void
+  onCreated: (journeyId: string, title: string, published: boolean, message: string) => void
+}> = ({ capture, appKey, canExecute, onCancel, onCreated }) => {
+  const [draft, setDraft] = useState<CaptureJourneyDraft | null>(null)
+  const [taxonomy, setTaxonomy] = useState<KbTaxonomy | null>(null)
+  const [steps, setSteps] = useState<CaptureJourneyStep[]>([])
+  const [mode, setMode] = useState<'new' | 'existing'>('new')
+  const [parentId, setParentId] = useState('')
+  const [title, setTitle] = useState('')
+  const [existingId, setExistingId] = useState('')
+  const [query, setQuery] = useState('')
+  const [publish, setPublish] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let live = true
+    Promise.all([knowledgeBaseService.captureJourneyDraft(capture.id), knowledgeBaseService.taxonomy(appKey)])
+      .then(([d, t]) => { if (!live) return; setDraft(d); setSteps(d.steps); setTitle(d.title); setTaxonomy(t) })
+      .catch(err => live && setError(errorText(err)))
+    return () => { live = false }
+  }, [capture.id, appKey])
+
+  const byId = useMemo(() => new Map((taxonomy?.nodes ?? []).map(n => [n.id, n])), [taxonomy])
+  const trail = (id: string | null): string => {
+    const out: string[] = []
+    for (let n = id ? byId.get(id) : undefined; n; n = n.parent ? byId.get(n.parent) : undefined) out.unshift(n.title)
+    return out.join(' › ')
+  }
+  // Where a new journey can go: a chapter, a group, or a journey (as a variant of it).
+  const parents = useMemo(() => (taxonomy?.nodes ?? []).filter(n => ['chapter', 'group', 'journey'].includes(n.kind)), [taxonomy])
+  // Journeys of the master list with no steps yet.
+  const waiting = useMemo(() => {
+    const authored = new Set(taxonomy?.authored ?? [])
+    const q = query.trim().toLowerCase()
+    return (taxonomy?.nodes ?? []).filter(n => ['journey', 'variant'].includes(n.kind) && !authored.has(n.id))
+      .filter(n => !q || `${n.title} ${trail(n.id)}`.toLowerCase().includes(q)).slice(0, 200)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taxonomy, query])
+
+  const pageOf = (id: string) => draft?.pages.find(p => p.page_id === id)
+  const set = (i: number, patch: Partial<CaptureJourneyStep>) => setSteps(cur => cur.map((s, j) => (j === i ? { ...s, ...patch } : s)))
+  const move = (i: number, dir: -1 | 1) => setSteps(cur => { const next = [...cur]; const [x] = next.splice(i, 1); next.splice(i + dir, 0, x); return next })
+  const add = () => setSteps(cur => [...cur, { action: '', expected_result: '', page_id: cur[cur.length - 1]?.page_id ?? draft?.pages[0]?.page_id ?? '', selector: null }])
+
+  const ready = steps.length > 0 && steps.every(s => s.action.trim()) && (mode === 'new' ? !!parentId && !!title.trim() : !!existingId)
+  const create = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const r = await knowledgeBaseService.createCaptureJourney(capture.id, {
+        ...(mode === 'new' ? { parent_id: parentId, title: title.trim() } : { journey_id: existingId }),
+        steps: steps.map(({ note: _note, ...s }) => ({ ...s, action: s.action.trim(), expected_result: s.expected_result.trim() })),
+        publish
+      })
+      const name = mode === 'new' ? title.trim() : (byId.get(existingId)?.title ?? existingId)
+      onCreated(r.journey_id, name, r.published, r.published
+        ? `Journey created and published (change set #${r.change_set.id}). It is selected above; the flow is matched against it.`
+        : (r.message ?? `Saved as change set #${r.change_set.id}; approve it in Change sets, then choose the journey above.`))
+    } catch (err) {
+      setError(errorText(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!draft || !taxonomy) {
+    return error ? <Note tone="warn">{error}</Note> : <div className="text-[12.5px] text-[#6B7280]">Proposing steps from the capture…</div>
+  }
+  const radio = 'flex items-start gap-2 rounded-[10px] border px-3 py-2 text-[12.5px]'
+  return (
+    <div className="flex flex-col gap-3 rounded-[12px] border border-[#E8EAEE] bg-white p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <div className="text-[14px] font-bold text-[#1F2937]">New journey from this capture</div>
+          <div className="text-[12px] text-[#6B7280]">
+            Its steps are proposed from the page order — check the wording and the object each step uses. Pages become screens
+            (an existing screen when the route matches); their objects become the screen&apos;s elements. Selectors come later, when the capture is imported against the journey.
+          </div>
+        </div>
+        <button type="button" className={BTN} onClick={onCancel}>Back to the flow</button>
+      </div>
+
+      <div className="grid gap-2 md:grid-cols-2">
+        <label className={`${radio} ${mode === 'new' ? 'border-[#F6D4D5] bg-[#FFFBFB]' : 'border-[#E8EAEE]'}`}>
+          <input type="radio" name="cj-mode" checked={mode === 'new'} onChange={() => setMode('new')} className="mt-0.5" />
+          <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <strong>A new journey in the master list</strong>
+            <select aria-label="Place the new journey under" className={FIELD} value={parentId} disabled={mode !== 'new'} onChange={e => setParentId(e.target.value)}>
+              <option value="">Under…</option>
+              {parents.map(n => <option key={n.id} value={n.id}>{'\u00a0\u00a0'.repeat(Math.max(0, n.level - 1))}{n.title}{n.kind === 'journey' ? ' (as a variant)' : ''}</option>)}
+            </select>
+            <input aria-label="New journey name" className={FIELD} value={title} disabled={mode !== 'new'} onChange={e => setTitle(e.target.value)} placeholder="Journey name, e.g. Order a mobile plan" />
+          </span>
+        </label>
+        <label className={`${radio} ${mode === 'existing' ? 'border-[#F6D4D5] bg-[#FFFBFB]' : 'border-[#E8EAEE]'}`}>
+          <input type="radio" name="cj-mode" checked={mode === 'existing'} onChange={() => setMode('existing')} className="mt-0.5" />
+          <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <strong>A journey already in the master list, with no steps yet</strong>
+            <input aria-label="Search journeys" className={FIELD} value={query} disabled={mode !== 'existing'} onChange={e => setQuery(e.target.value)} placeholder="Search, e.g. order, plans, add-ons" />
+            <select aria-label="Journey to give these steps" className={FIELD} value={existingId} disabled={mode !== 'existing'} onChange={e => setExistingId(e.target.value)}>
+              <option value="">{waiting.length ? `Choose one of ${waiting.length}…` : 'No journey matches'}</option>
+              {waiting.map(n => <option key={n.id} value={n.id}>{trail(n.id)}</option>)}
+            </select>
+          </span>
+        </label>
+      </div>
+
+      <div className="overflow-x-auto rounded-[12px] border border-[#E8EAEE]">
+        <table className="w-full min-w-[900px] border-collapse text-[12px]">
+          <thead className="bg-[#F4F5F7] text-left text-[10.5px] uppercase tracking-[0.08em] text-[#4B5563]">
+            <tr><th className="w-[36px] px-2 py-2">#</th><th className="px-2 py-2">Action</th><th className="px-2 py-2">Expected result</th><th className="w-[170px] px-2 py-2">Page (screen)</th><th className="w-[190px] px-2 py-2">Object</th><th className="w-[96px] px-2 py-2" /></tr>
+          </thead>
+          <tbody>
+            {steps.map((s, i) => {
+              const page = pageOf(s.page_id)
+              return (
+                <tr key={i} className="border-t border-[#F1F2F4] align-top">
+                  <td className="px-2 py-2 font-bold text-[#1F2937]">{i + 1}</td>
+                  <td className="px-2 py-2">
+                    <input aria-label={`Step ${i + 1} action`} className={FIELD} value={s.action} onChange={e => set(i, { action: e.target.value, note: undefined })} />
+                    {s.note && <div className="mt-1 text-[11px] text-[#8A5000]">{s.note}</div>}
+                  </td>
+                  <td className="px-2 py-2"><input aria-label={`Step ${i + 1} expected result`} className={FIELD} value={s.expected_result} onChange={e => set(i, { expected_result: e.target.value })} /></td>
+                  <td className="px-2 py-2">
+                    <select aria-label={`Step ${i + 1} page`} className={FIELD} value={s.page_id} onChange={e => set(i, { page_id: e.target.value, selector: null })}>
+                      {draft.pages.map(p => <option key={p.page_id} value={p.page_id}>{p.name}{p.screen_name ? ` (${p.screen_name})` : ' (new screen)'}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-2 py-2">
+                    <select aria-label={`Step ${i + 1} object`} className={FIELD} value={s.selector ? String(page?.objects.findIndex(o => o.selector === s.selector) ?? '') : ''}
+                      onChange={e => set(i, { selector: e.target.value === '' ? null : page?.objects[Number(e.target.value)]?.selector ?? null, note: undefined })}>
+                      <option value="">— none (a check of the page) —</option>
+                      {page?.objects.map((o, oi) => <option key={o.selector} value={oi}>{o.name} · {o.type}{o.chrome ? ' · header' : ''}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-2 py-2">
+                    <div className="flex gap-1">
+                      <button type="button" className={BTN} aria-label={`Move step ${i + 1} up`} disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
+                      <button type="button" className={BTN} aria-label={`Move step ${i + 1} down`} disabled={i === steps.length - 1} onClick={() => move(i, 1)}>↓</button>
+                      <button type="button" className={`${BTN} text-[#A3231C]`} aria-label={`Remove step ${i + 1}`} onClick={() => setSteps(cur => cur.filter((_, j) => j !== i))}>✕</button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <button type="button" className={BTN} onClick={add}>+ Add step</button>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-1.5 text-[12.5px] text-[#374151]" title="Publishing needs the approve permission; otherwise it waits in Change sets">
+            <input type="checkbox" checked={publish} onChange={e => setPublish(e.target.checked)} className="accent-[#B71920]" />
+            Publish now
+          </label>
+          <button type="button" className={PRIMARY} disabled={!canExecute || busy || !ready} onClick={() => void create()}
+            title={!ready ? (mode === 'new' ? 'Choose where it goes and name it; every step needs an action' : 'Choose the journey; every step needs an action') : undefined}>
+            {busy ? 'Creating…' : `Create journey · ${steps.length} steps`}
+          </button>
+        </div>
+      </div>
+      {error && <Note tone="warn">{error}</Note>}
+    </div>
+  )
+}
+
 export const CaptureFlow: React.FC<{
   capture: InboxCapture
   appKey: string
@@ -253,7 +434,11 @@ export const CaptureFlow: React.FC<{
   onChanged: () => void
   onImported: (crawlId: number) => void
   onClose: () => void
-}> = ({ capture, appKey, journeyId, application, canExecute, onChanged, onImported, onClose }) => {
+  /** A journey was built from the capture: the stage selects it. */
+  onJourneyCreated?: (journeyId: string, title: string) => void
+}> = ({ capture, appKey, journeyId, application, canExecute, onChanged, onImported, onClose, onJourneyCreated }) => {
+  const [building, setBuilding] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
   const [edits, setEdits] = useState<CaptureEdits>(capture.edits ?? {})
   const [preview, setPreview] = useState<CapturePreview | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
@@ -356,7 +541,14 @@ export const CaptureFlow: React.FC<{
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" className={BTN} onClick={onClose}>Back to the inbox</button>
-          {capture.status === 'inbox' && preview && (
+          {capture.status === 'inbox' && capture.app_id && !foreign && !building && (
+            <button type="button" className={BTN.replace('h-[30px]', 'h-[34px]')} disabled={!canExecute || busy !== null}
+              onClick={() => { setBuilding(true); setNotice(null) }}
+              title="Most of the master list has no steps yet: make this capture the journey's steps">
+              New journey from this capture
+            </button>
+          )}
+          {capture.status === 'inbox' && preview && !building && (
             <button type="button" className={PRIMARY} disabled={!canExecute || busy !== null || !journeyId}
               onClick={() => void importIt()} title="Stores it as a walk of the journey; then propose and approve its changes below">
               {busy === 'import' ? 'Importing…' : 'Import for review'}
@@ -376,7 +568,12 @@ export const CaptureFlow: React.FC<{
       {error && <Note tone="warn">{error}</Note>}
       {!preview && !error && capture.app_id && !foreign && <div className="text-[12.5px] text-[#6B7280]">Matching the capture to the journey…</div>}
 
-      {preview && (
+      {notice && <Note>{notice}</Note>}
+      {building && (
+        <NewJourneyPanel capture={capture} appKey={appKey} canExecute={canExecute} onCancel={() => setBuilding(false)}
+          onCreated={(id, name, published, message) => { setBuilding(false); setNotice(message); if (published) onJourneyCreated?.(id, name) }} />
+      )}
+      {preview && !building && (
         <>
           <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
             <Chip tone={found === steps.length ? 'good' : 'warn'}>{found} of {steps.length} steps found</Chip>
@@ -434,7 +631,8 @@ export const CaptureInbox: React.FC<{
   canExecute: boolean
   openId?: number | null
   onImported: (crawlId: number) => void
-}> = ({ appKey, journeyId, application, canExecute, openId, onImported }) => {
+  onJourneyCreated?: (journeyId: string, title: string) => void
+}> = ({ appKey, journeyId, application, canExecute, openId, onImported, onJourneyCreated }) => {
   const [list, setList] = useState<InboxCapture[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState<number | null>(openId ?? null)
@@ -460,7 +658,7 @@ export const CaptureInbox: React.FC<{
   if (capture) {
     return (
       <CaptureFlow capture={capture} appKey={appKey} journeyId={journeyId} application={application} canExecute={canExecute}
-        onChanged={load} onImported={onImported} onClose={() => setOpen(null)} />
+        onChanged={load} onImported={onImported} onClose={() => setOpen(null)} onJourneyCreated={onJourneyCreated} />
     )
   }
   return (

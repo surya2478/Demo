@@ -275,7 +275,8 @@ const CaptureUpload: React.FC<{
   canExecute: boolean
   openInbox?: number | null
   onImported: (id: number) => void
-}> = ({ appKey, journeyId, application, canExecute, openInbox, onImported }) => {
+  onJourneyCreated?: (journeyId: string, title: string) => void
+}> = ({ appKey, journeyId, application, canExecute, openInbox, onImported, onJourneyCreated }) => {
   const [code, setCode] = useState<string | null>(null)
   const [codeError, setCodeError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -313,7 +314,7 @@ const CaptureUpload: React.FC<{
   return (
     <div className="flex flex-col gap-3 rounded-[12px] border border-[#E8EAEE] p-4 text-[12.5px] text-[#374151]">
       <CaptureInbox appKey={appKey} journeyId={journeyId} application={application} canExecute={canExecute}
-        openId={openInbox} onImported={onImported} />
+        openId={openInbox} onImported={onImported} onJourneyCreated={onJourneyCreated} />
       <div className="grid gap-4 border-t border-[#F1F2F4] pt-3 lg:grid-cols-2">
         <div className="flex flex-col gap-2">
           <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#6B7280]">1 · Capture in your browser</span>
@@ -362,14 +363,18 @@ const JourneyCrawlStage: React.FC<{
 }> = ({ appKey, application, canExecute, canApprove = false, onProposed }) => {
   const [params] = useSearchParams()
   const [taxonomy, taxError] = useLoad(appKey, () => knowledgeBaseService.taxonomy(appKey))
+  // Journeys built from a capture on this page: listed (and selected) without
+  // reloading the taxonomy, which would close the capture being reviewed.
+  const [builtJourneys, setBuiltJourneys] = useState<{ id: string; title: string }[]>([])
   const [coverage] = useLoad(appKey, () => knowledgeBaseService.testData(appKey))
   const [flowList] = useLoad(appKey, () => knowledgeBaseService.walkFlows(appKey).catch(() => [] as WalkFlow[]))
   const [caps] = useLoad('walk-capabilities', () => knowledgeBaseService.walkCapabilities().catch(() => ({ headed_available: false, blocked_environments: [] }) as WalkCapabilities))
   const journeys = useMemo(() => {
     if (!taxonomy) return []
     const byId = new Map(taxonomy.nodes.map(n => [n.id, n]))
-    return taxonomy.authored.map(id => ({ id, title: byId.get(id)?.title ?? id }))
-  }, [taxonomy])
+    const listed = taxonomy.authored.map(id => ({ id, title: byId.get(id)?.title ?? id }))
+    return [...listed, ...builtJourneys.filter(b => !listed.some(j => j.id === b.id))]
+  }, [taxonomy, builtJourneys])
 
   // What to do: walk a journey or a flow blueprint (?flow=<id> opens on one),
   // or record a journey by doing it (?record=1, from the Journey Map).
@@ -634,6 +639,7 @@ const JourneyCrawlStage: React.FC<{
           {capturing && (
             <CaptureUpload appKey={appKey} journeyId={journeyId} application={application} canExecute={canExecute}
               openInbox={Number(params.get('inbox')) || null}
+              onJourneyCreated={(id, title) => { setBuiltJourneys(cur => [...cur, { id, title }]); setJourneyId(id) }}
               onImported={id => { setSelectedId(id); loadCrawls() }} />
           )}
           {!recording && !capturing && <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[12.5px] text-[#374151]">

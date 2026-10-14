@@ -389,6 +389,22 @@ export interface JourneyCrawl {
   } | null
 }
 
+/** One step of a journey being built from a capture. */
+export interface CaptureJourneyStep {
+  action: string
+  expected_result: string
+  page_id: string
+  selector: string | null
+  note?: string
+}
+
+export interface CaptureJourneyDraft {
+  title: string
+  steps: CaptureJourneyStep[]
+  pages: { page_id: string; name: string; path: string | null; screen_id: string | null; screen_name: string | null;
+    objects: { selector: string; name: string; type: string; kind: string; chrome: boolean }[] }[]
+}
+
 /** A capture the tool sent straight to the app, waiting in the inbox. */
 export interface InboxCapture {
   id: number
@@ -906,6 +922,11 @@ const knowledgeBaseService = {
   importInboxCapture: async (id: number, body: { journey_id: string; application_id?: number | null; environment?: string | null }): Promise<JourneyCrawl> =>
     (await api.post(`${BASE}/captures/${id}/import`, body)).data,
   deleteCapture: async (id: number): Promise<void> => { await api.delete(`${BASE}/captures/${id}`) },
+  /** Proposed steps and screens for a new journey built from the capture. */
+  captureJourneyDraft: async (id: number): Promise<CaptureJourneyDraft> => (await api.get(`${BASE}/captures/${id}/journey-draft`)).data,
+  /** The journey (an existing one with no steps, or a new one placed under parent_id) as one change set. */
+  createCaptureJourney: async (id: number, body: { journey_id?: string | null; parent_id?: string | null; title?: string | null; steps: CaptureJourneyStep[]; publish: boolean }):
+    Promise<JourneyEditResult & { journey_id: string }> => (await api.post(`${BASE}/captures/${id}/journey`, body)).data,
   startRecording: async (app: string, body: { journey_id: string; application_id: number; environment?: string | null }): Promise<JourneyCrawl> =>
     (await api.post(`${BASE}/${enc(app)}/journey-record`, body)).data,
   finishRecording: async (id: number): Promise<void> => { await api.post(`${BASE}/journey-crawls/${id}/finish`) },
