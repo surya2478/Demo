@@ -60,6 +60,8 @@ def _js_function(name: str) -> str:
 
 
 RECEIVER_PLACEHOLDER = "__KB_RECEIVER__"
+# Bump when the tool changes: a newer bookmark then replaces an older panel on the page.
+TOOL_VERSION = "3"
 
 
 def snippet_js(receiver: Optional[str] = None) -> str:
@@ -76,12 +78,19 @@ def snippet_js(receiver: Optional[str] = None) -> str:
         .replace("__UNIQUE_XPATH__", _js_function("uniqueXPath"))
         .replace("__SWEEP_PAGE__", _js_function("sweepPage"))
         .replace("__FORMAT__", FORMAT)
+        .replace("__TOOL_VERSION__", TOOL_VERSION)
     )
 
 
 _SNIPPET = r"""(() => {
 // Knowledge Base capture tool (__FORMAT__). Records what pages show -- never what is typed.
-if (window.__kbCaptureOpen) { window.__kbCaptureOpen(); return; }
+// Clicked again: re-open this version's panel. An older version already on
+// the page (its bookmark made before this one) is replaced, so the new
+// buttons show without reloading; what it captured is kept (localStorage).
+const VERSION = '__TOOL_VERSION__';
+if (window.__kbCaptureOpen && window.__kbCaptureVersion === VERSION) { window.__kbCaptureOpen(); return; }
+if (window.__kbCaptureClose) { try { window.__kbCaptureClose(); } catch (e) { /* an older tool */ } }
+{ const old = document.getElementById('kb-capture-host'); if (old) old.remove(); }
 __UNIQUE_XPATH__
 __SWEEP_PAGE__
 const KEY = '__kbCapture';
@@ -121,16 +130,43 @@ const sweepText = () => {
   }
   return out;
 };
+// Cards, menu rows and tiles a site builds from plain boxes with a click
+// handler in code (Angular, React): no link, button, role or onclick for the
+// walk's sweep to see, but the page shows them with a pointer cursor. The
+// outermost such box is the control (cursor is inherited by its contents).
+const SKIP_TAGS = new Set(['a', 'button', 'input', 'select', 'textarea', 'option', 'label', 'svg', 'path', 'img', 'html', 'body', 'script', 'style']);
+const sweepClickables = (known) => {
+  const out = [];
+  for (const el of document.body.querySelectorAll('*')) {
+    if (out.length >= 150) break;
+    const tag = el.tagName.toLowerCase();
+    if (SKIP_TAGS.has(tag) || el.closest('#kb-capture-host')) continue;
+    let style; try { style = getComputedStyle(el); } catch (e) { continue; }
+    if (style.cursor !== 'pointer' || !visible(el)) continue;
+    const parent = el.parentElement;
+    if (parent && parent !== document.body && getComputedStyle(parent).cursor === 'pointer') continue;
+    if (el.querySelector('a,button,input,select,textarea')) continue;
+    const lines = String(el.innerText || '').split('\n').map((x) => clean(x, 80)).filter(Boolean);
+    const name = lines[0] || clean(el.getAttribute('aria-label') || el.getAttribute('title'), 80);
+    if (!name) continue;
+    const selector = uniqueXPath(el);
+    if (!selector || known.has(selector)) continue;
+    known.add(selector);
+    out.push({ role: 'clickable', name, text: clean(lines.join(' '), 160), tag, selector, kind: 'control', chrome: false });
+  }
+  return out;
+};
 const pathOf = () => location.pathname.replace(/\/+$/, '') || '/';
 const slug = (s) => clean(s, 40).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'page';
 const current = () => state.pages.length ? state.pages[state.pages.length - 1] : null;
 const capturePage = (name) => {
   const label = clean(name || document.title || pathOf(), 80);
   const controls = sweepPage().map((e) => ({ ...e, kind: 'control' }));
+  const clickables = sweepClickables(new Set(controls.map((e) => e.selector)));
   const page = {
     page_id: `${String(state.pages.length + 1).padStart(2, '0')}-${slug(label)}`, name: label,
     url: cleanUrl(location.href), title: clean(document.title, 120), captured_at: new Date().toISOString(),
-    elements: controls.concat(sweepText()), picked: [],
+    elements: controls.concat(clickables, sweepText()), picked: [],
   };
   state.pages.push(page); save(); render(`Captured "${page.name}": ${page.elements.length} elements.`);
   return page;
@@ -246,11 +282,13 @@ ui.innerHTML = `<style>
   .h{display:flex;justify-content:space-between;align-items:center;font-weight:700;margin-bottom:8px} .x{cursor:pointer;border:0;background:none;font-size:16px}
   input,select{width:100%;box-sizing:border-box;height:30px;border:1px solid #E8EAEE;border-radius:8px;padding:0 8px;margin:4px 0}
   .r{display:flex;gap:6px;margin-top:6px} button.b{flex:1;height:32px;border-radius:9px;border:1px solid #E8EAEE;background:#fff;font-weight:700;cursor:pointer}
+  label.a{display:flex;gap:6px;align-items:center;font-size:12px;margin-top:6px;cursor:pointer} label.a input{width:auto;height:auto;margin:0}
   button.m{background:#B71920;color:#fff;border-color:#B71920} .s{margin-top:8px;color:#4B5563;font-size:12px} .n{color:#6B7280;font-size:11.5px;margin-top:6px}
 </style><div class="p"><div class="h"><span>KB capture</span><button class="x" id="kb-close" title="Hide">×</button></div>
   <input id="kb-name" placeholder="Page name (default: the page title)">
   <div class="r"><button class="b m" id="kb-capture">Capture page</button><button class="b" id="kb-pick">Pick element</button></div>
   <select id="kb-action" title="What a test does with the next picked element"><option value="auto">Picked element: guess the action</option><option value="click">click</option><option value="fill">fill</option><option value="select">select</option><option value="assert">check (assert)</option></select>
+  <label class="a"><input type="checkbox" id="kb-auto"> Capture each page automatically as I go</label>
   <div class="r"><button class="b m" id="kb-send" title="Opens the Knowledge Base in a new tab with this capture">Send to Knowledge Base</button></div>
   <div class="r"><button class="b" id="kb-zip">Download zip</button><button class="b" id="kb-clear">Start over</button></div>
   <div class="s" id="kb-status"></div><div class="n">Nothing you type is recorded. Open each page of the journey (and each dialog), then Capture page.</div></div>`;
@@ -263,11 +301,40 @@ ui.querySelector('#kb-capture').onclick = () => { capturePage(ui.querySelector('
 ui.querySelector('#kb-pick').onclick = () => setPicking(!picking);
 ui.querySelector('#kb-zip').onclick = download;
 ui.querySelector('#kb-send').onclick = send;
+// Auto-capture: when the address changes (a new page, or a single-page app's
+// route), wait for it to settle and capture it. Kept on across page loads:
+// click the bookmark again on the next page and it carries on.
+let autoUrl = null; let autoWait = null;
+const autoTick = () => {
+  if (!state.auto || !document.body.contains(host)) return;
+  const url = cleanUrl(location.href);
+  if (url === autoUrl) return;
+  autoUrl = url; clearTimeout(autoWait);
+  autoWait = setTimeout(() => {
+    const cur = current();
+    if (cleanUrl(location.href) === url && (!cur || cur.url !== url)) capturePage();
+  }, 1500);
+};
+const autoTimer = setInterval(autoTick, 700);
+ui.querySelector('#kb-auto').checked = !!state.auto;
+ui.querySelector('#kb-auto').onchange = (e) => {
+  state.auto = e.target.checked; save(); autoUrl = null;
+  render(state.auto ? 'Capturing each page you open. Dialogs: press Capture page.' : 'Auto-capture off.');
+};
 ui.querySelector('#kb-clear').onclick = () => { if (confirm('Discard everything captured so far?')) { state = fresh(); save(); render('Started over.'); } };
 ui.querySelector('#kb-close').onclick = () => { setPicking(false); host.style.display = 'none'; };
 window.__kbCaptureOpen = () => { host.style.display = 'block'; render(''); };
+window.__kbCaptureVersion = VERSION;
+window.__kbCaptureClose = () => {
+  clearInterval(autoTimer); clearTimeout(autoWait);
+  setPicking(false);
+  document.removeEventListener('mousemove', onMove, true);
+  document.removeEventListener('click', onClick, true);
+  host.remove();
+};
 document.body.appendChild(host);
-render(state.pages.length ? 'Continuing the capture started earlier.' : 'Open a page of the journey and press Capture page.');
+render(state.auto ? 'Auto-capture is on: capturing each page you open.'
+  : state.pages.length ? 'Continuing the capture started earlier.' : 'Open a page of the journey and press Capture page.');
 })();
 """
 
