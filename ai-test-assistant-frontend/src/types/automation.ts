@@ -106,6 +106,8 @@ export interface RunSummary {
   mode?: string | null
   /** Pause between actions; 1000 is "Safe / WAF (1s)". */
   slow_mo_ms?: number | null
+  /** Server for normal runs, device for loopback Playwright runs. */
+  execution_target?: 'server' | 'device' | null
   healing_diagnosis?: string | null
   healing_changes?: string[] | null
   original_code?: string | null
@@ -176,6 +178,12 @@ export interface CreateRunResponse {
   run_key: string
   status: RunStatus
   poll: string
+}
+
+export interface CreateDeviceRunResponse extends CreateRunResponse {
+  runner_token: string
+  expires_in_minutes: number
+  pairing: string
 }
 
 /** A run is worth polling only while it can still change. */
@@ -577,6 +585,36 @@ export interface GenerateScriptsResult {
   generated: number
   skipped: Array<{ display_id: string; reason: string }>
   scripts: ScriptAsset[]
+}
+
+export interface BitbucketScriptSyncResult {
+  status: 'synced' | 'partial' | 'failed'
+  requested: number
+  synced: number
+  failed: number
+  framework: string
+  projects: Array<{
+    project_id: number
+    ppm_id: string
+    project_name: string
+    repository_slug: string
+    repository_url: string | null
+    repository_created: boolean
+    status: 'synced' | 'partial' | 'failed'
+    synced: number
+    failed: number
+    error?: string
+  }>
+  results: Array<{
+    case_id: number
+    display_id?: string
+    project_id?: number | null
+    script_id?: number
+    status: 'synced' | 'failed'
+    repository_slug?: string
+    repository_url?: string | null
+    error?: string
+  }>
 }
 
 export interface DryRunResult {

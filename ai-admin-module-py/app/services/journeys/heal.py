@@ -107,21 +107,38 @@ def recheck(db: Session, heal_id: int, *, actor: Optional[str]) -> KbHeal:
 
 
 def crawl(db: Session, heal_id: int, *, journey_id: str, application_id: int, environment: Optional[str],
-          actor: Optional[str]) -> KbHeal:
-    from . import crawl_runs
+          actor: Optional[str], mode: str = "server", wait_seconds: int = 20,
+          retry_count: int = 2, max_pages: int = 20):
+    from . import browser_collector, crawl_runs, local_runner
 
     heal = _get(db, heal_id)
     if journey_id not in (heal.impact or {}).get("crawl_journeys", []):
         raise HealError("That journey is not one this change asks to crawl.")
-    run = crawl_runs.start(db, app_id=heal.app_id, journey_id=journey_id, application_id=application_id,
-                           environment=environment, actor=actor)
+    token = None
+    if mode == "device":
+        run, token = local_runner.start(
+            db, app_id=heal.app_id, journey_id=journey_id, application_id=application_id,
+            profile_id=None, environment=environment, actor=actor,
+            stop_before=None, allow_risky=False,
+        )
+    elif mode == "collector":
+        run, token = browser_collector.start(
+            db, app_id=heal.app_id, journey_id=journey_id, application_id=application_id,
+            environment=environment, actor=actor, max_pages=max_pages,
+            wait_seconds=wait_seconds, retry_count=retry_count,
+        )
+    else:
+        run = crawl_runs.start(
+            db, app_id=heal.app_id, journey_id=journey_id, application_id=application_id,
+            environment=environment, actor=actor,
+        )
     crawls = list(heal.crawls or [])
     crawls.append({"journey_id": journey_id, "crawl_id": run.id, "started_by": actor,
-                   "started_at": datetime.utcnow().isoformat()})
+                   "started_at": datetime.utcnow().isoformat(), "mode": mode})
     heal.crawls = crawls
     db.commit()
     db.refresh(heal)
-    return heal
+    return heal, run, token
 
 
 def _get(db: Session, heal_id: int) -> KbHeal:

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><link rel="stylesheet" href="popup.css"><title>Browser Collector</title></head>
+<body>
+  <main>
+    <h1>Browser Collector</h1>
+    <p>Paste the one-time pairing code shown by Automation Studio.</p>
+    <textarea id="pairing" rows="4" spellcheck="false" placeholder="Pairing code"></textarea>
+    <label>Maximum pages <input id="limit" type="number" min="1" max="40" value="20"></label>
+    <button id="start">Start safe crawl</button>
+    <button id="stop" class="secondary">Stop and send results</button>
+    <button id="download" class="secondary">Download collector log</button>
+    <div id="status" role="status">Not connected.</div>
+    <small>Only the authorised origin is visited. Field values, cookies, passwords, tokens and pairing codes are never included in the downloadable log.</small>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -17,14 +17,14 @@ import logging
 import re
 from typing import Any, Literal, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..database.connection import get_db
 from ..services.authz import require_permission, user_has_permission
 from ..models.kb_changes import KbChangeSet, KbCrawlRun, KbHeal, KbSourceDocument, KbVersion
-from ..services.journeys import changesets, crawl_runs, diff, doc_convert, documents, editing, heal, impact, journey_map, journey_record, store, workspace
+from ..services.journeys import browser_collector, changesets, crawl_runs, diff, doc_convert, documents, editing, heal, impact, journey_map, journey_record, local_runner, store, workspace
 
 logger = logging.getLogger(__name__)
 
@@ -866,6 +866,241 @@ class CrawlIn(BaseModel):
     headed: bool = False
 
 
+class BrowserCrawlIn(BaseModel):
+    journey_id: str = Field(min_length=1, max_length=200)
+    application_id: int
+    environment: Optional[str] = Field(default=None, max_length=40)
+    max_pages: int = Field(default=20, ge=1, le=browser_collector.MAX_PAGES)
+    wait_seconds: int = Field(default=20, ge=2, le=120)
+    retry_count: int = Field(default=2, ge=0, le=10)
+
+
+class BrowserPageIn(BaseModel):
+    page_id: str = Field(min_length=1, max_length=120)
+    name: str = Field(default="", max_length=120)
+    url: str = Field(min_length=1, max_length=1000)
+    title: Optional[str] = Field(default=None, max_length=200)
+    captured_at: Optional[str] = Field(default=None, max_length=80)
+    browser: Optional[str] = Field(default=None, max_length=100)
+    viewport: Optional[dict[str, int]] = None
+    elements: list[dict[str, Any]] = Field(min_length=1, max_length=browser_collector.journey_capture.MAX_ELEMENTS)
+    picked: list[dict[str, Any]] = Field(default_factory=list, max_length=100)
+    links: list[str] = Field(default_factory=list, max_length=browser_collector.MAX_LINKS)
+
+
+class BrowserFailIn(BaseModel):
+    message: str = Field(default="The browser collector stopped.", max_length=1000)
+
+
+class BrowserProgressIn(BaseModel):
+    state: Literal["opening", "executing", "waiting", "capturing"] = "executing"
+    message: str = Field(default="Running browser setup.", max_length=1000)
+    action_index: int = Field(default=0, ge=0, le=500)
+    action_total: int = Field(default=0, ge=0, le=500)
+    action_text: Optional[str] = Field(default=None, max_length=500)
+
+
+class LocalProgressIn(BaseModel):
+    message: str = Field(default="Running Playwright on this device.", max_length=500)
+    progress: dict[str, Any] = Field(default_factory=dict)
+    frame: Optional[str] = None
+
+
+class LocalFinishIn(BaseModel):
+    output: dict[str, Any]
+    artifacts: dict[str, str] = Field(default_factory=dict)
+
+
+class LocalFailIn(BaseModel):
+    message: str = Field(default="Local Playwright stopped.", max_length=1000)
+
+
+def _collector_token(authorization: Optional[str]) -> str:
+    scheme, _, value = (authorization or "").partition(" ")
+    if scheme.lower() != "collector" or not value.strip():
+        raise HTTPException(status_code=401, detail="Send the browser crawl code as Authorization: Collector <code>.")
+    return value.strip()
+
+
+def _local_runner_token(authorization: Optional[str]) -> str:
+    scheme, _, value = (authorization or "").partition(" ")
+    if scheme.lower() != "local-runner" or not value.strip():
+        raise HTTPException(status_code=401, detail="Send the local run code as Authorization: Local-Runner <code>.")
+    return value.strip()
+
+
+@router.get("/local-runner/package")
+def local_runner_package(current_user: dict = Depends(require_permission(PERM_VIEW))) -> Response:
+    """The small loopback service that launches the device's existing Playwright."""
+    try:
+        data = local_runner.package()
+    except local_runner.LocalRunnerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return Response(
+        content=data,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="automation-studio-local-runner.zip"', "Cache-Control": "no-store"},
+    )
+
+
+@router.post("/{app_id}/local-journey-crawl", status_code=201)
+def start_local_crawl(
+    app_id: str,
+    body: CrawlIn,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+) -> dict[str, Any]:
+    """Create a run whose generated spec is executed by the user's loopback runner."""
+    try:
+        crawl, token = local_runner.start(
+            db, app_id=app_id, journey_id=body.journey_id, application_id=body.application_id,
+            profile_id=body.profile_id, environment=body.environment, actor=_actor(current_user),
+            stop_before=body.stop_before, allow_risky=body.allow_risky,
+        )
+    except (local_runner.LocalRunnerError, LookupError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        _fail(exc)
+    return {"crawl": crawl_runs.view(crawl), "runner_token": token, "expires_in_minutes": local_runner.SESSION_MINUTES}
+
+
+# These endpoints accept only the short-lived credential for one local run.
+# The browser never receives Test Data; only the loopback runner can exchange
+# the credential for the generated spec and its in-memory run environment.
+@router.get("/local-runner/sessions/{crawl_id}")
+def local_runner_config(crawl_id: int, authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)) -> dict[str, Any]:
+    try:
+        return local_runner.config(db, crawl_id, _local_runner_token(authorization))
+    except local_runner.LocalRunnerError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+
+@router.post("/local-runner/sessions/{crawl_id}/progress")
+def local_runner_progress(crawl_id: int, body: LocalProgressIn, authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)) -> dict[str, Any]:
+    try:
+        return local_runner.progress(db, crawl_id, _local_runner_token(authorization), body.model_dump())
+    except local_runner.LocalRunnerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/local-runner/sessions/{crawl_id}/finish")
+def finish_local_runner(crawl_id: int, body: LocalFinishIn, authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)) -> dict[str, Any]:
+    try:
+        return crawl_runs.view(local_runner.finish(db, crawl_id, _local_runner_token(authorization), body.output, body.artifacts))
+    except local_runner.LocalRunnerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/local-runner/sessions/{crawl_id}/fail")
+def fail_local_runner(crawl_id: int, body: LocalFailIn, authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)) -> dict[str, Any]:
+    try:
+        return crawl_runs.view(local_runner.fail(db, crawl_id, _local_runner_token(authorization), body.message))
+    except local_runner.LocalRunnerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/journey-crawls/{crawl_id}/cancel-local")
+def cancel_local_crawl(
+    crawl_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+) -> dict[str, Any]:
+    try:
+        return crawl_runs.view(local_runner.cancel(db, crawl_id))
+    except (local_runner.LocalRunnerError, LookupError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/browser-crawl/package/{engine}")
+def browser_collector_package(
+    engine: Literal["chromium", "firefox", "safari"],
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+) -> Response:
+    """A browser-specific manifest around the same cross-browser collector code."""
+    try:
+        data = browser_collector.package(engine)
+    except browser_collector.CollectorError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return Response(
+        content=data,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="automation-studio-collector-{engine}.zip"', "Cache-Control": "no-store"},
+    )
+
+
+@router.post("/{app_id}/browser-crawl", status_code=201)
+def start_browser_crawl(
+    app_id: str,
+    body: BrowserCrawlIn,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+) -> dict[str, Any]:
+    """Pair a WebExtension to one short-lived, origin-bound crawl."""
+    try:
+        crawl, token = browser_collector.start(db, app_id=app_id, actor=_actor(current_user), **body.model_dump())
+    except browser_collector.CollectorError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        _fail(exc)
+    return {"crawl": crawl_runs.view(crawl), "collector_token": token, "expires_in_minutes": browser_collector.SESSION_MINUTES}
+
+
+# These four routes deliberately use the one-crawl Collector credential rather
+# than a user's API token.  A browser extension can submit sanitised snapshots
+# but cannot view, edit or approve anything else in Automation Studio.
+@router.get("/browser-crawl/sessions/{crawl_id}")
+def browser_crawl_config(crawl_id: int, authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)) -> dict[str, Any]:
+    try:
+        return browser_collector.config(db, crawl_id, _collector_token(authorization))
+    except browser_collector.CollectorError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+
+@router.post("/browser-crawl/sessions/{crawl_id}/pages")
+def browser_crawl_page(crawl_id: int, body: BrowserPageIn, authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)) -> dict[str, Any]:
+    try:
+        return browser_collector.add_page(db, crawl_id, _collector_token(authorization), body.model_dump())
+    except browser_collector.CollectorError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/browser-crawl/sessions/{crawl_id}/progress")
+def browser_crawl_progress(crawl_id: int, body: BrowserProgressIn, authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)) -> dict[str, Any]:
+    try:
+        return browser_collector.progress(db, crawl_id, _collector_token(authorization), body.model_dump())
+    except browser_collector.CollectorError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/browser-crawl/sessions/{crawl_id}/finish")
+def finish_browser_crawl(crawl_id: int, authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)) -> dict[str, Any]:
+    try:
+        return crawl_runs.view(browser_collector.finish(db, crawl_id, _collector_token(authorization)))
+    except browser_collector.CollectorError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/browser-crawl/sessions/{crawl_id}/fail")
+def fail_browser_crawl(crawl_id: int, body: BrowserFailIn, authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)) -> dict[str, Any]:
+    try:
+        return crawl_runs.view(browser_collector.fail(db, crawl_id, _collector_token(authorization), body.message))
+    except browser_collector.CollectorError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/journey-crawls/{crawl_id}/cancel-browser")
+def cancel_browser_crawl(
+    crawl_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+) -> dict[str, Any]:
+    """Stop an incomplete browser-owned crawl from Automation Studio."""
+    try:
+        return crawl_runs.view(browser_collector.cancel(db, crawl_id))
+    except (browser_collector.CollectorError, LookupError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.get("/walk/capabilities")
 def walk_capabilities(current_user: dict = Depends(require_permission(PERM_VIEW))) -> dict[str, Any]:
     """What a walk can do on this server: show a browser, and which environments it refuses."""
@@ -1388,16 +1623,35 @@ class HealCrawlIn(BaseModel):
     journey_id: str
     application_id: int
     environment: Optional[str] = None
+    mode: Literal["server", "device", "collector"] = "server"
+    wait_seconds: int = Field(default=20, ge=2, le=120)
+    retry_count: int = Field(default=2, ge=0, le=10)
+    max_pages: int = Field(default=20, ge=1, le=browser_collector.MAX_PAGES)
 
 
 @router.post("/heals/{heal_id}/crawl", status_code=202)
 def heal_crawl(heal_id: int, body: HealCrawlIn, db: Session = Depends(get_db),
                current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
     try:
-        row = heal.crawl(db, heal_id, journey_id=body.journey_id, application_id=body.application_id,
-                         environment=body.environment, actor=_actor(current_user))
+        row, crawl, token = heal.crawl(
+            db, heal_id, journey_id=body.journey_id, application_id=body.application_id,
+            environment=body.environment, actor=_actor(current_user), mode=body.mode,
+            wait_seconds=body.wait_seconds, retry_count=body.retry_count,
+            max_pages=body.max_pages,
+        )
     except crawl_runs.Unavailable as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    except (local_runner.LocalRunnerError, browser_collector.CollectorError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         _fail(exc)
-    return heal.view(db, row)
+    result = {
+        "heal": heal.view(db, row),
+        "crawl": crawl_runs.view(crawl),
+        "mode": body.mode,
+    }
+    if body.mode == "device":
+        result.update(runner_token=token, expires_in_minutes=local_runner.SESSION_MINUTES)
+    elif body.mode == "collector":
+        result.update(collector_token=token, expires_in_minutes=browser_collector.SESSION_MINUTES)
+    return result

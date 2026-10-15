@@ -17,6 +17,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import automationService from '../../services/automationService'
+import { startDeviceRunner } from '../../services/localRunner'
 import { useAutomationContext } from '../../components/automation/AutomationContext'
 import { useConfirm } from '../../components/ui/ConfirmDialog'
 import SideDrawer, { DrawerNav } from '../../components/automation/SideDrawer'
@@ -401,6 +402,22 @@ const ScriptLab: React.FC = () => {
       }
     })
 
+  const handleBitbucketSync = () =>
+    runAction('bitbucket-sync', async () => {
+      const result = await automationService.syncScriptsToBitbucket(Array.from(selected), framework)
+      const created = result.projects.filter(project => project.repository_created).length
+      if (!result.synced) {
+        const reason = result.results.find(item => item.error)?.error
+        throw new Error(reason || 'None of the selected scripts could be synced to Bitbucket.')
+      }
+      setNotice(
+        `${result.synced} selected script${result.synced === 1 ? '' : 's'} synced across `
+        + `${result.projects.length} project repositor${result.projects.length === 1 ? 'y' : 'ies'}`
+        + `${created ? `; ${created} new repositor${created === 1 ? 'y was' : 'ies were'} created` : ''}`
+        + `${result.failed ? `. ${result.failed} failed and can be retried without resyncing the selection manually.` : '.'}`
+      )
+    })
+
   const handleDelete = async () => {
     const chosen = cases.filter(c => selected.has(c.id))
     if (!chosen.length) return
@@ -426,6 +443,20 @@ const ScriptLab: React.FC = () => {
     runAction('dry-run', async () => {
       const res = await automationService.dryRunScripts({ script_ids: [script.id], environment: null, base_url: null, slow_mo_ms: 1000 })
       if (res.refused?.length) setNotice(`Dry run refused — ${res.refused.map((r: any) => r.reason).join(' · ')}`)
+    })
+
+  const handleDeviceDryRun = (script: ScriptAsset) =>
+    runAction('device-dry-run', async () => {
+      const res = await automationService.createDeviceDryRun(script.id)
+      try {
+        await startDeviceRunner(res.pairing)
+      } catch (err) {
+        await automationService.cancelRun(res.run_key).catch(() => undefined)
+        throw new Error(err instanceof Error && err.message
+          ? `${err.message} Start the downloaded device runner, then try again.`
+          : 'The local Playwright runner is not available. Start it, then try again.')
+      }
+      setNotice(`Device dry run started: ${res.run_key}`)
     })
 
   const handleHeal = (script: ScriptAsset) =>
@@ -556,6 +587,22 @@ const ScriptLab: React.FC = () => {
               className={ICON_BTN}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><path d="M12 4v11M7 10l5 5 5-5M5 19h14" /></svg>
+            </button>
+            <button
+              type="button"
+              onClick={handleBitbucketSync}
+              disabled={!selected.size || busy !== null}
+              title={!selected.size ? 'Select one or more test cases to sync' : `Sync ${selected.size} selected ${activeFramework?.label ?? framework} script(s) to their PPM repositories`}
+              aria-label="Sync selected scripts to Bitbucket"
+              className={ICON_BTN}
+            >
+              {busy === 'bitbucket-sync' ? (
+                <Spinner color="#B71920" />
+              ) : (
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden>
+                  <path d="M7 5h10l-1.2 14H8.2L7 5Z" /><path d="M9.5 8h5l-.5 6h-4l-.5-6ZM5 5h14" />
+                </svg>
+              )}
             </button>
             <button
               type="button"
@@ -839,6 +886,16 @@ const ScriptLab: React.FC = () => {
                     >
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><circle cx="12" cy="12" r="8.5" /><path d="M10.5 9l4.5 3-4.5 3z" /></svg>
                       {busy === 'dry-run' ? 'Queueing…' : 'Dry run'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeviceDryRun(openScript)}
+                      disabled={busy !== null || !canExecute || !runnable || openScript.dry_run_status === 'running' || openScript.dry_run_status === 'queued'}
+                      title={!runnable ? `${activeFramework?.label} is generate-only — no runner exists for it.` : 'Run headlessly with Playwright installed on this device; the Linux server only coordinates the run'}
+                      className="flex h-10 items-center gap-2 whitespace-nowrap rounded-[12px] border border-[#B71920] bg-white px-4 text-[14px] font-bold text-[#B71920] transition hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><rect x="4" y="3" width="16" height="13" rx="2" /><path d="M8 21h8M12 16v5" /></svg>
+                      {busy === 'device-dry-run' ? 'Connecting…' : 'Run on device'}
                     </button>
                   </>
                 )}

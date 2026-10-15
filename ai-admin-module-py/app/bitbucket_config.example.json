@@ -1,0 +1,20 @@
+{
+  "enabled": true,
+  "provider": "data_center",
+  "base_url": "https://bitbucket.example.com",
+  "project_key": "AIT",
+  "repository_slug": "{ppm_id}",
+  "default_branch": "main",
+  "file_directory": "test-cases",
+  "verify_ssl": true,
+  "auth": {
+    "username": "${BITBUCKET_USERNAME}",
+    "password": "${BITBUCKET_PASSWORD}",
+    "access_token": "${BITBUCKET_ACCESS_TOKEN}"
+  },
+  "proxy": {
+    "url": "${BITBUCKET_PROXY_URL}",
+    "username": "${BITBUCKET_PROXY_USERNAME}",
+    "password": "${BITBUCKET_PROXY_PASSWORD}"
+  }
+}

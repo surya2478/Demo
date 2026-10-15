@@ -248,6 +248,17 @@ def _element(raw: Dict[str, Any], *, picked: bool = False) -> Optional[Dict[str,
                   if isinstance(s, str) and s.strip() and s.strip() != selector]
     name = _text(raw.get("name") or raw.get("text") or locator.get("text"), 120)
     actions = raw.get("actions") if isinstance(raw.get("actions"), list) else []
+    bounds = raw.get("bounds") if isinstance(raw.get("bounds"), dict) else {}
+    clean_bounds = None
+    try:
+        clean_bounds = {
+            "x": max(0, min(int(bounds.get("x", 0)), 10000)),
+            "y": max(0, min(int(bounds.get("y", 0)), 10000)),
+            "width": max(2, min(int(bounds.get("width", 2)), 10000)),
+            "height": max(2, min(int(bounds.get("height", 2)), 10000)),
+        } if bounds else None
+    except (TypeError, ValueError):
+        clean_bounds = None
     return {
         "role": _text(raw.get("role") or raw.get("type") or raw.get("tagName"), 40).lower() or None,
         "name": name, "text": _text(raw.get("text") or locator.get("text"), 120) or None,
@@ -256,6 +267,7 @@ def _element(raw: Dict[str, Any], *, picked: bool = False) -> Optional[Dict[str,
         "chrome": bool(raw.get("chrome")), "kind": raw.get("kind") or ("picked" if picked else "control"),
         "picked": picked, "action": _text(raw.get("action") or (actions[0] if actions else ""), 20).lower() or None,
         "assertions": [a for a in (raw.get("assertions") or []) if isinstance(a, str)][:6],
+        "bounds": clean_bounds,
     }
 
 
@@ -267,6 +279,14 @@ def _page(raw: Dict[str, Any], fallback_id: str) -> Dict[str, Any]:
         named = [e for e in elements if e["name"] and raw.get("pageId")]
         for e in named:
             e["picked"] = True
+    viewport = raw.get("viewport") if isinstance(raw.get("viewport"), dict) else {}
+    try:
+        clean_viewport = {
+            "width": max(320, min(int(viewport.get("width", 1366)), 4096)),
+            "height": max(240, min(int(viewport.get("height", 768)), 4096)),
+        }
+    except (TypeError, ValueError):
+        clean_viewport = {"width": 1366, "height": 768}
     return {
         "page_id": _text(raw.get("page_id") or raw.get("pageId") or fallback_id, 120),
         "name": _text(raw.get("name") or raw.get("title") or raw.get("pageId"), 120),
@@ -274,6 +294,7 @@ def _page(raw: Dict[str, Any], fallback_id: str) -> Dict[str, Any]:
         "title": _text(raw.get("title"), 200) or None,
         "captured_at": raw.get("captured_at"),
         "screen_id": _text(raw.get("screen_id") or raw.get("screen"), 120) or None,
+        "viewport": clean_viewport,
         "elements": (elements + picked)[:MAX_ELEMENTS],
     }
 
