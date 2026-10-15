@@ -57,8 +57,8 @@ const describe = (app: TargetApplication) => {
   return 'No Knowledge Base yet: cases are written from the requirements alone'
 }
 
-// "Application", after Select KB and before Environment. Several can be
-// ticked; each generated case is linked to the one it is for, and nothing
+// "Application", after Select KB and before Environment. Optional; several can
+// be ticked, and each generated case is linked to the one it is for. Nothing
 // downstream infers the application from the case text again.
 const SelectApplications: React.FC<SelectApplicationsProps> = ({ options, value, onChange, disabled = false, missing = false, loading = false }) => {
   const [open, setOpen] = useState(false)
@@ -90,7 +90,7 @@ const SelectApplications: React.FC<SelectApplicationsProps> = ({ options, value,
   const summary = loading
     ? 'Loading applications…'
     : chosen.length === 0
-      ? 'Select application'
+      ? 'No application'
       : chosen.length === 1
         ? chosen[0].name
         : `${chosen[0].name} +${chosen.length - 1}`
@@ -98,7 +98,7 @@ const SelectApplications: React.FC<SelectApplicationsProps> = ({ options, value,
   return (
     <div ref={rootRef} className="relative flex w-full flex-col gap-1.5 sm:w-auto">
       <span id="select-application-label" className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6B7280]">
-        Application <span className="text-[#B71920]">*</span>
+        Application <span className="font-medium normal-case tracking-normal text-[#9CA3AF]">(optional)</span>
       </span>
       <button
         type="button"
@@ -107,7 +107,7 @@ const SelectApplications: React.FC<SelectApplicationsProps> = ({ options, value,
         aria-labelledby="select-application-label"
         aria-invalid={missing && chosen.length === 0}
         data-audit-name="Application"
-        title={chosen.map((app) => app.name).join(', ') || 'The application(s) these test cases are for'}
+        title={chosen.map((app) => app.name).join(', ') || 'Optional: the application(s) these test cases are for. With none, cases are saved without an application.'}
         disabled={disabled || loading}
         onClick={() => setOpen((current) => !current)}
         className={`flex h-10 w-full items-center sm:w-[240px] justify-between gap-2 rounded-[12px] border bg-white px-3 text-[13px] font-semibold text-[#1F2937] transition disabled:cursor-not-allowed disabled:opacity-60 ${

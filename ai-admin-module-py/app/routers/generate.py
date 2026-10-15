@@ -295,8 +295,8 @@ def generate_brd_testcases(
     form field per id) and `environment` the chosen environment. Grounding is
     read for those applications only, and the prompt names them with their
     addresses -- see services/automation/applications.py for why nothing is
-    inferred across applications any more. Callers that send none keep the
-    earlier behaviour; the page requires a choice.
+    inferred across applications any more. The choice is optional: with none,
+    generation keeps the earlier behaviour and cases are saved unlinked.
 
     The first chunk is pulled before the response is returned. That is the only
     window in which a failure can still become a real status code: once

@@ -130,15 +130,15 @@ const TestCases: React.FC = () => {
   const selectedKnowledgeBaseOption = knowledgeBaseOptions.find((option) => option.value === selectedKnowledgeBase) ?? knowledgeBaseOptions[0]
 
   // Application, after Select KB: the Test Data application(s) the document is
-  // for. Mandatory for every KB, and several may be ticked. Generation is
+  // for. Optional, and several may be ticked. When chosen, generation is
   // grounded in those applications only, and every case is linked to the one
   // it is for when it is saved -- nothing after that infers the application
   // from the case text, which is how a case sharing words like "Business" or
-  // "Payment" with the B2B Portal used to be stamped with the B2B URL.
+  // "Payment" with the B2B Portal used to be stamped with the B2B URL. With
+  // none chosen, cases are saved without an application rather than guessed.
   const [applicationOptions, setApplicationOptions] = useState<TargetApplication[]>([])
   const [applicationsLoading, setApplicationsLoading] = useState(true)
   const [selectedApplicationIds, setSelectedApplicationIds] = useState<number[]>([])
-  const [applicationMissing, setApplicationMissing] = useState(false)
   // {generated Test Case ID: application name, or null when it could not be told} from the save.
   const [caseApplications, setCaseApplications] = useState<Record<string, string | null>>({})
   const selectedApplications = applicationOptions.filter((app) => selectedApplicationIds.includes(app.id))
@@ -2269,10 +2269,6 @@ const copyFigmaExtractedText = async () => {
   // A project is asked for before generating -- from the BRD first, then the
   // author, who may go on without.
   const requestGenerate = async () => {
-    if (!selectedApplicationIds.length) {
-      setApplicationMissing(true)
-      return
-    }
     if (!selectedEnvironment) {
       setEnvironmentMissing(true)
       return
@@ -2680,10 +2676,9 @@ const copyFigmaExtractedText = async () => {
             <SelectApplications
               options={applicationOptions}
               value={selectedApplicationIds}
-              onChange={(ids) => { setSelectedApplicationIds(ids); setApplicationMissing(false) }}
+              onChange={setSelectedApplicationIds}
               disabled={loading}
               loading={applicationsLoading}
-              missing={applicationMissing}
             />
             <label className="relative flex flex-col gap-1.5" title="The environment these test cases target. Their scripts run against it and use its Test Data.">
               <span className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#6B7280]">
@@ -2776,7 +2771,7 @@ const copyFigmaExtractedText = async () => {
                 }}
                 data-audit-name={getGenerateButtonLabel()}
                 disabled={!isGenerateEnabled || loading || tokenLimitReached}
-                title={tokenLimitReached ? 'Token allocation limit reached' : !selectedApplicationIds.length ? 'Choose the application(s) these test cases are for first' : !selectedEnvironment ? 'Choose the environment these test cases target first' : ''}
+                title={tokenLimitReached ? 'Token allocation limit reached' : !selectedEnvironment ? 'Choose the environment these test cases target first' : ''}
                 className={`flex h-10 items-center gap-2 rounded-[12px] px-4 text-[13px] font-bold transition ${
                   isGenerateEnabled && !loading && !tokenLimitReached
                     ? 'bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] hover:opacity-95'
