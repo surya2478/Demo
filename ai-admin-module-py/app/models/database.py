@@ -196,3 +196,49 @@ class TestCaseWorkflowStage(Base):
         UniqueConstraint('stage_request_id', 'stage', name='uq_test_case_workflow_stage'),
         CheckConstraint("status IN ('PENDING', 'ACTIVE', 'COMPLETED')", name='ck_test_case_workflow_stage_status'),
     )
+
+
+class BitbucketSync(Base):
+    """Durable state for exporting one review request to its PPM repository.
+
+    Approval and remote publication are intentionally separate transactions.
+    A Bitbucket outage must never undo a manager's decision, while a failed
+    publication must remain visible and retryable instead of being lost in a
+    log file.
+    """
+
+    __tablename__ = "bitbucket_syncs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    request_id = Column(
+        String(255),
+        ForeignKey("test_case_review_details.request_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    project_id = Column(Integer, nullable=False, index=True)
+    ppm_id = Column(String(100), nullable=False, index=True)
+    provider = Column(String(30), nullable=False)
+    repository_slug = Column(String(255), nullable=False)
+    repository_url = Column(Text, nullable=True)
+    branch = Column(String(255), nullable=False)
+    file_path = Column(Text, nullable=False)
+    status = Column(String(20), nullable=False, default="pending", index=True)
+    repository_created = Column(Boolean, nullable=False, default=False)
+    commit_hash = Column(String(255), nullable=True)
+    content_hash = Column(String(64), nullable=True)
+    approved_cases = Column(Integer, nullable=False, default=0)
+    attempt_count = Column(Integer, nullable=False, default=0)
+    last_error = Column(Text, nullable=True)
+    synced_by = Column(String(255), nullable=True)
+    synced_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'syncing', 'synced', 'failed')",
+            name="ck_bitbucket_sync_status",
+        ),
+    )

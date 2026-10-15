@@ -8,6 +8,36 @@ import { saveRqm, toRqmRows } from '../utils/rqmTemplate'
 
 export type SourceGroup = 'BRD' | 'SDD' | 'ADO' | 'e2e Spark'
 
+export interface BitbucketSyncInfo {
+  status: 'pending' | 'syncing' | 'synced' | 'failed'
+  provider: 'cloud' | 'data_center' | string
+  repository_slug: string
+  repository_url: string | null
+  branch: string
+  file_path: string
+  repository_created: boolean
+  commit_hash: string | null
+  content_hash: string | null
+  approved_cases: number
+  attempt_count: number
+  last_error: string | null
+  synced_by: string | null
+  synced_at: string | null
+}
+
+export interface BitbucketConfigStatus {
+  enabled: boolean
+  configured: boolean
+  provider?: string
+  base_url?: string
+  workspace?: string | null
+  project_key?: string | null
+  default_branch?: string
+  auth_mode?: string
+  proxy_mode?: string
+  error?: string
+}
+
 export interface RequestSummary {
   request_id: string
   document_id: string | null
@@ -33,6 +63,8 @@ export interface RequestSummary {
   sent_to_lab: number
   /** The project it was generated for; null for requests from before projects. */
   project?: { id: number; ppm_id: string; name: string } | null
+  bitbucket_sync?: BitbucketSyncInfo | null
+  bitbucket_config?: BitbucketConfigStatus
 }
 
 export interface Overview {
@@ -122,6 +154,11 @@ const reviewService = {
       review_notes: reviewNotes || undefined
     })
     window.dispatchEvent(new Event('test-case-review-updated'))
+  },
+  syncBitbucket: async (requestId: string): Promise<BitbucketSyncInfo> => {
+    const res = await api.post(`/test-case-reviews/detail/${encodeURIComponent(requestId)}/bitbucket-sync`)
+    window.dispatchEvent(new Event('test-case-review-updated'))
+    return res.data.sync
   },
   /** Delete requests and their test cases. Manager only. */
   remove: async (requestIds: string[]): Promise<{ deleted: number; test_cases: number; drafts: number }> => {

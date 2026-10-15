@@ -24,7 +24,7 @@ from typing import Any, Literal, Optional
 
 logger = logging.getLogger(__name__)
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -61,9 +61,13 @@ from ..services.automation import intake
 from ..services.automation import workbench as wb
 from ..services.automation import healer
 from ..services.automation import test_data
+from ..services.automation import device_runner
 from ..services.automation import knowledge_base as kb
+from ..services.journeys import browser_collector as journey_browser_collector
+from ..services.journeys import local_runner as journey_local_runner
 from ..services.automation.guided_discovery import guided_discovery_manager
 from ..services.audit_logger import audit_log
+from ..services import bitbucket_sync
 
 router = APIRouter(tags=["Automation Studio"])
 
@@ -100,6 +104,36 @@ def get_runtime_status(current_user: dict = Depends(require_permission(PERM_VIEW
         "max_concurrent_runs": settings.AUTOMATION_MAX_CONCURRENT_RUNS,
         "storage_path": settings.AUTOMATION_STORAGE_PATH,
     }
+
+
+# Package downloads belong to Automation Studio, not to one Knowledge Base
+# screen. Keep the older Knowledge Base URLs too, but provide stable endpoints
+# that remain valid when the frontend API host or reverse-proxy prefix changes.
+@router.get("/local-runner/package")
+def local_runner_package(current_user: dict = Depends(require_permission(PERM_VIEW))) -> Response:
+    try:
+        data = journey_local_runner.package()
+    except journey_local_runner.LocalRunnerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return Response(
+        content=data, media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="automation-studio-local-runner.zip"', "Cache-Control": "no-store"},
+    )
+
+
+@router.get("/browser-collector/package/{engine}")
+def browser_collector_package(
+    engine: str,
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+) -> Response:
+    try:
+        data = journey_browser_collector.package(engine)
+    except journey_browser_collector.CollectorError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return Response(
+        content=data, media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="automation-studio-collector-{engine}.zip"', "Cache-Control": "no-store"},
+    )
 
 
 # ── Candidates ───────────────────────────────────────────────────────────────
@@ -304,6 +338,31 @@ class CreateRunRequest(BaseModel):
     mode: Optional[str] = Field(default=None, pattern="^(standard|rerun)$")
 
 
+class DeviceProgressRequest(BaseModel):
+    message: str = Field(default="Running Playwright on device.", max_length=500)
+    progress: dict[str, Any] = Field(default_factory=dict)
+    log_tail: str = Field(default="", max_length=50_000)
+
+
+class DeviceFinishRequest(BaseModel):
+    report: dict[str, Any]
+    artifacts: dict[str, str] = Field(default_factory=dict)
+    log: str = Field(default="", max_length=10_000_000)
+    exit_code: int
+    duration_seconds: float = Field(default=0, ge=0)
+
+
+class DeviceFailRequest(BaseModel):
+    message: str = Field(default="Device Playwright stopped.", max_length=1000)
+
+
+def _device_token(authorization: Optional[str]) -> str:
+    scheme, _, value = (authorization or "").partition(" ")
+    if scheme.lower() != "local-runner" or not value.strip():
+        raise HTTPException(status_code=401, detail="Send the run code as Authorization: Local-Runner <code>.")
+    return value.strip()
+
+
 def _run_summary(run: AutomationRun) -> dict:
     tc_display_id = None
     tc_title = None
@@ -349,7 +408,9 @@ def _run_summary(run: AutomationRun) -> dict:
         "completed_at": run.completed_at.isoformat() if run.completed_at else None,
         "created_at": run.created_at.isoformat() if run.created_at else None,
         "triggered_by": run.triggered_by,
-        "is_active": job_manager.is_active(run.run_key),
+        "is_active": job_manager.is_active(run.run_key) or (
+            (run.run_config or {}).get("execution_target") == "device" and run.status in ("queued", "running")
+        ),
         "is_healed": bool(metadata.get("is_healed", False)),
         "healing_diagnosis": metadata.get("healing_diagnosis"),
         "healing_changes": metadata.get("healing_changes"),
@@ -359,6 +420,7 @@ def _run_summary(run: AutomationRun) -> dict:
         # dry_run, rerun, discovery -- or None for a spec run started by hand.
         "mode": (run.run_config or {}).get("mode") if isinstance(run.run_config, dict) else None,
         "slow_mo_ms": (run.run_config or {}).get("slow_mo_ms") if isinstance(run.run_config, dict) else None,
+        "execution_target": (run.run_config or {}).get("execution_target", "server") if isinstance(run.run_config, dict) else "server",
     }
 
 
@@ -459,6 +521,66 @@ def create_run(
 
     job_manager.submit(run_key)
     return {"run_key": run_key, "status": "queued", "poll": f"/automation/runs/{run_key}"}
+
+
+@router.post("/runs/local", status_code=201)
+def create_device_run(
+    body: CreateRunRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Create a run executed by the authenticated user's loopback Playwright runner."""
+    if not settings.AUTOMATION_ENABLED:
+        raise HTTPException(status_code=503, detail="The Automation Module is disabled on this deployment.")
+    try:
+        run, token = device_runner.start(
+            db, code=body.code, environment=body.environment, base_url=body.base_url,
+            file_name=body.file_name, test_case_id=body.test_case_id,
+            slow_mo_ms=body.slow_mo_ms, actor=(current_user or {}).get("username"),
+        )
+    except device_runner.DeviceRunnerError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {
+        "run_key": run.run_key, "status": run.status, "runner_token": token,
+        "expires_in_minutes": device_runner.SESSION_MINUTES,
+        "poll": f"/automation/runs/{run.run_key}",
+    }
+
+
+@router.get("/local-runner/runs/{run_key}")
+def device_run_config(run_key: str, authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)):
+    try:
+        return device_runner.config(db, run_key, _device_token(authorization))
+    except device_runner.DeviceRunnerError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+
+@router.post("/local-runner/runs/{run_key}/progress")
+def device_run_progress(run_key: str, body: DeviceProgressRequest, authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)):
+    try:
+        return device_runner.progress(db, run_key, _device_token(authorization), body.model_dump())
+    except device_runner.DeviceRunnerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/local-runner/runs/{run_key}/finish")
+def finish_device_run(run_key: str, body: DeviceFinishRequest, authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)):
+    try:
+        run = device_runner.finish(
+            db, run_key, _device_token(authorization), report=body.report, artifacts=body.artifacts,
+            log=body.log, exit_code=body.exit_code, duration_seconds=body.duration_seconds,
+        )
+        return _run_summary(run)
+    except device_runner.DeviceRunnerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/local-runner/runs/{run_key}/fail")
+def fail_device_run(run_key: str, body: DeviceFailRequest, authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)):
+    try:
+        return _run_summary(device_runner.fail(db, run_key, _device_token(authorization), body.message))
+    except device_runner.DeviceRunnerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _projects(db: Session) -> dict[int, dict]:
@@ -640,6 +762,10 @@ def cancel_run(
         raise HTTPException(status_code=404, detail="Run not found")
     if run.status not in ("queued", "running"):
         raise HTTPException(status_code=409, detail=f"Run is already {run.status}.")
+
+    if (run.run_config or {}).get("execution_target") == "device":
+        device_runner.cancel(db, run)
+        return {"run_key": run_key, "cancelling": True}
 
     if not job_manager.cancel(run_key):
         raise HTTPException(
@@ -942,8 +1068,13 @@ def get_run_log(
     run = db.query(AutomationRun).filter(AutomationRun.run_key == run_key).first()
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
-    path = _guarded_path(run.log_path)
-    return PlainTextResponse(path.read_text(encoding="utf-8", errors="replace"))
+    if run.log_path:
+        path = _guarded_path(run.log_path)
+        return PlainTextResponse(path.read_text(encoding="utf-8", errors="replace"))
+    metadata = run.run_metadata if isinstance(run.run_metadata, dict) else {}
+    # Device runs upload a bounded tail while Playwright is still running. The
+    # final, complete log replaces this via log_path when the run finishes.
+    return PlainTextResponse(str(metadata.get("live_log") or ""))
 
 
 # ── Intake: cases authored in the Studio ─────────────────────────────────────
@@ -2337,6 +2468,11 @@ class ScriptDecisionRequest(BaseModel):
     reason: Optional[str] = Field(default=None, max_length=2000)
 
 
+class SyncScriptsRequest(BaseModel):
+    case_ids: list[int] = Field(min_length=1)
+    framework: str = Field(default="playwright", max_length=30)
+
+
 def _script_detail(script: AutomationScript) -> dict:
     case = script.test_case
     return {
@@ -2678,6 +2814,41 @@ def generate_scripts(
     }
 
 
+@router.post("/scripts/bitbucket-sync")
+def sync_scripts_to_bitbucket(
+    body: SyncScriptsRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Sync selected current scripts to their own PPM repositories."""
+    if body.framework not in compiler.FRAMEWORKS:
+        raise HTTPException(status_code=400, detail="Unknown automation framework.")
+    actor = (current_user or {}).get("username") or "unknown"
+    try:
+        result = bitbucket_sync.sync_automation_scripts(
+            db, body.case_ids, body.framework, actor,
+        )
+    except bitbucket_sync.BitbucketSyncError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    audit_log(
+        actor=actor,
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="sync",
+        resource_type="automation_script",
+        resource_id=",".join(str(value) for value in body.case_ids),
+        resource_name=f"Bitbucket sync of {len(body.case_ids)} selected case(s)",
+        status="success" if result["failed"] == 0 else "partial" if result["synced"] else "failed",
+        details={
+            "description": f"{actor} synced {result['synced']} script(s) to Bitbucket",
+            "framework": body.framework,
+            "synced": result["synced"],
+            "failed": result["failed"],
+        },
+    )
+    return result
+
+
 @router.get("/scripts")
 def list_scripts(
     db: Session = Depends(get_db),
@@ -2890,6 +3061,60 @@ def dry_run_scripts(
     if not queued and refused:
         raise HTTPException(status_code=409, detail=refused[0]["reason"])
     return {"queued": queued, "refused": refused}
+
+
+@router.post("/scripts/{script_id}/dry-run-local", status_code=201)
+def dry_run_script_on_device(
+    script_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Create a Script Lab dry run owned by the user's loopback runner.
+
+    This deliberately does not call the server runtime readiness check: the
+    Linux API coordinates the run while Playwright and its browser live on the
+    user's device.
+    """
+    if not settings.AUTOMATION_ENABLED:
+        raise HTTPException(status_code=503, detail="The Automation Module is disabled on this deployment.")
+    script = db.get(AutomationScript, script_id)
+    if not script:
+        raise HTTPException(status_code=404, detail="Script not found.")
+    if script.framework != "playwright":
+        raise HTTPException(status_code=409, detail="Only Playwright scripts can run on a device.")
+    gate = script.static_gate_result or {}
+    if gate.get("passed") is False:
+        raise HTTPException(status_code=409, detail="Static gate failed: " + "; ".join(gate.get("errors") or []))
+    previous = (
+        db.query(AutomationRun).filter(AutomationRun.run_key == script.dry_run_key).first()
+        if script.dry_run_key else None
+    )
+    if previous and previous.status in ("queued", "running"):
+        raise HTTPException(status_code=409, detail="A dry run is already active for this script.")
+    username = (current_user or {}).get("username")
+    try:
+        run, token = device_runner.start(
+            db, code=script.code, environment=None, base_url=None,
+            file_name=script.file_name, test_case_id=script.test_case_id,
+            slow_mo_ms=1000, actor=username, script_id=script.id, mode="dry_run",
+        )
+    except device_runner.DeviceRunnerError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    script.dry_run_status = "queued"
+    script.dry_run_key = run.run_key
+    script.dry_run_at = datetime.utcnow()
+    db.commit()
+    audit_log(
+        actor=username or "unknown", actor_role=(current_user or {}).get("role"),
+        module="Automation Studio", action="execute", resource_type="automation_script",
+        resource_id=str(script.id), resource_name="device dry run", status="success",
+        details={"description": f"{username} started device dry run {run.run_key}", "execution_target": "device"},
+    )
+    return {
+        "run_key": run.run_key, "status": run.status, "runner_token": token,
+        "expires_in_minutes": device_runner.SESSION_MINUTES,
+        "poll": f"/automation/runs/{run.run_key}",
+    }
 
 
 @router.get("/scripts/{script_id}/dry-run")
@@ -4495,4 +4720,3 @@ def export_kb_application_model(
         media_type="application/json",
         headers={"Content-Disposition": f'attachment; filename="{app_id}_application_model.json"'}
     )
-

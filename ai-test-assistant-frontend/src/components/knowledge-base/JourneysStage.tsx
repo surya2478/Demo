@@ -244,7 +244,23 @@ const JourneysStage: React.FC<{
     )
   }
 
-  const j = detail?.journey
+  // Older/imported journey records can omit collection fields. Normalise them
+  // at the UI boundary so one incomplete record cannot crash the whole stage.
+  const rawJourney = detail?.journey
+  const j = rawJourney ? {
+    ...rawJourney,
+    journey_path: rawJourney.journey_path ?? [],
+    chain: rawJourney.chain ?? [],
+    next: rawJourney.next ?? [],
+    sources: rawJourney.sources ?? [],
+    steps: rawJourney.steps ?? [],
+    rules: rawJourney.rules ?? [],
+    conditional_branches: rawJourney.conditional_branches ?? [],
+    test_scenarios: rawJourney.test_scenarios ?? [],
+    open_questions: rawJourney.open_questions ?? [],
+    used_by: rawJourney.used_by ?? [],
+    roles: rawJourney.roles ?? []
+  } : undefined
   const node = detail?.node
 
   return (

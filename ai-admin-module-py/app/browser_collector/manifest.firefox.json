@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Automation Studio Browser Collector",
+  "version": "1.7.0",
+  "description": "Crawls one authorised test application and sends verified locators to Automation Studio.",
+  "permissions": ["storage", "tabs", "scripting"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "background": { "scripts": ["background.js"] },
+  "action": { "default_popup": "popup.html", "default_title": "Browser Collector" },
+  "browser_specific_settings": {
+    "gecko": { "id": "browser-collector@automation-studio.local", "strict_min_version": "109.0" }
+  }
+}

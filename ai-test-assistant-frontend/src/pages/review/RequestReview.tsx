@@ -118,8 +118,8 @@ const RequestReview: React.FC = () => {
     setReason('')
   }, [visible, currentId])
 
-  const decide = useCallback(async (decision: 'APPROVE' | 'REJECT', targets: ReviewCase[], notes?: string) => {
-    if (!targets.length) return
+  const decide = useCallback(async (decision: 'APPROVE' | 'REJECT', targets: ReviewCase[], notes?: string): Promise<boolean> => {
+    if (!targets.length) return false
     setBusy(true)
     try {
       await reviewService.decide(
@@ -131,22 +131,49 @@ const RequestReview: React.FC = () => {
       setSelected(new Set())
       setReason('')
       await load()
+      return true
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'The decision could not be saved.')
+      return false
     } finally {
       setBusy(false)
     }
   }, [requestId, load])
 
+  const syncBitbucket = useCallback(async (): Promise<boolean> => {
+    setBusy(true)
+    try {
+      await reviewService.syncBitbucket(requestId)
+      setError('')
+      await load()
+      return true
+    } catch (err: any) {
+      // Approval is already committed. Make that explicit so a remote outage
+      // cannot look like the manager's decision was lost.
+      const message = `${err?.response?.data?.detail || 'Bitbucket sync failed.'} The approval is saved; use Resync after the connection is fixed.`
+      await load()
+      setError(message)
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }, [requestId, load])
+
+  const approveCases = useCallback(async (targets: ReviewCase[]) => {
+    if (!targets.length || busy) return false
+    return decide('APPROVE', targets)
+  }, [busy, decide])
+
   const approveCurrent = useCallback(async () => {
     if (!current || busy) return
-    await decide('APPROVE', [current])
+    const completed = await approveCases([current])
+    if (!completed) return
     // Approve & next: the next case still waiting, after this one.
     const order = visible.map((c) => c.test_case_id)
     const start = order.indexOf(current.test_case_id)
     const next = [...order.slice(start + 1), ...order.slice(0, start)].find((id) => cases.find((c) => c.test_case_id === id)?.status === 'PENDING')
     if (next) setCurrentId(next)
-  }, [current, busy, decide, visible, cases])
+  }, [current, busy, approveCases, visible, cases])
 
   const rejectCurrent = useCallback(async () => {
     if (!current || busy) return
@@ -213,7 +240,7 @@ const RequestReview: React.FC = () => {
         </button>
         <button
           type="button"
-          onClick={() => void decide('APPROVE', bulkTargets)}
+          onClick={() => void approveCases(bulkTargets)}
           disabled={busy || bulkTargets.length === 0}
           className="flex h-9 items-center gap-2 rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-3.5 text-[13px] font-bold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -235,6 +262,8 @@ const RequestReview: React.FC = () => {
   const caseType = ai?.test_type || (current ? inferCaseType(title) : '')
   const priority = current ? detailOf(current, 'Priority') : ''
   const verdict = ai?.review_verdict
+  const bitbucket = summary?.bitbucket_sync
+  const bitbucketConfig = summary?.bitbucket_config
 
   const chip = (key: Filter, label: string, tone: string) => (
     <button key={key} type="button" onClick={() => setFilter(key)} aria-pressed={filter === key}
@@ -480,6 +509,17 @@ const RequestReview: React.FC = () => {
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A3231C" strokeWidth="2.6" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
                 Reject
               </button>
+              {approved > 0 && (
+                <button
+                  type="button"
+                  onClick={() => void syncBitbucket()}
+                  disabled={busy || !bitbucketConfig?.configured}
+                  title={!bitbucketConfig?.configured ? 'Configure app/bitbucket_config.json to enable sync' : bitbucket?.last_error || undefined}
+                  className={`flex h-9 items-center gap-2 rounded-[12px] border px-3.5 text-[13px] font-bold disabled:cursor-not-allowed disabled:opacity-50 ${bitbucket?.status === 'synced' ? 'border-[#A8D5B7] bg-[#F2FBF5] text-[#136B34]' : bitbucket?.status === 'failed' ? 'border-[#F0C2C0] bg-[#FFF8F8] text-[#A3231C]' : 'border-[#C9D5E5] bg-[#F7FAFF] text-[#234A78]'}`}
+                >
+                  {bitbucket?.status === 'synced' ? '✓ Synced · Resync' : bitbucket?.status === 'failed' ? 'Sync failed · Retry' : bitbucket?.status === 'syncing' ? 'Syncing…' : bitbucketConfig?.configured ? 'Sync to Bitbucket' : 'Bitbucket not configured'}
+                </button>
+              )}
               {cases.length > 0 && pendingCases.length === 0 ? (
                 // Every case is decided: nothing is next, so the way on is back to the list.
                 <button type="button" onClick={() => navigate('/manager-review')} disabled={busy}

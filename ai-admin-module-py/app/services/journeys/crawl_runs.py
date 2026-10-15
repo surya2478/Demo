@@ -213,6 +213,17 @@ def _output_path(run: AutomationRun) -> Optional[Path]:
 
 def live(db: Session, crawl: KbCrawlRun) -> Dict[str, Any]:
     """Where a walk has got to: its steps so far, the step under way, and whether a frame is ready."""
+    source = (crawl.plan or {}).get("source")
+    if source == "browser":
+        # Imported lazily because browser_collector uses this module to build
+        # the ordinary crawl record.
+        from . import browser_collector
+
+        return browser_collector.live(crawl)
+    if (crawl.plan or {}).get("execution_target") == "local":
+        from . import local_runner
+
+        return local_runner.live(crawl)
     run = db.query(AutomationRun).filter(AutomationRun.run_key == crawl.run_key).first() if crawl.run_key else None
     progress: Dict[str, Any] = {}
     frame_at = None
@@ -244,6 +255,38 @@ def run_file(db: Session, crawl: KbCrawlRun, name: str) -> Optional[Path]:
 
 def absorb(db: Session, crawl: KbCrawlRun) -> KbCrawlRun:
     """Fold a finished run's output into the crawl record, once."""
+    if crawl.status == "running" and (crawl.plan or {}).get("source") == "browser":
+        expires_at = ((crawl.plan or {}).get("collector") or {}).get("expires_at")
+        try:
+            expired = bool(expires_at) and datetime.utcnow() >= datetime.fromisoformat(str(expires_at))
+        except ValueError:
+            expired = True
+        if expired:
+            crawl.status = "failed"
+            crawl.error = "The browser collector did not finish before its pairing code expired. Start a new browser crawl."
+            crawl.finished_at = datetime.utcnow()
+            db.commit()
+            db.refresh(crawl)
+        return crawl
+    if crawl.status == "running" and (crawl.plan or {}).get("execution_target") == "local":
+        agent = (crawl.plan or {}).get("local_agent") or {}
+        try:
+            expired = bool(agent.get("expires_at")) and datetime.utcnow() >= datetime.fromisoformat(str(agent.get("expires_at")))
+        except (TypeError, ValueError):
+            expired = True
+        if expired:
+            crawl.status = "failed"
+            crawl.error = "The device runner did not start before its run code expired. Start a new local dry run."
+            crawl.finished_at = datetime.utcnow()
+            crawl.plan = {**(crawl.plan or {}), "local_agent": {
+                **agent, "token_hash": None, "state": "failed", "message": crawl.error,
+            }}
+            run = db.query(AutomationRun).filter(AutomationRun.run_key == crawl.run_key).first()
+            if run:
+                run.status = "failed"; run.outcome = "blocked"; run.error_message = crawl.error; run.completed_at = datetime.utcnow()
+            db.commit()
+            db.refresh(crawl)
+        return crawl
     if crawl.status in ("completed", "failed") or not crawl.run_key:
         return crawl
     if (crawl.plan or {}).get("source") == "record":
@@ -431,6 +474,7 @@ def view(crawl: KbCrawlRun, *, with_result: bool = True) -> Dict[str, Any]:
         "id": crawl.id, "app_id": crawl.app_id, "journey_id": crawl.journey_id,
         "journey_name": (crawl.plan or {}).get("journey_name"), "application_id": crawl.application_id,
         "source": (crawl.plan or {}).get("source") or "journey",
+        "execution_target": (crawl.plan or {}).get("execution_target") or "server",
         "stop_before": (crawl.plan or {}).get("stop_before"), "stop_reason": (crawl.plan or {}).get("stop_reason"),
         "entry": (crawl.plan or {}).get("entry"), "scenario": (crawl.plan or {}).get("scenario"),
         "browser": (crawl.plan or {}).get("browser"), "browser_note": (crawl.plan or {}).get("browser_note"),

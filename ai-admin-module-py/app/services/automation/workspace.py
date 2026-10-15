@@ -80,7 +80,10 @@ export default defineConfig({{
     navigationTimeout: 45_000,
     trace: 'on',
     screenshot: 'on',
-    video: 'on',
+    // Device runners may use an installed Chrome/Edge and may not have
+    // Playwright's private FFmpeg bundle. Evidence must degrade to trace and
+    // screenshots instead of blocking the whole test.
+    video: process.env.AUTOMATION_DISABLE_VIDEO === '1' ? 'off' : 'on',
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     viewport: {{ width: 1366, height: 768 }},
     // Only the language. These headers go on EVERY request, scripts and API
@@ -92,6 +95,7 @@ export default defineConfig({{
       'Accept-Language': 'en-US,en;q=0.9',
     }},
     launchOptions: {{
+      executablePath: process.env.AUTOMATION_BROWSER_EXECUTABLE || undefined,
       slowMo: {slow_mo_ms},
       args: [
         '--disable-blink-features=AutomationControlled',
@@ -270,6 +274,8 @@ class ProgressReporter {
       event: 'test_end',
       title: test.title,
       status: result.status,
+      duration_ms: result.duration,
+      error: result.error ? String(result.error.message || '').slice(0, 500) : null,
       attempt: result.retry + 1,
       at: Date.now(),
     });

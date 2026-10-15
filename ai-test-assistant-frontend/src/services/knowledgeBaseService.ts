@@ -1,10 +1,23 @@
 import api from './api'
+import { makeLocalPairing } from './localRunner'
 
 // The Knowledge Base page's own stages: sources, Journey KB, application model,
 // test data and reconcile (backend: routers/knowledge_base_page.py). Crawl and
 // Automation KB stages reuse the Discovery screen and automationService.
 
 const BASE = '/automation/knowledge-base'
+
+const makeCollectorPairing = (crawl: { id: number; base_url?: string | null }, token: string): string => {
+  const apiBase = new URL(String(api.defaults.baseURL || '/'), window.location.origin).toString().replace(/\/$/, '')
+  const raw = JSON.stringify({
+    api: apiBase,
+    id: crawl.id,
+    token,
+    origin: new URL(crawl.base_url || '').origin,
+    studio: window.location.origin
+  })
+  return btoa(raw).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
 
 export type ElementStatus = 'MATCH' | 'LABEL_DRIFT' | 'REF_BROKEN' | 'NOT_CRAWLED' | 'NOT_IN_DESIGN' | 'NO_ELEMENT' | 'UNRESOLVED'
   /** A step done by a recorded selector or an address: confirmed by the last walk, or not walked yet. */
@@ -239,6 +252,15 @@ export interface WalkCapabilities {
   chrome_installed?: boolean
 }
 
+export interface BrowserTabPreview {
+  page_id: string | null
+  name: string | null
+  title: string | null
+  url: string | null
+  viewport: { width: number; height: number }
+  elements: { role: string | null; name: string | null; kind: string | null; bounds: { x: number; y: number; width: number; height: number } }[]
+}
+
 /** A walk as it runs. */
 export interface WalkLive {
   id: number
@@ -251,6 +273,16 @@ export interface WalkLive {
   steps: CrawlStep[]
   /** When the latest frame was written (seconds); null before the first. */
   frame_at: number | null
+  /** Browser-owned collector progress and a value-free map of its current tab. */
+  collector_state?: 'waiting' | 'opening' | 'executing' | 'capturing' | 'completed' | 'failed'
+  pages_received?: number
+  pages_max?: number
+  current_url?: string | null
+  connected_at?: string | null
+  action_index?: number | null
+  action_total?: number | null
+  action_text?: string | null
+  preview?: BrowserTabPreview | null
 }
 
 export interface CrawlRow {
@@ -368,7 +400,8 @@ export interface JourneyCrawl {
   created_at: string | null
   finished_at: string | null
   summary: Partial<Record<CrawlOutcome, number>> | null
-  source?: 'journey' | 'flow' | 'record' | 'capture'
+  source?: 'journey' | 'flow' | 'record' | 'capture' | 'browser'
+  execution_target?: 'server' | 'local'
   stop_before?: number | null
   stop_reason?: string | null
   browser?: CrawlBrowser | null
@@ -497,7 +530,8 @@ export interface CaptureInfo {
   started_at?: string | null
   finished_at?: string | null
   uploaded_by?: string | null
-  pages: { page_id: string; name: string; url: string | null; screen_id: string | null; steps?: number[]; elements: number }[]
+  browser?: string | null
+  pages: { page_id: string; name: string; url: string | null; screen_id: string | null; steps?: number[]; elements: number; preview?: BrowserTabPreview | null }[]
   notes: string[]
 }
 
@@ -547,9 +581,18 @@ export interface KbHeal {
   impact: KbImpact
   rediff: { case_id: number; display_id: string; journey_id: string | null; before: Record<string, number>; after: Record<string, number>; changed: boolean; automatable_before?: boolean; automatable_after?: boolean }[]
   recheck: null | { requested_by: string | null; requested_at: string; case_ids: number[]; queued: number; skipped: { case_id: number; reason: string }[]; progress?: Record<string, string> }
-  crawls: { journey_id: string; crawl_id: number; started_by: string | null; started_at: string; status: string; summary: Record<string, number> | null }[]
+  crawls: { journey_id: string; crawl_id: number; mode?: HealCrawlMode; started_by: string | null; started_at: string; status: string; summary: Record<string, number> | null }[]
   created_by: string | null
   created_at: string | null
+}
+
+export type HealCrawlMode = 'server' | 'device' | 'collector'
+export interface HealCrawlStart {
+  heal: KbHeal
+  crawl: JourneyCrawl
+  mode: HealCrawlMode
+  pairing?: string
+  expires_in_minutes?: number
 }
 
 // A screen or element the reviewer adds -- what the model missed, typically
@@ -884,6 +927,40 @@ const knowledgeBaseService = {
     stop_before?: number | null; allow_risky?: boolean; headed?: boolean; browser?: CrawlBrowser
   }): Promise<JourneyCrawl> =>
     (await api.post(`${BASE}/${enc(app)}/journey-crawl`, body)).data,
+  /** Run the generated journey spec through the loopback Playwright runner on this device. */
+  startLocalCrawl: async (app: string, body: {
+    journey_id: string; application_id: number; profile_id?: string | null; environment?: string | null
+    stop_before?: number | null; allow_risky?: boolean
+  }): Promise<{ crawl: JourneyCrawl; pairing: string; expires_in_minutes: number }> => {
+    const response = (await api.post(`${BASE}/${enc(app)}/local-journey-crawl`, body)).data as {
+      crawl: JourneyCrawl; runner_token: string; expires_in_minutes: number
+    }
+    const pairing = makeLocalPairing({ id: response.crawl.id, token: response.runner_token })
+    return { crawl: response.crawl, pairing, expires_in_minutes: response.expires_in_minutes }
+  },
+  downloadLocalRunner: async (): Promise<string> => {
+    const res = await api.get('/automation/local-runner/package', { responseType: 'blob' })
+    return URL.createObjectURL(res.data as Blob)
+  },
+  cancelLocalCrawl: async (id: number): Promise<JourneyCrawl> =>
+    (await api.post(`${BASE}/journey-crawls/${id}/cancel-local`)).data,
+  /** Pair a cross-browser WebExtension. The returned collector token is valid only for this crawl. */
+  startBrowserCrawl: async (app: string, body: {
+    journey_id: string; application_id: number; environment?: string | null; max_pages?: number
+    wait_seconds?: number; retry_count?: number
+  }): Promise<{ crawl: JourneyCrawl; pairing: string; expires_in_minutes: number }> => {
+    const response = (await api.post(`${BASE}/${enc(app)}/browser-crawl`, body)).data as {
+      crawl: JourneyCrawl; collector_token: string; expires_in_minutes: number
+    }
+    const pairing = makeCollectorPairing(response.crawl, response.collector_token)
+    return { crawl: response.crawl, pairing, expires_in_minutes: response.expires_in_minutes }
+  },
+  downloadBrowserCollector: async (engine: 'chromium' | 'firefox' | 'safari'): Promise<string> => {
+    const res = await api.get(`/automation/browser-collector/package/${engine}`, { responseType: 'blob' })
+    return URL.createObjectURL(res.data as Blob)
+  },
+  cancelBrowserCrawl: async (id: number): Promise<JourneyCrawl> =>
+    (await api.post(`${BASE}/journey-crawls/${id}/cancel-browser`)).data,
   walkCapabilities: async (): Promise<WalkCapabilities> => (await api.get(`${BASE}/walk/capabilities`)).data,
   walkFlows: async (app: string): Promise<WalkFlow[]> => (await api.get(`${BASE}/${enc(app)}/walk/flows`)).data.flows,
   crawlLive: async (id: number): Promise<WalkLive> => (await api.get(`${BASE}/journey-crawls/${id}/live`)).data,
@@ -979,8 +1056,30 @@ const knowledgeBaseService = {
   heals: async (app: string): Promise<KbHeal[]> => (await api.get(`${BASE}/${enc(app)}/heals`)).data.heals,
   heal: async (id: number): Promise<KbHeal> => (await api.get(`${BASE}/heals/${id}`)).data,
   healRecheck: async (id: number): Promise<KbHeal> => (await api.post(`${BASE}/heals/${id}/recheck`)).data,
-  healCrawl: async (id: number, body: { journey_id: string; application_id: number; environment?: string | null }): Promise<KbHeal> =>
-    (await api.post(`${BASE}/heals/${id}/crawl`, body)).data
+  healCrawl: async (id: number, body: {
+    journey_id: string
+    application_id: number
+    environment?: string | null
+    mode: HealCrawlMode
+    wait_seconds?: number
+    retry_count?: number
+    max_pages?: number
+  }): Promise<HealCrawlStart> => {
+    const response = (await api.post(`${BASE}/heals/${id}/crawl`, body)).data as {
+      heal: KbHeal
+      crawl: JourneyCrawl
+      mode: HealCrawlMode
+      runner_token?: string
+      collector_token?: string
+      expires_in_minutes?: number
+    }
+    const pairing = response.mode === 'device' && response.runner_token
+      ? makeLocalPairing({ id: response.crawl.id, token: response.runner_token })
+      : response.mode === 'collector' && response.collector_token
+        ? makeCollectorPairing(response.crawl, response.collector_token)
+        : undefined
+    return { heal: response.heal, crawl: response.crawl, mode: response.mode, pairing, expires_in_minutes: response.expires_in_minutes }
+  }
 }
 
 /** The API's message for a failed call, including a 409's conflict list. */

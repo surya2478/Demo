@@ -9,7 +9,8 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..database.connection import get_db
-from ..models.database import Project, TestCaseReview, TestCaseReviewDetail, TestCaseDetail
+from ..models.database import BitbucketSync, Project, TestCaseReview, TestCaseReviewDetail, TestCaseDetail
+from ..services import bitbucket_sync
 from .projects import serialize_project
 from ..services.automation import applications as app_scope
 from ..utils.security import get_current_user_strict
@@ -94,6 +95,13 @@ def _serialize_review_detail(review_detail: TestCaseReviewDetail) -> Dict[str, A
         'reviewed_by': review_detail.reviewed_by,
         'reviewed_date_time': review_detail.reviewed_date_time.isoformat() if review_detail.reviewed_date_time else None,
     }
+
+
+def _syncs_by_request(db: Session, request_ids: set[str]) -> Dict[str, BitbucketSync]:
+    if not request_ids:
+        return {}
+    rows = db.query(BitbucketSync).filter(BitbucketSync.request_id.in_(request_ids)).all()
+    return {row.request_id: row for row in rows}
 
 
 def _serialize_test_case_detail(test_case_detail: TestCaseDetail) -> Dict[str, Any]:
@@ -836,10 +844,12 @@ def review_overview(
         cases_by_request.setdefault(case.request_id, []).append(case)
 
     projects = _projects_by_id(db, {detail.project_id for detail in details})
+    syncs = _syncs_by_request(db, {detail.request_id for detail in details})
     requests = [
         {
             **_request_summary(detail, cases_by_request.get(detail.request_id, [])),
             'project': serialize_project(projects.get(detail.project_id)),
+            'bitbucket_sync': bitbucket_sync.serialize_sync(syncs.get(detail.request_id)),
         }
         for detail in details
     ]
@@ -1010,10 +1020,49 @@ async def get_review_detail_by_request_id(
         .all()
     )
     project = db.get(Project, detail.project_id) if getattr(detail, 'project_id', None) else None
+    sync = db.query(BitbucketSync).filter(BitbucketSync.request_id == request_id).first()
     return {
-        'data': {**_serialize_review_detail(detail), 'project': serialize_project(project)},
+        'data': {
+            **_serialize_review_detail(detail),
+            'project': serialize_project(project),
+            'bitbucket_sync': bitbucket_sync.serialize_sync(sync),
+            'bitbucket_config': bitbucket_sync.configuration_status(),
+        },
         'test_cases': [_serialize_test_case_detail(item) for item in test_cases],
     }
+
+
+@router.get("/detail/{request_id}/bitbucket-sync")
+def get_bitbucket_sync_status(
+    request_id: str,
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    _require_review_manager(current_user)
+    if not db.get(TestCaseReviewDetail, request_id):
+        raise HTTPException(status_code=404, detail='Review request not found')
+    record = db.query(BitbucketSync).filter(BitbucketSync.request_id == request_id).first()
+    return {
+        'config': bitbucket_sync.configuration_status(),
+        'sync': bitbucket_sync.serialize_sync(record),
+    }
+
+
+@router.post("/detail/{request_id}/bitbucket-sync")
+def sync_review_detail_to_bitbucket(
+    request_id: str,
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    _require_review_manager(current_user)
+    actor = (current_user or {}).get('username') or (current_user or {}).get('sub') or 'manager'
+    try:
+        record = bitbucket_sync.sync_review_request(db, request_id, actor)
+    except bitbucket_sync.BitbucketSyncError as exc:
+        message = str(exc)
+        status = 503 if any(word in message.lower() for word in ('config', 'disabled', 'required')) else 502
+        raise HTTPException(status_code=status, detail=message) from exc
+    return {'success': True, 'sync': bitbucket_sync.serialize_sync(record)}
 
 # Endpoint to create a new test case detail
 @router.post("/detail/test-case")

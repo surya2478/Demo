@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import knowledgeBaseService, { errorText, type KbHeal } from '../../services/knowledgeBaseService'
+import knowledgeBaseService, { errorText, type HealCrawlMode, type KbHeal } from '../../services/knowledgeBaseService'
+import { startDeviceRunner } from '../../services/localRunner'
+import { COLLECTOR_VERSION, startInstalledCollector } from '../../services/browserCollector'
 import ImpactSummary from './ImpactSummary'
 import { Card, CardHead, Chip, Failed, Loading, Note, TONE } from './kbUi'
 
@@ -17,6 +19,11 @@ const when = (iso: string | null) => (iso ? new Date(iso.endsWith('Z') ? iso : `
 const summaryText = (s: Record<string, number>) =>
   Object.entries(s).filter(([, n]) => n).map(([k, n]) => `${k.replace(/_/g, ' ').toLowerCase()} ${n}`).join(' · ') || '—'
 const CRAWL_TONE: Record<string, keyof typeof TONE> = { queued: 'idle', running: 'info', completed: 'good', failed: 'bad', deleted: 'idle' }
+const CRAWL_LABEL: Record<HealCrawlMode, string> = {
+  server: 'Normal · server',
+  collector: 'Browser collector',
+  device: 'Run on this device'
+}
 
 const HealCard: React.FC<{
   heal: KbHeal
@@ -27,6 +34,7 @@ const HealCard: React.FC<{
 }> = ({ heal, application, canExecute, onChanged, onOpenCrawl }) => {
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [crawlModes, setCrawlModes] = useState<Record<string, HealCrawlMode>>({})
   const run = async (key: string, action: () => Promise<KbHeal>) => {
     setBusy(key)
     setError(null)
@@ -35,6 +43,37 @@ const HealCard: React.FC<{
   const moved = heal.rediff.filter(r => r.changed)
   const crawled = new Map(heal.crawls.map(c => [c.journey_id, c]))
   const rechecking = heal.recheck?.progress && Object.values(heal.recheck.progress).some(s => s === 'queued' || s === 'running')
+  const startCrawl = async (journeyId: string): Promise<KbHeal> => {
+    if (!application) throw new Error('Register the application before starting a crawl.')
+    const mode = crawlModes[journeyId] ?? 'server'
+    const started = await knowledgeBaseService.healCrawl(heal.id, {
+      journey_id: journeyId,
+      application_id: application.id,
+      environment: application.environment,
+      mode,
+      max_pages: 20,
+      wait_seconds: 20,
+      retry_count: 2
+    })
+    onChanged(started.heal)
+    try {
+      if (mode === 'device') {
+        if (!started.pairing) throw new Error('The device runner pairing code was not returned.')
+        await startDeviceRunner(started.pairing)
+      } else if (mode === 'collector') {
+        if (!started.pairing || !await startInstalledCollector(started.pairing, 20)) {
+          throw new Error(`The installed collector did not respond. Reload extension version ${COLLECTOR_VERSION}, then try again.`)
+        }
+      }
+    } catch (err) {
+      if (mode === 'device') await knowledgeBaseService.cancelLocalCrawl(started.crawl.id).catch(() => undefined)
+      if (mode === 'collector') await knowledgeBaseService.cancelBrowserCrawl(started.crawl.id).catch(() => undefined)
+      const refreshed = await knowledgeBaseService.heal(heal.id).catch(() => started.heal)
+      onChanged(refreshed)
+      throw err
+    }
+    return started.heal
+  }
 
   return (
     <Card label={heal.title}>
@@ -110,12 +149,24 @@ const HealCard: React.FC<{
                   <li key={jid} className="flex flex-wrap items-center justify-between gap-2 text-[12.5px]">
                     <span className="min-w-0 truncate text-[#1F2937]" title={jid}>{name}</span>
                     <span className="flex items-center gap-1.5">
-                      {done && <Chip tone={CRAWL_TONE[done.status] ?? 'idle'}>crawl #{done.crawl_id} {done.status}</Chip>}
+                      {done && <Chip tone={CRAWL_TONE[done.status] ?? 'idle'}>{done.mode ? CRAWL_LABEL[done.mode] : 'crawl'} #{done.crawl_id} {done.status}</Chip>}
                       {done && <button type="button" className="text-[12px] font-semibold text-[#1D4ED8] hover:underline" onClick={onOpenCrawl}>Results</button>}
+                      <select
+                        aria-label={`Crawl type for ${name}`}
+                        value={crawlModes[jid] ?? 'server'}
+                        onChange={event => setCrawlModes(current => ({ ...current, [jid]: event.target.value as HealCrawlMode }))}
+                        disabled={!canExecute || !application || busy !== null || (!!done && ['queued', 'running'].includes(done.status))}
+                        title="Choose where this confirmation crawl runs"
+                        className="h-[32px] rounded-[10px] border border-[#E8EAEE] bg-white px-2 text-[12px] font-semibold text-[#374151] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="server">Normal · server</option>
+                        <option value="collector">Browser collector</option>
+                        <option value="device">Run on this device</option>
+                      </select>
                       <button type="button" className={`${BTN} bg-[#B71920] text-white hover:opacity-95`}
                         disabled={!canExecute || !application || busy !== null || (!!done && ['queued', 'running'].includes(done.status))}
-                        title="Walks the journey in the running application with test data from the vault"
-                        onClick={() => application && void run(`crawl:${jid}`, () => knowledgeBaseService.healCrawl(heal.id, { journey_id: jid, application_id: application.id, environment: application.environment }))}>
+                        title={`Walks the journey using ${CRAWL_LABEL[crawlModes[jid] ?? 'server']}`}
+                        onClick={() => application && void run(`crawl:${jid}`, () => startCrawl(jid))}>
                         {busy === `crawl:${jid}` ? 'Starting…' : done ? 'Crawl again' : 'Crawl'}
                       </button>
                     </span>

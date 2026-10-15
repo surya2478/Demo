@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import knowledgeBaseService, {
-  errorText, type CrawlBrowser, type CrawlOutcome, type CrawlPlan, type CrawlPlanItem, type CrawlStep, type InventoryPage, type JourneyCrawl, type WalkCapabilities, type WalkFlow, type WalkLive
+  errorText, type BrowserTabPreview, type CaptureInfo, type CrawlBrowser, type CrawlOutcome, type CrawlPlan, type CrawlPlanItem, type CrawlStep, type InventoryPage, type JourneyCrawl, type WalkCapabilities, type WalkFlow, type WalkLive
 } from '../../services/knowledgeBaseService'
 import automationService from '../../services/automationService'
+import { startDeviceRunner } from '../../services/localRunner'
+import { COLLECTOR_VERSION, resumeInstalledCollector, startInstalledCollector } from '../../services/browserCollector'
 import { Card, CardHead, Chip, Failed, Loading, Note, TONE, useLoad } from './kbUi'
 import { RecordingLive, RecordingReview } from './JourneyRecording'
 import { useAuthedImage } from './walkImage'
@@ -41,13 +43,13 @@ const beforeLabel = (item: CrawlPlanItem | undefined, order: number) => stepNo(i
 const SELECT = 'h-[34px] rounded-[10px] border border-[#E8EAEE] bg-white px-2.5 text-[12.5px] font-semibold text-[#374151]'
 const LABEL = 'flex min-w-0 flex-col gap-1 text-[11px] font-bold uppercase tracking-[0.1em] text-[#6B7280]'
 const PLAIN = 'h-[32px] rounded-[10px] border border-[#E8EAEE] bg-white px-3 text-[12.5px] font-bold text-[#1F2937] hover:border-[#F6D4D5] disabled:opacity-50'
-
-
 // --- The walk as it runs ------------------------------------------------------------------
 
 const LivePanel: React.FC<{ crawl: JourneyCrawl; plan: CrawlPlan | null; onFinished: () => void; canStop: boolean }> = ({ crawl, plan, onFinished, canStop }) => {
   const [live, setLive] = useState<WalkLive | null>(null)
   const [stopping, setStopping] = useState(false)
+  const [retrying, setRetrying] = useState(false)
+  const [retryError, setRetryError] = useState<string | null>(null)
   useEffect(() => {
     let alive = true
     const tick = () => knowledgeBaseService.crawlLive(crawl.id).then(next => {
@@ -62,10 +64,26 @@ const LivePanel: React.FC<{ crawl: JourneyCrawl; plan: CrawlPlan | null; onFinis
   const frame = useAuthedImage(live?.frame_at ? () => knowledgeBaseService.crawlImage(crawl.id, 'live.png') : null, live?.frame_at ? String(live.frame_at) : null)
   const done = new Map((live?.steps ?? []).map(s => [s.order, s]))
   const items = plan?.items ?? []
+  const browserOwned = crawl.source === 'browser'
+  const collectorConnected = !!live?.connected_at || ['opening', 'capturing', 'completed'].includes(live?.collector_state ?? '')
+  const pagesReceived = live?.pages_received ?? 0
+  const confirmed = done.size
+  const pending = Math.max(0, items.length - confirmed)
   const stop = async () => {
-    if (!crawl.run_key) return
     setStopping(true)
-    try { await automationService.cancelRun(crawl.run_key) } catch { /* the run finishes on its own */ }
+    try {
+      if (crawl.source === 'browser') await knowledgeBaseService.cancelBrowserCrawl(crawl.id)
+      else if (crawl.execution_target === 'local') await knowledgeBaseService.cancelLocalCrawl(crawl.id)
+      else if (crawl.run_key) await automationService.cancelRun(crawl.run_key)
+      onFinished()
+    } catch { /* the run may have finished on its own */ }
+    finally { setStopping(false) }
+  }
+  const retry = async () => {
+    setRetrying(true); setRetryError(null)
+    try {
+      if (!await resumeInstalledCollector(crawl.id)) setRetryError(`The updated browser collector is not connected. Reload extension version ${COLLECTOR_VERSION}, then retry.`)
+    } finally { setRetrying(false) }
   }
   return (
     <div className="grid gap-4 px-5 pb-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
@@ -79,9 +97,36 @@ const LivePanel: React.FC<{ crawl: JourneyCrawl; plan: CrawlPlan | null; onFinis
             <button type="button" onClick={() => void stop()} disabled={stopping} className={PLAIN}>{stopping ? 'Stopping…' : 'Stop'}</button>
           )}
         </div>
-        <div className="flex aspect-[16/9] items-center justify-center overflow-hidden rounded-[12px] border border-[#E8EAEE] bg-[#F4F5F7]">
-          {frame ? <img src={frame} alt="The page the walk is on" className="h-full w-full object-contain" /> : <span className="text-[12.5px] text-[#6B7280]">Waiting for the first frame…</span>}
-        </div>
+        {browserOwned ? (
+          <div className="flex flex-col gap-3 text-[12px]">
+            <div className="grid gap-2 sm:grid-cols-4">
+              <CollectorMilestone label="Session" state="done" detail={`#${crawl.id} created`} />
+              <CollectorMilestone label="Extension" state={collectorConnected ? 'done' : 'active'} detail={collectorConnected ? 'Connected' : 'Waiting for pairing'} />
+              <CollectorMilestone label="Capture" state={pagesReceived > 0 ? 'done' : collectorConnected ? 'active' : 'waiting'} detail={`${pagesReceived} page${pagesReceived === 1 ? '' : 's'}`} />
+              <CollectorMilestone label="Journey" state={pending === 0 ? 'done' : pagesReceived > 0 ? 'active' : 'waiting'} detail={`${confirmed} confirmed · ${pending} pending`} />
+            </div>
+            <BrowserTabView preview={live?.preview ?? null} message={collectorConnected ? 'Waiting for the first captured screen…' : 'Waiting for the browser extension to connect…'} />
+            {live?.current && (
+              <div className="flex flex-wrap items-center gap-3 rounded-[10px] border border-[#E7D29B] bg-[#FFFBEB] px-3 py-2">
+                <span className="min-w-0 flex-1 text-[11.5px] text-[#6B4A16]">
+                  The preview is read-only. The collector will enter Test Data and continue until it reaches “{live.current.text}”.
+                </span>
+                <button type="button" onClick={() => void retry()} disabled={retrying} className="h-[32px] rounded-[9px] bg-[#B71920] px-3 text-[11.5px] font-bold text-white disabled:opacity-50">
+                  {retrying ? 'Retrying setup…' : 'Retry setup & continue'}
+                </button>
+                {retryError && <span className="w-full text-[11px] text-[#A3231C]">{retryError}</span>}
+              </div>
+            )}
+            <div className="rounded-[10px] border border-[#E8EAEE] bg-[#FCFCFD] px-3 py-2">
+              <p className="m-0 font-semibold text-[#374151]">{live?.phase ?? 'Preparing the browser collector…'}</p>
+              {live?.current_url && <code className="mt-1 block truncate text-[11px] text-[#6B7280]" title={live.current_url}>{live.current_url}</code>}
+            </div>
+          </div>
+        ) : (
+          <div className="flex aspect-[16/9] items-center justify-center overflow-hidden rounded-[12px] border border-[#E8EAEE] bg-[#F4F5F7]">
+            {frame ? <img src={frame} alt="The page the walk is on" className="h-full w-full object-contain" /> : <span className="text-[12.5px] text-[#6B7280]">Waiting for the first frame…</span>}
+          </div>
+        )}
       </div>
       <ol className="m-0 flex max-h-[420px] list-none flex-col overflow-auto rounded-[12px] border border-[#E8EAEE] p-0">
         {items.map((item, i) => {
@@ -96,11 +141,141 @@ const LivePanel: React.FC<{ crawl: JourneyCrawl; plan: CrawlPlan | null; onFinis
                 <span className="font-semibold text-[#6B7280]">{KIND[item.kind] ?? item.kind}</span> {item.text}
                 {step?.error && <span className="block text-[11.5px] text-[#A3231C]">{step.error}</span>}
               </span>
-              {now ? <Chip tone="info">Running</Chip> : status ? <Chip tone={status.tone}>{status.label}</Chip> : <span className="text-[11px] text-[#9CA3AF]">waiting</span>}
+              {now ? <Chip tone="info">{browserOwned ? (live?.collector_state === 'waiting' ? 'Waiting for page' : 'Running now') : 'Running'}</Chip> : status ? <Chip tone={status.tone}>{status.label}</Chip> : <Chip tone="idle">Pending</Chip>}
             </li>
           )
         })}
       </ol>
+    </div>
+  )
+}
+
+const CollectorMilestone: React.FC<{ label: string; state: 'waiting' | 'active' | 'done'; detail: string }> = ({ label, state, detail }) => (
+  <div className={`rounded-[9px] border px-2.5 py-2 ${state === 'done' ? 'border-[#D5E9DD] bg-[#F1F8F4]' : state === 'active' ? 'border-[#F6D4D5] bg-[#FFF7F7]' : 'border-[#E8EAEE] bg-white'}`}>
+    <span className="block text-[10px] font-bold uppercase tracking-[0.08em] text-[#6B7280]">{state === 'done' ? '✓ ' : state === 'active' ? '● ' : '○ '}{label}</span>
+    <span className="mt-0.5 block font-semibold text-[#374151]">{detail}</span>
+  </div>
+)
+
+const BrowserTabView: React.FC<{ preview: BrowserTabPreview | null; message?: string }> = ({ preview, message }) => {
+  const [mode, setMode] = useState<'page' | 'map'>('page')
+  const width = Math.max(1, preview?.viewport.width ?? 1366)
+  const height = Math.max(1, preview?.viewport.height ?? 768)
+  return (
+    <div className="overflow-hidden rounded-[12px] border border-[#D9DCE2] bg-white shadow-sm" aria-label="Live browser tab preview">
+      <div className="flex h-9 items-center gap-2 border-b border-[#E8EAEE] bg-[#F4F5F7] px-3">
+        <span className="h-2.5 w-2.5 rounded-full bg-[#F3A9AC]" /><span className="h-2.5 w-2.5 rounded-full bg-[#F0D18A]" /><span className="h-2.5 w-2.5 rounded-full bg-[#9BD2AF]" />
+        <span className="ml-2 min-w-0 flex-1 truncate rounded-md bg-white px-2 py-1 text-[10.5px] text-[#6B7280]">{preview?.url ?? 'Browser tab'}</span>
+        {preview?.url && <button type="button" onClick={() => setMode(value => value === 'page' ? 'map' : 'page')} className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#B71920]">{mode === 'page' ? 'Show annotations' : 'Show page'}</button>}
+        <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#1F7A4D]">Live</span>
+      </div>
+      <div className="relative aspect-[16/9] max-h-[360px] overflow-hidden bg-[#FCFCFD]">
+        {!preview ? (
+          <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-[12.5px] text-[#6B7280]">{message ?? 'Waiting for a captured screen…'}</div>
+        ) : mode === 'page' && preview.url ? (
+          <>
+            <iframe src={preview.url} title={`Read-only captured browser page: ${preview.title || preview.name || ''}`} sandbox="allow-scripts allow-same-origin" referrerPolicy="no-referrer"
+              tabIndex={-1} className="pointer-events-none h-full w-full border-0 bg-white" />
+            <span className="pointer-events-none absolute bottom-2 right-2 rounded-md bg-[#111827]/80 px-2 py-1 text-[9.5px] font-bold uppercase tracking-[0.08em] text-white">Preview only</span>
+          </>
+        ) : (
+          <>
+            <div className="absolute left-3 top-2 z-10 max-w-[70%] truncate rounded-md bg-white/90 px-2 py-1 text-[11px] font-semibold text-[#374151] shadow-sm">{preview.title || preview.name || 'Captured page'}</div>
+            {preview.elements.map((element, index) => {
+              const b = element.bounds
+              const control = element.kind !== 'text'
+              return (
+                <div key={`${index}-${element.name ?? element.role ?? ''}`} title={`${element.role ?? 'element'}${element.name ? ` · ${element.name}` : ''}`}
+                  className={`absolute overflow-hidden rounded-[3px] border px-1 text-[8px] leading-tight ${control ? 'border-[#C6CBD4] bg-white text-[#374151] shadow-sm' : 'border-transparent bg-transparent font-semibold text-[#1F2937]'}`}
+                  style={{ left: `${Math.min(99, (b.x / width) * 100)}%`, top: `${Math.min(99, (b.y / height) * 100)}%`, width: `${Math.max(1.2, Math.min(100, (b.width / width) * 100))}%`, height: `${Math.max(1.4, Math.min(100, (b.height / height) * 100))}%` }}>
+                  <span className="block truncate">{element.name || element.role || ''}</span>
+                </div>
+              )
+            })}
+          </>
+        )}
+      </div>
+      <div className="border-t border-[#E8EAEE] bg-[#FCFCFD] px-3 py-1.5 text-[10.5px] text-[#6B7280]">{mode === 'page' ? 'Read-only preview — the browser collector performs the login and navigation' : 'Locator annotations · typed values and passwords are never included'}</div>
+    </div>
+  )
+}
+
+const FailedBrowserPreview: React.FC<{ crawl: JourneyCrawl }> = ({ crawl }) => {
+  const [live, setLive] = useState<WalkLive | null>(null)
+  useEffect(() => { void knowledgeBaseService.crawlLive(crawl.id).then(setLive).catch(() => undefined) }, [crawl.id])
+  return (
+    <div className="grid gap-3 px-5 pb-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(260px,1fr)]">
+      <BrowserTabView preview={live?.preview ?? null} message="No screen was captured before the collector stopped." />
+      <div className="rounded-[12px] border border-[#F1C7C9] bg-[#FFF7F7] p-3 text-[12px] text-[#7A0B0D]">
+        <strong className="block">Collector failed on the screen shown</strong>
+        <p className="mb-0 mt-1">{crawl.error || live?.phase || 'The collector stopped.'}</p>
+        {live?.current_url && <code className="mt-2 block break-all text-[10.5px] text-[#6B7280]">{live.current_url}</code>}
+      </div>
+    </div>
+  )
+}
+
+const BrowserResultSummary: React.FC<{
+  capture: CaptureInfo; steps: CrawlStep[]; items: CrawlPlanItem[]; continuing: boolean; onContinue: () => Promise<void>
+}> = ({ capture, steps, items, continuing, onContinue }) => {
+  const [selected, setSelected] = useState(0)
+  const confirmed = steps.filter(step => ['done', 'auto'].includes(step.status)).length
+  const unresolved = steps.filter(step => ['not_found', 'not_reached', 'blocked', 'off_path', 'error'].includes(step.status)).length
+  const page = capture.pages[selected] ?? capture.pages[0]
+  const next = steps.find(step => ['not_reached', 'blocked', 'off_path'].includes(step.status))
+  const nextItem = next ? items[next.order - 1] : undefined
+  return (
+    <div className="flex flex-col gap-3 px-5 pb-4">
+      <div className={`rounded-[12px] border p-3 ${unresolved ? 'border-[#F1C7C9] bg-[#FFF7F7]' : 'border-[#D5E9DD] bg-[#F1F8F4]'}`}>
+        <div className="flex flex-wrap items-center gap-2">
+          <strong className={unresolved ? 'text-[#9E1C22]' : 'text-[#17653F]'}>{unresolved ? 'Crawl finished — journey incomplete' : 'Crawl finished — every journey step confirmed'}</strong>
+          <Chip tone={unresolved ? 'bad' : 'good'}>{confirmed} confirmed</Chip>
+          {unresolved > 0 && <Chip tone="bad">{unresolved} unresolved</Chip>}
+          <Chip tone="idle">{capture.pages.length} screen{capture.pages.length === 1 ? '' : 's'} captured</Chip>
+        </div>
+        <p className="mb-0 mt-1 text-[11.5px] text-[#4B5563]">Nothing is still running. “Finished” means the collector stopped; unresolved steps below were not confirmed. Screens after login appear here only when the same browser profile is already signed in and the crawler can reach them through safe links.</p>
+      </div>
+      {next && (
+        <div className="flex flex-wrap items-center gap-3 rounded-[12px] border border-[#E7D29B] bg-[#FFFBEB] p-3">
+          <div className="min-w-0 flex-1">
+            <strong className="block text-[12.5px] text-[#7A4A00]">Action required to reach the next screen</strong>
+            <span className="text-[11.5px] text-[#6B4A16]">Run the completed setup steps with Test Data, then capture the next screen: “{nextItem?.text || next.reason || `journey step ${next.step_number}`}”. The extension fills only the values required by this crawl and never returns them in the capture.</span>
+          </div>
+          <button type="button" onClick={() => void onContinue()} disabled={continuing} className="h-[34px] rounded-[10px] bg-[#B71920] px-4 text-[12.5px] font-bold text-white disabled:opacity-50">{continuing ? 'Running setup…' : 'Run setup & crawl next screen'}</button>
+        </div>
+      )}
+      {capture.pages.length > 0 && (
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(300px,1fr)]">
+          <div className="flex min-w-0 flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-1.5" aria-label="Captured screens">
+              <span className="mr-1 text-[10.5px] font-bold uppercase tracking-[0.08em] text-[#6B7280]">Screens</span>
+              {capture.pages.map((item, index) => (
+                <button key={`${item.page_id}-${index}`} type="button" onClick={() => setSelected(index)} title={item.url ?? undefined}
+                  className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${selected === index ? 'border-[#B71920] bg-[#FFF7F7] text-[#9E1C22]' : 'border-[#E8EAEE] bg-white text-[#4B5563]'}`}>
+                  {index + 1}. {item.name || item.page_id}
+                </button>
+              ))}
+            </div>
+            <BrowserTabView preview={page?.preview ?? null} message="This crawl was made with an older extension, so no visual tab preview was saved." />
+          </div>
+          <ol className="m-0 flex max-h-[430px] list-none flex-col overflow-auto rounded-[12px] border border-[#E8EAEE] p-0" aria-label="Journey step status">
+            {steps.map(step => {
+              const item = items[step.order - 1]
+              const status = STEP_STATUS[step.status]
+              return (
+                <li key={step.order} className={`flex items-start gap-2 border-b border-[#F1F2F4] px-3 py-2 text-[12px] ${['not_reached', 'blocked', 'off_path'].includes(step.status) ? 'bg-[#FFFBEB]' : ''}`}>
+                  <span className={`flex-shrink-0 text-right font-semibold text-[#6B7280] ${item?.setup ? 'w-10 text-[10.5px] uppercase' : 'w-5'}`}>{stepNo(item, step.order)}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="font-semibold text-[#6B7280]">{KIND[step.kind] ?? step.kind}</span> {item?.text || step.reason || ''}
+                    {(step.error || step.reason) && <span className="block text-[10.5px] text-[#8A5000]">{step.error ?? step.reason}</span>}
+                  </span>
+                  <Chip tone={status.tone}>{status.label}</Chip>
+                </li>
+              )
+            })}
+          </ol>
+        </div>
+      )}
     </div>
   )
 }
@@ -354,6 +529,101 @@ const CaptureUpload: React.FC<{
   )
 }
 
+const BrowserCollectorSetup: React.FC<{
+  appKey: string
+  journeyId: string
+  application: { id: number; environment: string; base_url: string }
+  canExecute: boolean
+  active: boolean
+  onStarted: (id: number) => void
+}> = ({ appKey, journeyId, application, canExecute, active, onStarted }) => {
+  const [pairing, setPairing] = useState<string | null>(null)
+  const [expires, setExpires] = useState<number | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [waitSeconds, setWaitSeconds] = useState(20)
+  const [retryCount, setRetryCount] = useState(2)
+  const create = async () => {
+    setBusy('create'); setError(null); setMessage(null)
+    try {
+      const made = await knowledgeBaseService.startBrowserCrawl(appKey, {
+        journey_id: journeyId, application_id: application.id, environment: application.environment, max_pages: 20,
+        wait_seconds: waitSeconds, retry_count: retryCount
+      })
+      setExpires(made.expires_in_minutes); onStarted(made.crawl.id)
+      if (await startInstalledCollector(made.pairing)) {
+        setPairing(null)
+        setMessage('The installed browser collector started automatically. You can follow progress below.')
+      } else {
+        setPairing(made.pairing)
+        setMessage('Install and pair once. After that, this button starts future crawls automatically.')
+      }
+    } catch (err) { setError(errorText(err)) } finally { setBusy(null) }
+  }
+  const copy = async () => {
+    if (!pairing) return
+    try { await navigator.clipboard.writeText(pairing); setMessage('Pairing code copied.') }
+    catch { setError('The browser blocked clipboard access. Select and copy the code below.') }
+  }
+  const download = async (engine: 'chromium' | 'firefox' | 'safari') => {
+    setBusy(engine); setError(null)
+    try {
+      const url = await knowledgeBaseService.downloadBrowserCollector(engine)
+      const a = document.createElement('a'); a.href = url; a.download = `automation-studio-collector-${engine}.zip`; a.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 10000)
+      setMessage(engine === 'firefox' ? 'Firefox package downloaded.' : engine === 'safari' ? 'Safari WebExtension source downloaded; package it with Xcode on a Mac.' : 'Chromium package downloaded for Edge, Chrome, Brave, Opera and compatible browsers.')
+    } catch (err) { setError(errorText(err)) } finally { setBusy(null) }
+  }
+  return (
+    <div className="grid gap-4 rounded-[12px] border border-[#E8EAEE] p-4 text-[12.5px] text-[#374151] lg:grid-cols-2">
+      <div className="flex flex-col gap-2">
+        <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#6B7280]">1 · Install once in your browser</span>
+        <p className="m-0">The same collector works in the browser you already use and keeps its signed-in session. It requires no browser or Playwright installation on the server.</p>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={PLAIN} disabled={busy !== null} onClick={() => void download('chromium')}>{busy === 'chromium' ? 'Downloading…' : 'Edge, Chrome, Brave, Opera'}</button>
+          <button type="button" className={PLAIN} disabled={busy !== null} onClick={() => void download('firefox')}>{busy === 'firefox' ? 'Downloading…' : 'Firefox'}</button>
+          <button type="button" className={PLAIN} disabled={busy !== null} onClick={() => void download('safari')}>{busy === 'safari' ? 'Downloading…' : 'Safari source'}</button>
+        </div>
+        <p className="m-0 text-[11.5px] text-[#6B7280]">Extract the zip and load it as a temporary or unpacked extension. Store-signed packages can use the same files later. Safari requires Apple’s WebExtension packaging step, but the collector protocol is browser-neutral.</p>
+      </div>
+      <div className="flex flex-col gap-2">
+        <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#6B7280]">2 · Start safe crawl</span>
+        <p className="m-0">After the one-time installation and pairing, this starts the collector automatically. It follows same-site links only and captures locators that match exactly one element.</p>
+        <div className="flex flex-wrap gap-3">
+          <label className={LABEL}>Wait for each screen
+            <select value={waitSeconds} onChange={e => setWaitSeconds(Number(e.target.value))} className={SELECT}>
+              {[5, 10, 20, 30, 60, 90, 120].map(value => <option key={value} value={value}>{value} seconds</option>)}
+            </select>
+          </label>
+          <label className={LABEL}>Retries
+            <select value={retryCount} onChange={e => setRetryCount(Number(e.target.value))} className={SELECT}>
+              {[0, 1, 2, 3, 5, 10].map(value => <option key={value} value={value}>{value}</option>)}
+            </select>
+          </label>
+        </div>
+        {!pairing ? (
+          <button type="button" onClick={() => void create()} disabled={!canExecute || !journeyId || active || busy !== null}
+            className="h-[34px] w-fit rounded-[10px] bg-[#B71920] px-4 text-[13px] font-bold text-white disabled:opacity-50">
+            {busy === 'create' ? 'Starting…' : 'Start browser crawl'}
+          </button>
+        ) : (
+          <>
+            <textarea readOnly value={pairing} aria-label="Browser collector pairing code" rows={3}
+              className="w-full resize-none rounded-[9px] border border-[#E8EAEE] p-2 font-mono text-[10.5px]" />
+            <div className="flex items-center gap-2">
+              <button type="button" className={PLAIN} onClick={() => void copy()}>Copy code</button>
+              <span className="text-[11.5px] text-[#6B7280]">Expires in {expires} minutes and works for this crawl only.</span>
+            </div>
+          </>
+        )}
+        {message && <Note>{message}</Note>}
+        {error && <Note tone="warn">{error}</Note>}
+      </div>
+    </div>
+  )
+}
+
 const JourneyCrawlStage: React.FC<{
   appKey: string
   application: { id: number; environment: string; base_url: string }
@@ -379,7 +649,7 @@ const JourneyCrawlStage: React.FC<{
   // What to do: walk a journey or a flow blueprint (?flow=<id> opens on one),
   // or record a journey by doing it (?record=1, from the Journey Map).
   const askedFlow = params.get('flow')
-  const [source, setSource] = useState<'journey' | 'flow' | 'record' | 'capture'>(askedFlow ? 'flow' : params.get('record') ? 'record' : params.get('capture') || params.get('inbox') ? 'capture' : 'journey')
+  const [source, setSource] = useState<'journey' | 'flow' | 'record' | 'capture' | 'browser'>(askedFlow ? 'flow' : params.get('record') ? 'record' : params.get('capture') || params.get('inbox') ? 'capture' : 'journey')
   const [journeyId, setJourneyId] = useState<string>('')
   const [flowId, setFlowId] = useState<string>(askedFlow ?? '')
   const [profileId, setProfileId] = useState<string>('')
@@ -400,6 +670,7 @@ const JourneyCrawlStage: React.FC<{
   const recording = source === 'record'
   // A capture is uploaded, not run: none of the walk's run controls apply.
   const capturing = source === 'capture'
+  const browserCrawling = source === 'browser'
   useEffect(() => { setStopBefore(null); setAllowRisky(false) }, [sourceId])
 
   const [plan, setPlan] = useState<CrawlPlan | null>(null)
@@ -420,7 +691,7 @@ const JourneyCrawlStage: React.FC<{
     knowledgeBaseService.crawls(appKey).then(c => { setCrawls(c); setListError(null) }).catch(err => setListError(errorText(err)))
   }, [appKey])
   useEffect(loadCrawls, [loadCrawls])
-  const active = !!crawls?.[0] && ['queued', 'running'].includes(crawls[0].status)
+  const active = !!crawls?.some(c => ['queued', 'running'].includes(c.status))
 
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [detail, setDetail] = useState<JourneyCrawl | null>(null)
@@ -441,7 +712,7 @@ const JourneyCrawlStage: React.FC<{
       .then(setDetailPlan).catch(() => setDetailPlan(null))
   }, [appKey, detail?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [busy, setBusy] = useState<null | 'start' | 'record' | 'propose' | 'generate'>(null)
+  const [busy, setBusy] = useState<null | 'start' | 'local' | 'download' | 'record' | 'propose' | 'generate' | 'continue'>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionNote, setActionNote] = useState<string | null>(null)
   // What the reviewer chose from a finished walk: app-only elements to add,
@@ -473,6 +744,50 @@ const JourneyCrawlStage: React.FC<{
       })
       setSelectedId(run.id)
       loadCrawls()
+    } catch (err) {
+      setActionError(errorText(err))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const startLocal = async () => {
+    setBusy('local')
+    setActionError(null)
+    setActionNote(null)
+    let crawlId: number | null = null
+    try {
+      const made = await knowledgeBaseService.startLocalCrawl(appKey, {
+        journey_id: sourceId, application_id: application.id, profile_id: plan?.profile_id ?? (profileId || null),
+        environment: application.environment, stop_before: stopBefore, allow_risky: allowRisky
+      })
+      crawlId = made.crawl.id
+      setSelectedId(crawlId)
+      loadCrawls()
+      try {
+        await startDeviceRunner(made.pairing)
+      } catch {
+        await knowledgeBaseService.cancelLocalCrawl(crawlId).catch(() => undefined)
+        throw new Error('The local Playwright runner is not available. Download it once, start it on this device, then click Run on this device again.')
+      }
+      setActionNote('Playwright is running on this device. Progress and evidence will appear below; the backend is only coordinating the run.')
+    } catch (err) {
+      setActionError(errorText(err))
+      loadCrawls()
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const downloadLocalRunner = async () => {
+    setBusy('download')
+    setActionError(null)
+    try {
+      const url = await knowledgeBaseService.downloadLocalRunner()
+      const a = document.createElement('a')
+      a.href = url; a.download = 'automation-studio-local-runner.zip'; a.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 10000)
+      setActionNote('Local runner downloaded. Extract it and start the Windows or Linux launcher once on each device.')
     } catch (err) {
       setActionError(errorText(err))
     } finally {
@@ -529,6 +844,29 @@ const JourneyCrawlStage: React.FC<{
     }
   }
 
+  const continueBrowserCrawl = async () => {
+    setBusy('continue')
+    setActionError(null)
+    let made: Awaited<ReturnType<typeof knowledgeBaseService.startBrowserCrawl>> | null = null
+    try {
+      made = await knowledgeBaseService.startBrowserCrawl(appKey, {
+        journey_id: detail?.journey_id || journeyId, application_id: application.id,
+        environment: application.environment, max_pages: 20, wait_seconds: 20, retry_count: 2
+      })
+      setSelectedId(made.crawl.id)
+      loadCrawls()
+      if (!await startInstalledCollector(made.pairing)) {
+        await knowledgeBaseService.cancelBrowserCrawl(made.crawl.id).catch(() => undefined)
+        throw new Error(`The installed collector did not respond. Reload extension version ${COLLECTOR_VERSION}, then try again.`)
+      }
+    } catch (err) {
+      setActionError(errorText(err))
+      loadCrawls()
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const allRows = useMemo(() => detail?.result?.rows ?? [], [detail])
   // A journey walk's results read step by step: the element each journey step
   // used, in step order; the other elements on its screens are one click away.
@@ -547,7 +885,7 @@ const JourneyCrawlStage: React.FC<{
   const setupItems = (plan?.items ?? []).filter(i => i.setup)
   const captured = allRows.some(r => ['new', 'healed'].includes(r.outcome) && !r.data_dependent && !r.ambiguous)
   const pickCount = Object.keys(picks).length
-  const proposable = captured || additions.size > 0 || pickCount > 0 || (detail?.source !== 'flow' && !!detail?.result?.summary.routes_new)
+  const proposable = captured || additions.size > 0 || pickCount > 0 || (detail?.source !== 'flow' && !!detail?.result?.summary?.routes_new)
   const alreadyProposed = detail?.source !== 'flow' && !!(detail?.automation_change_set_id || detail?.journey_change_set_id)
   const ranSteps = (detail?.result?.steps ?? []).some(s => s.status === 'done')
   const running = !!detail && ['queued', 'running'].includes(detail.status)
@@ -567,10 +905,10 @@ const JourneyCrawlStage: React.FC<{
             <div className={LABEL}>
               Walk
               <div role="radiogroup" aria-label="What to walk" className="flex h-[34px] overflow-hidden rounded-[10px] border border-[#E8EAEE]">
-                {(['journey', 'flow', 'record', 'capture'] as const).map(s => (
+                {(['journey', 'flow', 'browser', 'record', 'capture'] as const).map(s => (
                   <button key={s} type="button" role="radio" aria-checked={source === s} onClick={() => setSource(s)}
                     className={`px-3 text-[12.5px] font-semibold normal-case tracking-normal ${source === s ? 'bg-[#1F2937] text-white' : 'bg-white text-[#374151]'}`}>
-                    {s === 'journey' ? 'A journey' : s === 'flow' ? 'A flow blueprint' : s === 'record' ? 'Record it myself' : 'Upload a capture'}
+                    {s === 'journey' ? 'Server dry run' : s === 'flow' ? 'A flow blueprint' : s === 'browser' ? 'Browser crawl' : s === 'record' ? 'Record it myself' : 'Upload a capture'}
                   </button>
                 ))}
               </div>
@@ -590,7 +928,7 @@ const JourneyCrawlStage: React.FC<{
                 </select>
               </label>
             )}
-            {!recording && !capturing && <>
+            {!recording && !capturing && !browserCrawling && <>
             <label className={LABEL}>
               Test data
               <select aria-label="Test data profile" value={profileId || plan?.profile_id || ''} onChange={e => setProfileId(e.target.value)} className={`${SELECT} max-w-[300px]`}>
@@ -616,6 +954,18 @@ const JourneyCrawlStage: React.FC<{
             >
               {busy === 'start' ? 'Starting…' : 'Start dry run'}
             </button>
+            <button
+              type="button"
+              onClick={() => void startLocal()}
+              disabled={!canExecute || !plan || busy !== null || active || missing.length > 0 || blocked}
+              title={!canExecute ? 'Needs the automation.execute permission' : active ? 'A walk is already running' : blocked ? `Walks do not run against ${application.environment}` : missing.length ? 'Test Data is missing values this walk needs' : 'Uses Playwright installed on this device; no browser automation runs on the backend server'}
+              className="h-[34px] rounded-[10px] border border-[#B71920] bg-white px-4 text-[13px] font-bold text-[#B71920] hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {busy === 'local' ? 'Connecting…' : 'Run on this device'}
+            </button>
+            <button type="button" onClick={() => void downloadLocalRunner()} disabled={busy !== null} className={PLAIN}>
+              {busy === 'download' ? 'Downloading…' : 'Download device runner'}
+            </button>
             </>}
             {recording && (
               <button
@@ -629,6 +979,10 @@ const JourneyCrawlStage: React.FC<{
               </button>
             )}
           </div>
+          {browserCrawling && (
+            <BrowserCollectorSetup appKey={appKey} journeyId={journeyId} application={application} canExecute={canExecute} active={active}
+              onStarted={id => { setSelectedId(id); loadCrawls() }} />
+          )}
           {recording && (
             <Note tone={caps && !caps.headed_available ? 'warn' : undefined}>
               {caps && !caps.headed_available
@@ -642,7 +996,7 @@ const JourneyCrawlStage: React.FC<{
               onJourneyCreated={(id, title) => { setBuiltJourneys(cur => [...cur, { id, title }]); setJourneyId(id) }}
               onImported={id => { setSelectedId(id); loadCrawls() }} />
           )}
-          {!recording && !capturing && <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[12.5px] text-[#374151]">
+          {!recording && !capturing && !browserCrawling && <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[12.5px] text-[#374151]">
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={allowRisky} onChange={e => setAllowRisky(e.target.checked)} className="accent-[#B71920]" />
               Allow steps that change data
@@ -664,20 +1018,21 @@ const JourneyCrawlStage: React.FC<{
             ) : (
               <span className="text-[#6B7280]" title="The server runs without a screen; the walk is shown live on this page instead">Watch it live below (this server cannot open a browser window)</span>
             )}
+            <span className="text-[#6B7280]">“Run on this device” uses the device's installed Playwright through a loopback-only runner.</span>
           </div>}
           {blocked && <Note tone="warn">Walks do not run against {application.environment}: they fill in forms and click through journeys. Choose SIT, QA, UAT or RC in the header.</Note>}
           {planError && <Note tone="warn">{planError}</Note>}
-          {missing.length > 0 && !capturing && (
+          {missing.length > 0 && !capturing && !browserCrawling && (
             <Note tone="warn">Test Data has no value in {application.environment} for {missing.join(', ')}. Add it on the Test Data stage, or stop the walk before the step that needs it.</Note>
           )}
           {actionError && <Note tone="warn">{actionError}</Note>}
-          {!recording && plan?.scenario && (
+          {!recording && !browserCrawling && plan?.scenario && (
             <Note>
               This test data is for {plan.scenario.scenario_id} ({plan.scenario.type}): {plan.scenario.title}. The walk runs steps {plan.scenario.steps.join(', ')} and expects that outcome.
             </Note>
           )}
-          {!recording && (plan?.warnings ?? []).map(w => <Note key={w} tone="warn">{w}</Note>)}
-          {!recording && plan && (
+          {!recording && !browserCrawling && (plan?.warnings ?? []).map(w => <Note key={w} tone="warn">{w}</Note>)}
+          {!recording && !browserCrawling && plan && (
             <details className="rounded-[12px] border border-[#E8EAEE]">
               <summary className="cursor-pointer px-3.5 py-2.5 text-[12.5px] font-semibold text-[#374151]">
                 Plan · {plan.items.filter(i => !i.setup).length} steps{setupItems.length ? ` after ${setupItems.length} setup steps (${Array.from(new Set(setupItems.map(i => i.journey_name))).join(', ')})` : ''} · reads {plan.variables.join(', ') || 'no test data'}
@@ -715,7 +1070,7 @@ const JourneyCrawlStage: React.FC<{
               </ol>
             </details>
           )}
-          {!recording && !capturing && <p className="m-0 text-[12px] text-[#6B7280]">
+          {!recording && !capturing && !browserCrawling && <p className="m-0 text-[12px] text-[#6B7280]">
             {plan?.source !== 'flow' && plan?.entry ? <>Starts at {plan.entry} and lets the application open its first screen; each screen is recognised by what is on it. </> : null}
             Values come from Test Data at run time and are never recorded; typed fields are painted over in screenshots and live frames (the video and trace still show them). A journey walk keeps a selector only if it matched exactly one element.
           </p>}
@@ -724,17 +1079,17 @@ const JourneyCrawlStage: React.FC<{
 
       <Card label="Walk results">
         <CardHead
-          title={detail ? `${detail.source === 'record' ? 'Recording' : detail.source === 'capture' ? 'Capture' : 'Walk'} #${detail.id} · ${detail.journey_name ?? detail.journey_id}` : 'Walk results'}
-          hint={detail ? `${detail.source === 'flow' ? 'Flow blueprint' : detail.source === 'record' ? 'Recorded by a person' : detail.source === 'capture' ? 'Captured in a browser' : 'Journey'} · ${detail.environment ?? ''} · ${detail.source === 'capture' ? (detail.result?.capture?.file ?? 'uploaded') : (detail.profile_id ?? 'no profile')} · started ${detail.created_at ? new Date(detail.created_at + 'Z').toLocaleString() : '—'}${detail.created_by ? ` by ${detail.created_by}` : ''}` : 'Nothing has been walked for this application yet'}
+          title={detail ? `${detail.source === 'record' ? 'Recording' : detail.source === 'capture' ? 'Capture' : detail.source === 'browser' ? 'Browser crawl' : detail.execution_target === 'local' ? 'Device walk' : 'Walk'} #${detail.id} · ${detail.journey_name ?? detail.journey_id}` : 'Walk results'}
+          hint={detail ? `${detail.source === 'flow' ? 'Flow blueprint' : detail.source === 'record' ? 'Recorded by a person' : detail.source === 'capture' ? 'Uploaded browser capture' : detail.source === 'browser' ? 'Cross-browser collector' : detail.execution_target === 'local' ? 'Journey · local Playwright' : 'Journey'} · ${detail.environment ?? ''} · ${detail.source === 'capture' ? (detail.result?.capture?.file ?? 'uploaded') : (detail.profile_id ?? 'no profile')} · started ${detail.created_at ? new Date(detail.created_at + 'Z').toLocaleString() : '—'}${detail.created_by ? ` by ${detail.created_by}` : ''}` : 'Nothing has been walked for this application yet'}
           right={
             <div className="flex flex-wrap items-center gap-2">
               {crawls && crawls.length > 1 && (
                 <select aria-label="Walk" value={shownId ?? ''} onChange={e => setSelectedId(Number(e.target.value))} className={SELECT}>
-                  {crawls.map(c => <option key={c.id} value={c.id}>#{c.id} · {c.source === 'record' ? 'recording · ' : c.source === 'capture' ? 'capture · ' : ''}{c.journey_name ?? c.journey_id} · {c.environment} · {c.status}</option>)}
+                  {crawls.map(c => <option key={c.id} value={c.id}>#{c.id} · {c.source === 'record' ? 'recording · ' : c.source === 'capture' ? 'capture · ' : c.source === 'browser' ? 'browser · ' : c.execution_target === 'local' ? 'device · ' : ''}{c.journey_name ?? c.journey_id} · {c.environment} · {c.status}</option>)}
                 </select>
               )}
               {detail && <Chip tone={STATUS_TONE[detail.status]}>{detail.status}</Chip>}
-              {detail?.status === 'completed' && (detail.source === 'journey' || detail.source === 'capture') && ranSteps && (
+              {detail?.status === 'completed' && (detail.source === 'journey' || detail.source === 'capture' || detail.source === 'browser') && ranSteps && (
                 <button type="button" onClick={() => void generateFlow(detail.id)} disabled={!canExecute || busy !== null}
                   title="Regenerates the journey's own flow blueprint from its steps and the selectors walks confirmed (as the Journey Map does) — drafted for review"
                   className="h-[34px] rounded-[10px] border border-[#E8EAEE] bg-white px-4 text-[13px] font-bold text-[#1F2937] hover:border-[#F6D4D5] disabled:opacity-50">
@@ -763,14 +1118,21 @@ const JourneyCrawlStage: React.FC<{
         {actionNote && <div className="px-5 pb-3"><Note>{actionNote}</Note></div>}
         {detail && running && detail.source === 'record' && <RecordingLive crawl={detail} onFinished={loadCrawls} canStop={canExecute} />}
         {detail && running && detail.source !== 'record' && <LivePanel crawl={detail} plan={detailPlan} onFinished={loadCrawls} canStop={canExecute} />}
-        {detail?.status === 'failed' && <div className="px-5 pb-5"><Note tone="warn">{detail.error}</Note></div>}
+        {detail?.status === 'failed' && detail.source === 'browser' && <FailedBrowserPreview crawl={detail} />}
+        {detail?.status === 'failed' && detail.source !== 'browser' && <div className="px-5 pb-5"><Note tone="warn">{detail.error}</Note></div>}
         {detail?.result && detail.source === 'record' && (
           <RecordingReview appKey={appKey} crawl={detail} canExecute={canExecute} canApprove={canApprove}
             onSaved={() => { loadCrawls(); onProposed() }} />
         )}
-        {detail?.result && detail.source !== 'record' && (
+        {detail?.status === 'completed' && detail?.result && detail.source !== 'record' && (
           <>
             {detail.browser_note && <div className="px-5 pb-3"><Note tone="warn">{detail.browser_note}</Note></div>}
+            {detail.source === 'browser' && (
+              detail.result.capture
+                ? <BrowserResultSummary capture={detail.result.capture} steps={detail.result.steps} items={detailPlan?.items ?? []}
+                    continuing={busy === 'continue'} onContinue={continueBrowserCrawl} />
+                : <div className="px-5 pb-3"><Note tone="warn">The browser crawl finished without a captured-screen summary.</Note></div>
+            )}
             {detail.stop_before && (
               <div className="px-5 pb-3"><Note>Stopped before step {detail.stop_before}: {detail.stop_reason}.</Note></div>
             )}
@@ -803,10 +1165,12 @@ const JourneyCrawlStage: React.FC<{
               <div className="px-5 pb-3"><Note tone="warn">Left the journey’s path after step {detail.result.derailed.after}: {detail.result.derailed.reason}. The steps after it are blocked, not missing.</Note></div>
             )}
             {detail.run_key && <Replay runKey={detail.run_key} />}
-            <div className="px-5 pb-1 text-[11px] font-bold uppercase tracking-[0.1em] text-[#6B7280]">Steps</div>
-            <ol className="m-0 list-none p-0">
-              {detail.result.steps.map(step => <StepRow key={step.order} crawlId={detail.id} step={step} item={detailPlan?.items[step.order - 1]} screenNames={detailPlan?.screen_names ?? {}} />)}
-            </ol>
+            {detail.source !== 'browser' && <>
+              <div className="px-5 pb-1 text-[11px] font-bold uppercase tracking-[0.1em] text-[#6B7280]">Steps</div>
+              <ol className="m-0 list-none p-0">
+                {detail.result.steps.map(step => <StepRow key={step.order} crawlId={detail.id} step={step} item={detailPlan?.items[step.order - 1]} screenNames={detailPlan?.screen_names ?? {}} />)}
+              </ol>
+            </>}
             <div className="pt-4">
               <ScreenInventory pages={detail.result.inventory ?? []} selectable={canExecute && detail.source !== 'flow' && !alreadyProposed}
                 chosen={additions} onToggle={toggleAddition} />

@@ -1,0 +1,23 @@
+{
+  "bitbucket": {
+    "base_url": "https://bitbucket.example.com",
+    "workspace": "enterprise-qa",
+    "project_key": "AI_TESTS",
+    "repo_slug": "ai-testing-assistant",
+    "auth": {
+      "type": "token",
+      "token_env": "BITBUCKET_TOKEN"
+    },
+    "sync": {
+      "branch": "master",
+      "path_pattern": "tests/{ppm_id}/{request_id}/{test_case_id}.json"
+    },
+    "proxy": {
+      "enabled": true,
+      "host": "proxy.mycorp.local",
+      "port": 8080,
+      "username_env": "BITBUCKET_PROXY_USER",
+      "password_env": "BITBUCKET_PROXY_PASSWORD"
+    }
+  }
+}

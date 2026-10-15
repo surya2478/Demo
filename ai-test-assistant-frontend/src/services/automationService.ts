@@ -18,6 +18,7 @@ import type {
   ArtifactKind,
   CreateRunRequest,
   CreateRunResponse,
+  CreateDeviceRunResponse,
   Classification,
   DecideResult,
   GenerationJob,
@@ -50,8 +51,10 @@ import type {
   ElementCatalog,
   GroundResult,
   RecordedFlowObject,
-  CaseReviewResult
+  CaseReviewResult,
+  BitbucketScriptSyncResult
 } from '../types/automation'
+import { makeLocalPairing } from './localRunner'
 
 const BASE = '/automation'
 
@@ -104,6 +107,19 @@ const automationService = {
   /** Queue a run. Resolves with a run_key to poll; rejects with the refusal. */
   createRun: (body: CreateRunRequest): Promise<CreateRunResponse> =>
     call<CreateRunResponse>(() => api.post(`${BASE}/runs`, body)),
+
+  createDeviceRun: async (body: CreateRunRequest): Promise<CreateDeviceRunResponse> => {
+    const response = await call<CreateRunResponse & { runner_token: string; expires_in_minutes: number }>(
+      () => api.post(`${BASE}/runs/local`, body)
+    )
+    return {
+      ...response,
+      pairing: makeLocalPairing({
+        id: response.run_key, token: response.runner_token,
+        endpoint: `${BASE}/local-runner/runs/${encodeURIComponent(response.run_key)}`
+      })
+    }
+  },
 
   listRuns: (limit = 50): Promise<RunsResponse> =>
     call<RunsResponse>(() => api.get(`${BASE}/runs`, { params: { limit } })),
@@ -443,6 +459,19 @@ const automationService = {
   }): Promise<DryRunResult> =>
     call<DryRunResult>(() => api.post(`${BASE}/scripts/dry-run`, body, LONG)),
 
+  createDeviceDryRun: async (scriptId: number): Promise<CreateDeviceRunResponse> => {
+    const response = await call<CreateRunResponse & { runner_token: string; expires_in_minutes: number }>(
+      () => api.post(`${BASE}/scripts/${encodeURIComponent(scriptId)}/dry-run-local`)
+    )
+    return {
+      ...response,
+      pairing: makeLocalPairing({
+        id: response.run_key, token: response.runner_token,
+        endpoint: `${BASE}/local-runner/runs/${encodeURIComponent(response.run_key)}`
+      })
+    }
+  },
+
   getDryRun: (scriptId: number): Promise<DryRunState> =>
     call<DryRunState>(() => api.get(`${BASE}/scripts/${scriptId}/dry-run`)),
 
@@ -473,6 +502,14 @@ const automationService = {
       throw new Error(automationError(err))
     }
   },
+
+  syncScriptsToBitbucket: (
+    caseIds: number[],
+    framework: string
+  ): Promise<BitbucketScriptSyncResult> =>
+    call<BitbucketScriptSyncResult>(() =>
+      api.post(`${BASE}/scripts/bitbucket-sync`, { case_ids: caseIds, framework }, LONG)
+    ),
 
   // ── Application Discovery and Grounding ────────────────────────────────
 
@@ -708,4 +745,3 @@ const automationService = {
 }
 
 export default automationService
-

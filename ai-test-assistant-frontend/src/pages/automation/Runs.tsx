@@ -7,13 +7,14 @@
  * the test case's steps as they pass, and the runner log streaming. A finished
  * run keeps the pipeline and steps and swaps the log for its evidence --
  * screenshot, video, trace, console, network and log -- with the failure and
- * the AI's suggestion under the steps, and Rerun / Heal & rerun at the foot.
+ * the AI's suggestion under the steps, and server/device rerun actions at the foot.
  *
  * Runs can still be deleted: "Select" in the history turns on checkboxes.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import automationService from '../../services/automationService'
+import { startDeviceRunner } from '../../services/localRunner'
 import useRunPolling from '../../hooks/useRunPolling'
 import { useAutomationContext } from '../../components/automation/AutomationContext'
 import { useConfirm } from '../../components/ui/ConfirmDialog'
@@ -169,14 +170,19 @@ const stepRows = (run: RunDetail): StepRow[] => {
   const progress = ((run.run_metadata as any)?.step_progress ?? null) as StepProgress | null
   const titles = specStepTitles(run.spec?.code ?? (run.run_metadata as any)?.code)
   const history = new Map((progress?.history ?? []).map(h => [h.n, h]))
-  const total = Math.max(progress?.total ?? 0, titles.length, progress?.history?.length ?? 0)
+  const resultFallback = isTerminal(run.status) && !titles.length && !(progress?.history?.length)
+    ? run.results
+    : []
+  const total = Math.max(progress?.total ?? 0, titles.length, progress?.history?.length ?? 0, resultFallback.length)
   const live = !isTerminal(run.status)
   const current = progress?.current ?? 0
   return Array.from({ length: total }, (_, i) => {
     const n = i + 1
     const done = history.get(n)
-    const title = titles[i] || (done?.title ? cleanTitle(done.title) : n === current && progress?.title ? cleanTitle(progress.title) : `Step ${n}`)
+    const fallback = resultFallback[i]
+    const title = titles[i] || (done?.title ? cleanTitle(done.title) : fallback?.test_name ? cleanTitle(fallback.test_name) : n === current && progress?.title ? cleanTitle(progress.title) : `Step ${n}`)
     if (done) return { n, title, state: done.ok === false ? 'failed' : 'passed', ms: done.ms ?? null, error: done.error ?? null }
+    if (fallback) return { n, title, state: fallback.status === 'pass' ? 'passed' : fallback.status === 'skip' ? 'pending' : 'failed', ms: fallback.duration_ms ?? null, error: fallback.error_message ?? null }
     if (live && n === current) return { n, title, state: 'running', ms: null, error: null }
     return { n, title, state: 'pending', ms: null, error: null }
   })
@@ -334,7 +340,8 @@ const StepsCard: React.FC<{ rows: StepRow[] }> = ({ rows }) => {
 
 // --- Live log --------------------------------------------------------------------
 
-const LiveLog: React.FC<{ runKey: string; live: boolean }> = ({ runKey, live }) => {
+const LiveLog: React.FC<{ run: RunDetail; rows: StepRow[]; live: boolean }> = ({ run, rows, live }) => {
+  const runKey = run.run_key
   const [text, setText] = useState('')
   const boxRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
@@ -359,6 +366,13 @@ const LiveLog: React.FC<{ runKey: string; live: boolean }> = ({ runKey, live }) 
     if (boxRef.current) boxRef.current.scrollTop = boxRef.current.scrollHeight
   }, [text])
   const lines = text.split('\n').slice(-400)
+  const fallbackLines = rows.map(row => {
+    const mark = row.state === 'passed' ? 'PASS' : row.state === 'failed' ? 'FAIL' : row.state === 'running' ? 'RUN ' : 'WAIT'
+    return `[${mark}] ${row.n}. ${row.title}${row.ms != null ? ` (${row.ms} ms)` : ''}`
+  })
+  const fallback = fallbackLines.length
+    ? fallbackLines
+    : [`[RUN ] ${(run.run_metadata as any)?.execution_phase || (run.run_metadata as any)?.device_agent?.message || 'Runner connected; waiting for the first step.'}`]
   return (
     <div className="flex min-h-[340px] flex-col overflow-hidden rounded-[16px] bg-[#1B1B1F]">
       <div className="flex items-center justify-between px-4 pb-1 pt-3">
@@ -370,7 +384,7 @@ const LiveLog: React.FC<{ runKey: string; live: boolean }> = ({ runKey, live }) 
         )}
       </div>
       <div ref={boxRef} className="app-scroll min-h-0 flex-1 overflow-auto px-4 pb-3 font-mono text-[12.5px] leading-[1.7] text-[#E5E7EB]">
-        {text ? lines.map((line, i) => <div key={i} className="whitespace-pre-wrap break-words">{line || ' '}</div>) : <div className="text-[#9CA3AF]">Waiting for the runner…</div>}
+        {(text ? lines : fallback).map((line, i) => <div key={i} className={`whitespace-pre-wrap break-words ${text ? '' : 'text-[#D1D5DB]'}`}>{line || ' '}</div>)}
         {live && <span className="inline-block h-4 w-2 animate-pulse bg-[#60A5FA] align-middle" />}
       </div>
     </div>
@@ -578,7 +592,7 @@ const RunPanel: React.FC<{ runKey: string; project: RunSummary['project']; onCha
   const navigate = useNavigate()
   const { run, loading, error } = useRunPolling(runKey, { onSettled: onChanged })
   const [now, setNow] = useState(() => Date.now())
-  const [busy, setBusy] = useState<'cancel' | 'rerun' | 'heal' | null>(null)
+  const [busy, setBusy] = useState<'cancel' | 'rerun' | 'device' | 'heal' | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [specOpen, setSpecOpenState] = useState(false)
   const setSpecOpen = (open: boolean) => { setSpecOpenState(open); onSpecOpen(open) }
@@ -625,7 +639,31 @@ const RunPanel: React.FC<{ runKey: string; project: RunSummary['project']; onCha
     navigate(`/automation/runs/${res.run_key}`)
   }
 
-  const act = async (which: 'cancel' | 'rerun' | 'heal') => {
+  const queueOnDevice = async (code: string | null | undefined) => {
+    if (!code) throw new Error('This run has no spec to run again.')
+    const res = await automationService.createDeviceRun({
+      code,
+      environment: run.environment || 'SIT',
+      base_url: run.spec?.base_url || null,
+      file_name: run.spec?.file_name || 'spec.ts',
+      test_case_id: run.test_case_id ?? null,
+      slow_mo_ms: run.slow_mo_ms ?? 1000,
+      headless: true,
+      mode: 'rerun'
+    })
+    try {
+      await startDeviceRunner(res.pairing)
+    } catch (err) {
+      await automationService.cancelRun(res.run_key).catch(() => undefined)
+      throw new Error(err instanceof Error && err.message
+        ? `${err.message} Start the device runner, then try again.`
+        : 'The local Playwright runner is not available. Start the device runner, then try again.')
+    }
+    onChanged()
+    navigate(`/automation/runs/${res.run_key}`)
+  }
+
+  const act = async (which: 'cancel' | 'rerun' | 'device' | 'heal') => {
     setBusy(which)
     setActionError(null)
     try {
@@ -634,6 +672,8 @@ const RunPanel: React.FC<{ runKey: string; project: RunSummary['project']; onCha
         onChanged()
       } else if (which === 'rerun') {
         await queue(run.spec?.code)
+      } else if (which === 'device') {
+        await queueOnDevice(run.spec?.code)
       } else {
         await queue((await automationService.healRun(run.run_key)).healed_code)
       }
@@ -648,6 +688,7 @@ const RunPanel: React.FC<{ runKey: string; project: RunSummary['project']; onCha
     frameworkLabel(run.framework),
     run.environment,
     modeLabel(run.mode),
+    run.execution_target === 'device' ? 'on this device' : null,
     live ? speedLabel(run.slow_mo_ms) : null,
     run.triggered_by ? `by ${run.triggered_by}` : null,
     live
@@ -704,7 +745,7 @@ const RunPanel: React.FC<{ runKey: string; project: RunSummary['project']; onCha
               <StepsCard rows={rows} />
               {!live && failedLike && <FailureBox run={run} rows={rows} result={result} />}
             </div>
-            {live ? <LiveLog runKey={run.run_key} live={live} /> : <Evidence run={run} result={result} />}
+            {live ? <LiveLog run={run} rows={rows} live={live} /> : <Evidence run={run} result={result} />}
           </div>
         </div>
       </div>
@@ -729,6 +770,12 @@ const RunPanel: React.FC<{ runKey: string; project: RunSummary['project']; onCha
                 <button type="button" onClick={() => void act('rerun')} disabled={busy !== null || !run.spec?.code} className={`${BTN} text-[#1F2937]`}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M20 12a8 8 0 1 1-2.3-5.7" /><path d="M20 4v4h-4" /></svg>
                   {busy === 'rerun' ? 'Queueing…' : 'Rerun'}
+                </button>
+              )}
+              {canExecute && (
+                <button type="button" onClick={() => void act('device')} disabled={busy !== null || !run.spec?.code} className={`${BTN} text-[#1F2937]`}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><rect x="4" y="3" width="16" height="13" rx="2" /><path d="M8 21h8M12 16v5" /></svg>
+                  {busy === 'device' ? 'Connecting…' : 'Rerun on device'}
                 </button>
               )}
               {canExecute && failedLike && (

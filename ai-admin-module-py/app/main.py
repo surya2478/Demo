@@ -258,6 +258,11 @@ app.add_middleware(_ErrorsAsJson)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_allow_origins,
+    # Collector endpoints use a short-lived crawl credential rather than a
+    # user token.  Extension IDs differ per browser and installation, so their
+    # schemes must be allowed by pattern rather than enumerated in deployment
+    # configuration.
+    allow_origin_regex=r"^(chrome-extension|moz-extension|safari-web-extension)://.+$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
