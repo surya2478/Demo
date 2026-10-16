@@ -35,6 +35,7 @@ const HealCard: React.FC<{
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [crawlModes, setCrawlModes] = useState<Record<string, HealCrawlMode>>({})
+  const [deviceHeaded, setDeviceHeaded] = useState<Record<string, boolean>>({})
   const run = async (key: string, action: () => Promise<KbHeal>) => {
     setBusy(key)
     setError(null)
@@ -53,7 +54,8 @@ const HealCard: React.FC<{
       mode,
       max_pages: 20,
       wait_seconds: 20,
-      retry_count: 2
+      retry_count: 2,
+      headed: mode === 'device' ? !!deviceHeaded[journeyId] : false
     })
     onChanged(started.heal)
     try {
@@ -163,6 +165,15 @@ const HealCard: React.FC<{
                         <option value="collector">Browser collector</option>
                         <option value="device">Run on this device</option>
                       </select>
+                      {(crawlModes[jid] ?? 'server') === 'device' && (
+                        <select aria-label={`Device browser mode for ${name}`} value={deviceHeaded[jid] ? 'headed' : 'headless'}
+                          onChange={event => setDeviceHeaded(current => ({ ...current, [jid]: event.target.value === 'headed' }))}
+                          disabled={!canExecute || !application || busy !== null || (!!done && ['queued', 'running'].includes(done.status))}
+                          className="h-[32px] rounded-[10px] border border-[#E8EAEE] bg-white px-2 text-[12px] font-semibold text-[#374151] disabled:opacity-50">
+                          <option value="headless">Headless</option>
+                          <option value="headed">Headed</option>
+                        </select>
+                      )}
                       <button type="button" className={`${BTN} bg-[#B71920] text-white hover:opacity-95`}
                         disabled={!canExecute || !application || busy !== null || (!!done && ['queued', 'running'].includes(done.status))}
                         title={`Walks the journey using ${CRAWL_LABEL[crawlModes[jid] ?? 'server']}`}

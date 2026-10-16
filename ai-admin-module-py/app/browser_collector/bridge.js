@@ -8,10 +8,17 @@
 
   window.addEventListener('message', event => {
     const value = event.data;
-    if (event.source !== window || event.origin !== location.origin || value?.channel !== CHANNEL || !['start','resume'].includes(value?.type)) return;
-    api.runtime.sendMessage(value.type==='start'
+    if (event.source !== window || event.origin !== location.origin || value?.channel !== CHANNEL || !['probe','start','resume','stop'].includes(value?.type)) return;
+    if(value.type==='probe'){
+      window.postMessage({channel:CHANNEL,type:'probe-result',nonce:value.nonce,version:api.runtime.getManifest().version},location.origin);
+      return;
+    }
+    const request=value.type==='start'
       ? {type:'bridge-start',pairing:value.pairing,maxPages:value.maxPages}
-      : {type:'bridge-resume',crawlId:value.crawlId}, response => {
+      : value.type==='resume'
+        ? {type:'bridge-resume',crawlId:value.crawlId}
+        : {type:'bridge-stop',crawlId:value.crawlId};
+    api.runtime.sendMessage(request, response => {
       const error = api.runtime.lastError;
       window.postMessage({
         channel:CHANNEL,

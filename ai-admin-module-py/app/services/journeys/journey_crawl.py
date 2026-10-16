@@ -191,7 +191,14 @@ def _transitions(kb: store.JourneyKB, screen: Dict[str, Any], element_id: str, a
         # "no_customer_banner shown": the outcome is told apart by that element.
         marker = None
         for sid in to:
-            element = next((e for e in kb.screens[sid].get("elements", []) if e.get("element_id") and e["element_id"] in effect), None)
+            # Prefer the most specific element id.  For an effect such as
+            # ``remove_backpack shown``, ``backpack`` is also a substring but
+            # is not the state marker; ``remove_backpack`` is.
+            matches = [
+                e for e in kb.screens[sid].get("elements", [])
+                if e.get("element_id") and e["element_id"] in effect
+            ]
+            element = max(matches, key=lambda e: len(e["element_id"]), default=None)
             if element is not None:
                 marker = _descriptor(kb, kb.screens[sid], element, automation)
                 break
@@ -250,7 +257,16 @@ def build_plan(
         raise ValueError(f"'{journey_id}' has no authored journey file to walk.")
     profiles = {k: v for k, v in ((kb.roles or {}).get("test_data_profiles") or {}).items() if isinstance(v, dict)}
     if not profile_id:
-        profile_id = next((pid for pid, p in profiles.items() if "Journey Crawl sign-in" in p.get("extra_users", [])), None)
+        # Default to the data profile named by this journey's first scenario.
+        # A global "crawl sign-in" default is wrong for negative paths: for
+        # example, valid SauceDemo credentials log in successfully and make a
+        # Reject invalid credentials crawl look for its error on Products.
+        profile_id = next((
+            str(s.get("test_data")) for s in journey.get("test_scenarios") or []
+            if s.get("test_data") in profiles
+        ), None)
+        if not profile_id:
+            profile_id = next((pid for pid, p in profiles.items() if "Journey Crawl sign-in" in p.get("extra_users", [])), None)
     data_profile = profiles.get(profile_id or "", {})
     scenario = scenario_for(journey, profile_id)
     warnings: List[str] = []
@@ -698,7 +714,7 @@ function groupXPath(els) {
 function sweepPage() {
   // Links without an href and clickable divs count too: many portals build
   // their buttons that way ("Sign in with UAE PASS" is one).
-  const SEL = 'a,button,input:not([type=hidden]),select,textarea,[role=button],[role=link],[role=tab],[role=checkbox],[role=radio],[role=combobox],[role=menuitem],[role=switch],[role=option],[onclick],[tabindex]:not([tabindex="-1"])';
+  const SEL = 'a,button,input:not([type=hidden]),select,textarea,h1,h2,h3,h4,h5,h6,[role=button],[role=link],[role=tab],[role=checkbox],[role=radio],[role=combobox],[role=menuitem],[role=switch],[role=option],[role=alert],[role=status],[onclick],[tabindex]:not([tabindex="-1"])';
   // Site-wide: inside a header, footer or menu, by tag, role, or -- where a
   // site uses neither -- by its container's id or class.
   const SITE_WIDE = /(^|[\s_-])(header|footer|navbar|nav|topbar|top-bar|megamenu|mega-menu|main-menu|site-menu|menu-wrapper|breadcrumbs?)([\s_-]|$)/;
@@ -821,6 +837,62 @@ async function capture(page, el, textValue) {
       : await handle.evaluate(uniqueXPath).catch(() => null);
   }
   return { ...record, found: true, strategy: r.strategy, count: r.count, ambiguous: !!r.ambiguous, selector, ...info, _loc: r.loc };
+}
+
+// A focused repair run replays the earlier steps, then lets the person click
+// the element that the flow could not describe. The page itself supplies a
+// unique selector; field values are never returned.
+async function selectForRecapture(page, item) {
+  return page.evaluate(({ order, text }) => new Promise((resolve) => {
+    const old = document.getElementById('__automation_recapture_banner');
+    if (old) old.remove();
+    const banner = document.createElement('div');
+    banner.id = '__automation_recapture_banner';
+    banner.textContent = `Automation Studio · Step ${order}: click the element for “${text}”`;
+    Object.assign(banner.style, {
+      position: 'fixed', zIndex: '2147483647', left: '16px', right: '16px', top: '16px',
+      padding: '14px 18px', borderRadius: '10px', background: '#1f2937', color: '#fff',
+      font: '600 14px system-ui, sans-serif', boxShadow: '0 8px 28px rgba(0,0,0,.28)',
+      pointerEvents: 'none', textAlign: 'center'
+    });
+    document.documentElement.appendChild(banner);
+    const quote = (value) => String(value || '').replace(/'/g, "&apos;");
+    const count = (xp) => { try { return document.evaluate(xp, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null).snapshotLength; } catch (_) { return 0; } };
+    const selectorFor = (el) => {
+      const tag = el.tagName.toLowerCase();
+      for (const attr of ['data-testid', 'data-test', 'id', 'name', 'formcontrolname', 'aria-label', 'placeholder']) {
+        const value = el.getAttribute(attr);
+        if (!value || value.includes("'") || value.length > 100) continue;
+        const xp = `//${tag}[@${attr}='${quote(value)}']`;
+        if (count(xp) === 1) return xp;
+      }
+      const textValue = (el.textContent || '').trim().replace(/\s+/g, ' ');
+      if (textValue && !textValue.includes("'") && textValue.length <= 120) {
+        const xp = `//${tag}[normalize-space(.)='${quote(textValue)}']`;
+        if (count(xp) === 1) return xp;
+      }
+      const parts = [];
+      let node = el;
+      while (node && node.nodeType === 1 && node.tagName.toLowerCase() !== 'html') {
+        const name = node.tagName.toLowerCase();
+        const siblings = node.parentElement ? [...node.parentElement.children].filter(child => child.tagName === node.tagName) : [];
+        parts.unshift(`${name}[${Math.max(1, siblings.indexOf(node) + 1)}]`);
+        node = node.parentElement;
+      }
+      return '/html[1]/' + parts.join('/');
+    };
+    const handler = (event) => {
+      if (!(event.target instanceof Element) || event.target.closest('#__automation_recapture_banner')) return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      const element = event.target.closest('a,button,input,select,textarea,[role],[data-test],[data-testid]') || event.target;
+      const label = element.labels && element.labels[0] ? element.labels[0].innerText : '';
+      const appLabel = ((element.innerText || '').trim() || element.getAttribute('aria-label') || label || element.getAttribute('placeholder') || '').replace(/\s+/g, ' ').slice(0, 160);
+      document.removeEventListener('click', handler, true);
+      banner.remove();
+      resolve({ selector: selectorFor(element), tag: element.tagName.toLowerCase(), role: element.getAttribute('role') || '', app_label: appLabel });
+    };
+    document.addEventListener('click', handler, true);
+  }), { order: item.step_number, text: item.text });
 }
 
 // --- Where the walk is ---------------------------------------------------------
@@ -977,9 +1049,10 @@ test('journey-guided crawl', async ({ page }) => {
   const inventory = async (screenId) => {
     let key = screenId;
     if (!key) { try { key = new URL(page.url()).pathname; } catch (e) { key = page.url(); } }
-    if (!key || catalogued.has(key)) return;
-    catalogued.add(key);
     const elements = await page.evaluate(sweepPage).catch(() => []);
+    const stateKey = `${key || 'page'}|${elements.map((element) => element.selector).sort().join('|')}`;
+    if (!key || catalogued.has(stateKey)) return;
+    catalogued.add(stateKey);
     pages.push({ screen_id: screenId || null, url: page.url(), elements });
   };
   // The address each screen was found at: one screen per address, so a
@@ -1064,6 +1137,23 @@ test('journey-guided crawl', async ({ page }) => {
       await pause(page);
       current = { order: index + 1, step_number: item.step_number, text: item.text, kind: item.kind };
       progress();
+      if (PLAN.interactive_capture_order === index + 1) {
+        const picked = await selectForRecapture(page, item);
+        const capture = {
+          screen_id: item.element?.screen_id || item.screen_id || 'FLOW',
+          element_id: item.element?.element_id || `step_${item.step_number}`,
+          tried: [{ strategy: 'user', count: 1 }], url: page.url(), found: true,
+          strategy: 'user', count: 1, ambiguous: false, ...picked
+        };
+        await inventory(item.screen_id || null);
+        record({ ...out, status: 'done', capture, url: page.url(), note: 'selected in the headed device browser', screenshot: await shoot(index + 1) });
+        for (const [rest, later] of PLAN.items.slice(index + 1).entries()) {
+          steps.push({ order: index + rest + 2, journey_id: later.journey_id, step_number: later.step_number,
+            kind: later.kind, screen_id: later.screen_id || null, status: 'stopped', reason: `recapture finished at step ${item.step_number}` });
+        }
+        progress();
+        break;
+      }
       const options = item.screen_options || (item.screen_id ? [item.screen_id] : []);
       // A step of the walked journey whose screen never came: everything after it is blocked.
       const missing = (why) => {
@@ -1431,22 +1521,31 @@ def candidates_for(row: Dict[str, Any], pages: List[Dict[str, Any]], limit: int 
                                            row.get("step_text")])))
     if not wanted:
         return []
-    page = next((p for p in pages if row.get("screen_id") and p["screen_id"] == row["screen_id"]), None)
-    if page is None and row.get("url"):
-        page = next((p for p in pages if p["page"] == _page_key(row["url"])), None)
-    if page is None:
+    matching = [p for p in pages if row.get("screen_id") and p["screen_id"] == row["screen_id"]]
+    if not matching and row.get("url"):
+        matching = [p for p in pages if p["page"] == _page_key(row["url"])]
+    if not matching:
         return []
     clickable = row.get("kind") == "click"
     scored = []
-    for e in page["elements"]:
-        if e.get("chrome") and not wanted & _words(e.get("name")):
-            continue
-        score = len(wanted & _words(e.get("name")))
-        if score:
-            # A click step is a button or a link more often than a field.
-            if clickable and e.get("role") in ("button", "link", "tab", "menuitem"):
-                score += 0.5
-            scored.append((score, e))
+    seen = set()
+    # Same-address states matter: an inline validation error appears after a
+    # click without changing the URL. Search every captured state, newest first.
+    for page in reversed(matching):
+        for e in page["elements"]:
+            if e.get("selector") in seen:
+                continue
+            seen.add(e.get("selector"))
+            if e.get("chrome") and not wanted & _words(e.get("name")):
+                continue
+            score = len(wanted & _words(e.get("name")))
+            if score:
+                # A click step is a button or a link more often than a field.
+                if clickable and e.get("role") in ("button", "link", "tab", "menuitem"):
+                    score += 0.5
+                if not clickable and e.get("role") in ("alert", "status", "heading", "h1", "h2", "h3", "h4", "h5", "h6"):
+                    score += 3
+                scored.append((score, e))
     scored.sort(key=lambda pair: -pair[0])
     return [{"selector": e["selector"], "name": e.get("name"), "role": e.get("role"), "score": score} for score, e in scored[:limit]]
 

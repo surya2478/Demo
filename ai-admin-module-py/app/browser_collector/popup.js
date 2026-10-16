@@ -20,13 +20,20 @@ function setStatus(value) {
   status.textContent = value?.message || (value?.active ? `Crawling: ${value.pages || 0} page(s)` : 'Not connected.');
   pairing.value = value?.pairing || pairing.value;
 }
-function saveLog(value) {
+async function saveLog(value) {
   const rows=value?.logs||[];
   if(!rows.length){setStatus({message:'No collector log is available yet.'});return;}
   const body=JSON.stringify({format:'automation-studio-collector-log/1',crawl_id:value.id||null,exported_at:new Date().toISOString(),entries:rows},null,2);
+  const filename=`automation-studio-collector-${value.id||'latest'}.json`;
+  // Keep the popup alive until the browser's download manager has accepted a
+  // Blob URL. A bare anchor can disappear with the popup before Edge starts it.
   const url=URL.createObjectURL(new Blob([body],{type:'application/json'}));
-  const link=document.createElement('a');link.href=url;link.download=`automation-studio-collector-${value.id||'latest'}.json`;link.click();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  try {
+    const id=await new Promise((resolve,reject)=>api.downloads.download({url,filename,saveAs:false,conflictAction:'uniquify'},value=>{
+      const error=api.runtime.lastError;if(error||value==null)reject(new Error(error?.message||'The browser did not accept the download.'));else resolve(value);
+    }));
+    setStatus({message:`Collector log download started: ${filename} (#${id})`});
+  } finally {setTimeout(()=>URL.revokeObjectURL(url),30000);}
 }
 async function refresh() { try { setStatus(await runtimeMessage({type:'status'})); } catch (e) { setStatus({message:e.message}); } }
 start.onclick = async () => {
@@ -43,7 +50,7 @@ stop.onclick = async () => {
 };
 download.onclick = async () => {
   download.disabled=true;
-  try {saveLog(await runtimeMessage({type:'logs'}));}
+  try {await saveLog(await runtimeMessage({type:'logs'}));}
   catch(e){setStatus({message:e.message});}
   finally{download.disabled=false;}
 };

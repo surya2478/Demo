@@ -418,7 +418,8 @@ const KnowledgeBase: React.FC = () => {
             <div className="flex flex-col gap-4">
               {appKey
                 ? <JourneyCrawlStage key={`${appKey}.${selectedApp.id}.${kbEnv ?? ''}`} appKey={appKey} application={{ ...selectedApp, environment: kbEnv ?? selectedApp.environment, base_url: envAddress ?? selectedApp.base_url }} canExecute={canExecute} canApprove={canApprove}
-                    onProposed={() => { loadPending(); setDrawer('review') }} />
+                    onProposed={() => { loadPending(); setDrawer('review') }}
+                    onAutomationReady={() => { setRevision(value => value + 1); openStage('automation') }} />
                 : <Note>{selectedApp.name} has no Journey KB, so only the page-by-page crawl below applies.</Note>}
               <details className="rounded-[20px] border border-[#E8EAEE] bg-white" open={!appKey}>
                 <summary className="cursor-pointer px-5 py-4 text-[14px] font-bold text-[#1F2937]">

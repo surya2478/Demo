@@ -71,15 +71,120 @@
     el.dispatchEvent(new Event('change',{bubbles:true}));
     el.blur();
   };
+  let screenshotMask=[];
+  const maskScreenshot=()=>{
+    screenshotMask=[];
+    for(const el of document.querySelectorAll('input:not([type=hidden]),textarea')){
+      if(!visible(el)||!String(el.value||''))continue;
+      screenshotMask.push([el,el.style.color,el.style.textShadow,el.style.caretColor]);
+      el.style.setProperty('color','transparent','important');
+      el.style.setProperty('text-shadow','none','important');
+      el.style.setProperty('caret-color','transparent','important');
+    }
+    return {done:true};
+  };
+  const restoreScreenshot=()=>{
+    for(const [el,color,shadow,caret] of screenshotMask){el.style.color=color;el.style.textShadow=shadow;el.style.caretColor=caret;}
+    screenshotMask=[];return {done:true};
+  };
+  const selectInteractive=async action=>new Promise(resolve=>{
+    for(const old of document.querySelectorAll('#__automation_collector_repair,#__automation_collector_menu,#__automation_collector_highlight'))old.remove();
+    // Remove outlines left by collector 1.9.4 in an already-open application
+    // tab. Only the exact legacy collector style is touched.
+    for(const el of document.querySelectorAll('[style*="outline"]')){
+      if(el.style.outline==='3px solid rgb(239, 68, 68)'||el.style.outline==='3px solid #ef4444'){
+        el.style.outline='';el.style.outlineOffset='';
+      }
+    }
+    const banner=document.createElement('div');banner.id='__automation_collector_repair';
+    banner.textContent=`Automation Studio · Step ${action.order}: hover to highlight. Left-click uses the original action; right-click lets you choose the action.`;
+    Object.assign(banner.style,{position:'fixed',zIndex:'2147483647',left:'16px',right:'16px',top:'16px',padding:'14px 18px',borderRadius:'10px',background:'#1f2937',color:'#fff',font:'600 14px system-ui,sans-serif',boxShadow:'0 8px 28px rgba(0,0,0,.28)',pointerEvents:'none',textAlign:'center'});
+    document.documentElement.appendChild(banner);
+    let highlighted=null;
+    const overlay=document.createElement('div');overlay.id='__automation_collector_highlight';
+    Object.assign(overlay.style,{position:'fixed',zIndex:'2147483646',display:'none',pointerEvents:'none',border:'3px solid #ef4444',borderRadius:'4px',boxSizing:'border-box',boxShadow:'0 0 0 2px rgba(255,255,255,.8)'});
+    document.documentElement.appendChild(overlay);
+    const targetOf=target=>target.closest?.('a,button,input,select,textarea,[role="button"],[role="link"],[role="checkbox"],[role="radio"],[role="switch"]')||target.closest?.('[role],[data-test],[data-testid],h1,h2,h3,h4,h5,h6,label,span,p')||target;
+    const clearHighlight=()=>{highlighted=null;overlay.style.display='none';};
+    const highlight=el=>{if(!el)return clearHighlight();highlighted=el;const rect=el.getBoundingClientRect();Object.assign(overlay.style,{display:'block',left:`${Math.max(0,rect.left-3)}px`,top:`${Math.max(0,rect.top-3)}px`,width:`${Math.max(6,rect.width+6)}px`,height:`${Math.max(6,rect.height+6)}px`});};
+    const defaultChoice=()=>action.kind==='fill'||action.kind==='otp'?'fill_test_data':action.kind==='click'?'click':'verify_visible';
+    const cleanup=()=>{clearHighlight();overlay.remove();banner.remove();document.getElementById('__automation_collector_menu')?.remove();document.removeEventListener('mouseover',hover,true);document.removeEventListener('mouseout',leave,true);document.removeEventListener('scroll',reposition,true);document.removeEventListener('click',chooseDefault,true);document.removeEventListener('contextmenu',openMenu,true);};
+    const complete=async(el,choice,option=null)=>{
+      if(choice==='navigate_only'){
+        cleanup();resolve({done:true,clicked:true,navigationOnly:true});
+        // Let the result reach the background worker before navigation can
+        // unload this content script and turn a successful click into an error.
+        setTimeout(()=>{el.focus();el.click();},0);return;
+      }
+      const locator=candidates(el)[0];
+      if(!locator){cleanup();resolve({done:false,error:'The selected element did not produce a unique locator.'});return;}
+      let clicked=false;
+      if(choice==='fill_test_data'){
+        if(action.value==null){cleanup();resolve({done:false,error:'This step has no saved Test Data value to fill.'});return;}
+        if(action.kind==='otp'){
+          const digits=String(action.value).split('');
+          const boxes=[...document.querySelectorAll('input:not([type=hidden])')].filter(node=>visible(node)&&(node.getAttribute('maxlength')==='1'||node.getAttribute('inputmode')==='numeric'||node.getAttribute('autocomplete')==='one-time-code'||/otp|code|digit/i.test(`${node.name||''} ${node.id||''} ${node.getAttribute('aria-label')||''}`)));
+          if(boxes.length>1){for(let i=0;i<Math.min(boxes.length,digits.length);i+=1){setValue(boxes[i],digits[i]);await pause(60);}}
+          else setValue(el,action.value);
+        }else setValue(el,action.value);
+        await pause(180);
+      }else if(['click','tap'].includes(choice)){
+        clicked=true;setTimeout(()=>{el.focus();el.click();},0);
+      }else if(choice==='double_click'){
+        el.focus();el.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,cancelable:true,view:window}));clicked=true;
+      }else if(choice==='hover'){
+        el.dispatchEvent(new MouseEvent('mouseover',{bubbles:true,view:window}));el.dispatchEvent(new MouseEvent('mouseenter',{bubbles:false,view:window}));
+      }else if(choice==='focus'){
+        el.focus();
+      }else if(choice==='check'||choice==='uncheck'){
+        const desired=choice==='check';const current=el.matches('input')?Boolean(el.checked):el.getAttribute('aria-checked')==='true';
+        if(current!==desired)el.click();
+      }else if(choice==='press_enter'){
+        el.focus();for(const type of ['keydown','keypress','keyup'])el.dispatchEvent(new KeyboardEvent(type,{key:'Enter',code:'Enter',bubbles:true,cancelable:true}));
+      }else if(choice==='select_option'){
+        const select=el.matches('select')?el:el.querySelector?.('select');
+        if(!select||option==null){cleanup();resolve({done:false,error:'Choose a select control and one of its options.'});return;}
+        select.value=option;select.dispatchEvent(new Event('input',{bubbles:true}));select.dispatchEvent(new Event('change',{bubbles:true}));
+      }
+      const repair={order:action.order,selector:locator.value,app_label:label(el),role:role(el),action:choice,...(option==null?{}:{option})};
+      cleanup();resolve({done:true,clicked,repair});
+    };
+    const hover=event=>{if(event.target instanceof Element&&!event.target.closest('#__automation_collector_repair,#__automation_collector_menu'))highlight(targetOf(event.target));};
+    const leave=event=>{if(event.relatedTarget==null)clearHighlight();};
+    const reposition=()=>{if(highlighted)highlight(highlighted);};
+    const chooseDefault=event=>{if(!(event.target instanceof Element)||event.target.closest('#__automation_collector_repair,#__automation_collector_menu'))return;event.preventDefault();event.stopImmediatePropagation();void complete(targetOf(event.target),defaultChoice());};
+    const openMenu=event=>{
+      if(!(event.target instanceof Element)||event.target.closest('#__automation_collector_repair,#__automation_collector_menu'))return;
+      event.preventDefault();event.stopImmediatePropagation();
+      const el=targetOf(event.target);highlight(el);document.getElementById('__automation_collector_menu')?.remove();
+      const menu=document.createElement('div');menu.id='__automation_collector_menu';
+      Object.assign(menu.style,{position:'fixed',zIndex:'2147483647',left:`${Math.min(event.clientX,innerWidth-230)}px`,top:`${Math.min(event.clientY,innerHeight-250)}px`,width:'220px',padding:'6px',borderRadius:'10px',background:'#fff',color:'#111827',font:'600 13px system-ui,sans-serif',boxShadow:'0 12px 36px rgba(0,0,0,.3)',border:'1px solid #e5e7eb'});
+      const options=[['verify_visible','Verify element is visible'],['verify_text','Verify this text'],['hover','Hover'],['focus','Focus'],['press_enter','Press Enter']];
+      if(el.matches('a,button,[role="button"],[role="link"],input[type="button"],input[type="submit"]'))options.push(['click','Click'],['tap','Tap'],['double_click','Double-click'],['navigate_only','Navigate only · do not record']);
+      if(el.matches('input[type="checkbox"],input[type="radio"],[role="checkbox"],[role="radio"],[role="switch"]'))options.push(['check','Check'],['uncheck','Uncheck']);
+      if(action.value!=null&&el.matches('input:not([type="checkbox"]):not([type="radio"]),textarea'))options.push(['fill_test_data','Fill from saved Test Data']);
+      if(el.matches('select'))for(const item of [...el.options])options.push(['select_option',`Choose: ${clean(item.textContent,60)}`,item.value]);
+      for(const [value,text,option] of options){const button=document.createElement('button');button.type='button';button.textContent=text;Object.assign(button.style,{display:'block',width:'100%',padding:'9px 10px',border:'0',borderRadius:'7px',background:'transparent',textAlign:'left',cursor:'pointer',color:'#111827',font:'inherit'});button.onmouseenter=()=>button.style.background='#fef2f2';button.onmouseleave=()=>button.style.background='transparent';button.onclick=e=>{e.preventDefault();e.stopPropagation();void complete(el,value,option??null)};menu.appendChild(button);}
+      document.documentElement.appendChild(menu);
+    };
+    document.addEventListener('mouseover',hover,true);
+    document.addEventListener('mouseout',leave,true);
+    document.addEventListener('scroll',reposition,true);
+    document.addEventListener('click',chooseDefault,true);
+    document.addEventListener('contextmenu',openMenu,true);
+  });
   const execute=async action=>{
     if(action.kind==='goto')return {done:true};
+    if(action.interactive)return selectInteractive(action);
     const waitMs=Math.max(2000,Math.min(120000,Number(action.wait_seconds||20)*1000));
     const deadline=Date.now()+waitMs;
     let el=locate(action);
+    let satisfied=!el&&action.satisfied_by?locate(action.satisfied_by):null;
     // Browser navigation completes before many Angular/React screens finish
     // rendering. Poll every action, including OTP/fill, until the configured
     // wait expires instead of failing on the first DOM snapshot.
-    while(!el&&Date.now()<deadline){await pause(250);el=locate(action);}
+    while(!el&&!satisfied&&Date.now()<deadline){await pause(250);el=locate(action);satisfied=!el&&action.satisfied_by?locate(action.satisfied_by):null;}
+    if(!el&&satisfied)return {done:true,alreadySatisfied:true};
     if(!el)return {done:false,error:`Could not find ${action.labels?.[0]||action.text||'the required element'} on this screen after ${Math.round(waitMs/1000)} seconds.`};
     if(action.kind==='otp'){
       const digits=String(action.value??'').split('');
@@ -103,16 +208,25 @@
         : {done:false,error:`The browser could not enter ${action.labels?.[0]||'the required value'}.`};
     }
     if(action.kind==='click'){
-      el.focus(); el.click();
-      // If the click does not navigate, wake the service worker reliably. A
-      // navigation is handled by tabs.onUpdated instead.
-      setTimeout(()=>{const pending=api.runtime.sendMessage({type:'action-settled'});pending?.catch?.(()=>{});},1200);
+      setTimeout(()=>{el.focus();el.click();},0);
       return {done:true,clicked:true};
+    }
+    if(action.kind==='dblclick'){el.focus();el.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,cancelable:true,view:window}));return {done:true,clicked:true};}
+    if(action.kind==='hover'){el.dispatchEvent(new MouseEvent('mouseover',{bubbles:true,view:window}));return {done:true};}
+    if(action.kind==='focus'){el.focus();return {done:true};}
+    if(action.kind==='check'||action.kind==='uncheck'){
+      const desired=action.kind==='check';const current=el.matches('input')?Boolean(el.checked):el.getAttribute('aria-checked')==='true';if(current!==desired)el.click();return {done:true};
+    }
+    if(action.kind==='press'){el.focus();for(const type of ['keydown','keypress','keyup'])el.dispatchEvent(new KeyboardEvent(type,{key:action.key||'Enter',code:action.key||'Enter',bubbles:true,cancelable:true}));return {done:true};}
+    if(action.kind==='select'){
+      const desired=String(action.option??'');el.value=desired;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));return el.value===desired?{done:true}:{done:false,error:'The requested option is not available.'};
     }
     return {done:true};
   };
   api.runtime.onMessage.addListener((message,_sender,respond)=>{
     if(message.type==='collect'){respond(collect());return true}
+    if(message.type==='mask-screenshot'){respond(maskScreenshot());return true}
+    if(message.type==='restore-screenshot'){respond(restoreScreenshot());return true}
     if(message.type==='execute'){
       execute(message.action||{}).then(respond).catch(error=>respond({done:false,error:error?.message||String(error)}));
       return true;

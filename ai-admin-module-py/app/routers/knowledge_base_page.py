@@ -869,13 +869,26 @@ class CrawlIn(BaseModel):
     browser: Optional[Literal["chrome", "chromium"]] = None
 
 
+class LocalCrawlIn(CrawlIn):
+    # Replay the steps before this order, then ask the person using the headed
+    # device browser to click the element that this step should capture.
+    capture_step: Optional[int] = Field(default=None, ge=1, le=500)
+
+
 class BrowserCrawlIn(BaseModel):
     journey_id: str = Field(min_length=1, max_length=200)
     application_id: int
+    profile_id: Optional[str] = Field(default=None, max_length=200)
     environment: Optional[str] = Field(default=None, max_length=40)
     max_pages: int = Field(default=20, ge=1, le=browser_collector.MAX_PAGES)
     wait_seconds: int = Field(default=20, ge=2, le=120)
     retry_count: int = Field(default=2, ge=0, le=10)
+    # Replay actions through this order and pause in the collector so the
+    # person can point at the element the generated journey could not find.
+    capture_step: Optional[int] = Field(default=None, ge=1, le=500)
+    # Completed crawl whose later confirmed evidence should survive this
+    # intentionally shortened recapture replay.
+    recapture_of: Optional[int] = Field(default=None, ge=1)
 
 
 class BrowserPageIn(BaseModel):
@@ -895,12 +908,31 @@ class BrowserFailIn(BaseModel):
     message: str = Field(default="The browser collector stopped.", max_length=1000)
 
 
+class BrowserCancelIn(BaseModel):
+    message: str = Field(default="Browser crawl stopped by the user.", max_length=1000)
+
+
 class BrowserProgressIn(BaseModel):
-    state: Literal["opening", "executing", "waiting", "capturing"] = "executing"
+    state: Literal["opening", "executing", "waiting", "capturing", "failed"] = "executing"
     message: str = Field(default="Running browser setup.", max_length=1000)
     action_index: int = Field(default=0, ge=0, le=500)
+    action_order: Optional[int] = Field(default=None, ge=1, le=500)
     action_total: int = Field(default=0, ge=0, le=500)
     action_text: Optional[str] = Field(default=None, max_length=500)
+    action_status: Optional[Literal["running", "done", "error"]] = None
+    action_error: Optional[str] = Field(default=None, max_length=1000)
+
+
+class BrowserRepairIn(BaseModel):
+    order: int = Field(ge=1, le=500)
+    selector: str = Field(min_length=1, max_length=1000)
+    app_label: Optional[str] = Field(default=None, max_length=200)
+    role: Optional[str] = Field(default=None, max_length=80)
+    action: Optional[Literal[
+        "verify_visible", "verify_text", "click", "tap", "double_click", "hover", "focus",
+        "fill_test_data", "check", "uncheck", "press_enter", "select_option",
+    ]] = None
+    option: Optional[str] = Field(default=None, max_length=500)
 
 
 class LocalProgressIn(BaseModel):
@@ -949,7 +981,7 @@ def local_runner_package(current_user: dict = Depends(require_permission(PERM_VI
 @router.post("/{app_id}/local-journey-crawl", status_code=201)
 def start_local_crawl(
     app_id: str,
-    body: CrawlIn,
+    body: LocalCrawlIn,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission(PERM_EXECUTE)),
 ) -> dict[str, Any]:
@@ -958,7 +990,8 @@ def start_local_crawl(
         crawl, token = local_runner.start(
             db, app_id=app_id, journey_id=body.journey_id, application_id=body.application_id,
             profile_id=body.profile_id, environment=body.environment, actor=_actor(current_user),
-            stop_before=body.stop_before, allow_risky=body.allow_risky,
+            stop_before=body.stop_before, allow_risky=body.allow_risky, headless=not body.headed,
+            capture_step=body.capture_step,
         )
     except (local_runner.LocalRunnerError, LookupError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -1017,11 +1050,12 @@ def cancel_local_crawl(
 @router.get("/browser-crawl/package/{engine}")
 def browser_collector_package(
     engine: Literal["chromium", "firefox", "safari"],
+    studio_origin: Optional[str] = None,
     current_user: dict = Depends(require_permission(PERM_VIEW)),
 ) -> Response:
     """A browser-specific manifest around the same cross-browser collector code."""
     try:
-        data = browser_collector.package(engine)
+        data = browser_collector.package(engine, studio_origin=studio_origin)
     except browser_collector.CollectorError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return Response(
@@ -1075,6 +1109,14 @@ def browser_crawl_progress(crawl_id: int, body: BrowserProgressIn, authorization
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.post("/browser-crawl/sessions/{crawl_id}/repair")
+def browser_crawl_repair(crawl_id: int, body: BrowserRepairIn, authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)) -> dict[str, Any]:
+    try:
+        return browser_collector.repair(db, crawl_id, _collector_token(authorization), body.model_dump())
+    except browser_collector.CollectorError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.post("/browser-crawl/sessions/{crawl_id}/finish")
 def finish_browser_crawl(crawl_id: int, authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)) -> dict[str, Any]:
     try:
@@ -1094,12 +1136,13 @@ def fail_browser_crawl(crawl_id: int, body: BrowserFailIn, authorization: Option
 @router.post("/journey-crawls/{crawl_id}/cancel-browser")
 def cancel_browser_crawl(
     crawl_id: int,
+    body: Optional[BrowserCancelIn] = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission(PERM_EXECUTE)),
 ) -> dict[str, Any]:
     """Stop an incomplete browser-owned crawl from Automation Studio."""
     try:
-        return crawl_runs.view(browser_collector.cancel(db, crawl_id))
+        return crawl_runs.view(browser_collector.cancel(db, crawl_id, message=(body.message if body else "Browser crawl stopped by the user.")))
     except (browser_collector.CollectorError, LookupError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -1381,7 +1424,10 @@ def get_crawl(crawl_id: int, db: Session = Depends(get_db), current_user: dict =
     run = db.get(KbCrawlRun, crawl_id)
     if run is None:
         raise HTTPException(status_code=404, detail="No such crawl.")
-    return crawl_runs.view(crawl_runs.absorb(db, run))
+    run = crawl_runs.absorb(db, run)
+    if (run.plan or {}).get("source") == browser_collector.SOURCE:
+        run = browser_collector.ensure_terminal_result(db, run)
+    return crawl_runs.view(run)
 
 
 @router.get("/journey-crawls/{crawl_id}/live")
@@ -1806,6 +1852,7 @@ class HealCrawlIn(BaseModel):
     wait_seconds: int = Field(default=20, ge=2, le=120)
     retry_count: int = Field(default=2, ge=0, le=10)
     max_pages: int = Field(default=20, ge=1, le=browser_collector.MAX_PAGES)
+    headed: bool = False
 
 
 @router.post("/heals/{heal_id}/crawl", status_code=202)
@@ -1816,7 +1863,7 @@ def heal_crawl(heal_id: int, body: HealCrawlIn, db: Session = Depends(get_db),
             db, heal_id, journey_id=body.journey_id, application_id=body.application_id,
             environment=body.environment, actor=_actor(current_user), mode=body.mode,
             wait_seconds=body.wait_seconds, retry_count=body.retry_count,
-            max_pages=body.max_pages,
+            max_pages=body.max_pages, headed=body.headed,
         )
     except crawl_runs.Unavailable as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc

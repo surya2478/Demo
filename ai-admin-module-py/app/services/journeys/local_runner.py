@@ -65,7 +65,8 @@ def _authorise(crawl: Optional[KbCrawlRun], token: str) -> Tuple[KbCrawlRun, Dic
 
 def start(db: Session, *, app_id: str, journey_id: str, application_id: int,
           profile_id: Optional[str], environment: Optional[str], actor: Optional[str],
-          stop_before: Optional[int], allow_risky: bool) -> Tuple[KbCrawlRun, str]:
+          stop_before: Optional[int], allow_risky: bool, headless: bool = True,
+          capture_step: Optional[int] = None) -> Tuple[KbCrawlRun, str]:
     application = db.get(AutomationApplication, application_id)
     if application is None:
         raise LookupError("No such registered application.")
@@ -82,6 +83,14 @@ def start(db: Session, *, app_id: str, journey_id: str, application_id: int,
         raise LocalRunnerError(f"{application.name} has no address for {environment}.")
     plan = crawl_runs._plan(kb, journey_id, base_url=base_url, profile_id=profile_id,
                             stop_before=stop_before, allow_risky=allow_risky)
+    if capture_step is not None:
+        if capture_step > len(plan.get("items") or []):
+            raise LocalRunnerError(f"Step {capture_step} is not part of this flow.")
+        plan["interactive_capture_order"] = int(capture_step)
+        plan["stop_before"] = None
+        plan["stop_reason"] = None
+        # Interactive capture must open a browser window on the user's device.
+        headless = False
     low = max(0, int(crawl_runs.settings.AUTOMATION_STEP_DELAY_MIN_MS or 0))
     plan["step_delay_ms"] = [low, max(low, int(crawl_runs.settings.AUTOMATION_STEP_DELAY_MAX_MS or 0))]
     code = journey_crawl.build_spec(plan)
@@ -103,7 +112,7 @@ def start(db: Session, *, app_id: str, journey_id: str, application_id: int,
     }
     run = AutomationRun(
         run_key=run_key, application_id=application.id, framework="playwright", environment=environment,
-        status="queued", run_config={"headless": True, "mode": "local_journey_crawl"},
+        status="queued", run_config={"headless": bool(headless), "mode": "local_journey_recapture" if capture_step else "local_journey_crawl"},
         run_metadata={"code": code, "base_url": base_url, "file_name": journey_crawl.SPEC_FILE,
                       "journey_id": journey_id, "execution_target": "device"}, triggered_by=actor,
     )
@@ -139,10 +148,14 @@ def config(db: Session, crawl_id: int, token: str) -> Dict[str, Any]:
         "file_name": journey_crawl.SPEC_FILE, "base_url": crawl.base_url,
         "environment": crawl.environment, "env": data["values"],
         "package_json": ws.PLAYWRIGHT_PACKAGE_JSON,
-        "playwright_config": ws._render_playwright_config(crawl.base_url, ".", slow_mo_ms=0, headless=True),
+        "playwright_config": ws._render_playwright_config(
+            crawl.base_url, ".", slow_mo_ms=0, headless=bool((run.run_config or {}).get("headless", True))
+        ),
         "progress_reporter": ws.PROGRESS_REPORTER_CJS,
         "output_file": journey_crawl.OUTPUT_FILE, "progress_file": journey_crawl.PROGRESS_FILE,
-        "frame_file": journey_crawl.FRAME_FILE,
+        # A device-owned browser is intentionally not streamed through the
+        # production server. Progress is live; screenshots arrive as evidence.
+        "frame_file": journey_crawl.FRAME_FILE, "stream_frame": False,
     }
 
 

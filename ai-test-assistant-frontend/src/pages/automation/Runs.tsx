@@ -236,6 +236,7 @@ const pipelineOf = (run: RunDetail, rows: StepRow[]) => {
   const passedSteps = rows.filter(r => r.state === 'passed').length
   const tone = toneOf(run)
   const finished = isTerminal(run.status)
+  const onDevice = run.execution_target === 'device'
 
   const state = (n: number): StageState => {
     if (!finished) return n < phase ? 'done' : n === phase ? 'running' : 'pending'
@@ -257,10 +258,10 @@ const pipelineOf = (run: RunDetail, rows: StepRow[]) => {
       n: 4,
       title: 'Execute test engine',
       detail:
-        state(4) === 'running' ? 'Browser running with video and trace'
+        state(4) === 'running' ? (onDevice ? 'Running locally on the connected device' : 'Browser running with video and trace')
           : state(4) === 'failed' ? (failedStep ? `Failed at step ${failedStep.n}` : tone === 'cancelled' ? 'Cancelled' : 'Did not complete')
             : state(4) === 'done' ? `${passedSteps || rows.length} of ${rows.length} steps passed`
-              : 'Browser with video and trace'
+              : onDevice ? 'Local device execution' : 'Browser with video and trace'
     },
     {
       n: 5,
@@ -268,7 +269,7 @@ const pipelineOf = (run: RunDetail, rows: StepRow[]) => {
       detail:
         state(5) === 'suggest' ? 'Fix suggested · evidence saved'
           : state(5) === 'done' ? (run.is_healed ? 'Healed · evidence saved' : 'Evidence saved')
-            : 'Screenshot, video and trace saved here'
+            : onDevice ? 'Available evidence uploads after completion' : 'Screenshot, video and trace saved here'
     }
   ].map(stage => ({ ...stage, state: state(stage.n) }))
 }
@@ -372,14 +373,15 @@ const LiveLog: React.FC<{ run: RunDetail; rows: StepRow[]; live: boolean }> = ({
   })
   const fallback = fallbackLines.length
     ? fallbackLines
-    : [`[RUN ] ${(run.run_metadata as any)?.execution_phase || (run.run_metadata as any)?.device_agent?.message || 'Runner connected; waiting for the first step.'}`]
+    : [`[RUN ] ${(run.run_metadata as any)?.execution_phase || (run.run_metadata as any)?.device_agent?.message || (run.execution_target === 'device' ? 'Running locally on this device. Browser video is not streamed to Studio.' : 'Runner connected; waiting for the first step.')}`]
+  const onDevice = run.execution_target === 'device'
   return (
     <div className="flex min-h-[340px] flex-col overflow-hidden rounded-[16px] bg-[#1B1B1F]">
       <div className="flex items-center justify-between px-4 pb-1 pt-3">
-        <span className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-[#FCA5A5]">Live runner log</span>
+        <span className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-[#FCA5A5]">{onDevice ? 'Device execution status' : 'Live runner log'}</span>
         {live && (
           <span className="flex items-center gap-1.5 text-[12px] text-[#D1D5DB]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#EF4444]" />streaming
+            <span className="h-1.5 w-1.5 rounded-full bg-[#EF4444]" />{onDevice ? 'local progress' : 'streaming'}
           </span>
         )}
       </div>
@@ -593,6 +595,7 @@ const RunPanel: React.FC<{ runKey: string; project: RunSummary['project']; onCha
   const { run, loading, error } = useRunPolling(runKey, { onSettled: onChanged })
   const [now, setNow] = useState(() => Date.now())
   const [busy, setBusy] = useState<'cancel' | 'rerun' | 'device' | 'heal' | null>(null)
+  const [deviceHeaded, setDeviceHeaded] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [specOpen, setSpecOpenState] = useState(false)
   const setSpecOpen = (open: boolean) => { setSpecOpenState(open); onSpecOpen(open) }
@@ -648,7 +651,7 @@ const RunPanel: React.FC<{ runKey: string; project: RunSummary['project']; onCha
       file_name: run.spec?.file_name || 'spec.ts',
       test_case_id: run.test_case_id ?? null,
       slow_mo_ms: run.slow_mo_ms ?? 1000,
-      headless: true,
+      headless: !deviceHeaded,
       mode: 'rerun'
     })
     try {
@@ -689,6 +692,7 @@ const RunPanel: React.FC<{ runKey: string; project: RunSummary['project']; onCha
     run.environment,
     modeLabel(run.mode),
     run.execution_target === 'device' ? 'on this device' : null,
+    run.execution_target === 'device' ? (run.headless === false ? 'headed browser' : 'headless browser') : null,
     live ? speedLabel(run.slow_mo_ms) : null,
     run.triggered_by ? `by ${run.triggered_by}` : null,
     live
@@ -773,10 +777,17 @@ const RunPanel: React.FC<{ runKey: string; project: RunSummary['project']; onCha
                 </button>
               )}
               {canExecute && (
-                <button type="button" onClick={() => void act('device')} disabled={busy !== null || !run.spec?.code} className={`${BTN} text-[#1F2937]`}>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><rect x="4" y="3" width="16" height="13" rx="2" /><path d="M8 21h8M12 16v5" /></svg>
-                  {busy === 'device' ? 'Connecting…' : 'Rerun on device'}
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <select aria-label="Rerun on device browser mode" value={deviceHeaded ? 'headed' : 'headless'} onChange={event => setDeviceHeaded(event.target.value === 'headed')}
+                    disabled={busy !== null} className="h-10 rounded-[12px] border border-[#E8EAEE] bg-white px-2.5 text-[12.5px] font-semibold text-[#374151] disabled:opacity-50">
+                    <option value="headless">Headless</option>
+                    <option value="headed">Headed</option>
+                  </select>
+                  <button type="button" onClick={() => void act('device')} disabled={busy !== null || !run.spec?.code} className={`${BTN} text-[#1F2937]`}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><rect x="4" y="3" width="16" height="13" rx="2" /><path d="M8 21h8M12 16v5" /></svg>
+                    {busy === 'device' ? 'Connecting…' : 'Rerun on device'}
+                  </button>
+                </div>
               )}
               {canExecute && failedLike && (
                 <button type="button" onClick={() => void act('heal')} disabled={busy !== null || !run.spec?.code} className={PRIMARY}>
