@@ -766,6 +766,140 @@ def match_flow_blueprint(
     return None
 
 
+# --- Features a flow says are NOT confirmed in the application ----------------
+#
+# A flow's `unverified_from_brd` lists what a BRD describes but nobody has seen
+# work: the B2B Trade Licence flow keeps a Manage Users "Trade Licence" column
+# and a details modal there, out of canonical_steps on purpose. A test case
+# built on one of them has nothing real to ground on -- the generator falls
+# back to guesses and the run fails, or worse, passes on nothing. So the
+# classifier and the compiler both ask this one question.
+#
+# An entry matches a case by, in order: an explicit {"match": [phrases]} on the
+# entry; a route value ("/b2bportal/manage/users") the case names; or every
+# meaningful word of the entry's key ("trade_license_column") appearing in the
+# case. Only flows whose own match keywords the case hits are consulted, so a
+# "details modal" in an unrelated application's case is not this flow's modal.
+
+_UNCONFIRMED_SKIP_KEYS = frozenset({"note"})
+_UNCONFIRMED_KEY_NOISE = frozenset({"route", "url", "path", "the", "a", "of", "and", "in", "on"})
+_SPELLING = (("licence", "license"), ("organisation", "organization"), ("organisational", "organizational"))
+
+
+def _plain_words(text: Any) -> List[str]:
+    lowered = str(text or "").lower()
+    for british, american in _SPELLING:
+        lowered = lowered.replace(british, american)
+    words = re.findall(r"[a-z0-9]+", lowered)
+    # Plural-insensitive: "error states" must meet "error_state", "users" "user".
+    return [w[:-1] if len(w) > 4 and w.endswith("s") and not w.endswith("ss") else w for w in words]
+
+
+def unconfirmed_features(text: str, app_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """The not-yet-confirmed features of `app_id`'s flows that `text` depends on.
+
+    Each hit is {flow_id, flow_name, feature, detail, source}. With no
+    application given or named, every application's flows are consulted --
+    a case need not be linked to depend on a feature nobody has confirmed, and
+    each flow still has to match the case's words first.
+    """
+    app = app_id or identify_app_id(text)
+    apps = [app] if app else [a.get("app_id") for a in list_applications() if a.get("app_id")]
+    lowered = (text or "").lower()
+    words = set(_plain_words(text))
+    joined = " ".join(_plain_words(text))
+    hits: List[Dict[str, Any]] = []
+    for flow in (f for a in apps for f in list_flows(a)):
+        unverified = flow.get("unverified_from_brd")
+        if not isinstance(unverified, dict) or not unverified:
+            continue
+        keywords = [str(k).lower().strip() for k in (flow.get("target_match_keywords") or []) if str(k).strip()]
+        if keywords and not any(re.search(r"\b" + re.escape(k) + r"\b", lowered) for k in keywords):
+            continue
+        status = str(unverified.get("_status") or "")
+        source = status.split(" and ")[0].replace("Described by ", "").strip() if status else ""
+        for key, value in unverified.items():
+            if key.startswith("_") or key in _UNCONFIRMED_SKIP_KEYS:
+                continue
+            matched = False
+            explicit = value.get("match") if isinstance(value, dict) else None
+            if explicit:
+                matched = any(" ".join(_plain_words(p)) in joined for p in explicit if str(p).strip())
+            elif isinstance(value, str) and value.strip().startswith("/"):
+                matched = value.strip().lower() in lowered
+            if not matched and not explicit:
+                key_words = [w for w in _plain_words(key.replace("_", " ")) if w not in _UNCONFIRMED_KEY_NOISE]
+                matched = len(key_words) >= 2 and all(w in words for w in key_words)
+            if matched:
+                detail = value.get("detail") if isinstance(value, dict) else value
+                hits.append({
+                    "flow_id": flow.get("flow_id"),
+                    "flow_name": flow.get("flow_name") or flow.get("flow_id"),
+                    "feature": key.replace("_", " "),
+                    "detail": str(detail or "")[:240],
+                    "source": source,
+                })
+    return hits
+
+
+# --- Steps a flow assumes have already run ---------------------------------------
+#
+# The Trade Licence flow starts "signed in"; flow_b2b_login_otp carries how.
+# A case written for the licence screens does not repeat the sign-in, so its
+# script started on the login page and every later step failed -- or matched
+# nothing and passed. A flow names what must run first in
+# `prerequisite_flows`: a flow id, or {"flow_id", "through_step", "test_data":
+# {step number: data ref}} to stop at the landing page and say which Test Data
+# value each step types.
+
+
+def prerequisite_steps(flow: Optional[Dict[str, Any]], app_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """The canonical steps of `flow`'s prerequisite flows, in order, or []."""
+    if not flow:
+        return []
+    app = app_id or flow.get("_app_id")
+    flows_by_id = {f.get("flow_id"): f for f in list_flows(app)} if app else {}
+    steps: List[Dict[str, Any]] = []
+    for spec in flow.get("prerequisite_flows") or []:
+        spec = spec if isinstance(spec, dict) else {"flow_id": spec}
+        source = flows_by_id.get(spec.get("flow_id"))
+        if not source:
+            logger.warning("Flow %s names prerequisite %s, which %s does not have.",
+                           flow.get("flow_id"), spec.get("flow_id"), app)
+            continue
+        through = spec.get("through_step")
+        data = {str(k): v for k, v in (spec.get("test_data") or {}).items()}
+        for canonical in source.get("canonical_steps") or []:
+            number = canonical.get("step_number")
+            if through and number and int(number) > int(through):
+                break
+            steps.append({
+                "action": canonical.get("action"),
+                "target": canonical.get("target"),
+                "expected_result": canonical.get("expected_result") or None,
+                "test_data_ref": data.get(str(number)),
+                "prerequisite_of": spec.get("flow_id"),
+            })
+    return steps
+
+
+# --- The visible label an XPath/CSS selector names ------------------------------
+#
+# //a[text()='Manage'] -> Manage. Used to match a label a step quotes against the
+# canonical step whose selector targets exactly that label.
+
+_XPATH_LABEL_RE = re.compile(
+    r"(?:text\(\)|normalize-space\(\.?\)|@aria-label|@placeholder|@title|@value)\s*=\s*['\"]\s*([^'\"]+?)\s*['\"]"
+    r"|contains\(\s*(?:\.|text\(\))\s*,\s*['\"]\s*([^'\"]+?)\s*['\"]\s*\)"
+    r"|has-text\(\s*['\"]([^'\"]+)['\"]\s*\)"
+)
+
+
+def selector_labels(selector: Any) -> List[str]:
+    """The visible labels an XPath/CSS selector names (text()='Manage' -> Manage)."""
+    return [next(g for g in groups if g) for groups in _XPATH_LABEL_RE.findall(str(selector or ""))]
+
+
 def build_flow_context_prompt(query_or_brd: str, app_id: Optional[str] = None) -> str:
     """Builds grounding context string to inject into LLM system prompt for test case generation."""
     flow = match_flow_blueprint(query_or_brd, app_id)
@@ -1073,6 +1207,15 @@ def ground_case_structured_steps(
                 act_words = set(re.findall(r"[a-z0-9]+", act_lower)) - {"navigate", "to", "the", "and", "for", "in", "if", "a", "on", "with", "plans", "plan"}
                 overlap = len(cs_words.intersection(act_words))
                 score += overlap * 2
+
+                # A label the step quotes that is exactly the one the canonical
+                # step's selector targets: "Click 'Manage'" and //a[text()='Manage'].
+                # Word overlap scores that 2 and misses it, while an exact label
+                # is the strongest evidence there is. Exact, so 'Manage Users'
+                # does not borrow the 'Manage' link.
+                quoted = {q.strip().casefold() for q in re.findall(r"['\"]([^'\"]{1,80})['\"]", action) if q.strip()}
+                if quoted and quoted & {label.strip().casefold() for label in selector_labels(cs.get("target"))}:
+                    score += 10
 
                 if score > best_cs_score:
                     best_cs_score = score

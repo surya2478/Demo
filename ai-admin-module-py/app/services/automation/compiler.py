@@ -689,6 +689,39 @@ def expected_assertion(expected: Any, intent: str) -> Optional[str]:
     return None
 
 
+# --- Automation Module: an online shop, or not --------------------------------
+#
+# The step branches below -- product cards, variants, ADD TO CART, checkout, an
+# address form -- and the cart/checkout URL check that verify steps fell back on
+# were written for the e& online shop. Applied to the B2B Portal they produced
+# "Select the organization" as a product-card click inside try/catch, and
+# "assert the Trade License column" as "the URL contains b2bportal": steps that
+# pass on the login page. They now apply only where the Knowledge Base says the
+# application sells something: a cart endpoint or known products. A case with no
+# Knowledge Base at all keeps them, as before.
+
+def _is_commerce(flow: Optional[dict], profile: dict, app_id: Optional[str]) -> bool:
+    from . import knowledge_base as kb
+
+    if flow and (kb.flow_cart_endpoint(flow, profile) or flow.get("known_products")):
+        return True
+    if (profile.get("endpoints") or {}).get("cart"):
+        return True
+    if not profile and not flow:
+        return True  # nothing known: the generator's long-standing behaviour
+    return any(f.get("cart_endpoint") or f.get("known_products") for f in kb.list_flows(app_id)) if app_id else False
+
+
+_SIGN_IN_RE = re.compile(r"\b(sign[\s-]?in|log[\s-]?in|login|otp|one[\s-]time password|uae pass)\b", re.I)
+
+
+def _case_signs_in(steps: list[dict]) -> bool:
+    """Whether the case's own steps already authenticate."""
+    return any(
+        _SIGN_IN_RE.search(f"{step.get('action') or ''} {step.get('target') or ''}") for step in steps
+    )
+
+
 def compile_playwright(
     case: Any,
     *,
@@ -758,6 +791,42 @@ def compile_playwright(
         )
 
     is_api = _is_api_case(case, steps)
+    app_for_kb = (flow or {}).get("_app_id") or linked_app
+    commerce = _is_commerce(flow, prof, app_for_kb)
+
+    # The flow's prerequisites (sign-in, usually) run first when the case's own
+    # steps do not authenticate. Numbered S1, S2... so the case's step numbers
+    # -- the ones its author and the run report use -- stay as they were.
+    prelude: list[dict] = []
+    if not is_api and flow and not _case_signs_in(steps):
+        prelude = [
+            {**step, "step_number": f"S{index}"}
+            for index, step in enumerate(kb.prerequisite_steps(flow, app_for_kb), start=1)
+        ]
+    last_case_number = (steps[-1].get("step_number") if steps else None) or len(steps)
+    steps = prelude + steps
+
+    try:
+        unconfirmed = [] if is_api else kb.unconfirmed_features(full_case_text, app_for_kb)
+    except Exception:  # noqa: BLE001 - the KB is optional infrastructure
+        unconfirmed = []
+
+    boundary = (flow or {}).get("automation_boundary") or {}
+    if boundary.get("automated_scope"):
+        scope_lines = [
+            f" *   - Automated Scope: {comment_text(boundary.get('automated_scope'))}",
+            f" *   - External Boundary: {comment_text(boundary.get('external_boundary') or 'None declared.')}",
+        ]
+    elif commerce:
+        scope_lines = [
+            " *   - Automated Scope: Up to and including Variant Configuration + ADD TO CART + Shopping Cart Verification.",
+            " *   - External Boundary: Real OTP / Credit Card / UAE PASS authentication require external credentials.",
+        ]
+    else:
+        scope_lines = [
+            " *   - Automated Scope: the steps below, in the browser.",
+            " *   - External Boundary: anything outside the browser (OTP delivery, email, other systems) comes from Test Data.",
+        ]
 
     lines: list[str] = [
         "import { test, expect } from '@playwright/test';",
@@ -769,10 +838,24 @@ def compile_playwright(
         f" * Mode: {'REST API Test' if is_api else 'Web UI Automation'}",
         " *",
         " * Execution Boundary:",
-        " *   - Automated Scope: Up to and including Variant Configuration + ADD TO CART + Shopping Cart Verification.",
-        " *   - External Boundary: Real OTP / Credit Card / UAE PASS authentication require external credentials.",
+        *scope_lines,
         " * Values come from environment variables so no credential or record id is baked into the file.",
-        " */",
+    ]
+    if prelude:
+        lines.append(f" * Signs in first ({comment_text(prelude[0].get('prerequisite_of'))}, steps S1-S{len(prelude)}).")
+    for hit in unconfirmed:
+        lines.append(
+            f" * UNCONFIRMED: depends on '{comment_text(hit['feature'])}', which flow "
+            f"'{comment_text(hit['flow_name'])}' marks as not confirmed in the application."
+        )
+    lines.append(" */")
+    early_issues = [
+        StaticGateIssue(
+            "warning",
+            f"Depends on '{hit['feature']}', which the Knowledge Base marks as not confirmed in the "
+            "application -- expect this script to fail until someone confirms it.",
+        )
+        for hit in unconfirmed
     ]
 
     data_refs = [
@@ -802,7 +885,7 @@ def compile_playwright(
 
     lines.append("")
 
-    issues: list[StaticGateIssue] = []
+    issues: list[StaticGateIssue] = list(early_issues)
     emitted = 0
 
     if is_api:
@@ -885,7 +968,10 @@ def compile_playwright(
             quote_match = re.search(r'["\']([^"\']+)["\']', f"{action} {target or ''}")
             quoted_term = quote_match.group(1).strip() if quote_match else ""
 
-            is_verify_step = any(k in action_lower for k in ["verify", "assert", "review", "summary", "shopping cart", "screen is displayed", "page is displayed", "email verification"]) or (number == len(steps) and ("verify" in action_lower or "assert" in action_lower or "screen" in action_lower or "page" in action_lower))
+            is_verify_step = any(k in action_lower for k in ["verify", "assert", "review", "summary", "shopping cart", "screen is displayed", "page is displayed", "email verification"]) or (number == last_case_number and ("verify" in action_lower or "assert" in action_lower or "screen" in action_lower or "page" in action_lower))
+            # Set once this step has asserted its expected result, so the generic
+            # post-condition below does not assert it a second time.
+            expected_done = False
 
             if is_cookie_dismissal:
                 lines.append("  // Dismiss cookie / privacy overlay")
@@ -932,14 +1018,36 @@ def compile_playwright(
                         f"  await expect(page).toHaveURL(new RegExp({_js(pattern)}, 'i'), "
                         f"{{ timeout: 15000 }});"
                     )
-                elif target and (target.startswith((".", "#", "[", "button", "a")) or ":has-text" in target):
-                    lines.append(f"  const verifyEl = page.locator({_js(target)}).first();")
+                # "a[", not "a": a bare "a" read every target starting with the
+                # letter -- "authorized organization ..." -- as a CSS selector.
+                elif target and (target.startswith((".", "#", "[", "button", "a[", "a:", "a.", "//", "(//")) or ":has-text" in target):
+                    verify_locator, _ = _phrase_locator(target, "assert")
+                    lines.append(f"  const verifyEl = {verify_locator};")
                     lines.append("  await expect(verifyEl).toBeVisible({ timeout: 10000 });")
-                else:
+                elif commerce:
                     lines.append("  const cartOrCheckoutEl = page.locator('.cart-item, .cart-summary, .checkout-summary, button:has-text(\"Checkout\"), button:has-text(\"Proceed\"), :text(\"Cart\"), :text(\"Order Summary\"), :text(\"Checkout\")').first();")
                     lines.append("  const onTargetPage = /.*(devices|configuration|cart|checkout|summary|order|ordering|b2bportal).*/i.test(page.url());")
                     lines.append("  expect(onTargetPage).toBe(true);")
-            elif "search for" in action_lower or "search" in action_lower and ("input" not in action_lower):
+                else:
+                    # Not a shop: no cart/URL stand-in. Assert the step's expected
+                    # result if it names something observable (a quoted label or
+                    # a path); otherwise say so and fail here, rather than pass on
+                    # nothing -- a green step that checked nothing is the worst
+                    # outcome a test can have.
+                    assertion = expected_assertion(expected or action, "click")
+                    if assertion:
+                        lines.append(f"  {assertion}")
+                        expected_done = True
+                    else:
+                        message = (
+                            f"Step {number}: nothing checkable for this verification -- its "
+                            "expected result names no label or page the Knowledge Base knows. "
+                            "Quote the exact on-screen text in the step, or ground it, and regenerate."
+                        )
+                        issues.append(StaticGateIssue("warning", message))
+                        lines.append(f"  throw new Error({_js(message)});")
+                        expected_done = True
+            elif commerce and ("search for" in action_lower or "search" in action_lower and ("input" not in action_lower)):
                 search_query = quoted_term or re.sub(r"^.*?search\s+(for\s+)?", "", action, flags=re.IGNORECASE).split("and")[0].strip()
                 lines.append(f"  // Search for {_js(search_query)}")
                 lines.append("  try {")
@@ -950,7 +1058,7 @@ def compile_playwright(
                 lines.append("      await page.waitForTimeout(2000);")
                 lines.append("    }")
                 lines.append("  } catch (e) {}")
-            elif any(k in action_lower for k in ["click on", "select the", "select product", "choose product"]) and ("cart" not in action_lower and "checkout" not in action_lower and "payment" not in action_lower and "plan" not in action_lower):
+            elif commerce and any(k in action_lower for k in ["click on", "select the", "select product", "choose product"]) and ("cart" not in action_lower and "checkout" not in action_lower and "payment" not in action_lower and "plan" not in action_lower):
                 item_term = quoted_term or re.sub(r"^.*?(click\s+(on\s+)?(the\s+)?|select\s+(the\s+)?|choose\s+(the\s+)?)", "", action, flags=re.IGNORECASE).replace("item", "").replace("product", "").strip()
                 lines.append(f"  // Select/Click item {_js(item_term)}")
                 lines.append("  try {")
@@ -961,7 +1069,7 @@ def compile_playwright(
                 lines.append("      await page.waitForTimeout(1500);")
                 lines.append("    }")
                 lines.append("  } catch (e) {}")
-            elif any(k in action_lower for k in ["color", "storage", "variant", "payment plan", "memory", "terms", "one time", "full price", "bundle items"]) or "variant" in target_lower:
+            elif commerce and (any(k in action_lower for k in ["color", "storage", "variant", "payment plan", "memory", "terms", "one time", "full price", "bundle items"]) or "variant" in target_lower):
                 lines.append("  // Select/verify variant options and price update")
                 lines.append("  try {")
                 lines.append("    const opt = page.locator('.device-variant-options, [role=\"radio\"], button.variant-btn, .color-swatch, .storage-btn, label:has-text(\"One Time\"), label:has-text(\"GB\")').first();")
@@ -970,7 +1078,7 @@ def compile_playwright(
                 lines.append("      await page.waitForTimeout(500);")
                 lines.append("    }")
                 lines.append("  } catch (e) {}")
-            elif "add to cart" in action_lower or "add to basket" in action_lower or "add to cart" in target_lower:
+            elif commerce and ("add to cart" in action_lower or "add to basket" in action_lower or "add to cart" in target_lower):
                 lines.append("  // Scroll down slightly to ensure sticky footer and dynamic CTA are rendered")
                 lines.append("  await page.evaluate(() => window.scrollBy(0, 450)).catch(() => {});")
                 lines.append("  await page.waitForTimeout(1000);")
@@ -1002,7 +1110,7 @@ def compile_playwright(
                 lines.append("      await page.waitForTimeout(2000);")
                 lines.append("    }")
                 lines.append("  }")
-            elif any(k in action_lower for k in ["checkout", "proceed to", "buy now"]) or any(k in target_lower for k in ["checkout", "buy now"]):
+            elif commerce and (any(k in action_lower for k in ["checkout", "proceed to", "buy now"]) or any(k in target_lower for k in ["checkout", "buy now"])):
                 # --- A click step has to be able to fail -------------------
                 # This block used to be `if (await appears(btn)) { click }`
                 # wrapped in `try {} catch (e) {}`: an absent button skipped the
@@ -1037,7 +1145,7 @@ def compile_playwright(
                 lines.append("  await expect(checkoutActionBtn).toBeVisible({ timeout: 15000 });")
                 lines.append("  await checkoutActionBtn.click();")
                 lines.append("  await page.waitForLoadState('domcontentloaded', { timeout: 30000 }).catch(() => {});")
-            elif any(k in action_lower for k in ["shipping address", "payment method", "enter address", "credit card", "fill form"]):
+            elif commerce and any(k in action_lower for k in ["shipping address", "payment method", "enter address", "credit card", "fill form"]):
                 lines.append("  // Fill address/checkout details if form presented")
                 lines.append("  try {")
                 lines.append("    const addressInput = page.locator('input[name*=\"address\" i], input[placeholder*=\"address\" i], textarea, input[name*=\"name\" i], input[type=\"text\"]').first();")
@@ -1087,6 +1195,17 @@ def compile_playwright(
                 else:
                     locator, todo = build_locator(step, intent, catalog=catalog)
 
+                data_var = re.sub(r"[^A-Za-z0-9]+", "_", str(data_ref)).lower() if data_ref else None
+                # "Select the organization with no users" carrying a Test Data
+                # value: the value IS the thing to pick. Its locator from the
+                # step's prose was a guess; the stored value's text is not.
+                # Shops keep their own select handling below.
+                if todo and data_var and intent in ("click", "select") and not commerce:
+                    locator = f"page.getByText({data_var}, {{ exact: true }}).first()"
+                    lines.append(f"  // Picks the item named by {_env_key(str(data_ref))}.")
+                    todo = None
+                    intent = "click"
+
                 # An override applies only where the deterministic path admits
                 # it guessed. A locator the Knowledge Base or the catalogue
                 # resolved carries no todo and is never second-guessed -- those
@@ -1115,7 +1234,22 @@ def compile_playwright(
                         issues.append(StaticGateIssue("warning", f"Step {number}: {todo}"))
                         lines.append(f"  // TODO: {comment_text(todo)}")
 
-                if intent == "fill":
+                if (
+                    intent == "fill"
+                    and data_var
+                    and "otp" in data_var
+                    and target
+                    and ("opt-field" in target or "otp" in target.lower())
+                    and str(target).startswith(("//", "(//", "input", "[", "."))
+                ):
+                    # A one-time password split over one box per digit: fill()
+                    # on the first box puts all six digits in it and leaves the
+                    # rest empty. One digit per box, in order.
+                    lines.append(f"  const otpBoxes = page.locator({_js(target)});")
+                    lines.append(f"  for (const [i, digit] of [...String({data_var})].entries()) {{")
+                    lines.append("    await otpBoxes.nth(i).fill(digit);")
+                    lines.append("  }")
+                elif intent == "fill":
                     value = (
                         re.sub(r"[^A-Za-z0-9]+", "_", str(data_ref)).lower()
                         if data_ref
@@ -1139,7 +1273,7 @@ def compile_playwright(
                 else:
                     lines.append(f"  await {locator}.click();")
 
-            if expected and intent != "assert":
+            if expected and intent != "assert" and not expected_done:
                 lines.append(f"  // expected: {comment_text(expected)}")
                 assertion = expected_assertion(expected, intent)
                 if assertion:

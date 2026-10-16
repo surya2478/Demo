@@ -23,6 +23,14 @@
     "tl number"
   ],
   "catalog_entrypoint": "/b2bportal/login.html?rdr=home&locale=en",
+  "prerequisite_flows": [
+    {
+      "flow_id": "flow_b2b_login_otp",
+      "through_step": 4,
+      "test_data": {"2": "default_org_email", "4": "otp"},
+      "_why": "This flow starts signed in. The compiler runs these sign-in steps first when a case does not sign in itself; the Test Data names match the Journey KB role profile (TESTDATA_DEFAULT_ORG_EMAIL, TESTDATA_OTP)."
+    }
+  ],
   "automation_boundary": {
     "automated_scope": "Authenticated B2B Portal home -> Manage -> 'view & update details' -> Organizational Details -> open and close the Trade Licence document -> sign out through the profile menu.",
     "external_boundary": "Netcracker (Trade Licence metadata) and EDMS (binary documents) are upstream systems reached only through the B2B Microservice. Assert what the portal renders; never call them directly."

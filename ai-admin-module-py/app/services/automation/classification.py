@@ -331,6 +331,14 @@ _NEGATIVE_STEP_RE = re.compile(
     r"^\s*(?:do not|don't|avoid|refrain from)\b", re.I
 )
 
+# Steps that check rather than act. Grounding against the Knowledge Base's
+# controls skips them: what they check is their expected result, which the
+# compiler asserts, not a control the KB has to name.
+_CHECK_STEP_RE = re.compile(
+    r"^\s*(?:\d+[.)]\s*)?(?:verify|assert|check|confirm|ensure|validate|observe|wait|navigate|go to|open https?://)\b",
+    re.I,
+)
+
 
 def _text(value: Any) -> str:
     if value is None:
@@ -761,8 +769,18 @@ class ClassificationContext:
         return app_id, self._profiles.get(app_id)
 
 
+def _looks_like_selector(target: Any) -> bool:
+    """A real selector or route, not prose that was copied into `target`."""
+    text = str(target or "").strip()
+    return text.startswith(("//", "(//", "/", "http", "#", ".", "[", "xpath=", "a[", "button", "input")) or ":has-text(" in text
+
+
 def check_knowledge_base(
-    steps: list[dict], case_text: str, context: ClassificationContext, linked_app: Optional[str] = None
+    steps: list[dict],
+    case_text: str,
+    context: ClassificationContext,
+    linked_app: Optional[str] = None,
+    case: Any = None,
 ) -> dict:
     """Do the controls these steps name exist in anything we know about?
 
@@ -775,7 +793,81 @@ def check_knowledge_base(
     findings: list[Finding] = []
     app_id, profile = context.profile_for(case_text, linked_app)
 
+    # A case built on what a flow lists as not confirmed in the application
+    # (unverified_from_brd) has nothing real to ground on: its script guesses,
+    # and a guess either fails or passes on nothing. That is not a fix the author
+    # can make in the case -- someone has to see the feature work first.
+    if context.use_kb:
+        try:
+            unconfirmed = kb.unconfirmed_features(case_text, app_id)
+        except Exception:  # pragma: no cover - the KB is optional infrastructure
+            logger.debug("Unconfirmed-feature check failed for %s", app_id, exc_info=True)
+            unconfirmed = []
+        for hit in unconfirmed:
+            findings.append(
+                Finding(
+                    code="kb.unconfirmed_feature",
+                    severity=SEVERITY_BLOCKER,
+                    scope="knowledge_base",
+                    message=(
+                        f"Depends on '{hit['feature']}', which the Knowledge Base flow "
+                        f"'{hit['flow_name']}' marks as not confirmed in the application"
+                        + (f" (described only by {hit['source']})" if hit.get("source") else "")
+                        + "."
+                    ),
+                    remedy=(
+                        "Test it manually for now. Once someone has seen it work, add it to the "
+                        "flow's canonical steps with its real selector and classify again."
+                    ),
+                    evidence=hit.get("detail") or None,
+                )
+            )
+
     catalog = context.catalog or []
+    if not catalog and profile and app_id and case is not None:
+        # No crawl: ask the Knowledge Base what the compiler will ask it --
+        # ground_case_structured_steps, flows plus the profile's grounding rules
+        # -- instead of letting the profile's existence pass every step. A step
+        # that acts on a control and comes back with no target will have its
+        # locator guessed from prose. Verify steps are checked by their expected
+        # result, not here.
+        try:
+            grounded = kb.ground_case_structured_steps(case, app_id)
+        except Exception:  # pragma: no cover
+            logger.debug("KB step grounding failed for %s", app_id, exc_info=True)
+            grounded = []
+        own_targets = {step["step_number"]: step["target"] for step in steps}
+        unresolved_numbers = []
+        for index, step in enumerate(grounded):
+            number = step.get("step_number") or (index + 1)
+            action = str(step.get("action") or "")
+            if _CHECK_STEP_RE.match(action) or not grounding.needs_element(
+                {"action": action, "target": step.get("target") or action}
+            ):
+                continue
+            target = step.get("target")
+            # The case's own target counts only when it is a real selector or
+            # route -- the classifier reads prose into `target` when there is none.
+            if not target or (target == own_targets.get(number) and not _looks_like_selector(target)):
+                unresolved_numbers.append(number)
+        if unresolved_numbers:
+            listed = ", ".join(str(n) for n in unresolved_numbers[:6])
+            findings.append(
+                Finding(
+                    code="kb.unresolved_in_profile",
+                    severity=SEVERITY_FIXABLE,
+                    scope="knowledge_base",
+                    message=(
+                        f"{len(unresolved_numbers)} step(s) name a control the Knowledge Base "
+                        f"'{app_id}' does not have (step {listed}), so their locators would be guessed."
+                    ),
+                    remedy=(
+                        "Reword them to the labels the application uses, add the control to the "
+                        "Knowledge Base, or run discovery against the application."
+                    ),
+                )
+            )
+
     summary = grounding.ground_test_case(
         [
             {
@@ -835,7 +927,9 @@ def check_knowledge_base(
         )
 
     status = (
-        STATUS_ATTENTION
+        STATUS_BLOCKED
+        if any(f.severity == SEVERITY_BLOCKER for f in findings)
+        else STATUS_ATTENTION
         if any(f.severity == SEVERITY_FIXABLE for f in findings)
         else STATUS_PASS
     )
@@ -955,7 +1049,7 @@ def assess(case: Any, context: Optional[ClassificationContext] = None) -> dict:
             has_expected_result=bool(_text(getattr(case, "expected_result", None))),
         ),
         "channel": check_channel(steps, case_text),
-        "knowledge_base": check_knowledge_base(steps, case_text, context, _linked_app(case)),
+        "knowledge_base": check_knowledge_base(steps, case_text, context, _linked_app(case), case),
         "test_data": check_test_data(
             steps,
             getattr(case, "test_data", None),

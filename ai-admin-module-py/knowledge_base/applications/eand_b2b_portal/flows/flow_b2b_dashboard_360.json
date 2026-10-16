@@ -20,6 +20,14 @@
     "b2b home"
   ],
   "catalog_entrypoint": "/b2bportal/home.html?locale=en",
+  "prerequisite_flows": [
+    {
+      "flow_id": "flow_b2b_login_otp",
+      "through_step": 4,
+      "test_data": {"2": "default_org_email", "4": "otp"},
+      "_why": "This flow starts signed in. The compiler runs these sign-in steps first when a case does not sign in itself; the Test Data names match the Journey KB role profile (TESTDATA_DEFAULT_ORG_EMAIL, TESTDATA_OTP)."
+    }
+  ],
   "automation_boundary": {
     "automated_scope": "Authenticated landing -> Verify Dashboard 360 header and navigation -> Inspect Accounts donut chart widget -> Explore Quick Access links -> Verify Total Due -> Inspect Orders and Support Tickets widgets -> Inspect Popular Solutions carousel -> Conclude session via Profile Menu -> Sign Out.",
     "external_boundary": "Real-time billing engines and ticketing backends provide read-only feed data."
