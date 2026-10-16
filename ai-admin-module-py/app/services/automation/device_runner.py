@@ -58,6 +58,7 @@ def start(
     db: Session, *, code: str, environment: Optional[str], base_url: Optional[str],
     file_name: Optional[str], test_case_id: Optional[int], slow_mo_ms: Optional[int],
     actor: Optional[str], script_id: Optional[int] = None, mode: str = "rerun",
+    headless: bool = True,
 ) -> Tuple[AutomationRun, str]:
     case = db.get(AutomationTestCase, test_case_id) if test_case_id else None
     data = test_data.for_code(
@@ -75,7 +76,7 @@ def start(
         run_key=new_run_key(), test_case_id=test_case_id, script_id=script_id, framework="playwright",
         environment=data["environment"], status="queued",
         run_config={
-            "headless": True, "slow_mo_ms": int(slow_mo_ms if slow_mo_ms is not None else 1000),
+            "headless": bool(headless), "slow_mo_ms": int(slow_mo_ms if slow_mo_ms is not None else 1000),
             "mode": mode if mode in {"dry_run", "rerun"} else "rerun", "execution_target": "device",
         },
         run_metadata={
@@ -134,7 +135,7 @@ def config(db: Session, run_key: str, token: str) -> dict[str, Any]:
         "environment": run.environment, "env": data_env,
         "package_json": ws.PLAYWRIGHT_PACKAGE_JSON,
         "playwright_config": ws._render_playwright_config(
-            base_url, ".", slow_mo_ms=int(run_cfg.get("slow_mo_ms") or 0), headless=True,
+            base_url, ".", slow_mo_ms=int(run_cfg.get("slow_mo_ms") or 0), headless=bool(run_cfg.get("headless", True)),
         ),
         "progress_reporter": ws.PROGRESS_REPORTER_CJS,
         "progress_file": ws.PROGRESS_FILE_NAME, "output_file": "results.json", "step_total": total,

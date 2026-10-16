@@ -262,6 +262,7 @@ const ScriptLab: React.FC = () => {
   const [framework, setFramework] = useState('playwright')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
+  const [deviceHeaded, setDeviceHeaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<number>>(new Set())
@@ -447,7 +448,7 @@ const ScriptLab: React.FC = () => {
 
   const handleDeviceDryRun = (script: ScriptAsset) =>
     runAction('device-dry-run', async () => {
-      const res = await automationService.createDeviceDryRun(script.id)
+      const res = await automationService.createDeviceDryRun(script.id, !deviceHeaded)
       try {
         await startDeviceRunner(res.pairing)
       } catch (err) {
@@ -891,12 +892,17 @@ const ScriptLab: React.FC = () => {
                       type="button"
                       onClick={() => handleDeviceDryRun(openScript)}
                       disabled={busy !== null || !canExecute || !runnable || openScript.dry_run_status === 'running' || openScript.dry_run_status === 'queued'}
-                      title={!runnable ? `${activeFramework?.label} is generate-only — no runner exists for it.` : 'Run headlessly with Playwright installed on this device; the Linux server only coordinates the run'}
+                      title={!runnable ? `${activeFramework?.label} is generate-only — no runner exists for it.` : `Run ${deviceHeaded ? 'with a visible browser' : 'headlessly'} using Playwright installed on this device; the Linux server only coordinates the run`}
                       className="flex h-10 items-center gap-2 whitespace-nowrap rounded-[12px] border border-[#B71920] bg-white px-4 text-[14px] font-bold text-[#B71920] transition hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><rect x="4" y="3" width="16" height="13" rx="2" /><path d="M8 21h8M12 16v5" /></svg>
                       {busy === 'device-dry-run' ? 'Connecting…' : 'Run on device'}
                     </button>
+                    <select aria-label="Run on device browser mode" value={deviceHeaded ? 'headed' : 'headless'} onChange={event => setDeviceHeaded(event.target.value === 'headed')}
+                      disabled={busy !== null} className="h-10 rounded-[12px] border border-[#E8EAEE] bg-white px-2.5 text-[13px] font-semibold text-[#374151] disabled:opacity-50">
+                      <option value="headless">Headless</option>
+                      <option value="headed">Headed</option>
+                    </select>
                   </>
                 )}
                 <button

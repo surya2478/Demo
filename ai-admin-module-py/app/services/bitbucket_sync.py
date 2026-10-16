@@ -64,8 +64,10 @@ def _resolve_config_path() -> Path:
         return explicit
 
     candidates = (
-        CONFIG_PATH,
+        # Normal source and Docker-image layout: the file ships beside the
+        # application package as app/bitbucket_config.json.
         PACKAGE_CONFIG_PATH,
+        CONFIG_PATH,
         Path.cwd() / "bitbucket_config.json",
         Path.cwd() / "app" / "bitbucket_config.json",
     )

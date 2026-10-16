@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import knowledgeBaseService, {
-  errorText, type BrowserTabPreview, type CaptureInfo, type CrawlOutcome, type CrawlPlan, type CrawlPlanItem, type CrawlStep, type InventoryPage, type JourneyCrawl, type WalkCapabilities, type WalkFlow, type WalkLive
+  errorText, type BrowserTabPreview, type CaptureInfo, type CoverageProfile, type CrawlOutcome, type CrawlPlan, type CrawlPlanItem, type CrawlStep, type InventoryPage, type JourneyCrawl, type WalkCapabilities, type WalkFlow, type WalkLive
 } from '../../services/knowledgeBaseService'
 import automationService from '../../services/automationService'
 import { startDeviceRunner } from '../../services/localRunner'
-import { COLLECTOR_VERSION, resumeInstalledCollector, startInstalledCollector } from '../../services/browserCollector'
+import { COLLECTOR_VERSION, installedCollectorVersion, resumeInstalledCollector, startInstalledCollector, stopInstalledCollector } from '../../services/browserCollector'
 import { Card, CardHead, Chip, Failed, Loading, Note, TONE, useLoad } from './kbUi'
 import { RecordingLive, RecordingReview } from './JourneyRecording'
 import { useAuthedImage } from './walkImage'
@@ -20,7 +20,7 @@ const OUTCOME: Record<CrawlOutcome, { label: string; tone: keyof typeof TONE; hi
   not_reached: { label: 'Not reached', tone: 'idle', hint: 'The walk never got to it' }
 }
 const ORDER: CrawlOutcome[] = ['kb_failed', 'healed', 'new', 'confirmed', 'not_found', 'not_applicable', 'not_reached']
-const KIND: Record<string, string> = { goto: 'Open', screen: 'Screen', fill: 'Fill', otp: 'Enter OTP', click: 'Click', capture: 'Look for', skip: 'Skip' }
+const KIND: Record<string, string> = { goto: 'Open', screen: 'Screen', fill: 'Fill', otp: 'Enter OTP', click: 'Click', dblclick: 'Double-click', hover: 'Hover', focus: 'Focus', check: 'Check', uncheck: 'Uncheck', press: 'Press key', select: 'Select', capture: 'Look for', skip: 'Skip' }
 const STATUS_TONE: Record<JourneyCrawl['status'], keyof typeof TONE> = { queued: 'idle', running: 'info', completed: 'good', failed: 'bad' }
 const STEP_STATUS: Record<CrawlStep['status'], { label: string; tone: keyof typeof TONE }> = {
   done: { label: 'Done', tone: 'good' },
@@ -33,6 +33,13 @@ const STEP_STATUS: Record<CrawlStep['status'], { label: string; tone: keyof type
   blocked: { label: 'Blocked', tone: 'idle' },
   off_path: { label: 'Off the path', tone: 'bad' },
   auto: { label: 'Moved on by itself', tone: 'good' }
+}
+
+/** Plan text is normally already a complete instruction such as "Click Login". */
+const actionText = (kind: string | undefined, text: string | undefined) => {
+  const value = (text ?? '').trim()
+  if (value) return value
+  return KIND[kind ?? ''] ?? kind ?? 'Step'
 }
 
 /** A step is shown with the journey's own number; setup steps (another journey run first) as "setup". */
@@ -60,7 +67,8 @@ const LivePanel: React.FC<{ crawl: JourneyCrawl; plan: CrawlPlan | null; onFinis
     const t = window.setInterval(tick, 1200)
     return () => { alive = false; window.clearInterval(t) }
   }, [crawl.id, onFinished])
-  const frame = useAuthedImage(live?.frame_at ? () => knowledgeBaseService.crawlImage(crawl.id, 'live.png') : null, live?.frame_at ? String(live.frame_at) : null)
+  const deviceOwned = crawl.execution_target === 'local'
+  const frame = useAuthedImage(!deviceOwned && live?.frame_at ? () => knowledgeBaseService.crawlImage(crawl.id, 'live.png') : null, !deviceOwned && live?.frame_at ? String(live.frame_at) : null)
   const done = new Map((live?.steps ?? []).map(s => [s.order, s]))
   const items = plan?.items ?? []
   const browserOwned = crawl.source === 'browser'
@@ -71,7 +79,10 @@ const LivePanel: React.FC<{ crawl: JourneyCrawl; plan: CrawlPlan | null; onFinis
   const stop = async () => {
     setStopping(true)
     try {
-      if (crawl.source === 'browser') await knowledgeBaseService.cancelBrowserCrawl(crawl.id)
+      if (crawl.source === 'browser') {
+        await stopInstalledCollector(crawl.id).catch(() => false)
+        await knowledgeBaseService.cancelBrowserCrawl(crawl.id).catch(() => undefined)
+      }
       else if (crawl.execution_target === 'local') await knowledgeBaseService.cancelLocalCrawl(crawl.id)
       else if (crawl.run_key) await automationService.cancelRun(crawl.run_key)
       onFinished()
@@ -90,7 +101,7 @@ const LivePanel: React.FC<{ crawl: JourneyCrawl; plan: CrawlPlan | null; onFinis
         <div className="flex items-center justify-between gap-2 text-[12px] text-[#6B7280]">
           <span>
             <span className="mr-1.5 inline-block h-2 w-2 animate-pulse rounded-full bg-[#B71920] align-middle" aria-hidden />
-            Live · {crawl.environment} · {live?.current ? `${beforeLabel(items[live.current.order - 1], live.current.order).replace('a setup step', 'setup')}: ${live.current.text}` : live?.phase ?? 'starting the browser…'}
+            {deviceOwned ? 'Running on this device' : 'Live'} · {crawl.environment} · {live?.current ? `${beforeLabel(items[live.current.order - 1], live.current.order).replace('a setup step', 'setup')}: ${live.current.text}` : live?.phase ?? 'starting the browser…'}
           </span>
           {canStop && (
             <button type="button" onClick={() => void stop()} disabled={stopping} className={PLAIN}>{stopping ? 'Stopping…' : 'Stop'}</button>
@@ -104,7 +115,7 @@ const LivePanel: React.FC<{ crawl: JourneyCrawl; plan: CrawlPlan | null; onFinis
               <CollectorMilestone label="Capture" state={pagesReceived > 0 ? 'done' : collectorConnected ? 'active' : 'waiting'} detail={`${pagesReceived} page${pagesReceived === 1 ? '' : 's'}`} />
               <CollectorMilestone label="Journey" state={pending === 0 ? 'done' : pagesReceived > 0 ? 'active' : 'waiting'} detail={`${confirmed} confirmed · ${pending} pending`} />
             </div>
-            <BrowserTabView preview={live?.preview ?? null} message={collectorConnected ? 'Waiting for the first captured screen…' : 'Waiting for the browser extension to connect…'} />
+            <BrowserTabView crawlId={crawl.id} preview={live?.preview ?? null} statusLabel={live?.finished ? 'Captured' : 'Live capture'} message={collectorConnected ? 'Waiting for the first captured screen…' : 'Waiting for the browser extension to connect…'} />
             {live?.current && (
               <div className="flex flex-wrap items-center gap-3 rounded-[10px] border border-[#E7D29B] bg-[#FFFBEB] px-3 py-2">
                 <span className="min-w-0 flex-1 text-[11.5px] text-[#6B4A16]">
@@ -120,6 +131,13 @@ const LivePanel: React.FC<{ crawl: JourneyCrawl; plan: CrawlPlan | null; onFinis
               <p className="m-0 font-semibold text-[#374151]">{live?.phase ?? 'Preparing the browser collector…'}</p>
               {live?.current_url && <code className="mt-1 block truncate text-[11px] text-[#6B7280]" title={live.current_url}>{live.current_url}</code>}
             </div>
+          </div>
+        ) : deviceOwned ? (
+          <div className="flex min-h-[180px] flex-col items-center justify-center rounded-[12px] border border-[#D7E1F5] bg-[#F5F8FF] px-6 text-center">
+            <strong className="text-[14px] text-[#1F3B70]">The browser is running locally on this device</strong>
+            <p className="mb-0 mt-2 max-w-[560px] text-[12.5px] leading-5 text-[#52627A]">
+              Studio receives step progress and final evidence, but it does not stream the local browser screen. Screenshots and other available evidence appear after the device runner finishes.
+            </p>
           </div>
         ) : (
           <div className="flex aspect-[16/9] items-center justify-center overflow-hidden rounded-[12px] border border-[#E8EAEE] bg-[#F4F5F7]">
@@ -137,10 +155,10 @@ const LivePanel: React.FC<{ crawl: JourneyCrawl; plan: CrawlPlan | null; onFinis
             <li key={order} className={`flex items-start gap-2 border-b border-[#F1F2F4] px-3 py-2 text-[12px] ${now ? 'bg-[#FFF5F5]' : ''}`}>
               <span className={`flex-shrink-0 text-right font-semibold text-[#6B7280] ${item.setup ? 'w-10 text-[10.5px] uppercase' : 'w-5'}`}>{stepNo(item, order)}</span>
               <span className={`min-w-0 flex-1 ${item.kind === 'skip' || item.setup ? 'text-[#9CA3AF]' : ''}`}>
-                <span className="font-semibold text-[#6B7280]">{KIND[item.kind] ?? item.kind}</span> {item.text}
+                {actionText(item.kind, item.text)}
                 {step?.error && <span className="block text-[11.5px] text-[#A3231C]">{step.error}</span>}
               </span>
-              {now ? <Chip tone="info">{browserOwned ? (live?.collector_state === 'waiting' ? 'Waiting for page' : 'Running now') : 'Running'}</Chip> : status ? <Chip tone={status.tone}>{status.label}</Chip> : <Chip tone="idle">Pending</Chip>}
+              {now ? <Chip tone="info">{browserOwned ? (live?.collector_state === 'waiting' ? 'Waiting for page' : 'Running now') : deviceOwned ? 'Running locally' : 'Running'}</Chip> : status ? <Chip tone={status.tone}>{status.label}</Chip> : <Chip tone="idle">Pending</Chip>}
             </li>
           )
         })}
@@ -156,8 +174,12 @@ const CollectorMilestone: React.FC<{ label: string; state: 'waiting' | 'active' 
   </div>
 )
 
-const BrowserTabView: React.FC<{ preview: BrowserTabPreview | null; message?: string }> = ({ preview, message }) => {
-  const [mode, setMode] = useState<'page' | 'map'>('page')
+const BrowserTabView: React.FC<{ crawlId: number; preview: BrowserTabPreview | null; message?: string; statusLabel?: string }> = ({ crawlId, preview, message, statusLabel = 'Captured' }) => {
+  // Both views come from the same collector event: the screenshot is the
+  // actual browser pixels and the map is its value-free locator annotation.
+  const [mode, setMode] = useState<'page' | 'map'>('map')
+  const screenshot = useAuthedImage(preview?.screenshot ? () => knowledgeBaseService.crawlImage(crawlId, preview.screenshot as string) : null, preview?.screenshot ? `${crawlId}:${preview.screenshot}` : null)
+  useEffect(() => { setMode(preview?.screenshot ? 'page' : 'map') }, [preview?.screenshot, preview?.page_id])
   const width = Math.max(1, preview?.viewport.width ?? 1366)
   const height = Math.max(1, preview?.viewport.height ?? 768)
   return (
@@ -165,17 +187,16 @@ const BrowserTabView: React.FC<{ preview: BrowserTabPreview | null; message?: st
       <div className="flex h-9 items-center gap-2 border-b border-[#E8EAEE] bg-[#F4F5F7] px-3">
         <span className="h-2.5 w-2.5 rounded-full bg-[#F3A9AC]" /><span className="h-2.5 w-2.5 rounded-full bg-[#F0D18A]" /><span className="h-2.5 w-2.5 rounded-full bg-[#9BD2AF]" />
         <span className="ml-2 min-w-0 flex-1 truncate rounded-md bg-white px-2 py-1 text-[10.5px] text-[#6B7280]">{preview?.url ?? 'Browser tab'}</span>
-        {preview?.url && <button type="button" onClick={() => setMode(value => value === 'page' ? 'map' : 'page')} className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#B71920]">{mode === 'page' ? 'Show annotations' : 'Show page'}</button>}
-        <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#1F7A4D]">Live</span>
+        {preview?.screenshot && <button type="button" onClick={() => setMode(value => value === 'page' ? 'map' : 'page')} className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#B71920]">{mode === 'page' ? 'Show annotations' : 'Show screen'}</button>}
+        <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#1F7A4D]">{statusLabel}</span>
       </div>
       <div className="relative aspect-[16/9] max-h-[360px] overflow-hidden bg-[#FCFCFD]">
         {!preview ? (
           <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-[12.5px] text-[#6B7280]">{message ?? 'Waiting for a captured screen…'}</div>
-        ) : mode === 'page' && preview.url ? (
+        ) : mode === 'page' && screenshot ? (
           <>
-            <iframe src={preview.url} title={`Read-only captured browser page: ${preview.title || preview.name || ''}`} sandbox="allow-scripts allow-same-origin" referrerPolicy="no-referrer"
-              tabIndex={-1} className="pointer-events-none h-full w-full border-0 bg-white" />
-            <span className="pointer-events-none absolute bottom-2 right-2 rounded-md bg-[#111827]/80 px-2 py-1 text-[9.5px] font-bold uppercase tracking-[0.08em] text-white">Preview only</span>
+            <img src={screenshot} alt={`Captured browser screen: ${preview.title || preview.name || ''}`} className="h-full w-full object-contain bg-white" />
+            <span className="pointer-events-none absolute bottom-2 right-2 rounded-md bg-[#111827]/80 px-2 py-1 text-[9.5px] font-bold uppercase tracking-[0.08em] text-white">Captured screen</span>
           </>
         ) : (
           <>
@@ -194,31 +215,108 @@ const BrowserTabView: React.FC<{ preview: BrowserTabPreview | null; message?: st
           </>
         )}
       </div>
-      <div className="border-t border-[#E8EAEE] bg-[#FCFCFD] px-3 py-1.5 text-[10.5px] text-[#6B7280]">{mode === 'page' ? 'Read-only preview — the browser collector performs the login and navigation' : 'Locator annotations · typed values and passwords are never included'}</div>
+      <div className="border-t border-[#E8EAEE] bg-[#FCFCFD] px-3 py-1.5 text-[10.5px] text-[#6B7280]">{mode === 'page' ? 'Captured from this exact collector step · entered values are masked' : 'Locator annotations from the same captured step · typed values and passwords are never included'}</div>
     </div>
   )
 }
 
-const FailedBrowserPreview: React.FC<{ crawl: JourneyCrawl }> = ({ crawl }) => {
+const FailedBrowserPreview: React.FC<{
+  crawl: JourneyCrawl
+  plan: CrawlPlan | null
+  busy: boolean
+  onRecapture: (step: number) => Promise<void>
+}> = ({ crawl, plan, busy, onRecapture }) => {
   const [live, setLive] = useState<WalkLive | null>(null)
   useEffect(() => { void knowledgeBaseService.crawlLive(crawl.id).then(setLive).catch(() => undefined) }, [crawl.id])
+  const steps = new Map((live?.steps ?? []).map(step => [step.order, step]))
+  const items = plan?.items ?? []
+  const failedOrder = (live?.steps ?? []).find(step => step.status === 'error')?.order
+    ?? (live?.action_index != null ? Number(live.action_index) + 1 : null)
   return (
-    <div className="grid gap-3 px-5 pb-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(260px,1fr)]">
-      <BrowserTabView preview={live?.preview ?? null} message="No screen was captured before the collector stopped." />
+    <div className="flex flex-col gap-3 px-5 pb-5">
       <div className="rounded-[12px] border border-[#F1C7C9] bg-[#FFF7F7] p-3 text-[12px] text-[#7A0B0D]">
         <strong className="block">Collector failed on the screen shown</strong>
         <p className="mb-0 mt-1">{crawl.error || live?.phase || 'The collector stopped.'}</p>
         {live?.current_url && <code className="mt-2 block break-all text-[10.5px] text-[#6B7280]">{live.current_url}</code>}
       </div>
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.45fr)_minmax(360px,1fr)]">
+        <BrowserTabView crawlId={crawl.id} preview={live?.preview ?? null} statusLabel="Failure screen" message="No screen was captured before the collector stopped." />
+        <ol className="m-0 flex max-h-[430px] list-none flex-col overflow-auto rounded-[12px] border border-[#E8EAEE] p-0">
+          {items.length === 0 && <li className="px-3 py-4 text-[12px] text-[#6B7280]">No journey steps were received before the collector stopped.</li>}
+          {items.map((item, index) => {
+            const order = index + 1
+            const step = steps.get(order)
+            const isFailed = step?.status === 'error' || (!step && failedOrder === order)
+            const status = isFailed ? STEP_STATUS.error : step ? STEP_STATUS[step.status] : null
+            return (
+              <li key={order} className={`flex items-start gap-2 border-b border-[#F1F2F4] px-3 py-2 text-[12px] ${isFailed ? 'bg-[#FFF7F7]' : ''}`}>
+                <span className={`flex-shrink-0 text-right font-semibold text-[#6B7280] ${item.setup ? 'w-10 text-[10.5px] uppercase' : 'w-5'}`}>{stepNo(item, order)}</span>
+                <span className="min-w-0 flex-1">
+                  {actionText(item.kind, item.text)}
+                  {isFailed && <span className="block text-[11px] text-[#A3231C]">{step?.error || crawl.error}</span>}
+                  {isFailed && (
+                    <button type="button" onClick={() => void onRecapture(order)} disabled={busy}
+                      className="mt-1.5 rounded-full border border-[#B71920] bg-white px-2.5 py-0.5 text-[11.5px] font-semibold text-[#B71920] hover:bg-[#FFF5F5] disabled:opacity-50">
+                      {busy ? 'Opening…' : 'Recapture & select'}
+                    </button>
+                  )}
+                </span>
+                {status ? <Chip tone={status.tone}>{status.label}</Chip> : <Chip tone="idle">Not run</Chip>}
+              </li>
+            )
+          })}
+        </ol>
+      </div>
+    </div>
+  )
+}
+
+const FailedDeviceRun: React.FC<{ crawl: JourneyCrawl; plan: CrawlPlan | null }> = ({ crawl, plan }) => {
+  const [live, setLive] = useState<WalkLive | null>(null)
+  useEffect(() => { void knowledgeBaseService.crawlLive(crawl.id).then(setLive).catch(() => undefined) }, [crawl.id])
+  const steps = new Map((live?.steps ?? []).map(step => [step.order, step]))
+  const items = plan?.items ?? []
+  return (
+    <div className="grid gap-3 px-5 pb-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,1fr)]">
+      <div className="rounded-[12px] border border-[#F1C7C9] bg-[#FFF7F7] p-4 text-[12.5px] text-[#7A0B0D]">
+        <strong className="block text-[14px]">The device run stopped</strong>
+        <p className="mb-0 mt-1">{crawl.error || live?.phase || 'The local runner did not complete the journey.'}</p>
+        <p className="mb-0 mt-3 text-[#6B4A4C]">A live browser recording is not expected for device execution. Completed step progress is kept here so the failed step remains visible.</p>
+      </div>
+      <ol className="m-0 flex max-h-[360px] list-none flex-col overflow-auto rounded-[12px] border border-[#E8EAEE] p-0">
+        {items.length === 0 && <li className="px-3 py-4 text-[12px] text-[#6B7280]">No journey steps were received before the device run stopped.</li>}
+        {items.map((item, index) => {
+          const order = index + 1
+          const step = steps.get(order)
+          const status = step ? STEP_STATUS[step.status] : null
+          return (
+            <li key={order} className="flex items-start gap-2 border-b border-[#F1F2F4] px-3 py-2 text-[12px]">
+              <span className={`flex-shrink-0 text-right font-semibold text-[#6B7280] ${item.setup ? 'w-10 text-[10.5px] uppercase' : 'w-5'}`}>{stepNo(item, order)}</span>
+              <span className="min-w-0 flex-1">{actionText(item.kind, item.text)}{step?.error && <span className="block text-[11px] text-[#A3231C]">{step.error}</span>}</span>
+              {status ? <Chip tone={status.tone}>{status.label}</Chip> : <Chip tone="idle">Not run</Chip>}
+            </li>
+          )
+        })}
+      </ol>
     </div>
   )
 }
 
 const BrowserResultSummary: React.FC<{
-  capture: CaptureInfo; steps: CrawlStep[]; items: CrawlPlanItem[]; continuing: boolean; onContinue: () => Promise<void>
-}> = ({ capture, steps, items, continuing, onContinue }) => {
-  const [selected, setSelected] = useState(0)
+  crawlId: number
+  capture: CaptureInfo
+  steps: CrawlStep[]
+  items: CrawlPlanItem[]
+  continuing: boolean
+  recapturing: boolean
+  recaptureStep: number | null
+  onContinue: () => Promise<void>
+  onRecapture: (step: number) => Promise<void>
+}> = ({ crawlId, capture, steps, items, continuing, recapturing, recaptureStep, onContinue, onRecapture }) => {
+  const [selected, setSelected] = useState(() => Math.max(0, capture.pages.length - 1))
+  useEffect(() => { setSelected(Math.max(0, capture.pages.length - 1)) }, [capture.pages.length])
   const confirmed = steps.filter(step => ['done', 'auto'].includes(step.status)).length
+  const inherited = steps.filter(step => Boolean(step.inherited_from_crawl_id)).length
   const unresolved = steps.filter(step => ['not_found', 'not_reached', 'blocked', 'off_path', 'error'].includes(step.status)).length
   const page = capture.pages[selected] ?? capture.pages[0]
   const next = steps.find(step => ['not_reached', 'blocked', 'off_path'].includes(step.status))
@@ -230,9 +328,10 @@ const BrowserResultSummary: React.FC<{
           <strong className={unresolved ? 'text-[#9E1C22]' : 'text-[#17653F]'}>{unresolved ? 'Crawl finished — journey incomplete' : 'Crawl finished — every journey step confirmed'}</strong>
           <Chip tone={unresolved ? 'bad' : 'good'}>{confirmed} confirmed</Chip>
           {unresolved > 0 && <Chip tone="bad">{unresolved} unresolved</Chip>}
+          {inherited > 0 && <Chip tone="info">{inherited} retained from previous crawl</Chip>}
           <Chip tone="idle">{capture.pages.length} screen{capture.pages.length === 1 ? '' : 's'} captured</Chip>
         </div>
-        <p className="mb-0 mt-1 text-[11.5px] text-[#4B5563]">Nothing is still running. “Finished” means the collector stopped; unresolved steps below were not confirmed. Screens after login appear here only when the same browser profile is already signed in and the crawler can reach them through safe links.</p>
+        <p className="mb-0 mt-1 text-[11.5px] text-[#4B5563]">Nothing is still running. “Finished” means the collector stopped; unresolved steps below were not confirmed. During recapture, previously confirmed steps after the selected step are retained and clearly marked because that shortened replay does not run them again.</p>
       </div>
       {next && (
         <div className="flex flex-wrap items-center gap-3 rounded-[12px] border border-[#E7D29B] bg-[#FFFBEB] p-3">
@@ -255,20 +354,29 @@ const BrowserResultSummary: React.FC<{
                 </button>
               ))}
             </div>
-            <BrowserTabView preview={page?.preview ?? null} message="This crawl was made with an older extension, so no visual tab preview was saved." />
+            <BrowserTabView crawlId={crawlId} preview={page?.preview ?? null} statusLabel="Saved capture" message="This crawl was made with an older extension, so no visual tab preview was saved." />
           </div>
           <ol className="m-0 flex max-h-[430px] list-none flex-col overflow-auto rounded-[12px] border border-[#E8EAEE] p-0" aria-label="Journey step status">
             {steps.map(step => {
               const item = items[step.order - 1]
               const status = STEP_STATUS[step.status]
+              const retained = step.inherited_from_crawl_id
+              const canRecapture = ['not_found', 'not_reached', 'blocked', 'off_path', 'error'].includes(step.status)
               return (
                 <li key={step.order} className={`flex items-start gap-2 border-b border-[#F1F2F4] px-3 py-2 text-[12px] ${['not_reached', 'blocked', 'off_path'].includes(step.status) ? 'bg-[#FFFBEB]' : ''}`}>
                   <span className={`flex-shrink-0 text-right font-semibold text-[#6B7280] ${item?.setup ? 'w-10 text-[10.5px] uppercase' : 'w-5'}`}>{stepNo(item, step.order)}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="font-semibold text-[#6B7280]">{KIND[step.kind] ?? step.kind}</span> {item?.text || step.reason || ''}
+                    {actionText(step.kind, item?.text || step.reason)}
                     {(step.error || step.reason) && <span className="block text-[10.5px] text-[#8A5000]">{step.error ?? step.reason}</span>}
+                    {retained && <span className="block text-[10.5px] text-[#4B5563]">Confirmed earlier in crawl #{retained}; not rerun in this recapture.</span>}
+                    {canRecapture && (
+                      <button type="button" onClick={() => void onRecapture(step.order)} disabled={recapturing}
+                        className="mt-1.5 rounded-full border border-[#B71920] bg-white px-2.5 py-0.5 text-[11px] font-semibold text-[#B71920] hover:bg-[#FFF5F5] disabled:opacity-50">
+                        {recapturing && recaptureStep === step.order ? 'Opening recapture…' : 'Recapture & select'}
+                      </button>
+                    )}
                   </span>
-                  <Chip tone={status.tone}>{status.label}</Chip>
+                  <Chip tone={retained ? 'good' : status.tone}>{retained ? 'Done previously' : status.label}</Chip>
                 </li>
               )
             })}
@@ -291,7 +399,7 @@ const StepRow: React.FC<{ crawlId: number; step: CrawlStep; item?: CrawlPlanItem
       <div className="flex items-start gap-3">
         <span className={`flex-shrink-0 text-right font-semibold text-[#6B7280] ${item?.setup ? 'w-10 text-[10.5px] uppercase' : 'w-6'}`}>{item ? stepNo(item, step.order) : step.step_number}</span>
         <span className={`min-w-0 flex-1 ${item?.setup ? 'text-[#6B7280]' : ''}`}>
-          <span className="font-semibold text-[#6B7280]">{KIND[step.kind] ?? step.kind}</span> {text}
+          {actionText(step.kind, text)}
           {(step.error || step.reason) && (
             <span className={`block text-[11.5px] ${step.error || step.status === 'off_path' || step.status === 'not_reached' ? 'text-[#A3231C]' : 'text-[#6B7280]'}`}>{step.error ?? step.reason}</span>
           )}
@@ -524,38 +632,85 @@ const BrowserCollectorSetup: React.FC<{
   appKey: string
   journeyId: string
   application: { id: number; environment: string; base_url: string }
+  profileId: string
+  profiles: CoverageProfile[]
+  profileWarnings: string[]
+  onProfileChange: (profileId: string) => void
   canExecute: boolean
   active: boolean
   onStarted: (id: number) => void
-}> = ({ appKey, journeyId, application, canExecute, active, onStarted }) => {
+}> = ({ appKey, journeyId, application, profileId, profiles, profileWarnings, onProfileChange, canExecute, active, onStarted }) => {
   const [pairing, setPairing] = useState<string | null>(null)
+  const [pendingCrawlId, setPendingCrawlId] = useState<number | null>(null)
   const [expires, setExpires] = useState<number | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [waitSeconds, setWaitSeconds] = useState(20)
   const [retryCount, setRetryCount] = useState(2)
+  useEffect(() => {
+    if (!pairing || pendingCrawlId == null) return
+    let stopped = false
+    const checkConnection = async () => {
+      try {
+        const live = await knowledgeBaseService.crawlLive(pendingCrawlId)
+        if (!stopped && live.connected_at) {
+          setPairing(null)
+          setExpires(null)
+          setPendingCrawlId(null)
+          setError(null)
+          setMessage('Collector connected. This browser is paired, and future crawls can start automatically.')
+        }
+      } catch { /* the ordinary crawl panel reports server errors */ }
+    }
+    void checkConnection()
+    const timer = window.setInterval(() => void checkConnection(), 1250)
+    return () => { stopped = true; window.clearInterval(timer) }
+  }, [pairing, pendingCrawlId])
   const create = async () => {
     setBusy('create'); setError(null); setMessage(null)
     try {
       const made = await knowledgeBaseService.startBrowserCrawl(appKey, {
-        journey_id: journeyId, application_id: application.id, environment: application.environment, max_pages: 20,
+        journey_id: journeyId, application_id: application.id, profile_id: profileId || null,
+        environment: application.environment, max_pages: 20,
         wait_seconds: waitSeconds, retry_count: retryCount
       })
-      setExpires(made.expires_in_minutes); onStarted(made.crawl.id)
+      setExpires(made.expires_in_minutes); setPendingCrawlId(made.crawl.id); onStarted(made.crawl.id)
       if (await startInstalledCollector(made.pairing)) {
         setPairing(null)
+        setPendingCrawlId(null)
         setMessage('The installed browser collector started automatically. You can follow progress below.')
       } else {
         setPairing(made.pairing)
-        setMessage('Install and pair once. After that, this button starts future crawls automatically.')
+        setMessage('Waiting for the collector. Paste this one-time code into the extension; it disappears here as soon as the collector connects.')
       }
     } catch (err) { setError(errorText(err)) } finally { setBusy(null) }
   }
   const copy = async () => {
     if (!pairing) return
-    try { await navigator.clipboard.writeText(pairing); setMessage('Pairing code copied.') }
+    try { await navigator.clipboard.writeText(pairing); setError(null); setMessage('Pairing code copied.') }
     catch { setError('The browser blocked clipboard access. Select and copy the code below.') }
+  }
+  const autoPair = async () => {
+    if (!pairing) return
+    setBusy('pair'); setError(null); setMessage('Connecting to the installed collector…')
+    try {
+      if (await startInstalledCollector(pairing)) {
+        setPairing(null)
+        setExpires(null)
+        setPendingCrawlId(null)
+        setMessage('Collector paired and the browser crawl started. You can follow progress below.')
+        return
+      }
+      const installedVersion = await installedCollectorVersion()
+      if (!installedVersion) {
+        setError(`Collector not detected in this page. Reload collector ${COLLECTOR_VERSION}, then refresh this Automation Studio tab once and select Auto pair again.`)
+      } else if (installedVersion !== COLLECTOR_VERSION) {
+        setError(`Collector ${installedVersion} is installed, but this page requires ${COLLECTOR_VERSION}. Download and reload the collector, then try again.`)
+      } else {
+        setError('The collector was detected but could not accept this pairing code. Reload the extension and select Auto pair again, or use Copy code.')
+      }
+    } catch (err) { setError(errorText(err)) } finally { setBusy(null) }
   }
   const download = async (engine: 'chromium' | 'firefox' | 'safari') => {
     setBusy(engine); setError(null)
@@ -563,7 +718,7 @@ const BrowserCollectorSetup: React.FC<{
       const url = await knowledgeBaseService.downloadBrowserCollector(engine)
       const a = document.createElement('a'); a.href = url; a.download = `automation-studio-collector-${engine}.zip`; a.click()
       window.setTimeout(() => URL.revokeObjectURL(url), 10000)
-      setMessage(engine === 'firefox' ? 'Firefox package downloaded.' : engine === 'safari' ? 'Safari WebExtension source downloaded; package it with Xcode on a Mac.' : 'Chromium package downloaded for Edge, Chrome, Brave, Opera and compatible browsers.')
+      setMessage(engine === 'firefox' ? 'Firefox package downloaded. Reload the extension, then refresh this Studio tab once.' : engine === 'safari' ? 'Safari WebExtension source downloaded; package it with Xcode on a Mac.' : 'Chromium package downloaded and bound to this Studio address. Reload the extension, then refresh this Studio tab once.')
     } catch (err) { setError(errorText(err)) } finally { setBusy(null) }
   }
   return (
@@ -581,6 +736,16 @@ const BrowserCollectorSetup: React.FC<{
       <div className="flex flex-col gap-2">
         <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#6B7280]">2 · Start safe crawl</span>
         <p className="m-0">After the one-time installation and pairing, this starts the collector automatically. It follows same-site links only and captures locators that match exactly one element.</p>
+        <label className={LABEL}>Test data
+          <select aria-label="Browser crawl test data profile" value={profileId} onChange={e => onProfileChange(e.target.value)} className={`${SELECT} max-w-[320px]`}>
+            {profiles.map(profile => {
+              const missing = profile.cells[application.environment]?.missing?.length ?? 0
+              return <option key={profile.profile_id} value={profile.profile_id}>{profile.name}{missing ? ` · ${missing} value${missing === 1 ? '' : 's'} missing` : ''}</option>
+            })}
+            {!profiles.length && profileId && <option value={profileId}>{profileId}</option>}
+          </select>
+        </label>
+        {profileWarnings.map(warning => <Note key={warning} tone="warn">{warning}</Note>)}
         <div className="flex flex-wrap gap-3">
           <label className={LABEL}>Wait for each screen
             <select value={waitSeconds} onChange={e => setWaitSeconds(Number(e.target.value))} className={SELECT}>
@@ -602,8 +767,11 @@ const BrowserCollectorSetup: React.FC<{
           <>
             <textarea readOnly value={pairing} aria-label="Browser collector pairing code" rows={3}
               className="w-full resize-none rounded-[9px] border border-[#E8EAEE] p-2 font-mono text-[10.5px]" />
-            <div className="flex items-center gap-2">
-              <button type="button" className={PLAIN} onClick={() => void copy()}>Copy code</button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" className={PLAIN} disabled={busy !== null} onClick={() => void autoPair()}>
+                {busy === 'pair' ? 'Pairing…' : 'Auto pair'}
+              </button>
+              <button type="button" className={PLAIN} disabled={busy !== null} onClick={() => void copy()}>Copy code</button>
               <span className="text-[11.5px] text-[#6B7280]">Expires in {expires} minutes and works for this crawl only.</span>
             </div>
           </>
@@ -615,13 +783,282 @@ const BrowserCollectorSetup: React.FC<{
   )
 }
 
+type BulkCrawlStatus = 'queued' | 'starting' | 'waiting_pairing' | 'running' | 'completed' | 'failed'
+type BulkCrawlItem = {
+  journeyId: string
+  title: string
+  profileId: string
+  status: BulkCrawlStatus
+  crawlId?: number
+  error?: string
+  pollFailures?: number
+  kbStatus?: 'creating' | 'created' | 'failed'
+}
+type BulkCrawlQueue = { active: boolean; items: BulkCrawlItem[] }
+
+const BulkBrowserCrawlSetup: React.FC<{
+  appKey: string
+  application: { id: number; environment: string }
+  journeys: { id: string; title: string }[]
+  profiles: CoverageProfile[]
+  canExecute: boolean
+  canApprove: boolean
+  anotherRunActive: boolean
+  onSelectRun: (id: number) => void
+  onRunsChanged: () => void
+  onAutomationReady: () => void
+  onProposed: () => void
+}> = ({ appKey, application, journeys, profiles, canExecute, canApprove, anotherRunActive, onSelectRun, onRunsChanged, onAutomationReady, onProposed }) => {
+  const storageKey = `automation-studio:bulk-browser:${appKey}:${application.environment}`
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [profileByJourney, setProfileByJourney] = useState<Record<string, string>>({})
+  const [queue, setQueue] = useState<BulkCrawlQueue>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) || 'null') as BulkCrawlQueue | null
+      return saved?.items ? { ...saved, items: saved.items.map(item => item.status === 'starting' && !item.crawlId ? { ...item, status: 'queued' } : item) } : { active: false, items: [] }
+    } catch { return { active: false, items: [] } }
+  })
+  const [error, setError] = useState<string | null>(null)
+  const [collectorVersion, setCollectorVersion] = useState<string | null>(null)
+  const [downloadBusy, setDownloadBusy] = useState<string | null>(null)
+  const [manualPairing, setManualPairing] = useState<{ crawlId: number; journeyId: string; code: string; expires: number } | null>(null)
+  const [kbSelected, setKbSelected] = useState<Set<number>>(new Set())
+  const queueRef = useRef(queue)
+  const workerRef = useRef(false)
+  const probeCollector = useCallback(() => installedCollectorVersion().then(setCollectorVersion), [])
+  useEffect(() => { void probeCollector() }, [probeCollector])
+  useEffect(() => {
+    queueRef.current = queue
+    localStorage.setItem(storageKey, JSON.stringify(queue))
+  }, [queue, storageKey])
+  useEffect(() => {
+    if (!profiles.length) return
+    setProfileByJourney(previous => {
+      const next = { ...previous }
+      for (const journey of journeys) {
+        if (next[journey.id]) continue
+        const suggested = profiles.find(profile => profile.used_by?.includes(journey.id)) ?? profiles[0]
+        next[journey.id] = suggested?.profile_id ?? ''
+      }
+      return next
+    })
+  }, [journeys, profiles])
+  const patchItem = useCallback((journeyId: string, patch: Partial<BulkCrawlItem>) => {
+    setQueue(previous => {
+      const next = { ...previous, items: previous.items.map(item => item.journeyId === journeyId ? { ...item, ...patch } : item) }
+      queueRef.current = next
+      return next
+    })
+  }, [])
+  const finishQueue = useCallback(() => setQueue(previous => {
+    const next = { ...previous, active: false }
+    queueRef.current = next
+    return next
+  }), [])
+  useEffect(() => {
+    if (!queue.active || workerRef.current) return
+    let cancelled = false
+    workerRef.current = true
+    const wait = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms))
+    const run = async () => {
+      while (!cancelled) {
+        const current = queueRef.current
+        const inProgress = current.items.find(item => ['running', 'starting', 'waiting_pairing'].includes(item.status))
+        if ((inProgress?.status === 'running' || inProgress?.status === 'waiting_pairing') && inProgress.crawlId) {
+          try {
+            const crawl = await knowledgeBaseService.crawl(inProgress.crawlId)
+            if (crawl.status === 'completed' || crawl.status === 'failed') {
+              patchItem(inProgress.journeyId, { status: crawl.status, error: crawl.error ?? undefined, pollFailures: 0 })
+              onRunsChanged()
+              continue
+            }
+            if (inProgress.status === 'waiting_pairing') {
+              const live = await knowledgeBaseService.crawlLive(inProgress.crawlId)
+              if (live.connected_at) {
+                patchItem(inProgress.journeyId, { status: 'running', error: undefined })
+                setManualPairing(value => value?.crawlId === inProgress.crawlId ? null : value)
+                continue
+              }
+            }
+            if (inProgress.pollFailures) patchItem(inProgress.journeyId, { pollFailures: 0, error: undefined })
+          } catch (err) {
+            const failures = (inProgress.pollFailures ?? 0) + 1
+            if (failures >= 8) patchItem(inProgress.journeyId, { status: 'failed', pollFailures: failures, error: `Studio could not read this crawl after ${failures} attempts: ${errorText(err)}` })
+            else patchItem(inProgress.journeyId, { pollFailures: failures })
+            await wait(1500)
+            continue
+          }
+          await wait(1300)
+          continue
+        }
+        if (inProgress?.status === 'starting') { await wait(250); continue }
+        const next = current.items.find(item => item.status === 'queued')
+        if (!next) { finishQueue(); break }
+        patchItem(next.journeyId, { status: 'starting', error: undefined })
+        try {
+          const made = await knowledgeBaseService.startBrowserCrawl(appKey, {
+            journey_id: next.journeyId,
+            application_id: application.id,
+            profile_id: next.profileId || null,
+            environment: application.environment,
+            max_pages: 20,
+            wait_seconds: 20,
+            retry_count: 2,
+          })
+          patchItem(next.journeyId, { status: 'running', crawlId: made.crawl.id })
+          onSelectRun(made.crawl.id)
+          onRunsChanged()
+          if (!await startInstalledCollector(made.pairing)) {
+            patchItem(next.journeyId, { status: 'waiting_pairing', error: undefined })
+            setManualPairing({ crawlId: made.crawl.id, journeyId: next.journeyId, code: made.pairing, expires: made.expires_in_minutes })
+          }
+        } catch (err) {
+          patchItem(next.journeyId, { status: 'failed', error: errorText(err) })
+        }
+      }
+    }
+    void run().finally(() => { workerRef.current = false })
+    return () => { cancelled = true; workerRef.current = false }
+  }, [queue.active, appKey, application.id, application.environment, finishQueue, onRunsChanged, onSelectRun, patchItem])
+
+  const allSelected = journeys.length > 0 && selected.size === journeys.length
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(journeys.map(journey => journey.id)))
+  const startQueue = async () => {
+    setError(null)
+    const items = journeys.filter(journey => selected.has(journey.id)).map(journey => ({
+      journeyId: journey.id,
+      title: journey.title,
+      profileId: profileByJourney[journey.id] || '',
+      status: 'queued' as const,
+    }))
+    if (!items.length) { setError('Select at least one journey.'); return }
+    const invalid = items.filter(item => {
+      const profile = profiles.find(value => value.profile_id === item.profileId)
+      return !profile || (profile.cells[application.environment]?.missing?.length ?? 0) > 0
+    })
+    if (invalid.length) {
+      setError(`Choose complete Test Data for: ${invalid.map(item => item.title).join(', ')}.`)
+      return
+    }
+    setKbSelected(new Set())
+    const nextQueue = { active: true, items }
+    queueRef.current = nextQueue
+    setQueue(nextQueue)
+  }
+  const downloadCollector = async (engine: 'chromium' | 'firefox' | 'safari') => {
+    setDownloadBusy(engine); setError(null)
+    try {
+      const url = await knowledgeBaseService.downloadBrowserCollector(engine)
+      const link = document.createElement('a'); link.href = url; link.download = `automation-studio-collector-${engine}.zip`; link.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 10000)
+    } catch (err) { setError(errorText(err)) }
+    finally { setDownloadBusy(null) }
+  }
+  const pairWaiting = async () => {
+    if (!manualPairing) return
+    setError(null)
+    if (await startInstalledCollector(manualPairing.code)) {
+      patchItem(manualPairing.journeyId, { status: 'running', error: undefined })
+      setManualPairing(null); void probeCollector()
+    } else setError(`Collector ${COLLECTOR_VERSION} did not accept the crawl. Reload the extension, then select Auto pair again or copy the code into it.`)
+  }
+  const copyPairing = async () => {
+    if (!manualPairing) return
+    try { await navigator.clipboard.writeText(manualPairing.code); setError(null) }
+    catch { setError('The browser blocked clipboard access. Select and copy the pairing code.') }
+  }
+  const completed = queue.items.filter(item => item.status === 'completed' && item.crawlId)
+  const allCompletedSelected = completed.length > 0 && completed.every(item => kbSelected.has(item.crawlId as number))
+  const createSelected = async () => {
+    setError(null)
+    for (const item of completed.filter(row => kbSelected.has(row.crawlId as number))) {
+      if (!item.crawlId || item.kbStatus === 'created') continue
+      patchItem(item.journeyId, { kbStatus: 'creating' })
+      try {
+        const made = await knowledgeBaseService.generateFlow(item.crawlId)
+        if (canApprove) await knowledgeBaseService.approve(made.change_set.id, `Published from bulk browser crawl #${item.crawlId}`)
+        patchItem(item.journeyId, { kbStatus: 'created' })
+      } catch (err) {
+        patchItem(item.journeyId, { kbStatus: 'failed', error: errorText(err) })
+      }
+    }
+    if (canApprove) onAutomationReady(); else onProposed()
+  }
+  return (
+    <div className="flex flex-col gap-3 rounded-[12px] border border-[#E8EAEE] p-4 text-[12.5px]">
+      <div className="grid gap-3 rounded-[10px] border border-[#E8EAEE] bg-[#FCFCFD] p-3 lg:grid-cols-2">
+        <div className="flex flex-col gap-2">
+          <strong>1 · Install once in your browser</strong>
+          <span className="text-[11.5px] text-[#6B7280]">The same collector handles single and queued journeys. Install or reload version {COLLECTOR_VERSION} once.</span>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className={PLAIN} disabled={downloadBusy !== null} onClick={() => void downloadCollector('chromium')}>{downloadBusy === 'chromium' ? 'Downloading…' : 'Edge, Chrome, Brave, Opera'}</button>
+            <button type="button" className={PLAIN} disabled={downloadBusy !== null} onClick={() => void downloadCollector('firefox')}>{downloadBusy === 'firefox' ? 'Downloading…' : 'Firefox'}</button>
+            <button type="button" className={PLAIN} disabled={downloadBusy !== null} onClick={() => void downloadCollector('safari')}>Safari source</button>
+          </div>
+        </div>
+        <div className="flex flex-col gap-2">
+          <strong>2 · Pair if needed</strong>
+          <span className={collectorVersion === COLLECTOR_VERSION ? 'text-[#136B34]' : 'text-[#8A5000]'}>{collectorVersion === COLLECTOR_VERSION ? `Collector ${collectorVersion} connected.` : collectorVersion ? `Collector ${collectorVersion} detected; reload ${COLLECTOR_VERSION}.` : 'Collector is not detected yet. The first queued crawl will provide a pairing code.'}</span>
+          <button type="button" className={`${PLAIN} w-fit`} onClick={() => void probeCollector()}>Check collector</button>
+          {manualPairing && <>
+            <textarea readOnly value={manualPairing.code} aria-label="Queued crawl collector pairing code" rows={3} className="w-full resize-none rounded-[9px] border border-[#E8EAEE] p-2 font-mono text-[10.5px]" />
+            <div className="flex flex-wrap items-center gap-2"><button type="button" className={PLAIN} onClick={() => void pairWaiting()}>Auto pair</button><button type="button" className={PLAIN} onClick={() => void copyPairing()}>Copy code</button><span className="text-[11px] text-[#6B7280]">Expires in {manualPairing.expires} minutes.</span></div>
+          </>}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div><strong className="block text-[14px] text-[#1F2937]">Bulk browser crawl</strong><span className="text-[11.5px] text-[#6B7280]">Journeys run one at a time. Each keeps its own Test Data, result, review and recapture history.</span></div>
+        <button type="button" className={PLAIN} onClick={toggleAll}>{allSelected ? 'Clear all' : 'Select all journeys'}</button>
+      </div>
+      <div className="max-h-[330px] overflow-auto rounded-[10px] border border-[#E8EAEE]">
+        {journeys.map(journey => {
+          const checked = selected.has(journey.id)
+          const profile = profiles.find(value => value.profile_id === profileByJourney[journey.id])
+          const missing = profile?.cells[application.environment]?.missing?.length ?? 0
+          return <div key={journey.id} className="grid items-center gap-2 border-b border-[#F1F2F4] px-3 py-2 sm:grid-cols-[24px_minmax(180px,1fr)_minmax(220px,320px)]">
+            <input type="checkbox" checked={checked} onChange={() => setSelected(previous => { const next = new Set(previous); if (next.has(journey.id)) next.delete(journey.id); else next.add(journey.id); return next })} className="accent-[#B71920]" />
+            <span className="min-w-0 truncate font-semibold text-[#1F2937]" title={journey.title}>{journey.title}</span>
+            <select aria-label={`Test data for ${journey.title}`} value={profileByJourney[journey.id] || ''} onChange={event => setProfileByJourney(previous => ({ ...previous, [journey.id]: event.target.value }))} className={SELECT}>
+              {profiles.map(value => { const gaps = value.cells[application.environment]?.missing?.length ?? 0; return <option key={value.profile_id} value={value.profile_id}>{value.name}{gaps ? ` · ${gaps} missing` : ''}</option> })}
+            </select>
+            {checked && missing > 0 && <span className="sm:col-start-3 text-[10.5px] text-[#A3231C]">This profile has {missing} missing value{missing === 1 ? '' : 's'}.</span>}
+          </div>
+        })}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => void startQueue()} disabled={!canExecute || queue.active || anotherRunActive || selected.size === 0} className="h-[34px] rounded-[10px] bg-[#B71920] px-4 font-bold text-white disabled:opacity-50">{queue.active ? 'Queue running…' : `Start ${selected.size || ''} queued crawl${selected.size === 1 ? '' : 's'}`}</button>
+        {!queue.active && queue.items.length > 0 && <button type="button" className={PLAIN} onClick={() => { setQueue({ active: false, items: [] }); setKbSelected(new Set()) }}>Clear queue</button>}
+        {error && <span className="text-[#A3231C]">{error}</span>}
+      </div>
+      {queue.items.length > 0 && <div className="overflow-hidden rounded-[10px] border border-[#E8EAEE]">
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-[#F8F9FB] px-3 py-2"><strong>Queue status</strong><span className="text-[#6B7280]">{queue.items.filter(item => item.status === 'completed').length} completed · {queue.items.filter(item => item.status === 'failed').length} failed · {queue.items.filter(item => ['queued', 'starting', 'waiting_pairing', 'running'].includes(item.status)).length} remaining</span></div>
+        {queue.items.map((item, index) => <div key={item.journeyId} className="flex flex-wrap items-center gap-2 border-t border-[#F1F2F4] px-3 py-2">
+          <span className="w-5 text-right text-[#9CA3AF]">{index + 1}</span>
+          <span className="min-w-[180px] flex-1 font-semibold">{item.title}</span>
+          <span className="text-[11px] text-[#6B7280]">{profiles.find(profile => profile.profile_id === item.profileId)?.name || item.profileId}</span>
+          <Chip tone={item.status === 'completed' ? 'good' : item.status === 'failed' ? 'bad' : item.status === 'running' || item.status === 'starting' || item.status === 'waiting_pairing' ? 'info' : 'idle'}>{item.status === 'starting' ? 'Starting' : item.status === 'waiting_pairing' ? 'Waiting for pairing' : item.status}</Chip>
+          {item.crawlId && <button type="button" className={PLAIN} onClick={() => onSelectRun(item.crawlId as number)}>Review</button>}
+          {item.status === 'completed' && item.crawlId && <input aria-label={`Select ${item.title} for Automation KB`} type="checkbox" checked={kbSelected.has(item.crawlId)} onChange={() => setKbSelected(previous => { const next = new Set(previous); if (next.has(item.crawlId as number)) next.delete(item.crawlId as number); else next.add(item.crawlId as number); return next })} className="accent-[#B71920]" />}
+          {item.kbStatus && <Chip tone={item.kbStatus === 'created' ? 'good' : item.kbStatus === 'failed' ? 'bad' : 'info'}>{item.kbStatus === 'created' ? 'Automation KB created' : item.kbStatus}</Chip>}
+          {item.error && <span className="w-full pl-7 text-[11px] text-[#A3231C]">{item.error}</span>}
+        </div>)}
+        {completed.length > 0 && <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#E8EAEE] bg-[#FCFCFD] px-3 py-2">
+          <button type="button" className={PLAIN} onClick={() => setKbSelected(allCompletedSelected ? new Set() : new Set(completed.map(item => item.crawlId as number)))}>{allCompletedSelected ? 'Clear completed' : 'Select all completed'}</button>
+          <button type="button" onClick={() => void createSelected()} disabled={kbSelected.size === 0 || queue.active} className="h-[34px] rounded-[10px] bg-[#B71920] px-4 font-bold text-white disabled:opacity-50">Create selected in Automation KB</button>
+        </div>}
+      </div>}
+    </div>
+  )
+}
+
 const JourneyCrawlStage: React.FC<{
   appKey: string
   application: { id: number; environment: string; base_url: string }
   canExecute: boolean
   canApprove?: boolean
   onProposed: () => void
-}> = ({ appKey, application, canExecute, canApprove = false, onProposed }) => {
+  onAutomationReady: () => void
+}> = ({ appKey, application, canExecute, canApprove = false, onProposed, onAutomationReady }) => {
   const [params] = useSearchParams()
   const [taxonomy, taxError] = useLoad(appKey, () => knowledgeBaseService.taxonomy(appKey))
   const [coverage] = useLoad(appKey, () => knowledgeBaseService.testData(appKey))
@@ -637,12 +1074,14 @@ const JourneyCrawlStage: React.FC<{
   // or record a journey by doing it (?record=1, from the Journey Map).
   const askedFlow = params.get('flow')
   const [source, setSource] = useState<'journey' | 'flow' | 'record' | 'capture' | 'browser'>(askedFlow ? 'flow' : params.get('record') ? 'record' : params.get('capture') ? 'capture' : 'journey')
+  const [bulkBrowser, setBulkBrowser] = useState(false)
   const [journeyId, setJourneyId] = useState<string>('')
   const [flowId, setFlowId] = useState<string>(askedFlow ?? '')
   const [profileId, setProfileId] = useState<string>('')
   const [stopBefore, setStopBefore] = useState<number | null>(null)
   const [allowRisky, setAllowRisky] = useState(false)
   const [headed, setHeaded] = useState(false)
+  const [localHeaded, setLocalHeaded] = useState(false)
   // ?journey= (from the Journey Map) picks the journey to walk; else the last one.
   const askedJourney = params.get('journey')
   useEffect(() => {
@@ -678,6 +1117,7 @@ const JourneyCrawlStage: React.FC<{
   const active = !!crawls?.some(c => ['queued', 'running'].includes(c.status))
 
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const selectCrawlRun = useCallback((id: number) => setSelectedId(id), [])
   const [detail, setDetail] = useState<JourneyCrawl | null>(null)
   const shownId = selectedId ?? crawls?.[0]?.id ?? null
   useEffect(() => {
@@ -688,6 +1128,12 @@ const JourneyCrawlStage: React.FC<{
     knowledgeBaseService.crawl(shownId).then(c => { if (live) setDetail(c) }).catch(() => undefined)
     return () => { live = false }
   }, [shownId, crawls])
+  const refreshFinishedCrawl = useCallback(() => {
+    loadCrawls()
+    if (shownId != null) {
+      knowledgeBaseService.crawl(shownId).then(setDetail).catch(() => undefined)
+    }
+  }, [loadCrawls, shownId])
   const [detailPlan, setDetailPlan] = useState<CrawlPlan | null>(null)
   useEffect(() => {
     // The live panel lists the walk's own plan, not whatever is selected above.
@@ -696,7 +1142,8 @@ const JourneyCrawlStage: React.FC<{
       .then(setDetailPlan).catch(() => setDetailPlan(null))
   }, [appKey, detail?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [busy, setBusy] = useState<null | 'start' | 'local' | 'download' | 'record' | 'propose' | 'generate' | 'continue'>(null)
+  const [busy, setBusy] = useState<null | 'start' | 'local' | 'download' | 'record' | 'propose' | 'generate' | 'continue' | 'recapture'>(null)
+  const [recaptureStep, setRecaptureStep] = useState<number | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionNote, setActionNote] = useState<string | null>(null)
   // What the reviewer chose from a finished walk: app-only elements to add,
@@ -742,7 +1189,7 @@ const JourneyCrawlStage: React.FC<{
     try {
       const made = await knowledgeBaseService.startLocalCrawl(appKey, {
         journey_id: sourceId, application_id: application.id, profile_id: plan?.profile_id ?? (profileId || null),
-        environment: application.environment, stop_before: stopBefore, allow_risky: allowRisky
+        environment: application.environment, stop_before: stopBefore, allow_risky: allowRisky, headed: localHeaded
       })
       crawlId = made.crawl.id
       setSelectedId(crawlId)
@@ -818,8 +1265,14 @@ const JourneyCrawlStage: React.FC<{
     setActionError(null)
     try {
       const made = await knowledgeBaseService.generateFlow(id)
-      setActionNote(`The journey's flow blueprint ${made.flow.flow_id ?? ''} is regenerated from its steps and confirmed selectors, waiting for review as change set #${made.change_set.id}.`)
-      onProposed()
+      if (canApprove) {
+        await knowledgeBaseService.approve(made.change_set.id, `Published from completed dry run #${id}`)
+        setActionNote(`Flow blueprint ${made.flow.flow_id ?? ''} was published to the Automation KB.`)
+        onAutomationReady()
+      } else {
+        setActionNote(`Flow blueprint ${made.flow.flow_id ?? ''} was created as change set #${made.change_set.id}. An approver must publish it before it appears in the Automation KB.`)
+        onProposed()
+      }
     } catch (err) {
       setActionError(errorText(err))
     } finally {
@@ -850,6 +1303,77 @@ const JourneyCrawlStage: React.FC<{
     }
   }
 
+  const recaptureOnDevice = async (step: number) => {
+    if (!detail) return
+    setBusy('recapture')
+    setRecaptureStep(step)
+    setActionError(null)
+    setActionNote(null)
+    let made: Awaited<ReturnType<typeof knowledgeBaseService.startLocalCrawl>> | null = null
+    try {
+      made = await knowledgeBaseService.startLocalCrawl(appKey, {
+        journey_id: detail.journey_id,
+        application_id: application.id,
+        profile_id: detail.profile_id,
+        environment: application.environment,
+        allow_risky: true,
+        headed: true,
+        capture_step: step,
+      })
+      setSelectedId(made.crawl.id)
+      loadCrawls()
+      await startDeviceRunner(made.pairing)
+      setActionNote(`Replaying steps before ${step}. In the opened browser, click the element for step ${step}; the selection will be captured automatically.`)
+    } catch (err) {
+      if (made) await knowledgeBaseService.cancelLocalCrawl(made.crawl.id).catch(() => undefined)
+      setActionError(errorText(err))
+      loadCrawls()
+    } finally {
+      setBusy(null)
+      setRecaptureStep(null)
+    }
+  }
+
+  const recaptureWithCollector = async (step: number) => {
+    if (!detail) return
+    setBusy('recapture'); setRecaptureStep(step); setActionError(null); setActionNote(null)
+    let made: Awaited<ReturnType<typeof knowledgeBaseService.startBrowserCrawl>> | null = null
+    try {
+      const installed = await installedCollectorVersion()
+      if (installed !== COLLECTOR_VERSION) {
+        throw new Error(installed
+          ? `Browser collector ${installed} is installed. Download and reload version ${COLLECTOR_VERSION} before recapturing.`
+          : `Browser collector ${COLLECTOR_VERSION} was not detected. Download or reload it, refresh this page, then recapture.`)
+      }
+      made = await knowledgeBaseService.startBrowserCrawl(appKey, {
+        journey_id: detail.journey_id,
+        application_id: application.id,
+        profile_id: detail.profile_id || null,
+        environment: detail.environment || application.environment,
+        max_pages: 20,
+        wait_seconds: 120,
+        retry_count: 2,
+        capture_step: step,
+        recapture_of: detail.id,
+      })
+      setSelectedId(made.crawl.id)
+      loadCrawls()
+      if (!await startInstalledCollector(made.pairing)) {
+        throw new Error(`The installed collector did not respond. Reload extension version ${COLLECTOR_VERSION}, then try again.`)
+      }
+      setActionNote(`Replaying steps before ${step}. The collector will pause on step ${step}; click its element in the opened tab. Saved Test Data is entered automatically for fields and OTP steps.`)
+    } catch (err) {
+      if (made) {
+        await stopInstalledCollector(made.crawl.id).catch(() => false)
+        await knowledgeBaseService.cancelBrowserCrawl(made.crawl.id, 'Collector startup failed before the recapture began.').catch(() => undefined)
+      }
+      setActionError(errorText(err))
+      loadCrawls()
+    } finally {
+      setBusy(null); setRecaptureStep(null)
+    }
+  }
+
   const allRows = useMemo(() => detail?.result?.rows ?? [], [detail])
   // A journey walk's results read step by step: the element each journey step
   // used, in step order; the other elements on its screens are one click away.
@@ -870,7 +1394,7 @@ const JourneyCrawlStage: React.FC<{
   const pickCount = Object.keys(picks).length
   const proposable = captured || additions.size > 0 || pickCount > 0 || (detail?.source !== 'flow' && !!detail?.result?.summary?.routes_new)
   const alreadyProposed = detail?.source !== 'flow' && !!(detail?.automation_change_set_id || detail?.journey_change_set_id)
-  const ranSteps = (detail?.result?.steps ?? []).some(s => s.status === 'done')
+  const ranSteps = (detail?.result?.steps ?? []).some(s => s.status === 'done' || s.status === 'auto')
   const running = !!detail && ['queued', 'running'].includes(detail.status)
 
   if (taxError) return <Card><Failed message={taxError} /></Card>
@@ -896,21 +1420,21 @@ const JourneyCrawlStage: React.FC<{
                 ))}
               </div>
             </div>
-            {source !== 'flow' ? (
-              <label className={LABEL}>
-                Journey
-                <select aria-label="Journey" value={journeyId} onChange={e => { setJourneyId(e.target.value); setProfileId('') }} className={`${SELECT} max-w-[360px]`}>
-                  {journeys.map(j => <option key={j.id} value={j.id}>{j.title}</option>)}
-                </select>
-              </label>
-            ) : (
+            {source === 'flow' ? (
               <label className={LABEL}>
                 Flow blueprint
                 <select aria-label="Flow blueprint" value={flowId} onChange={e => setFlowId(e.target.value)} className={`${SELECT} max-w-[360px]`}>
                   {(flowList ?? []).map(f => <option key={f.flow_id} value={f.flow_id}>{f.flow_name} · {f.steps} steps</option>)}
                 </select>
               </label>
-            )}
+            ) : !(browserCrawling && bulkBrowser) ? (
+              <label className={LABEL}>
+                Journey
+                <select aria-label="Journey" value={journeyId} onChange={e => { setJourneyId(e.target.value); setProfileId('') }} className={`${SELECT} max-w-[360px]`}>
+                  {journeys.map(j => <option key={j.id} value={j.id}>{j.title}</option>)}
+                </select>
+              </label>
+            ) : null}
             {!recording && !capturing && !browserCrawling && <>
             <label className={LABEL}>
               Test data
@@ -937,11 +1461,18 @@ const JourneyCrawlStage: React.FC<{
             >
               {busy === 'start' ? 'Starting…' : 'Start dry run'}
             </button>
+            <label className={LABEL}>
+              Device browser
+              <select aria-label="Device browser mode" value={localHeaded ? 'headed' : 'headless'} onChange={event => setLocalHeaded(event.target.value === 'headed')} className={SELECT}>
+                <option value="headless">Headless</option>
+                <option value="headed">Headed · show browser</option>
+              </select>
+            </label>
             <button
               type="button"
               onClick={() => void startLocal()}
               disabled={!canExecute || !plan || busy !== null || active || missing.length > 0 || blocked}
-              title={!canExecute ? 'Needs the automation.execute permission' : active ? 'A walk is already running' : blocked ? `Walks do not run against ${application.environment}` : missing.length ? 'Test Data is missing values this walk needs' : 'Uses Playwright installed on this device; no browser automation runs on the backend server'}
+              title={!canExecute ? 'Needs the automation.execute permission' : active ? 'A walk is already running' : blocked ? `Walks do not run against ${application.environment}` : missing.length ? 'Test Data is missing values this walk needs' : `Uses Playwright installed on this device in ${localHeaded ? 'headed' : 'headless'} mode; no browser automation runs on the backend server`}
               className="h-[34px] rounded-[10px] border border-[#B71920] bg-white px-4 text-[13px] font-bold text-[#B71920] hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {busy === 'local' ? 'Connecting…' : 'Run on this device'}
@@ -963,8 +1494,24 @@ const JourneyCrawlStage: React.FC<{
             )}
           </div>
           {browserCrawling && (
-            <BrowserCollectorSetup appKey={appKey} journeyId={journeyId} application={application} canExecute={canExecute} active={active}
-              onStarted={id => { setSelectedId(id); loadCrawls() }} />
+            <div className="flex flex-col gap-3">
+              <div className="flex w-fit overflow-hidden rounded-[10px] border border-[#E8EAEE]">
+                <button type="button" onClick={() => setBulkBrowser(false)} className={`h-[34px] px-3 text-[12.5px] font-semibold ${!bulkBrowser ? 'bg-[#1F2937] text-white' : 'bg-white text-[#374151]'}`}>One journey</button>
+                <button type="button" onClick={() => setBulkBrowser(true)} className={`h-[34px] px-3 text-[12.5px] font-semibold ${bulkBrowser ? 'bg-[#1F2937] text-white' : 'bg-white text-[#374151]'}`}>Multiple journeys</button>
+              </div>
+              {bulkBrowser ? (
+                <BulkBrowserCrawlSetup appKey={appKey} application={application} journeys={journeys}
+                  profiles={(coverage?.profiles ?? []).filter(profile => profile.kind === 'vault')}
+                  canExecute={canExecute} canApprove={canApprove} anotherRunActive={active}
+                  onSelectRun={selectCrawlRun} onRunsChanged={loadCrawls}
+                  onAutomationReady={onAutomationReady} onProposed={onProposed} />
+              ) : (
+                <BrowserCollectorSetup appKey={appKey} journeyId={journeyId} application={application}
+                  profileId={profileId || plan?.profile_id || ''} profiles={(coverage?.profiles ?? []).filter(profile => profile.kind === 'vault')}
+                  profileWarnings={plan?.warnings ?? []} onProfileChange={setProfileId} canExecute={canExecute} active={active}
+                  onStarted={id => { setSelectedId(id); loadCrawls() }} />
+              )}
+            </div>
           )}
           {recording && (
             <Note tone={caps && !caps.headed_available ? 'warn' : undefined}>
@@ -1064,9 +1611,9 @@ const JourneyCrawlStage: React.FC<{
               {detail && <Chip tone={STATUS_TONE[detail.status]}>{detail.status}</Chip>}
               {detail?.status === 'completed' && (detail.source === 'journey' || detail.source === 'capture' || detail.source === 'browser') && ranSteps && (
                 <button type="button" onClick={() => void generateFlow(detail.id)} disabled={!canExecute || busy !== null}
-                  title="Regenerates the journey's own flow blueprint from its steps and the selectors walks confirmed (as the Journey Map does) — drafted for review"
+                  title={canApprove ? "Publishes the completed dry run as an Automation KB flow and opens step 7" : "Creates an Automation KB flow change set for an approver to publish"}
                   className="h-[34px] rounded-[10px] border border-[#E8EAEE] bg-white px-4 text-[13px] font-bold text-[#1F2937] hover:border-[#F6D4D5] disabled:opacity-50">
-                  {busy === 'generate' ? 'Generating…' : 'Generate flow'}
+                  {busy === 'generate' ? 'Creating…' : canApprove ? 'Create in Automation KB →' : 'Submit to Automation KB'}
                 </button>
               )}
               {detail?.status === 'completed' && detail.source !== 'record' && !alreadyProposed && (
@@ -1089,10 +1636,13 @@ const JourneyCrawlStage: React.FC<{
         {listError && <Failed message={listError} onRetry={loadCrawls} />}
         {!crawls && !listError && <Loading what="walks" />}
         {actionNote && <div className="px-5 pb-3"><Note>{actionNote}</Note></div>}
-        {detail && running && detail.source === 'record' && <RecordingLive crawl={detail} onFinished={loadCrawls} canStop={canExecute} />}
-        {detail && running && detail.source !== 'record' && <LivePanel crawl={detail} plan={detailPlan} onFinished={loadCrawls} canStop={canExecute} />}
-        {detail?.status === 'failed' && detail.source === 'browser' && <FailedBrowserPreview crawl={detail} />}
-        {detail?.status === 'failed' && detail.source !== 'browser' && <div className="px-5 pb-5"><Note tone="warn">{detail.error}</Note></div>}
+        {detail && running && detail.source === 'record' && <RecordingLive crawl={detail} onFinished={refreshFinishedCrawl} canStop={canExecute} />}
+        {detail && running && detail.source !== 'record' && <LivePanel crawl={detail} plan={detailPlan} onFinished={refreshFinishedCrawl} canStop={canExecute} />}
+        {detail?.status === 'failed' && detail.source === 'browser' && (
+          <FailedBrowserPreview crawl={detail} plan={detailPlan} busy={busy === 'recapture'} onRecapture={recaptureWithCollector} />
+        )}
+        {detail?.status === 'failed' && detail.execution_target === 'local' && <FailedDeviceRun crawl={detail} plan={detailPlan} />}
+        {detail?.status === 'failed' && detail.source !== 'browser' && detail.execution_target !== 'local' && <div className="px-5 pb-5"><Note tone="warn">{detail.error}</Note></div>}
         {detail?.result && detail.source === 'record' && (
           <RecordingReview appKey={appKey} crawl={detail} canExecute={canExecute} canApprove={canApprove}
             onSaved={() => { loadCrawls(); onProposed() }} />
@@ -1101,8 +1651,9 @@ const JourneyCrawlStage: React.FC<{
           <>
             {detail.source === 'browser' && (
               detail.result.capture
-                ? <BrowserResultSummary capture={detail.result.capture} steps={detail.result.steps} items={detailPlan?.items ?? []}
-                    continuing={busy === 'continue'} onContinue={continueBrowserCrawl} />
+                ? <BrowserResultSummary crawlId={detail.id} capture={detail.result.capture} steps={detail.result.steps} items={detailPlan?.items ?? []}
+                    continuing={busy === 'continue'} recapturing={busy === 'recapture'} recaptureStep={recaptureStep}
+                    onContinue={continueBrowserCrawl} onRecapture={recaptureWithCollector} />
                 : <div className="px-5 pb-3"><Note tone="warn">The browser crawl finished without a captured-screen summary.</Note></div>
             )}
             {detail.stop_before && (
@@ -1190,6 +1741,14 @@ const JourneyCrawlStage: React.FC<{
                   </div>
                   <div className="flex flex-wrap items-start gap-1">
                     <Chip tone={OUTCOME[r.outcome].tone} title={OUTCOME[r.outcome].hint}>{OUTCOME[r.outcome].label}</Chip>
+                    {r.outcome === 'not_found' && r.step != null && !running && (
+                      <button type="button" disabled={!canExecute || busy !== null}
+                        title="Open a headed browser on this device, replay the earlier steps, then click the missing element"
+                        onClick={() => void recaptureOnDevice(r.step as number)}
+                        className="rounded-full border border-[#B71920] bg-white px-2.5 py-0.5 text-[11.5px] font-semibold text-[#B71920] hover:bg-[#FFF5F5] disabled:opacity-50">
+                        {busy === 'recapture' && recaptureStep === r.step ? 'Opening…' : 'Recapture & select'}
+                      </button>
+                    )}
                   </div>
                   <div className="min-w-0">
                     {r.selector

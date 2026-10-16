@@ -187,7 +187,7 @@ export interface CrawlPlanItem {
   journey_name: string
   step_number: number
   text: string
-  kind: 'goto' | 'screen' | 'fill' | 'otp' | 'click' | 'capture' | 'skip'
+  kind: 'goto' | 'screen' | 'fill' | 'otp' | 'click' | 'dblclick' | 'hover' | 'focus' | 'check' | 'uncheck' | 'press' | 'select' | 'capture' | 'skip'
   screen_id: string | null
   optional: boolean
   /** A step of a journey this one needs first (sign-in before choosing an organization). */
@@ -249,6 +249,7 @@ export interface BrowserTabPreview {
   name: string | null
   title: string | null
   url: string | null
+  screenshot?: string | null
   viewport: { width: number; height: number }
   elements: { role: string | null; name: string | null; kind: string | null; bounds: { x: number; y: number; width: number; height: number } }[]
 }
@@ -337,6 +338,8 @@ export interface CrawlStep {
   outcome?: { kind: 'expected' | 'branch' | 'error' | 'unexpected' | 'unknown' | 'stuck'; screen?: string | null; rule?: string | null; condition?: string | null; message?: string; url?: string } | null
   /** shot-<n>.png in the run's workspace, served by crawlImage. */
   screenshot?: string
+  /** Completed crawl that previously confirmed this step during a recapture. */
+  inherited_from_crawl_id?: number
 }
 
 /** How a recording did a step: never a typed value, only what kind of field it was. */
@@ -819,7 +822,7 @@ const knowledgeBaseService = {
   /** Run the generated journey spec through the loopback Playwright runner on this device. */
   startLocalCrawl: async (app: string, body: {
     journey_id: string; application_id: number; profile_id?: string | null; environment?: string | null
-    stop_before?: number | null; allow_risky?: boolean
+    stop_before?: number | null; allow_risky?: boolean; headed?: boolean; capture_step?: number | null
   }): Promise<{ crawl: JourneyCrawl; pairing: string; expires_in_minutes: number }> => {
     const response = (await api.post(`${BASE}/${enc(app)}/local-journey-crawl`, body)).data as {
       crawl: JourneyCrawl; runner_token: string; expires_in_minutes: number
@@ -835,8 +838,8 @@ const knowledgeBaseService = {
     (await api.post(`${BASE}/journey-crawls/${id}/cancel-local`)).data,
   /** Pair a cross-browser WebExtension. The returned collector token is valid only for this crawl. */
   startBrowserCrawl: async (app: string, body: {
-    journey_id: string; application_id: number; environment?: string | null; max_pages?: number
-    wait_seconds?: number; retry_count?: number
+    journey_id: string; application_id: number; profile_id?: string | null; environment?: string | null; max_pages?: number
+    wait_seconds?: number; retry_count?: number; capture_step?: number | null; recapture_of?: number | null
   }): Promise<{ crawl: JourneyCrawl; pairing: string; expires_in_minutes: number }> => {
     const response = (await api.post(`${BASE}/${enc(app)}/browser-crawl`, body)).data as {
       crawl: JourneyCrawl; collector_token: string; expires_in_minutes: number
@@ -845,11 +848,13 @@ const knowledgeBaseService = {
     return { crawl: response.crawl, pairing, expires_in_minutes: response.expires_in_minutes }
   },
   downloadBrowserCollector: async (engine: 'chromium' | 'firefox' | 'safari'): Promise<string> => {
-    const res = await api.get(`/automation/browser-collector/package/${engine}`, { responseType: 'blob' })
+    const res = await api.get(`/automation/browser-collector/package/${engine}`, {
+      params: { studio_origin: window.location.origin }, responseType: 'blob'
+    })
     return URL.createObjectURL(res.data as Blob)
   },
-  cancelBrowserCrawl: async (id: number): Promise<JourneyCrawl> =>
-    (await api.post(`${BASE}/journey-crawls/${id}/cancel-browser`)).data,
+  cancelBrowserCrawl: async (id: number, message?: string): Promise<JourneyCrawl> =>
+    (await api.post(`${BASE}/journey-crawls/${id}/cancel-browser`, message ? { message } : undefined)).data,
   walkCapabilities: async (): Promise<WalkCapabilities> => (await api.get(`${BASE}/walk/capabilities`)).data,
   walkFlows: async (app: string): Promise<WalkFlow[]> => (await api.get(`${BASE}/${enc(app)}/walk/flows`)).data.flows,
   crawlLive: async (id: number): Promise<WalkLive> => (await api.get(`${BASE}/journey-crawls/${id}/live`)).data,
@@ -936,6 +941,7 @@ const knowledgeBaseService = {
     wait_seconds?: number
     retry_count?: number
     max_pages?: number
+    headed?: boolean
   }): Promise<HealCrawlStart> => {
     const response = (await api.post(`${BASE}/heals/${id}/crawl`, body)).data as {
       heal: KbHeal

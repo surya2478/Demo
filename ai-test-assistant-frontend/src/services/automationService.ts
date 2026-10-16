@@ -459,9 +459,9 @@ const automationService = {
   }): Promise<DryRunResult> =>
     call<DryRunResult>(() => api.post(`${BASE}/scripts/dry-run`, body, LONG)),
 
-  createDeviceDryRun: async (scriptId: number): Promise<CreateDeviceRunResponse> => {
+  createDeviceDryRun: async (scriptId: number, headless = true): Promise<CreateDeviceRunResponse> => {
     const response = await call<CreateRunResponse & { runner_token: string; expires_in_minutes: number }>(
-      () => api.post(`${BASE}/scripts/${encodeURIComponent(scriptId)}/dry-run-local`)
+      () => api.post(`${BASE}/scripts/${encodeURIComponent(scriptId)}/dry-run-local`, { headless })
     )
     return {
       ...response,

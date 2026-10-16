@@ -124,10 +124,11 @@ def local_runner_package(current_user: dict = Depends(require_permission(PERM_VI
 @router.get("/browser-collector/package/{engine}")
 def browser_collector_package(
     engine: str,
+    studio_origin: Optional[str] = None,
     current_user: dict = Depends(require_permission(PERM_VIEW)),
 ) -> Response:
     try:
-        data = journey_browser_collector.package(engine)
+        data = journey_browser_collector.package(engine, studio_origin=studio_origin)
     except journey_browser_collector.CollectorError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return Response(
@@ -338,6 +339,10 @@ class CreateRunRequest(BaseModel):
     mode: Optional[str] = Field(default=None, pattern="^(standard|rerun)$")
 
 
+class DeviceDryRunRequest(BaseModel):
+    headless: bool = True
+
+
 class DeviceProgressRequest(BaseModel):
     message: str = Field(default="Running Playwright on device.", max_length=500)
     progress: dict[str, Any] = Field(default_factory=dict)
@@ -420,6 +425,7 @@ def _run_summary(run: AutomationRun) -> dict:
         # dry_run, rerun, discovery -- or None for a spec run started by hand.
         "mode": (run.run_config or {}).get("mode") if isinstance(run.run_config, dict) else None,
         "slow_mo_ms": (run.run_config or {}).get("slow_mo_ms") if isinstance(run.run_config, dict) else None,
+        "headless": (run.run_config or {}).get("headless", True) if isinstance(run.run_config, dict) else True,
         "execution_target": (run.run_config or {}).get("execution_target", "server") if isinstance(run.run_config, dict) else "server",
     }
 
@@ -537,6 +543,7 @@ def create_device_run(
             db, code=body.code, environment=body.environment, base_url=body.base_url,
             file_name=body.file_name, test_case_id=body.test_case_id,
             slow_mo_ms=body.slow_mo_ms, actor=(current_user or {}).get("username"),
+            headless=body.headless if body.headless is not None else True,
         )
     except device_runner.DeviceRunnerError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -3066,6 +3073,7 @@ def dry_run_scripts(
 @router.post("/scripts/{script_id}/dry-run-local", status_code=201)
 def dry_run_script_on_device(
     script_id: int,
+    body: DeviceDryRunRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission(PERM_EXECUTE)),
 ):
@@ -3096,7 +3104,7 @@ def dry_run_script_on_device(
         run, token = device_runner.start(
             db, code=script.code, environment=None, base_url=None,
             file_name=script.file_name, test_case_id=script.test_case_id,
-            slow_mo_ms=1000, actor=username, script_id=script.id, mode="dry_run",
+            slow_mo_ms=1000, actor=username, script_id=script.id, mode="dry_run", headless=body.headless,
         )
     except device_runner.DeviceRunnerError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

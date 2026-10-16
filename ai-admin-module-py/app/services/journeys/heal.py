@@ -108,7 +108,7 @@ def recheck(db: Session, heal_id: int, *, actor: Optional[str]) -> KbHeal:
 
 def crawl(db: Session, heal_id: int, *, journey_id: str, application_id: int, environment: Optional[str],
           actor: Optional[str], mode: str = "server", wait_seconds: int = 20,
-          retry_count: int = 2, max_pages: int = 20):
+          retry_count: int = 2, max_pages: int = 20, headed: bool = False):
     from . import browser_collector, crawl_runs, local_runner
 
     heal = _get(db, heal_id)
@@ -119,7 +119,7 @@ def crawl(db: Session, heal_id: int, *, journey_id: str, application_id: int, en
         run, token = local_runner.start(
             db, app_id=heal.app_id, journey_id=journey_id, application_id=application_id,
             profile_id=None, environment=environment, actor=actor,
-            stop_before=None, allow_risky=False,
+            stop_before=None, allow_risky=False, headless=not headed,
         )
     elif mode == "collector":
         run, token = browser_collector.start(

@@ -242,6 +242,10 @@ def live(db: Session, crawl: KbCrawlRun) -> Dict[str, Any]:
 
 def run_file(db: Session, crawl: KbCrawlRun, name: str) -> Optional[Path]:
     """A frame or step screenshot of a walk; None when there is none (yet)."""
+    if (crawl.plan or {}).get("source") == "browser":
+        from . import browser_collector
+
+        return browser_collector.capture_file(crawl.id, name)
     if not crawl.run_key:
         return None
     run = db.query(AutomationRun).filter(AutomationRun.run_key == crawl.run_key).first()
@@ -478,6 +482,17 @@ def view(crawl: KbCrawlRun, *, with_result: bool = True) -> Dict[str, Any]:
     }
     if with_result:
         out["result"] = crawl.result
+        if out["source"] == "browser" and crawl.result:
+            # Older completed collector runs may have evaluated only their
+            # captured screens. Reconcile their displayed step history with
+            # the value-free action ledger too, so the fix also applies to
+            # results completed before this deployment.
+            from . import browser_collector
+
+            plan = dict(crawl.plan or {})
+            out["result"] = browser_collector._merge_step_events(
+                dict(crawl.result), plan, dict(plan.get("collector") or {})
+            )
         if out["source"] == "record" and (crawl.result or {}).get("recording"):
             from .journey_record import with_check
 

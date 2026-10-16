@@ -106,6 +106,8 @@ export interface RunSummary {
   mode?: string | null
   /** Pause between actions; 1000 is "Safe / WAF (1s)". */
   slow_mo_ms?: number | null
+  /** Whether Playwright hid its browser window for this run. */
+  headless?: boolean | null
   /** Server for normal runs, device for loopback Playwright runs. */
   execution_target?: 'server' | 'device' | null
   healing_diagnosis?: string | null

@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Automation Studio Browser Collector",
-  "version": "1.7.0",
+  "version": "1.10.2",
   "description": "Crawls one authorised test application and sends verified locators to Automation Studio.",
-  "permissions": ["storage", "tabs", "scripting"],
-  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "permissions": ["storage", "tabs", "scripting", "activeTab", "downloads"],
+  "host_permissions": ["http://*/*", "https://*/*"],
   "background": { "scripts": ["background.js"], "persistent": false },
   "action": { "default_popup": "popup.html", "default_title": "Browser Collector" }
 }

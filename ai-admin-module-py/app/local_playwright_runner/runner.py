@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 HOST, PORT = "127.0.0.1", 8765
-VERSION = "1.3.1"
+VERSION = "1.3.2"
 running_lock = threading.Lock()
 
 
@@ -369,7 +369,7 @@ def run(pair):
                         payload = {"message": "Running Playwright on this device.", "progress": current}
                         if cfg.get("run_kind") == "automation":
                             payload["log_tail"] = live_log
-                        if cfg.get("run_kind") != "automation":
+                        if cfg.get("run_kind") != "automation" and cfg.get("stream_frame", True):
                             frame_file = workspace / cfg["frame_file"]
                             payload["frame"] = base64.b64encode(frame_file.read_bytes()).decode("ascii") if frame_file.exists() else None
                         api(pair, f"{endpoint}/progress", "POST", payload)
