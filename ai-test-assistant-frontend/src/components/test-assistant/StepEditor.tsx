@@ -1,9 +1,8 @@
 import React, { useState } from 'react'
 import type { CheckItem, EditedStep } from '../../services/aiChecksService'
 
-// Screen 3a: edit a checked case's steps before it is sent. Author-side only --
-// the manager's screen stays read-only, so one final version is approved.
-// Saving re-runs Quality Review and AI Classify for this case.
+// Screen 3a: edit a case's steps -- the author's, and the manager's on Review &
+// Approval. Saving a checked case re-runs Quality Review and AI Classify for it.
 
 const ACTION_TYPES = ['navigate', 'click', 'fill', 'select', 'assert', 'wait'] as const
 const TODO = /(<<TODO:[^>]*>>)/
@@ -57,9 +56,16 @@ interface StepEditorProps {
   error: string
   onCancel: () => void
   onSave: (steps: EditedStep[]) => void
+  /** For a case with no AI Checks to re-run: the save button and the note under the steps. */
+  saveLabel?: string
+  note?: string
 }
 
-const StepEditor: React.FC<StepEditorProps> = ({ item, totalCases, saving, error, onCancel, onSave }) => {
+const StepEditor: React.FC<StepEditorProps> = ({
+  item, totalCases, saving, error, onCancel, onSave,
+  saveLabel = 'Save & re-check',
+  note = 'Saving re-runs Quality Review and AI Classify for this case, so its score and Automation / Manual verdict stay current.'
+}) => {
   const [steps, setSteps] = useState<DraftStep[]>(() =>
     (item.steps_structured ?? []).map((step) => ({
       key: nextKey(),
@@ -125,7 +131,7 @@ const StepEditor: React.FC<StepEditorProps> = ({ item, totalCases, saving, error
             className="flex h-10 items-center gap-2 rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-4 text-[13px] font-bold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" aria-hidden><path d="M20 12a8 8 0 11-2.3-5.6M20 4v5h-5" /></svg>
-            {saving ? 'Saving…' : 'Save & re-check'}
+            {saving ? 'Saving…' : saveLabel}
           </button>
         </div>
       </div>
@@ -228,7 +234,7 @@ const StepEditor: React.FC<StepEditorProps> = ({ item, totalCases, saving, error
 
         <div className="mt-1 flex items-center gap-2 border-t border-[#E8EAEE] pt-2.5 text-[12px] text-[#6B7280]">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="1.8" aria-hidden><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
-          Saving re-runs Quality Review and AI Classify for this case, so its score and Automation / Manual verdict stay current.
+          {note}
         </div>
       </div>
     </section>

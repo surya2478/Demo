@@ -1,8 +1,8 @@
 /**
  * --- Automation Module: workspace context -------------------------------
  *
- * Runtime status is fetched once by the workspace shell and shared with both
- * tabs. Asking twice for the same answer would put two subprocess probes on a
+ * Runtime status is fetched once by the workspace shell and shared with every
+ * screen. Asking twice for the same answer would put two subprocess probes on a
  * host that is also running browsers.
  *
  * This lives in its own module rather than on the shell page so the tabs never
@@ -25,9 +25,6 @@ export interface AutomationContext {
   canExecute: boolean
   /** The header search ("Search scripts, runs, test cases…"), lower-cased. */
   query: string
-  /** The tab cards' counts: Script Lab cases and runs executing now. */
-  setLabCount: (count: number) => void
-  setLiveRuns: (count: number) => void
 }
 
 export function useAutomationContext(): AutomationContext {

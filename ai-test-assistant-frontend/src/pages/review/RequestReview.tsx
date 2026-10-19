@@ -3,15 +3,24 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { usePageHeader } from '../../components/layout/PageHeaderContext'
 import JourneyBar from '../../components/test-assistant/JourneyBar'
 import reviewService, {
-  ageLabel, aiOf, sourceGroupOf, caseDisplayId, caseTitle, detailOf, diffSteps, splitSteps,
+  reviewChecksService,
+  ageLabel, aiOf, aiRunOf, isChecking, sourceGroupOf, caseDisplayId, caseTitle, detailOf, diffSteps, splitSteps,
   type RequestSummary, type ReviewCase
 } from '../../services/reviewService'
 import { inferCaseType } from '../../components/test-assistant/GenerationOutput'
+import ReviewChecksPopup from '../../components/review/ReviewChecksPopup'
+import { useConfirm } from '../../components/ui/ConfirmDialog'
+import StepEditor from '../../components/test-assistant/StepEditor'
+import type { CheckItem, EditedStep } from '../../services/aiChecksService'
 
-// Screen 5: review a request case by case. The manager sees what the AI
-// changed, why a case is Automation or Manual, and whether test data is
-// missing, then approves -- in bulk for the Automation-ready ones. Read-only:
-// authors edit steps before sending, so there is one final version.
+// Screen 5: review a request case by case. Cases arrive as generated; the
+// manager runs AI Checks here -- on the selected cases, or every case not
+// checked yet -- and each case's results (what the AI changed, why it is
+// Automation or Manual, whether test data is missing) appear as its check
+// finishes. Then they approve, in bulk for the Automation-ready ones. Each
+// pending case can be edited here: a checked one through its AI Checks (so it
+// is re-checked), an unchecked one straight onto its columns. A case being
+// checked waits to be approved or edited.
 
 type Filter = 'all' | 'automation' | 'manual' | 'improved' | 'test_data'
 type View = 'ai' | 'original' | 'compare'
@@ -30,6 +39,38 @@ const withTodos = (text: string) => text.split(TODO).map((part, index) =>
     ? <span key={index} className="rounded-[6px] border border-[#EBCFA4] bg-white px-[5px] py-px font-mono text-[11.5px] text-[#8A5000]">{part}</span>
     : <React.Fragment key={index}>{part}</React.Fragment>
 )
+
+const EXPECTED = /\s*\(Expected:\s*([^)]*)\)\s*$/
+
+/** An unchecked case as the step editor's item: its columns' steps, each with the expected result saved in brackets. */
+const uncheckedItem = (c: ReviewCase, steps: string[]): CheckItem => ({
+  check_id: 0,
+  case_id: null,
+  display_id: caseDisplayId(c),
+  title: caseTitle(c),
+  status: 'done',
+  steps: {} as CheckItem['steps'],
+  error: null,
+  score_before: null,
+  score_after: null,
+  improved: false,
+  classification: null,
+  classification_detail: null,
+  classification_reason: null,
+  test_data_pending: false,
+  test_data_notes: null,
+  review_verdict: null,
+  application_url: null,
+  preconditions: null,
+  expected_result: null,
+  test_data: null,
+  steps_structured: steps.map((text, index) => {
+    const expected = text.match(EXPECTED)?.[1]?.trim() ?? null
+    return { step_number: index + 1, action: text.replace(EXPECTED, '').trim(), action_type: null, expected_result: expected, target: null, test_data_ref: null } as NonNullable<CheckItem['steps_structured']>[number]
+  }),
+  journey_diff: null,
+  source_row: {}
+})
 
 const StatusIcon: React.FC<{ status: string }> = ({ status }) =>
   status === 'APPROVED' ? (
@@ -62,6 +103,16 @@ const RequestReview: React.FC = () => {
   const [busy, setBusy] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const reasonRef = useRef<HTMLInputElement | null>(null)
+  const confirm = useConfirm()
+  // The AI Checks batch open in the popup, and starting one.
+  const [checksBatch, setChecksBatch] = useState<string | null>(null)
+  const [aiStarting, setAiStarting] = useState(false)
+  const [notice, setNotice] = useState('')
+  // The case open in the step editor; batchId is its AI Checks batch, null for an unchecked case.
+  const [editing, setEditing] = useState<{ item: CheckItem; batchId: string | null; testCaseId: string } | null>(null)
+  const [editOpening, setEditOpening] = useState(false)
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState('')
 
   const load = useCallback(async () => {
     try {
@@ -82,6 +133,13 @@ const RequestReview: React.FC = () => {
     const id = window.setInterval(() => setNow(Date.now()), 60000)
     return () => window.clearInterval(id)
   }, [])
+  // While cases are being checked, their results land as each check finishes.
+  const anyChecking = cases.some(isChecking)
+  useEffect(() => {
+    if (!anyChecking) return
+    const id = window.setInterval(() => void load(), 4000)
+    return () => window.clearInterval(id)
+  }, [anyChecking, load])
 
   const counts = useMemo(() => ({
     all: cases.length,
@@ -109,6 +167,88 @@ const RequestReview: React.FC = () => {
   const pendingCases = cases.filter((c) => c.status === 'PENDING')
   const automationReady = pendingCases.filter((c) => aiOf(c)?.classification === 'automation')
   const bulkTargets = selected.size > 0 ? pendingCases.filter((c) => selected.has(c.test_case_id)) : automationReady
+  // AI Checks: the selected pending cases, else every pending case not checked yet.
+  const checkingCount = cases.filter(isChecking).length
+  const aiTargets = selected.size > 0
+    ? pendingCases.filter((c) => selected.has(c.test_case_id) && !isChecking(c))
+    : pendingCases.filter((c) => !aiOf(c) && !isChecking(c))
+  // The batch to show: one still running, else the latest started here.
+  const latestBatch = (() => {
+    const runs = cases.map(aiRunOf).filter((r): r is NonNullable<typeof r> => Boolean(r))
+    const live = runs.find((r) => r.status === 'queued' || r.status === 'running')
+    return (live ?? runs.sort((a, b) => b.check_id - a.check_id)[0])?.batch_id ?? null
+  })()
+
+  const runAiChecks = useCallback(async (targets: ReviewCase[]) => {
+    if (!targets.length || aiStarting) return
+    const rechecks = targets.filter((c) => aiOf(c)).length
+    const ok = await confirm({
+      title: `Run AI Checks on ${targets.length} test case${targets.length === 1 ? '' : 's'}?`,
+      body: 'AI Refine, Quality Review, Auto-Improve and AI Classify: the same checks the Test Assistant ran before sending.',
+      consequences: [
+        'They use the Knowledge Base, environment and applications this request was generated with.',
+        'Each case shows its results here as its check finishes; approving it waits until then.',
+        ...(rechecks ? [`${rechecks} ${rechecks === 1 ? 'was' : 'were'} checked before; ${rechecks === 1 ? 'its' : 'their'} results are replaced.`] : [])
+      ],
+      confirmLabel: `Run AI Checks on ${targets.length}`
+    })
+    if (!ok) return
+    setAiStarting(true)
+    setError('')
+    try {
+      const res = await reviewService.startAiChecks({ test_case_ids: targets.map((c) => c.test_case_id), recheck: rechecks > 0 })
+      setNotice(`AI Checks started on ${res.started} test case${res.started === 1 ? '' : 's'}.`)
+      setSelected(new Set())
+      await load()
+      if (res.batches[0]) setChecksBatch(res.batches[0].batch_id)
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || 'AI Checks could not be started.')
+    } finally {
+      setAiStarting(false)
+    }
+  }, [aiStarting, confirm, load])
+
+  const openEditor = useCallback(async (c: ReviewCase) => {
+    if (c.status !== 'PENDING' || isChecking(c) || editOpening) return
+    setEditError('')
+    const run = aiRunOf(c)
+    if (!aiOf(c) || !run || run.status !== 'done') {
+      setEditing({ item: uncheckedItem(c, splitSteps(detailOf(c, 'Test Steps', 'Steps'))), batchId: null, testCaseId: c.test_case_id })
+      return
+    }
+    setEditOpening(true)
+    try {
+      const batch = await reviewChecksService.get(run.batch_id)
+      const item = batch.items.find((i) => i.check_id === run.check_id)
+      if (!item) throw new Error('Its AI Checks could not be found.')
+      setEditing({ item, batchId: run.batch_id, testCaseId: c.test_case_id })
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || err?.message || 'This case could not be opened for editing.')
+    } finally {
+      setEditOpening(false)
+    }
+  }, [editOpening])
+
+  const saveEdits = useCallback(async (steps: EditedStep[]) => {
+    if (!editing) return
+    setEditSaving(true)
+    setEditError('')
+    try {
+      if (editing.batchId) {
+        await reviewChecksService.saveSteps(editing.batchId, editing.item.check_id, steps)
+        setNotice(`${editing.item.display_id ?? 'The case'} saved; Quality Review and AI Classify are re-running on it.`)
+      } else {
+        await reviewService.saveCaseSteps(requestId, editing.testCaseId, steps)
+        setNotice(`${editing.item.display_id ?? 'The case'} saved.`)
+      }
+      setEditing(null)
+      await load()
+    } catch (err: any) {
+      setEditError(err?.response?.data?.detail || 'The steps could not be saved.')
+    } finally {
+      setEditSaving(false)
+    }
+  }, [editing, load, requestId])
 
   const moveBy = useCallback((step: number) => {
     if (!visible.length) return
@@ -166,6 +306,10 @@ const RequestReview: React.FC = () => {
 
   const approveCurrent = useCallback(async () => {
     if (!current || busy) return
+    if (isChecking(current)) {
+      setError('AI Checks are still running on this case. Approve it once they finish.')
+      return
+    }
     const completed = await approveCases([current])
     if (!completed) return
     // Approve & next: the next case still waiting, after this one.
@@ -227,9 +371,30 @@ const RequestReview: React.FC = () => {
     ),
     title: docName,
     showSearch: false,
-    contentKey: `${requestId}|${summary?.request_by ?? ''}|${bulkTargets.length}|${rejectTargets.length}|${selected.size}|${pendingCases.length}|${busy}|${Math.floor(now / 60000)}`,
+    contentKey: `${requestId}|${summary?.request_by ?? ''}|${bulkTargets.length}|${rejectTargets.length}|${selected.size}|${pendingCases.length}|${busy}|${Math.floor(now / 60000)}|${aiTargets.length}|${checkingCount}|${aiStarting}|${latestBatch ?? ''}`,
     actions: (
       <div className="flex items-center gap-2.5">
+        {latestBatch && (
+          <button
+            type="button"
+            onClick={() => setChecksBatch(latestBatch)}
+            className="flex h-9 items-center gap-2 rounded-[12px] border border-[#E8EAEE] bg-white px-3.5 text-[13px] font-bold text-[#1F2937] transition hover:border-[#F6D4D5]"
+          >
+            {checkingCount > 0 && <span className="box-border h-3 w-3 animate-spin rounded-full border-2 border-[#F6D4D5] border-t-[#B71920]" />}
+            {checkingCount > 0 ? `AI Checks running · ${checkingCount}` : 'AI Checks'}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => void runAiChecks(aiTargets)}
+          disabled={busy || aiStarting || aiTargets.length === 0}
+          title={aiTargets.length === 0 ? (selected.size > 0 ? 'The selected cases are being checked' : 'Every pending case has been AI-checked; select cases to check them again') : 'Refine, review, improve and classify these cases'}
+          data-audit-name="Run AI Checks"
+          className="flex h-9 items-center gap-2 rounded-[12px] bg-[#1F2937] px-3.5 text-[13px] font-bold text-white transition hover:bg-[#111827] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M12 3l1.8 4.9L19 9.7l-4.2 3.1 1.5 5.2L12 15l-4.3 3 1.5-5.2L5 9.7l5.2-1.8z" /></svg>
+          {aiStarting ? 'Starting…' : selected.size > 0 ? `Run AI Checks on ${aiTargets.length} selected` : `Run AI Checks on ${aiTargets.length} unchecked`}
+        </button>
         <button
           type="button"
           onClick={() => void rejectRequest()}
@@ -273,6 +438,20 @@ const RequestReview: React.FC = () => {
   return (
     <div className="flex flex-col gap-3">
       {error && <div className="rounded-[12px] border border-[#F6D4D5] bg-[#FFF8F8] px-4 py-2.5 text-[13px] text-[#7A0B0D]" role="alert">{error}</div>}
+      {notice && (
+        <div role="status" className="flex items-center gap-2 rounded-[12px] border border-[#CDEBD8] bg-[#F3FBF6] px-4 py-2.5 text-[13px] text-[#136B34]">
+          {notice}
+          <button type="button" onClick={() => setNotice('')} className="ml-auto text-[12px] font-semibold text-[#6B7280] hover:text-[#1F2937]">Dismiss</button>
+        </div>
+      )}
+      {checksBatch && (
+        <ReviewChecksPopup
+          batchId={checksBatch}
+          label={`${requestId}${summary?.project ? ` · ${summary.project.ppm_id}` : ''}`}
+          onClose={() => setChecksBatch(null)}
+          onChanged={() => void load()}
+        />
+      )}
 
       {/* Decision progress */}
       <div className={`${CARD} !rounded-[14px] flex flex-wrap items-center gap-4 px-4 py-2.5`}>
@@ -349,6 +528,12 @@ const RequestReview: React.FC = () => {
                         </span>
                       )}
                       {cai?.test_data_pending && <span className="ml-1 inline-flex h-[18px] items-center rounded-full bg-[#FFF4E5] px-2 text-[10px] font-semibold text-[#8A5000]">Data</span>}
+                      {isChecking(c) && (
+                        <span className="ml-1 inline-flex h-[18px] items-center gap-1 rounded-full bg-[#FDEBEC] px-2 text-[10px] font-semibold text-[#941216]">
+                          <span className="box-border h-2 w-2 animate-spin rounded-full border-[1.5px] border-[#F6D4D5] border-t-[#B71920]" />Checking
+                        </span>
+                      )}
+                      {aiRunOf(c)?.status === 'failed' && !cai && <span className="ml-1 inline-flex h-[18px] items-center rounded-full bg-[#FEEBEC] px-2 text-[10px] font-semibold text-[#A3231C]">Check failed</span>}
                     </div>
                     <div className="truncate text-[12px] text-[#6B7280]">{caseTitle(c)}</div>
                   </div>
@@ -361,7 +546,18 @@ const RequestReview: React.FC = () => {
         </section>
 
         {/* Case detail */}
-        {current ? (
+        {editing ? (
+          <StepEditor
+            key={editing.testCaseId}
+            item={editing.item}
+            totalCases={cases.length}
+            saving={editSaving}
+            error={editError}
+            onCancel={() => { setEditing(null); setEditError('') }}
+            onSave={(steps) => void saveEdits(steps)}
+            {...(editing.batchId ? {} : { saveLabel: 'Save', note: 'Not AI-checked yet, so saving writes the steps onto the case as they are. Run AI Checks afterwards to score and classify it.' })}
+          />
+        ) : current ? (
           <section className={`${CARD} flex flex-col overflow-hidden`}>
             <div className="border-b border-[#E8EAEE] px-5 pb-3 pt-3.5">
               <div className="flex flex-wrap items-center gap-2">
@@ -370,10 +566,27 @@ const RequestReview: React.FC = () => {
                 {priority && <span className={`${CHIP} bg-[#F4F5F7] text-[#1F2937]`}>{priority}</span>}
                 {ai?.classification && <span className={`${CHIP} ${ai.classification === 'automation' ? 'bg-[#EAF7EF] text-[#136B34]' : 'bg-[#F4F5F7] text-[#374151]'}`}>{ai.classification === 'automation' ? 'Automation' : 'Manual'}</span>}
                 {ai?.improved && <span className={`${CHIP} bg-[#FFF5F5] text-[#941216]`}>Improved by AI</span>}
-                {!ai && <span className={`${CHIP} bg-[#F4F5F7] text-[#6B7280]`}>Not AI-checked</span>}
+                {isChecking(current) ? (
+                  <span className={`${CHIP} bg-[#FDEBEC] text-[#941216]`}>
+                    <span className="box-border h-2.5 w-2.5 animate-spin rounded-full border-2 border-[#F6D4D5] border-t-[#B71920]" />AI Checks running
+                  </span>
+                ) : !ai && <span className={`${CHIP} bg-[#F4F5F7] text-[#6B7280]`}>Not AI-checked</span>}
                 {current.status !== 'PENDING' && <span className={`${CHIP} ${current.status === 'APPROVED' ? 'bg-[#EAF7EF] text-[#136B34]' : 'bg-[#FEEBEC] text-[#A3231C]'}`}>{current.status === 'APPROVED' ? 'Approved' : 'Rejected'}</span>}
+                {current.status === 'PENDING' && (
+                  <button
+                    type="button"
+                    onClick={() => void openEditor(current)}
+                    disabled={isChecking(current) || editOpening}
+                    title={isChecking(current) ? 'AI Checks are still running on this case' : ai ? 'Edit the steps; Quality Review and AI Classify re-run on save' : 'Edit the steps'}
+                    data-audit-name="Edit test case"
+                    className="ml-auto flex h-[30px] items-center gap-1.5 rounded-[10px] border border-[#E8EAEE] bg-white px-3 text-[12px] font-bold text-[#1F2937] transition hover:border-[#F6D4D5] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1F2937" strokeWidth="1.8" aria-hidden><path d="M4 20h4L19 9l-4-4L4 16z" /></svg>
+                    {editOpening ? 'Opening…' : 'Edit'}
+                  </button>
+                )}
                 {ai && (
-                  <div className="ml-auto flex rounded-[10px] bg-[#F4F5F7] p-[3px]" role="tablist">
+                  <div className={`${current.status === 'PENDING' ? '' : 'ml-auto '}flex rounded-[10px] bg-[#F4F5F7] p-[3px]`} role="tablist">
                     {(['ai', 'original', 'compare'] as View[]).map((v) => (
                       <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => setView(v)}
                         className={`rounded-[8px] px-2.5 py-[5px] text-[12px] ${view === v ? 'bg-white font-bold text-[#1F2937] shadow-[0_1px_2px_rgba(16,24,40,0.08)]' : 'font-semibold text-[#6B7280]'}`}>
@@ -478,7 +691,28 @@ const RequestReview: React.FC = () => {
                         })}
                       </div>
                     </>
-                  ) : <div className="mt-1.5 text-[12.5px] text-[#6B7280]">This case was sent without AI Checks, so it has no quality review.</div>}
+                  ) : isChecking(current) ? (
+                    <div className="mt-1.5 text-[12.5px] text-[#6B7280]">
+                      AI Checks are running on this case; its quality review appears here when they finish.{' '}
+                      {aiRunOf(current) && <button type="button" onClick={() => setChecksBatch(aiRunOf(current)!.batch_id)} className="font-semibold text-[#B71920] hover:underline">Watch</button>}
+                    </div>
+                  ) : (
+                    <div className="mt-1.5 text-[12.5px] text-[#6B7280]">
+                      {aiRunOf(current)?.status === 'failed'
+                        ? <>AI Checks could not finish on this case{aiRunOf(current)?.error ? `: ${aiRunOf(current)!.error}` : ''}.</>
+                        : 'Not AI-checked yet, so it has no quality review.'}
+                      {current.status === 'PENDING' && (
+                        <button
+                          type="button"
+                          onClick={() => void runAiChecks([current])}
+                          disabled={aiStarting}
+                          className="mt-2 flex h-8 items-center gap-1.5 rounded-[10px] bg-[#1F2937] px-3 text-[12px] font-bold text-white hover:bg-[#111827] disabled:opacity-50"
+                        >
+                          Run AI Checks on this case
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
                 {ai?.classification_reason && (
                   <div className="border-t border-[#E8EAEE] pt-3">
@@ -529,7 +763,8 @@ const RequestReview: React.FC = () => {
                   Close &amp; back to Review
                 </button>
               ) : (
-                <button type="button" onClick={() => void approveCurrent()} disabled={busy}
+                <button type="button" onClick={() => void approveCurrent()} disabled={busy || isChecking(current)}
+                  title={isChecking(current) ? 'AI Checks are still running on this case' : undefined}
                   className="flex h-9 items-center gap-2 rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-3.5 text-[13px] font-bold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] disabled:opacity-50">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.6" aria-hidden><path d="M5 12l5 5 9-10" /></svg>
                   Approve &amp; next

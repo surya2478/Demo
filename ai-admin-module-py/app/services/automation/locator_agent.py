@@ -134,6 +134,7 @@ You receive a JSON object with:
     target: the phrase the compiler could not turn into an element name
     intent: click | fill | select | assert | goto | wait
     problem: why the automatic guess is weak
+    candidates: the crawled or Knowledge Base elements nearest to THIS step. These are verified to exist; when one is plainly the element the step means, return its locator exactly as given (double quotes inside it are allowed only in that case).
 
 Return ONE object per step, with:
 - step_number: echoed exactly
@@ -158,9 +159,41 @@ RULES:
 3. Prefer role and label locators over CSS. Prefer CSS over text when the text is long.
 4. The accessible name is what a user SEES on the control - not the step's sentence. "Click the ADD TO CART button" means name 'ADD TO CART', not the whole phrase.
 5. Never invent a data-testid you were not shown in candidates.
-6. If you genuinely cannot tell what element the step means, return confidence below 40 and your best guess anyway.
+6. A candidate that only shares a word with the step is not a match. "Manage" is not "Manage Users".
+7. If you genuinely cannot tell what element the step means, return confidence below 40 and your best guess anyway.
 
 Output ONLY a JSON array with one object per input step. No prose, no markdown fences."""
+
+
+_WORD = re.compile(r"[a-z0-9]+")
+_FILLER = frozenset({
+    "the", "and", "for", "with", "click", "enter", "select", "navigate", "page",
+    "button", "link", "field", "menu", "item", "row", "column", "list", "table",
+})
+
+
+def _words(text: Any) -> set[str]:
+    return {w for w in _WORD.findall(str(text or "").lower()) if len(w) > 2 and w not in _FILLER}
+
+
+def _relevant(candidates: list[dict[str, Any]], unresolved: list[dict[str, Any]], limit: int = 40) -> list[dict[str, Any]]:
+    """The candidates that share a word with any flagged step, best first.
+
+    This used to send the first forty entries of the crawl. On the B2B Portal
+    those were the consumer site's header links -- Consumer, Carrier &
+    Wholesale -- so the model had nothing near the step to choose from and
+    invented a locator every time.
+    """
+    wanted: set[str] = set()
+    for u in unresolved:
+        wanted |= _words(u.get("target")) | _words(u.get("action"))
+    scored = []
+    for index, el in enumerate(candidates):
+        overlap = len(wanted & _words(f"{el.get('accessible_name') or ''} {el.get('element_name') or ''}"))
+        if overlap:
+            scored.append((-overlap, index, el))
+    scored.sort(key=lambda item: (item[0], item[1]))
+    return [el for _, _, el in scored[:limit]]
 
 
 def build_payload(
@@ -173,15 +206,14 @@ def build_payload(
     """The user half of the call, with the untrusted portion fenced."""
     import json
 
-    trimmed = []
-    for el in (candidates or [])[:40]:
-        trimmed.append(
-            {
-                "role": el.get("role"),
-                "name": el.get("accessible_name") or el.get("element_name"),
-                "locator": el.get("recommended_locator"),
-            }
-        )
+    trimmed = [
+        {
+            "role": el.get("role"),
+            "name": el.get("accessible_name") or el.get("element_name"),
+            "locator": el.get("recommended_locator"),
+        }
+        for el in _relevant(candidates or [], unresolved)
+    ]
 
     payload = {
         "application_url": application_url,
@@ -194,6 +226,7 @@ def build_payload(
                 "target": u.get("target"),
                 "intent": u.get("intent"),
                 "problem": u.get("reason"),
+                "candidates": u.get("candidates") or [],
             }
             for u in unresolved
         ],
@@ -245,6 +278,13 @@ def resolve_locators(
     wanted = {int(u["step_number"]) for u in unresolved if u.get("step_number") is not None}
     resolved: dict[int, dict[str, Any]] = {}
     rejected = 0
+    # Locators the crawl or the Knowledge Base supplied. They are compiled
+    # verbatim everywhere else, so a reply that picks one exactly is accepted
+    # even where it falls outside the grammar (KB XPath is double-quoted).
+    offered = {
+        " ".join(str(c.get("locator") or c.get("recommended_locator") or "").split())
+        for c in [*(candidates or []), *(c for u in unresolved for c in (u.get("candidates") or []))]
+    } - {""}
 
     for item in batch.root:
         if item.step_number not in wanted:
@@ -253,7 +293,8 @@ def resolve_locators(
             continue
         if item.confidence < min_confidence:
             continue
-        locator = validate_locator(item.locator)
+        picked = " ".join((item.locator or "").split())
+        locator = picked if picked in offered else validate_locator(item.locator)
         if locator is None:
             rejected += 1
             logger.info(

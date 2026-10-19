@@ -81,6 +81,9 @@ export interface RunSummary {
   /** The project its test case was generated for (PPM ID and name). */
   project?: { id: number; ppm_id: string; name: string } | null
   test_case_id?: number | null
+  /** The Lab script it ran, and that script's version ("v3"). */
+  script_id?: number | null
+  script_version?: number | null
   tc_display_id?: string | null
   tc_title?: string | null
   file_name?: string | null
@@ -567,6 +570,8 @@ export interface ScriptLabCase {
   environment?: string | null
   /** When the case landed in the automation module; the Lab is sorted on it. */
   created_at: string | null
+  /** The case's own last change (an edit in the Lab, a re-classification). */
+  updated_at?: string | null
   scripts: ScriptAsset[]
   /** The review request it was approved in, and that request's source. */
   request_id?: string | null
@@ -889,3 +894,76 @@ export const INTAKE_ROLE_LABELS: Record<IntakeRole, string> = {
 
 /** Extensions the backend's extractor accepts. Mirrors extraction.py. */
 export const INTAKE_ACCEPTED_EXTENSIONS = '.pdf,.docx,.xlsx,.csv,.txt,.md'
+
+/** What deleting a project from the Automation Lab would remove. */
+export interface ProjectDeletePreview {
+  project: { id: number; ppm_id: string; name: string } | null
+  /** Typed to confirm: the PPM ID, or "No project". */
+  confirm_text: string
+  cases: number
+  /** Every version, and the current ones among them. */
+  scripts: number
+  current_scripts: number
+  edited_scripts: number
+  runs: number
+  /** Runs still going; the delete is refused while there are any. */
+  live_runs: string[]
+  /** Cases mirrored from Review & Approval (kept out once deleted). */
+  from_review: number
+}
+
+// --- Automation Lab: Test steps tab -------------------------------------------------------
+
+export interface LabStep {
+  step_number: number
+  action: string
+  action_type: string | null
+  target: string | null
+  test_data_ref: string | null
+  expected_result: string | null
+}
+
+/** A test data key the case uses, and whether Test Data holds its value for the run environment. */
+export interface LabTestDataKey {
+  key: string
+  description: string | null
+  sensitive: boolean
+  has_value: boolean
+  /** Only for values not marked sensitive. */
+  value: string | null
+  /** The Test Data entry the key resolved to, when it is not the key itself. */
+  matched_key: string | null
+  used_in: number[]
+}
+
+export interface LabKbElement {
+  name: string
+  role: string | null
+  page: string | null
+  locator: string | null
+}
+
+export interface LabCaseSteps {
+  case_id: number
+  display_id: string
+  title: string
+  preconditions: string
+  expected_result: string
+  version: number
+  steps: LabStep[]
+  test_data: LabTestDataKey[]
+  test_data_app: { id: number; name: string } | null
+  environment: string
+  kb_application: { id: number; name: string } | null
+  kb_elements: LabKbElement[]
+  warnings?: string[]
+}
+
+export interface LabCaseStepsSave {
+  title: string
+  preconditions: string
+  expected_result: string
+  steps: Omit<LabStep, 'step_number'>[]
+  /** value: undefined keeps what Test Data holds. */
+  test_data: { key: string; description: string | null; sensitive: boolean; value?: string }[]
+}

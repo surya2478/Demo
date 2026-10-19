@@ -78,10 +78,6 @@ def _tokens(text: Optional[str]) -> set[str]:
     }
 
 
-def _normalized(text: Optional[str]) -> str:
-    return " ".join(sorted(_tokens(text)))
-
-
 def _affine_roles(action: str) -> frozenset[str]:
     lowered = (action or "").lower()
     for verbs, roles in _ROLE_AFFINITY:
@@ -113,37 +109,162 @@ def _score(step_tokens: set[str], entry: dict) -> int:
     return name_overlap * 2 + other_overlap
 
 
+# --- What the target names, for the coverage check ---------------------------
+#
+# The score above counts shared words between the whole step -- action and
+# target -- and everything known about an element. On a 349-element crawl that
+# let one incidental word decide: "Locate the user row with Trade License
+# 'TL123456'" tied "Locate Business Center" (the verb) with "Device Trade-In"
+# (half a word of the target), and "Manage Users" took the consumer site's
+# "Manage" tab. So a fuzzy match must now also cover MORE THAN HALF of what the
+# target names, counted with "user"/"users" kept (they distinguish "Manage
+# Users" from "Manage") and with the words that say what kind of thing an
+# element is dropped (a row, a menu item, a modal -- the element's name never
+# contains those).
+_KIND_WORDS = frozenset({
+    "row", "rows", "column", "columns", "cell", "cells", "menu", "item", "items",
+    "option", "options", "list", "table", "modal", "dialog", "popup", "section",
+    "fields", "buttons", "links", "header", "label", "dropdown", "checkbox",
+    "radio", "tab", "panel", "card", "area", "text", "value",
+})
+_COVERAGE_IGNORED = (_STOPWORDS - {"user", "users"}) | _KIND_WORDS
+
+_QUOTED_RE = re.compile(r"(?<![\w])[\"'‘“]([^\"'’”\n]{1,80})[\"'’”](?![\w])")
+
+
+def _target_words(text: Optional[str]) -> set[str]:
+    if not text:
+        return set()
+    return {
+        word
+        for word in _WORD_RE.split(text.lower())
+        if len(word) > 2 and word not in _COVERAGE_IGNORED
+    }
+
+
+def quoted_labels(text: Optional[str]) -> list[str]:
+    """Labels a step quotes verbatim ("Click 'RECEIVE OTP'" -> RECEIVE OTP).
+
+    The opening quote may not follow a letter, so "user's row" is not read as
+    the start of a quotation.
+    """
+    return [q.strip() for q in _QUOTED_RE.findall(text or "") if q.strip()]
+
+
+def _label_key(text: Optional[str]) -> str:
+    """An accessible name compared as a set of words, "user(s)" kept.
+
+    Compared on _tokens, which drops "users" as a stopword, "Manage Users" was an
+    EXACT match for the "Manage" link.
+    """
+    return " ".join(sorted(_target_words(text)))
+
+
+def _covers(target_words: set[str], entry: dict) -> bool:
+    """Whether `entry` names what the target names, not just one word of it.
+
+    Both ways: the element must cover more than half of the target, and the
+    target more than half of the element's own name -- "Trade License column"
+    is not "Upload your Trade License", though every target word is in it.
+    """
+    if not target_words:
+        return True
+    name = _target_words(entry.get("accessible_name"))
+    shared = target_words & name
+    if not shared or len(shared) * 2 <= len(name):
+        return False
+    known = name | _target_words(entry.get("business_meaning")) | _target_words(
+        (entry.get("element_name") or "").replace("_", " ")
+    )
+    return len(target_words & known) * 2 > len(target_words)
+
+
+def scope_catalog(catalog: list[dict], base_url: Optional[str]) -> list[dict]:
+    """The part of a crawl that belongs to the application at `base_url`.
+
+    A crawl follows links off the application -- the B2B Portal's catalogue is
+    mostly the consumer site's home page -- and an element there is a real
+    element of a different application, which is the worst kind of match: it
+    resolves, on the wrong page. Entries without a page are kept. When the
+    application's URL has no path, or nothing would be left, the catalogue is
+    returned unchanged.
+    """
+    match = re.match(r"https?://([^/?#]+)(/[^?#]*)?", (base_url or "").strip(), re.I)
+    if not match:
+        return catalog
+    host = match.group(1).lower()
+    path = (match.group(2) or "/").rstrip("/")
+    # "/b2bportal/login.html" scopes to "/b2bportal", not to the page itself.
+    if "." in path.rsplit("/", 1)[-1]:
+        path = path.rsplit("/", 1)[0]
+    if not path:
+        return catalog
+    scoped = []
+    for entry in catalog:
+        page = str(entry.get("page") or "")
+        page_match = re.match(r"https?://([^/?#]+)(/[^?#]*)?", page, re.I)
+        if not page_match:
+            scoped.append(entry)
+            continue
+        page_path = page_match.group(2) or "/"
+        if page_match.group(1).lower() == host and (
+            page_path == path or page_path.startswith(path + "/")
+        ):
+            scoped.append(entry)
+    return scoped or catalog
+
+
 def match_step(step: dict, catalog: list[dict]) -> tuple[Optional[dict], Optional[str]]:
     """Best catalogue entry for one step, or (None, reason).
 
-    Role affinity narrows the field first; when nothing of the right role
-    matches, the whole catalogue is retried so a step whose verb was phrased
-    unusually still has a chance -- but a match found that way has to clear the
-    same score bar.
+    A label the step quotes, matched exactly, wins outright. Otherwise role
+    affinity narrows the field first; when nothing of the right role matches,
+    the whole catalogue is retried so a step whose verb was phrased unusually
+    still has a chance -- but a match found that way has to clear the same
+    score bar, and the same coverage of the target.
     """
     target = (step.get("target") or "").strip()
-    step_tokens = _tokens(target) | _tokens(step.get("action"))
+    target_tokens = _tokens(target)
+    # The target is what names the element; the action's words only join in
+    # when the target says nothing on its own. Scoring the verb as well is how
+    # "Locate ..." matched "Locate Business Center".
+    step_tokens = target_tokens or _tokens(step.get("action"))
     if not step_tokens:
         return None, "The step names no target to match against."
+    target_words = _target_words(target)
 
-    exact = _normalized(target)
+    exact = _label_key(target)
     roles = _affine_roles(step.get("action") or "")
+    quoted = {
+        _label_key(q) for q in quoted_labels(target) + quoted_labels(step.get("action"))
+    } - {""}
 
     def _search(pool: list[dict]) -> tuple[Optional[dict], Optional[str]]:
         if not pool:
             return None, None
         for entry in pool:
-            if exact and _normalized(entry.get("accessible_name")) == exact:
+            if exact and _label_key(entry.get("accessible_name")) == exact:
                 return entry, None
+        if quoted:
+            hits = [e for e in pool if _label_key(e.get("accessible_name")) in quoted]
+            if hits:
+                return max(hits, key=lambda e: int(e.get("confidence_score") or 0)), None
+        candidates = [e for e in pool if _covers(target_words, e)]
+        if not candidates:
+            return None, None
         ranked = sorted(
-            pool,
+            candidates,
             key=lambda e: (-_score(step_tokens, e), -int(e.get("confidence_score") or 0)),
         )
         best = ranked[0]
         best_score = _score(step_tokens, best)
         if best_score < _MIN_SCORE:
             return None, None
-        runners_up = [e for e in ranked[1:] if _score(step_tokens, e) == best_score]
+        runners_up = [
+            e for e in ranked[1:]
+            if _score(step_tokens, e) == best_score
+            and e.get("recommended_locator") != best.get("recommended_locator")
+        ]
         if runners_up:
             names = ", ".join(
                 f'"{e.get("accessible_name") or e.get("element_name")}"'

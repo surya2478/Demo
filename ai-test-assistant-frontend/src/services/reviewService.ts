@@ -1,10 +1,13 @@
 import api from './api'
+import type { CheckBatch, EditedStep } from './aiChecksService'
 import { getTimestampedFilename } from '../utils/DynamicFileName-DateTime'
 import { saveRqm, toRqmRows } from '../utils/rqmTemplate'
 
-// Review & Approval (screens 4 and 5). Every request has been through AI Checks
-// when it comes from the Test Assistant; each case then carries the checks'
-// results under test_case_details._ai, attached by the server at send time.
+// Review & Approval (screens 4 and 5). The Test Assistant sends cases as they
+// were generated; AI Checks run here, on a project, a request or chosen cases.
+// A case being checked carries test_case_details._ai_run; once its check
+// finishes the server writes the results under test_case_details._ai and the
+// checked text into the case's columns (the case as sent stays in _ai.original).
 
 export type SourceGroup = 'BRD' | 'SDD' | 'ADO' | 'e2e Spark'
 
@@ -55,6 +58,10 @@ export interface RequestSummary {
   cases: number
   pending_cases: number
   ai_checked: number
+  /** Cases whose AI Checks are running now. */
+  ai_running?: number
+  /** Pending cases not checked and not being checked. */
+  ai_unchecked?: number
   automation: number
   manual: number
   test_data_pending: number
@@ -114,6 +121,24 @@ export interface ReviewCase {
 
 export const PENDING = ['PENDING_REVIEW', 'PARTIALLY_APPROVED']
 
+/** The AI Checks started on a case from Review & Approval, while and after they run. */
+export interface AIRun {
+  batch_id: string
+  check_id: number
+  status: 'queued' | 'running' | 'done' | 'failed' | 'stopped'
+  error?: string | null
+}
+
+export const aiRunOf = (item: ReviewCase): AIRun | null => {
+  const run = item.test_case_details?._ai_run
+  return run && typeof run === 'object' ? (run as AIRun) : null
+}
+
+export const isChecking = (item: ReviewCase) => {
+  const status = aiRunOf(item)?.status
+  return status === 'queued' || status === 'running'
+}
+
 export const aiOf = (item: ReviewCase): AIResults | null => {
   const ai = item.test_case_details?._ai
   return ai && typeof ai === 'object' ? (ai as AIResults) : null
@@ -142,6 +167,10 @@ const reviewService = {
   overview: async (): Promise<Overview> => (await api.get('/test-case-reviews/overview')).data,
   detail: async (requestId: string): Promise<{ data: RequestSummary; test_cases: ReviewCase[] }> =>
     (await api.get(`/test-case-reviews/detail/${encodeURIComponent(requestId)}`)).data,
+  /** A reviewer's step edits on a case not AI-checked; a checked one goes through reviewChecksService.saveSteps. */
+  saveCaseSteps: async (requestId: string, testCaseId: string, steps: EditedStep[]): Promise<void> => {
+    await api.put(`/test-case-reviews/detail/${encodeURIComponent(requestId)}/test-case/${encodeURIComponent(testCaseId)}/steps`, { steps })
+  },
   decide: async (
     requestId: string,
     decision: 'APPROVE' | 'REJECT',
@@ -159,6 +188,23 @@ const reviewService = {
     const res = await api.post(`/test-case-reviews/detail/${encodeURIComponent(requestId)}/bitbucket-sync`)
     window.dispatchEvent(new Event('test-case-review-updated'))
     return res.data.sync
+  },
+  /**
+   * Run AI Checks on review cases: every pending case of these requests, or
+   * these cases. Cases already checked are skipped unless recheck.
+   */
+  startAiChecks: async (body: { request_ids?: string[]; test_case_ids?: string[]; recheck?: boolean }): Promise<{
+    batches: { request_id: string; batch_id: string; cases: number }[]
+    started: number
+    skipped: { not_pending: number; checked: number; running: number }
+  }> => {
+    const res = await api.post('/test-case-reviews/ai-checks/start', {
+      request_ids: body.request_ids ?? [],
+      test_case_ids: body.test_case_ids ?? [],
+      recheck: Boolean(body.recheck)
+    })
+    window.dispatchEvent(new Event('test-case-review-updated'))
+    return res.data
   },
   /** Delete requests and their test cases. Manager only. */
   remove: async (requestIds: string[]): Promise<{ deleted: number; test_cases: number; drafts: number }> => {
@@ -322,3 +368,24 @@ export const ageLabel = (iso: string | null, now: number) => {
 }
 
 export default reviewService
+
+/**
+ * The AI Checks batch actions, for a reviewer. The same as the Test Assistant's
+ * (aiChecksService), behind Review & Approval's manager check.
+ */
+const CHECKS = '/test-case-reviews/ai-checks'
+export const reviewChecksService = {
+  get: async (batchId: string): Promise<CheckBatch> => (await api.get(`${CHECKS}/${encodeURIComponent(batchId)}`)).data,
+  retry: async (batchId: string, checkId: number): Promise<void> => {
+    await api.post(`${CHECKS}/${encodeURIComponent(batchId)}/checks/${checkId}/retry`)
+  },
+  stop: async (batchId: string): Promise<void> => {
+    await api.post(`${CHECKS}/${encodeURIComponent(batchId)}/stop`)
+  },
+  restart: async (batchId: string): Promise<void> => {
+    await api.post(`${CHECKS}/${encodeURIComponent(batchId)}/restart`)
+  },
+  saveSteps: async (batchId: string, checkId: number, steps: EditedStep[]): Promise<void> => {
+    await api.put(`${CHECKS}/${encodeURIComponent(batchId)}/checks/${checkId}/steps`, { steps })
+  }
+}

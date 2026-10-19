@@ -58,9 +58,8 @@ const aiTestAutomationtems: MenuItem[] = [
     { path: '/automation/knowledge-base', label: 'Knowledge Base', permission: 'automation.view', beta: true },
     // The one source of test data for automation cases; the KB refers to it.
     { path: '/test-data', label: 'Test Data', permission: 'automation.view', beta: true },
-    // BRD + design + KB + script mapped per approved automation case. Hidden
-    // from the menu for now; the page still opens at /automation/rnd-lab.
-    // { path: '/automation/rnd-lab', label: 'AI R&D Lab', permission: 'automation.view', beta: true }
+    // BRD + design + KB + script mapped per approved automation case.
+    { path: '/automation/rnd-lab', label: 'AI R&D Lab', permission: 'automation.view', beta: true },
     ]
     
  
@@ -137,8 +136,10 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileClose }) 
     <div className="flex h-full w-full flex-col">
       {/* Logo header */}
       <div className="flex items-center gap-3 px-5 pt-5 pb-4">
-        <div className="flex h-11 w-11 items-center justify-center rounded-app bg-white/10 backdrop-blur">
-          <img src="/etisalat-logo.svg" alt="Logo" className="h-7 w-7 object-contain" />
+        {/* The white Etisalat mark (public/etisalat-white.png, trimmed to its
+            edges): it reads on the red sidebar, where the red logo did not. */}
+        <div className="flex h-11 w-14 flex-shrink-0 items-center justify-center rounded-app bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-1.5 shadow-[0_6px_14px_rgba(0,0,0,0.18)]">
+          <img src="/etisalat-white-logo.png" alt="Etisalat" className="max-h-8 w-full object-contain" />
         </div>
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold leading-tight text-white">

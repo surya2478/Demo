@@ -44,6 +44,7 @@ from ..models.automation import (
     AutomationRunResult,
     AutomationScript,
     AutomationTestCase,
+    AutomationTestData,
 )
 from ..services.authz import require_permission
 from ..services.automation import workspace as ws
@@ -395,6 +396,9 @@ def _run_summary(run: AutomationRun) -> dict:
     return {
         "run_key": run.run_key,
         "test_case_id": getattr(run, "test_case_id", None),
+        # The script version it ran ("v3"), when it ran a Lab script.
+        "script_id": getattr(run, "script_id", None),
+        "script_version": getattr(script, "version", None) if script is not None else None,
         "tc_display_id": tc_display_id,
         "tc_title": tc_title,
         "file_name": file_name,
@@ -663,10 +667,14 @@ def list_runs(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission(PERM_VIEW)),
     limit: int = Query(default=50, ge=1, le=200),
+    test_case_id: Optional[int] = Query(default=None),
 ):
-    runs = (
-        db.query(AutomationRun).order_by(AutomationRun.created_at.desc()).limit(limit).all()
-    )
+    # test_case_id narrows the list to one case's runs: the Automation Lab's
+    # History view. The summary stays page-wide either way.
+    query = db.query(AutomationRun)
+    if test_case_id is not None:
+        query = query.filter(AutomationRun.test_case_id == test_case_id)
+    runs = query.order_by(AutomationRun.created_at.desc()).limit(limit).all()
     total = db.query(AutomationRun).count()
     finished = [r for r in runs if r.outcome in ("passed", "failed")]
     passed = sum(1 for r in finished if r.outcome == "passed")
@@ -922,6 +930,40 @@ def heal_script_spec(
 
 
 
+def _remove_run(db: Session, run: AutomationRun) -> None:
+    """Cancel a run if it is going, unlink it from its script, and delete it
+    with its results and on-disk workspace (the evidence)."""
+    if job_manager.is_active(run.run_key):
+        try:
+            job_manager.cancel(run.run_key)
+        except Exception:
+            pass
+
+    # If it was dry_run on a script, unlink it
+    if run.script and run.script.dry_run_key == run.run_key:
+        run.script.dry_run_key = None
+        run.script.dry_run_status = "not_run"
+
+    # Remove workspace directory if it exists
+    if run.workspace_path:
+        try:
+            wp = Path(run.workspace_path)
+            if wp.exists() and wp.is_dir():
+                shutil.rmtree(wp, ignore_errors=True)
+        except Exception:
+            pass
+
+    # Also check default workspace location
+    try:
+        ws_dir = ws.workspace_dir_for_run(run.run_key)
+        if ws_dir.exists() and ws_dir.is_dir():
+            shutil.rmtree(ws_dir, ignore_errors=True)
+    except Exception:
+        pass
+
+    db.delete(run)
+
+
 class DeleteRunsRequest(BaseModel):
     run_keys: list[str] = Field(min_length=1)
 
@@ -940,36 +982,7 @@ def delete_runs(
 
     deleted_count = 0
     for run in runs:
-        # Cancel if active
-        if job_manager.is_active(run.run_key):
-            try:
-                job_manager.cancel(run.run_key)
-            except Exception:
-                pass
-
-        # If it was dry_run on a script, unlink it
-        if run.script and run.script.dry_run_key == run.run_key:
-            run.script.dry_run_key = None
-            run.script.dry_run_status = "not_run"
-
-        # Remove workspace directory if it exists
-        if run.workspace_path:
-            try:
-                wp = Path(run.workspace_path)
-                if wp.exists() and wp.is_dir():
-                    shutil.rmtree(wp, ignore_errors=True)
-            except Exception:
-                pass
-
-        # Also check default workspace location
-        try:
-            ws_dir = ws.workspace_dir_for_run(run.run_key)
-            if ws_dir.exists() and ws_dir.is_dir():
-                shutil.rmtree(ws_dir, ignore_errors=True)
-        except Exception:
-            pass
-
-        db.delete(run)
+        _remove_run(db, run)
         deleted_count += 1
 
     db.commit()
@@ -989,6 +1002,169 @@ def delete_runs(
         },
     )
     return {"deleted": deleted_count}
+
+
+# --- Deleting a project from the Automation Lab --------------------------------------
+#
+# "Project" here is the Lab's row: the approved Automation cases filed under one
+# PPM ID (or under none). The projects table itself is shared -- Generate Test
+# Cases and Review & Approval file their requests under it -- so it is never
+# touched; neither are the review requests and their approved source rows.
+# What goes is everything the Lab holds for those cases: the cases, every
+# version of their scripts, and their runs with results and evidence. Each case
+# mirrored out of Review & Approval is tombstoned, as a single delete does, so
+# the mirror does not bring it straight back.
+
+def _lab_project_cases(db: Session, project_key: str) -> tuple[Optional[dict], list[AutomationTestCase]]:
+    """The cases the Lab lists under this project: "none" for no project."""
+    query = db.query(AutomationTestCase).filter(
+        AutomationTestCase.approval_status == wb.APPROVAL_APPROVED,
+        AutomationTestCase.classification.in_(wb.CLASSIFICATIONS_AUTOMATABLE),
+    )
+    if project_key == "none":
+        return None, query.filter(AutomationTestCase.project_id.is_(None)).all()
+    if not project_key.isdigit():
+        raise HTTPException(status_code=400, detail="Unknown project.")
+    project = _projects(db).get(int(project_key))
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found.")
+    return project, query.filter(AutomationTestCase.project_id == project["id"]).all()
+
+
+def _project_confirm_text(project: Optional[dict]) -> str:
+    """What the user types to confirm: the PPM ID, or "No project"."""
+    return project["ppm_id"] if project else "No project"
+
+
+def _project_footprint(db: Session, cases: list[AutomationTestCase]) -> dict:
+    case_ids = [c.id for c in cases]
+    scripts = (
+        db.query(AutomationScript).filter(AutomationScript.test_case_id.in_(case_ids)).all() if case_ids else []
+    )
+    runs = db.query(AutomationRun).filter(AutomationRun.test_case_id.in_(case_ids)).all() if case_ids else []
+    live = [r for r in runs if r.status in ("queued", "running") or job_manager.is_active(r.run_key)]
+    return {
+        "case_ids": case_ids,
+        "scripts": scripts,
+        "runs": runs,
+        "live": live,
+    }
+
+
+@router.get("/projects/{project_key}/delete-preview")
+def preview_project_delete(
+    project_key: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+):
+    """What deleting this project from the Lab would remove, before anyone asks to."""
+    project, cases = _lab_project_cases(db, project_key)
+    fp = _project_footprint(db, cases)
+    return {
+        "project": project,
+        "confirm_text": _project_confirm_text(project),
+        "cases": len(cases),
+        "scripts": len(fp["scripts"]),
+        "current_scripts": sum(1 for s in fp["scripts"] if s.is_current),
+        "edited_scripts": sum(1 for s in fp["scripts"] if s.is_current and s.edited_by_user),
+        "runs": len(fp["runs"]),
+        "live_runs": [r.run_key for r in fp["live"]],
+        "from_review": sum(1 for c in cases if c.origin_test_case_id),
+    }
+
+
+class DeleteProjectRequest(BaseModel):
+    # Typed by the user; must be the PPM ID (or "No project") exactly.
+    confirm: str = Field(min_length=1, max_length=255)
+    # The counts the user was shown. If the project changed since, refuse
+    # rather than delete more than they agreed to.
+    expected_cases: int = Field(ge=0)
+
+
+@router.post("/projects/{project_key}/delete")
+def delete_project(
+    project_key: str,
+    body: DeleteProjectRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Remove a project's cases, scripts and runs from the Automation Lab.
+
+    Refused unless the confirmation matches the PPM ID, nothing of the
+    project's is running, and the project still holds the cases the user saw.
+    """
+    username = (current_user or {}).get("username")
+    project, cases = _lab_project_cases(db, project_key)
+    expected = _project_confirm_text(project)
+    if body.confirm.strip() != expected:
+        raise HTTPException(status_code=400, detail=f'Type "{expected}" exactly to confirm.')
+    if not cases:
+        raise HTTPException(status_code=404, detail="This project has no cases in the Automation Lab.")
+    if len(cases) != body.expected_cases:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"The project now has {len(cases)} case(s), not the {body.expected_cases} you were shown. "
+                "Review it again before deleting."
+            ),
+        )
+    fp = _project_footprint(db, cases)
+    if fp["live"]:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{len(fp['live'])} run(s) of this project are still going "
+                f"({', '.join(r.run_key for r in fp['live'][:3])}). Wait for them or cancel them first."
+            ),
+        )
+
+    runs_removed = 0
+    for run in fp["runs"]:
+        _remove_run(db, run)
+        runs_removed += 1
+    db.flush()
+    for case in cases:
+        if case.origin_test_case_id:
+            db.merge(
+                AutomationDeletedOrigin(
+                    origin_test_case_id=case.origin_test_case_id,
+                    display_id=case.display_id,
+                    deleted_by=username,
+                    deleted_at=datetime.utcnow(),
+                )
+            )
+    scripts_removed = 0
+    for script in fp["scripts"]:
+        db.delete(script)
+        scripts_removed += 1
+    db.flush()
+    for case in cases:
+        db.delete(case)
+    db.commit()
+
+    label = f"{project['ppm_id']} - {project['name']}" if project else "No project"
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="delete",
+        resource_type="automation_project",
+        resource_id=project_key,
+        resource_name=label,
+        status="success",
+        details={
+            "description": f"{username} deleted project {label} from the Automation Lab",
+            "cases_removed": len(cases),
+            "scripts_removed": scripts_removed,
+            "runs_removed": runs_removed,
+        },
+    )
+    return {
+        "project": project,
+        "cases_removed": len(cases),
+        "scripts_removed": scripts_removed,
+        "runs_removed": runs_removed,
+    }
 
 
 @router.delete("/runs/{run_key}")
@@ -2323,6 +2499,260 @@ def edit_workbench_case(
     return _workbench_case(case)
 
 
+# --- Automation Lab: a case's steps, the test data they use, and editing them -----------
+#
+# The Lab's Test steps tab reads one approved case with what each step needs:
+# its test data key and whether Test Data holds a value for the run
+# environment, and the Knowledge Base elements its targets can be picked from.
+# Saving writes the edits onto the case (it stays approved -- the Lab is where
+# approved cases are automated) and the values into Test Data; the Lab then
+# regenerates the script, so the next version follows the edited steps.
+
+_PLACEHOLDER_REF = "<<"
+
+
+class LabStepIn(BaseModel):
+    action: str = Field(min_length=1, max_length=2000)
+    action_type: Optional[str] = Field(default=None, max_length=30)
+    target: Optional[str] = Field(default=None, max_length=1000)
+    test_data_ref: Optional[str] = Field(default=None, max_length=200)
+    expected_result: Optional[str] = Field(default=None, max_length=2000)
+
+
+class LabTestDataIn(BaseModel):
+    key: str = Field(min_length=1, max_length=120, pattern=r"^[A-Za-z][A-Za-z0-9_]*$")
+    description: Optional[str] = Field(default=None, max_length=500)
+    sensitive: bool = False
+    # None keeps the stored value; a string sets it for the run environment.
+    value: Optional[str] = Field(default=None, max_length=4000)
+
+
+class LabCaseStepsIn(BaseModel):
+    title: str = Field(min_length=1, max_length=2000)
+    preconditions: Optional[str] = Field(default=None, max_length=10_000)
+    expected_result: Optional[str] = Field(default=None, max_length=10_000)
+    steps: list[LabStepIn] = Field(min_length=1, max_length=200)
+    test_data: list[LabTestDataIn] = Field(default_factory=list, max_length=100)
+
+
+def _lab_application(
+    db: Session, case: AutomationTestCase, application_id: Optional[int]
+) -> Optional[AutomationApplication]:
+    """The registered application whose Knowledge Base the case's targets come from."""
+    for app_id in (application_id, case.application_id):
+        if app_id:
+            app = db.get(AutomationApplication, app_id)
+            if app is not None:
+                return app
+    prefix = test_data.url_prefix(case.application_url)
+    if prefix:
+        for app in db.query(AutomationApplication).filter(AutomationApplication.is_active.is_(True)).all():
+            if test_data.url_prefix(app.base_url) == prefix:
+                return app
+    return None
+
+
+def _lab_data_app(db: Session, case: AutomationTestCase):
+    """The Test Data application and environment a run of this case reads values from."""
+    script = (
+        db.query(AutomationScript)
+        .filter(AutomationScript.test_case_id == case.id, AutomationScript.is_current.is_(True))
+        .order_by(AutomationScript.id.desc())
+        .first()
+    )
+    code = (script.code if script else "") or ""
+    app = test_data.find_app(db, urls=(case.application_url, *test_data.spec_urls(code), test_data.spec_base_url(code)))
+    return app, test_data.run_environment(app, None, case.environment)
+
+
+def _lab_case_steps(db: Session, case: AutomationTestCase, application_id: Optional[int] = None) -> dict:
+    steps = [
+        {
+            "step_number": i,
+            "action": s.get("action") or "",
+            "action_type": s.get("action_type"),
+            "target": s.get("target"),
+            "test_data_ref": s.get("test_data_ref"),
+            "expected_result": s.get("expected_result"),
+        }
+        for i, s in enumerate((x for x in (case.steps_structured or []) if isinstance(x, dict)), start=1)
+    ]
+    requirements = [r for r in (case.test_data_requirements or []) if isinstance(r, dict) and r.get("key")]
+    keys = [str(r["key"]) for r in requirements]
+    for step in steps:
+        ref = (step["test_data_ref"] or "").strip()
+        if ref and not ref.startswith(_PLACEHOLDER_REF) and ref not in keys:
+            keys.append(ref)
+            requirements.append({"key": ref})
+
+    data_app, environment = _lab_data_app(db, case)
+    data = []
+    for req in requirements:
+        key = str(req["key"])
+        item = {
+            "key": key,
+            "description": req.get("description"),
+            "sensitive": bool(req.get("sensitive")),
+            "has_value": False,
+            "value": None,
+            "matched_key": None,
+            "used_in": [s["step_number"] for s in steps if (s["test_data_ref"] or "").strip() == key],
+        }
+        if data_app is not None:
+            resolved = test_data.resolve(data_app.entries, environment, [key])
+            if key in resolved["values"]:
+                matched = resolved["matches"][key]
+                entry = next((e for e in data_app.entries if matched.startswith(e.key)), None)
+                item["has_value"] = True
+                item["matched_key"] = matched
+                if entry is not None and entry.is_secret:
+                    item["sensitive"] = True
+                elif not item["sensitive"]:
+                    item["value"] = resolved["values"][key]
+        data.append(item)
+
+    kb_app = _lab_application(db, case, application_id)
+    elements: list[dict] = []
+    if kb_app is not None:
+        seen: set[tuple] = set()
+        for e in _current_catalog(db, kb_app.id):
+            name = e.get("accessible_name") or e.get("element_name")
+            if not name or (name, e.get("page")) in seen:
+                continue
+            seen.add((name, e.get("page")))
+            elements.append({"name": name, "role": e.get("role"), "page": e.get("page"), "locator": e.get("recommended_locator")})
+            if len(elements) >= 500:
+                break
+
+    return {
+        "case_id": case.id,
+        "display_id": case.display_id,
+        "title": case.description or "",
+        "preconditions": case.preconditions or "",
+        "expected_result": case.expected_result or "",
+        "version": case.version,
+        "steps": steps,
+        "test_data": data,
+        "test_data_app": {"id": data_app.id, "name": data_app.name} if data_app is not None else None,
+        "environment": environment,
+        "kb_application": {"id": kb_app.id, "name": kb_app.name} if kb_app is not None else None,
+        "kb_elements": elements,
+    }
+
+
+@router.get("/lab/cases/{case_id}/steps")
+def get_lab_case_steps(
+    case_id: int,
+    application_id: Optional[int] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+):
+    return _lab_case_steps(db, _load_case(db, case_id), application_id)
+
+
+@router.put("/lab/cases/{case_id}/steps")
+def save_lab_case_steps(
+    case_id: int,
+    body: LabCaseStepsIn,
+    application_id: Optional[int] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Edit an approved case's steps, case fields and test data in one save.
+
+    The case keeps its approval; the caller regenerates the script.
+    """
+    case = _load_case(db, case_id)
+    if case.approval_status != wb.APPROVAL_APPROVED:
+        raise HTTPException(status_code=409, detail="Only an approved case in the Automation Lab can be edited here.")
+    username = (current_user or {}).get("username") or "user"
+
+    keys = [d.key for d in body.test_data]
+    if len({k.lower() for k in keys}) != len(keys):
+        raise HTTPException(status_code=400, detail="A test data key is listed twice.")
+    for i, step in enumerate(body.steps, start=1):
+        ref = (step.test_data_ref or "").strip()
+        if ref and not ref.startswith(_PLACEHOLDER_REF) and ref not in keys:
+            raise HTTPException(status_code=400, detail=f"Step {i} uses test data '{ref}', which is not in the test data list.")
+
+    case.description = body.title.strip()
+    case.preconditions = (body.preconditions or "").strip() or None
+    case.expected_result = (body.expected_result or "").strip() or None
+    case.steps_structured = [
+        {
+            "step_number": i,
+            "action": s.action.strip(),
+            "action_type": s.action_type or None,
+            "target": (s.target or "").strip() or None,
+            "test_data_ref": (s.test_data_ref or "").strip() or None,
+            "expected_result": (s.expected_result or "").strip() or None,
+        }
+        for i, s in enumerate(body.steps, start=1)
+    ]
+    case.steps_raw = "\n".join(f"{s['step_number']}. {s['action']}" for s in case.steps_structured)
+
+    previous = {str(r.get("key")): r for r in (case.test_data_requirements or []) if isinstance(r, dict)}
+    case.test_data_requirements = [
+        {
+            **{k: v for k, v in previous.get(d.key, {}).items() if k in ("example_value", "resolution")},
+            "key": d.key,
+            "description": (d.description or "").strip() or previous.get(d.key, {}).get("description") or d.key.replace("_", " "),
+            "sensitive": d.sensitive,
+        }
+        for d in body.test_data
+    ]
+    case.test_data = "\n".join(f"{r['key']}: {r['description']}" for r in case.test_data_requirements) or None
+    case.test_data_required = bool(body.test_data)
+    case.version = (case.version or 1) + 1
+
+    # Values go to Test Data, for the environment this case runs on.
+    warnings: list[str] = []
+    data_app, environment = _lab_data_app(db, case)
+    to_store = [d for d in body.test_data if d.value is not None]
+    if to_store and data_app is None:
+        warnings.append(
+            "No Test Data application matches this case's address, so the values were not saved. "
+            "Add the application in AI Test Automation > Test Data."
+        )
+    elif to_store:
+        for d in to_store:
+            entry = next(
+                (e for e in data_app.entries if e.environment == environment and e.key.lower() == d.key.lower()),
+                None,
+            )
+            if entry is None:
+                entry = AutomationTestData(app_id=data_app.id, environment=environment, key=d.key)
+                db.add(entry)
+            entry.is_secret = d.sensitive
+            entry.value = (test_data.encrypt(d.value) if d.sensitive else d.value) if d.value != "" else None
+            entry.updated_by = username
+        db.flush()
+        db.refresh(data_app)
+
+    wb.rescore(case)
+    db.commit()
+    db.refresh(case)
+
+    audit_log(
+        actor=username,
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="update",
+        resource_type="automation_test_case",
+        resource_id=str(case.id),
+        resource_name=case.display_id,
+        status="success",
+        details={
+            "description": f"{username} edited the steps and test data of {case.display_id} in the Automation Lab",
+            "steps": len(body.steps),
+            "test_data_values_saved": len(to_store) if data_app is not None else 0,
+        },
+    )
+    result = _lab_case_steps(db, case, application_id)
+    result["warnings"] = warnings
+    return result
+
+
 @router.post("/workbench/delete")
 def delete_workbench_cases(
     body: BulkIdsRequest,
@@ -2564,9 +2994,14 @@ def list_approved_automation_cases(
             AutomationTestCase.approval_status == wb.APPROVAL_APPROVED,
             AutomationTestCase.classification.in_(wb.CLASSIFICATIONS_AUTOMATABLE),
         )
-        .order_by(AutomationTestCase.created_at.desc(), AutomationTestCase.id.desc())
         .all()
     )
+    # When a case reached the Lab is when it was approved. A case that went
+    # through AI Checks was created when the checks first ran -- weeks before
+    # a manager approved it -- so sorting on created_at buried a case approved
+    # today under everything approved since those checks.
+    landed = lambda case: case.approved_at or case.created_at or datetime.min
+    cases.sort(key=lambda case: (landed(case), case.id), reverse=True)
 
     scripts = db.query(AutomationScript).filter(AutomationScript.is_current.is_(True)).all()
     dry_runs = {
@@ -2608,7 +3043,8 @@ def list_approved_automation_cases(
                 "title": case.objective or case.description or case.display_id,
                 "priority": case.priority,
                 "steps": len(case.steps_structured or []),
-                "created_at": case.created_at.isoformat() if case.created_at else None,
+                "created_at": landed(case).isoformat() if case.approved_at or case.created_at else None,
+                "updated_at": case.updated_at.isoformat() if case.updated_at else None,
                 "test_data_status": case.test_data_status,
                 "application_url": case.application_url,
                 "environment": case.environment,
@@ -3220,8 +3656,12 @@ def download_script_bundle(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission(PERM_VIEW)),
     framework: Optional[str] = Query(default=None),
+    case_ids: Optional[str] = Query(default=None),
 ):
     """Every current script as one zip, foldered by framework.
+
+    case_ids ("12,13,14") narrows it to those cases: the Automation Lab
+    downloads one project's scripts, or the projects ticked in its list.
 
     Built in memory: these are text files of a few kilobytes each, so writing
     them to disk to serve them would add a temp file and a cleanup path for no
@@ -3230,17 +3670,27 @@ def download_script_bundle(
     query = db.query(AutomationScript).filter(AutomationScript.is_current.is_(True))
     if framework:
         query = query.filter(AutomationScript.framework == framework)
+    if case_ids:
+        wanted = [int(part) for part in case_ids.split(",") if part.strip().isdigit()]
+        query = query.filter(AutomationScript.test_case_id.in_(wanted or [-1]))
     scripts = query.all()
 
     if not scripts:
         raise HTTPException(status_code=404, detail="There are no scripts to download yet.")
 
     buffer = io.BytesIO()
+    used: set[str] = set()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
         for script in scripts:
             case = script.test_case
             folder = script.framework
             name = script.file_name or f"script-{script.id}.txt"
+            # Cases from different requests share file names (three tc-002.spec.ts);
+            # unzipping would keep only the last, so later ones get the script id.
+            if f"{folder}/{name}".lower() in used:
+                stem, dot, ext = name.partition(".")
+                name = f"{stem}-{script.id}{dot}{ext}"
+            used.add(f"{folder}/{name}".lower())
             archive.writestr(f"{folder}/{name}", script.code or "")
             if script.setup_notes:
                 archive.writestr(

@@ -210,8 +210,9 @@ const TestCases: React.FC = () => {
   const [aiEditError, setAiEditError] = useState('')
   const aiAutoSelectedRef = useRef<Set<number>>(new Set())
   const [aiBusy, setAiBusy] = useState<'stop' | 'restart' | 'delete' | null>(null)
-  // Save & Run AI Checks saves the generated cases as a request first; Send
-  // for Approval later sends that same request. Saved test_case_id by the
+  // Save & Send for Review saves the generated cases as a request, then sends
+  // that same request (AI Checks run on Review & Approval now; sessions saved
+  // before still show their AI Checks panel here). Saved test_case_id by the
   // case's Test Case ID, so each sent row updates its own saved row.
   const [savedRequestId, setSavedRequestIdState] = useState<string | null>(null)
   // The id is needed straight after it is set (save, then start the checks).
@@ -684,15 +685,18 @@ const TestCases: React.FC = () => {
 
   const handleSendForApproval = async (rows: Record<string, string>[], documents: ReviewDocumentItem[] = getReviewDocuments()) => {
     try {
-      // The request Save & Run AI Checks saved, when there is one.
-      const requestId = savedRequestId || `REQ-${Date.now()}`
+      // The request the generated cases were saved as, when there is one. Read
+      // from the ref: Save & Send for Review saves and sends in one go, before
+      // the state has caught up.
+      const savedId = savedRequestIdRef.current
+      const requestId = savedId || `REQ-${Date.now()}`
       const requestBy = (authUser.user as any)?.username || (authUser.user as any)?.email || 'system'
       const documentId = getApprovalDocumentId(documents)
       const stageRequestId = workflowStageRequestId || requestId
       const uniqueRows = deduplicateTestCases(rows).map((row, index) => {
         const baseId = typeof row.id === 'string' && row.id.trim() ? row.id.trim() : `TC-${index + 1}`
-        const savedId = savedCaseIdsRef.current.get(String((row as Record<string, string>)['Test Case ID'] ?? '').trim())
-        const id = savedId || `${requestId}-TC-${savedRequestId ? `S${index + 1}` : index + 1}`
+        const savedCaseId = savedCaseIdsRef.current.get(String((row as Record<string, string>)['Test Case ID'] ?? '').trim())
+        const id = savedCaseId || `${requestId}-TC-${savedId ? `S${index + 1}` : index + 1}`
         return {
           ...row,
           id,
@@ -1695,32 +1699,48 @@ const copyFigmaExtractedText = async () => {
     setCaseApplications({})
   }
 
-  // Same rows Review & Send uses, so the checks start from exactly the table
-  // the author sees.
-  const handleRunAiChecks = async () => {
+  // Save & Send for Review: the generated cases are saved (with this page's
+  // Knowledge Base, environment and applications) and sent to Review &
+  // Approval as they were generated -- all of them, or the ticked ones. AI
+  // Checks run there now, where the manager chooses which cases to check; each
+  // request carries the settings saved here, so the checks use them.
+  const handleSaveAndSend = async () => {
     const allRows = extractAndConsolidateTestCases(response || output || '').rows
     const idOf = (row: Record<string, string>) =>
       String(Object.entries(row).find(([key]) => /test\s*case\s*id/i.test(key))?.[1] ?? '').trim()
     const rows = gridSelected.size ? allRows.filter((row) => gridSelected.has(idOf(row))) : allRows
     if (!rows.length) {
-      setAiError('No test cases were found in the output to check.')
+      setAiError('No test cases were found in the output to send.')
       return
     }
+    const ok = await confirm({
+      title: `Send ${rows.length} test case${rows.length === 1 ? '' : 's'} for review?`,
+      body: `As generated${projectRef.current ? ` · ${projectLabel(projectRef.current)}` : ''}`,
+      consequences: [
+        'They are saved and appear in Review & Approval for the manager.',
+        'AI Checks (refine, quality review, improve, classify) run there, on the cases the manager chooses.',
+        ...(gridSelected.size && gridSelected.size < allRows.length ? [`The other ${allRows.length - rows.length} stay saved here and can be sent later.`] : [])
+      ],
+      confirmLabel: `Send ${rows.length} for Review`
+    })
+    if (!ok) return
     setAiStarting(true)
     setAiError('')
     try {
-      // 1. Save: the generated cases are on record before any check runs.
-      //    Skipped when an earlier attempt saved them and only the checks failed.
+      // 1. Save: every generated case is on record, with the generation settings.
+      //    Skipped when this session was saved already (opened again, or an earlier send).
       if (!savedRequestIdRef.current) {
         const saved = await saveGeneratedCases(allRows)
         if (!saved) return
       }
-      // 2. AI Checks.
-      const batchId = await aiChecksService.start(rows, selectedKnowledgeBaseOption.knowledgeBase || undefined, savedRequestIdRef.current || undefined, selectedEnvironment || undefined, selectedApplicationIds)
-      setAiBatchId(batchId)
-      setAiBatch(await aiChecksService.get(batchId))
+      // 2. Send the chosen cases, as generated. A saved session already holds its documents.
+      const sent = await handleSendForApproval(rows, savedRequestIdRef.current ? [] : getReviewDocuments())
+      if (!sent) return
+      setGridSelected(new Set())
+      const roles: string[] = ([] as string[]).concat((authUser.user as any)?.roles ?? [])
+      if (roles.some((role) => role === 'manager' || role === 'admin')) navigate('/manager-review')
     } catch (error: any) {
-      setAiError(error?.response?.data?.detail || error?.message || 'AI Checks could not be started.')
+      setAiError(error?.response?.data?.detail || error?.message || 'The test cases could not be sent for review.')
     } finally {
       setAiStarting(false)
     }
@@ -2353,9 +2373,11 @@ const copyFigmaExtractedText = async () => {
     })
   }, [streamParse.cases])
 
+  // Every generated case has gone to Review & Approval: nothing left to send.
+  const allSent = submittedTestCaseCount !== null && submittedTestCaseCount >= streamParse.cases.length
   // Poll while any case is still being checked; the job runs on the server
   // and its progress lives in the database.
-  const aiRunning = Boolean(aiBatch && aiBatch.items.some((item) => item.status === 'queued' || item.status === 'running'))
+  const aiRunning =Boolean(aiBatch && aiBatch.items.some((item) => item.status === 'queued' || item.status === 'running'))
   useEffect(() => {
     if (!aiBatchId || (aiBatch && !aiRunning)) return
     const id = window.setInterval(() => void refreshAiBatch(aiBatchId), 2500)
@@ -2840,7 +2862,7 @@ const copyFigmaExtractedText = async () => {
             </span>
             <div className="ml-auto flex items-center gap-2">
               <button type="button" disabled title="Generate test cases first" className="flex h-[34px] cursor-not-allowed items-center rounded-[12px] bg-[#F4F5F7] px-4 text-[13px] font-bold text-[#9CA3AF]">
-                Save &amp; Run AI Checks
+                Save &amp; Send for Review
               </button>
               <span className="box-border flex h-[34px] w-[34px] items-center justify-center rounded-[10px] border border-[#E8EAEE]" aria-hidden>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C4C8CF" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>
@@ -2923,17 +2945,17 @@ const copyFigmaExtractedText = async () => {
                 )}
                 <button
                   type="button"
-                  onClick={handleRunAiChecks}
-                  data-audit-name="Save & Run AI Checks"
-                  disabled={isGenerationStreaming || Boolean(generationError) || streamParse.cases.length === 0 || aiStarting || submittedTestCaseCount !== null}
-                  title={streamParse.cases.length === 0 ? 'Generate test cases first' : 'Save the test cases, then refine, review, improve and classify them before approval'}
+                  onClick={() => void handleSaveAndSend()}
+                  data-audit-name="Save & Send for Review"
+                  disabled={isGenerationStreaming || Boolean(generationError) || streamParse.cases.length === 0 || aiStarting || allSent}
+                  title={streamParse.cases.length === 0 ? 'Generate test cases first' : allSent ? 'Every test case here has been sent for review' : 'Save the test cases and send them to Review & Approval, where AI Checks run'}
                   className={`flex h-[34px] items-center rounded-[12px] px-4 text-[13px] font-bold transition ${
-                    isGenerationStreaming || generationError || streamParse.cases.length === 0 || submittedTestCaseCount !== null
+                    isGenerationStreaming || generationError || streamParse.cases.length === 0 || allSent
                       ? 'cursor-not-allowed bg-[#F4F5F7] text-[#9CA3AF]'
                       : 'bg-[#1F2937] text-white hover:bg-[#111827]'
                   }`}
                 >
-                  {aiStarting ? 'Saving…' : gridSelected.size > 0 ? `Save & Run AI Checks on ${gridSelected.size}` : 'Save & Run AI Checks'}
+                  {aiStarting ? 'Sending…' : allSent ? `${submittedTestCaseCount} sent for Review` : gridSelected.size > 0 ? `Save & Send ${gridSelected.size} for Review` : 'Save & Send for Review'}
                 </button>
                 {!isGenerationStreaming && !generationError && (
                   <button

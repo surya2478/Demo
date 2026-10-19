@@ -14,6 +14,7 @@
  */
 import api, { LONG_REQUEST_MS } from './api'
 import type {
+  ProjectDeletePreview,
   ApprovedCandidateDetail,
   ArtifactKind,
   CreateRunRequest,
@@ -38,6 +39,8 @@ import type {
   GenerateScriptsResult,
   ScriptAsset,
   ScriptLabListing,
+  LabCaseSteps,
+  LabCaseStepsSave,
   DiscoveredElement,
   DiscoveryRun,
   RegisteredApplication,
@@ -121,8 +124,23 @@ const automationService = {
     }
   },
 
-  listRuns: (limit = 50): Promise<RunsResponse> =>
-    call<RunsResponse>(() => api.get(`${BASE}/runs`, { params: { limit } })),
+  /** What deleting a project from the Automation Lab would remove ("none": no project). */
+  previewProjectDelete: (projectKey: string): Promise<ProjectDeletePreview> =>
+    call<ProjectDeletePreview>(() => api.get(`${BASE}/projects/${encodeURIComponent(projectKey)}/delete-preview`)),
+
+  /** Refused unless confirm is the PPM ID and the case count still matches. */
+  deleteProject: (
+    projectKey: string,
+    confirm: string,
+    expectedCases: number
+  ): Promise<{ cases_removed: number; scripts_removed: number; runs_removed: number }> =>
+    call(() => api.post(`${BASE}/projects/${encodeURIComponent(projectKey)}/delete`, { confirm, expected_cases: expectedCases })),
+
+  /** Newest first; testCaseId narrows it to one case's runs (its History). */
+  listRuns: (limit = 50, testCaseId?: number | null): Promise<RunsResponse> =>
+    call<RunsResponse>(() =>
+      api.get(`${BASE}/runs`, { params: testCaseId != null ? { limit, test_case_id: testCaseId } : { limit } })
+    ),
 
   getRun: (runKey: string): Promise<RunDetail> =>
     call<RunDetail>(() => api.get(`${BASE}/runs/${encodeURIComponent(runKey)}`)),
@@ -424,6 +442,14 @@ const automationService = {
   listScriptLabCases: (): Promise<ScriptLabListing> =>
     call<ScriptLabListing>(() => api.get(`${BASE}/scripts/approved-cases`)),
 
+  /** A Lab case's steps with the test data and Knowledge Base elements they use. */
+  getLabCaseSteps: (caseId: number, applicationId?: number | null): Promise<LabCaseSteps> =>
+    call<LabCaseSteps>(() => api.get(`${BASE}/lab/cases/${caseId}/steps`, { params: applicationId ? { application_id: applicationId } : {} })),
+
+  /** Save edited steps, case fields and test data; the case stays approved. */
+  saveLabCaseSteps: (caseId: number, body: LabCaseStepsSave, applicationId?: number | null): Promise<LabCaseSteps> =>
+    call<LabCaseSteps>(() => api.put(`${BASE}/lab/cases/${caseId}/steps`, body, { params: applicationId ? { application_id: applicationId } : {} })),
+
   generateScripts: (body: {
     case_ids: number[]
     framework: string
@@ -488,10 +514,14 @@ const automationService = {
     }
   },
 
-  downloadScriptBundle: async (framework?: string | null): Promise<Blob> => {
+  /** caseIds narrows the zip to those cases' scripts (one project, or the ticked ones). */
+  downloadScriptBundle: async (framework?: string | null, caseIds?: number[] | null): Promise<Blob> => {
     try {
+      const params: Record<string, string> = {}
+      if (framework) params.framework = framework
+      if (caseIds?.length) params.case_ids = caseIds.join(',')
       const res = await api.get(`${BASE}/scripts/download/bundle`, {
-        params: framework ? { framework } : {},
+        params,
         responseType: 'blob',
         // The bundle is every generated script zipped, so its size is a
         // function of the workbench, not of any one request.

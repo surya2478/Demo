@@ -1,8 +1,10 @@
 /**
  * --- Automation Module: workspace shell ---------------------------------
  *
- * Screens 6 and 7 of the redesign: the hero, two tab cards (Script Lab and
- * Runs, each with its live count), and the journey bar under the tab.
+ * The top bar and the Workspace hero, on every screen. Under them sits the
+ * Automation Lab -- projects, then one project's workspace -- which is the
+ * only page now: the Runs page is retired and everything it did (live
+ * progress, evidence, history, deleting runs) lives with the case it ran.
  *
  * Only manager-approved Automation cases reach the Script Lab now -- AI
  * Checks refines, reviews and classifies them before approval -- so the
@@ -11,14 +13,13 @@
  * any other way.
  *
  * Runtime status is fetched once here and handed down through outlet context.
- * Both tabs need it, and asking twice for the same answer would put two
+ * Every screen needs it, and asking twice for the same answer would put two
  * subprocess probes on a host that is also running browsers.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Outlet } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { usePageHeader } from '../components/layout/PageHeaderContext'
-import JourneyBar from '../components/test-assistant/JourneyBar'
 import automationService from '../services/automationService'
 import type { AutomationContext } from '../components/automation/AutomationContext'
 import type { RuntimeStatusResponse } from '../types/automation'
@@ -32,20 +33,6 @@ const hasPermission = (user: any, permission: string): boolean => {
 }
 
 type GlyphProps = { className?: string }
-
-const RunsGlyph: React.FC<GlyphProps> = ({ className = '' }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden>
-    <circle cx="12" cy="12" r="8.25" />
-    <path strokeLinecap="round" strokeLinejoin="round" d="M10.25 9.25l5 2.75-5 2.75V9.25z" />
-  </svg>
-)
-
-const ScriptLabGlyph: React.FC<GlyphProps> = ({ className = '' }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M9 7L4.5 12 9 17M15 7l4.5 5-4.5 5" />
-    <path strokeLinecap="round" strokeLinejoin="round" d="M13.25 4.5l-2.5 15" />
-  </svg>
-)
 
 const HeroBrowserGlyph: React.FC<GlyphProps> = ({ className = '' }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden>
@@ -95,13 +82,10 @@ const RuntimeChip: React.FC<{ runtime: RuntimeStatusResponse | null; loading: bo
 
 const Automation: React.FC = () => {
   const { user } = useAuth()
-  const location = useLocation()
   const [runtime, setRuntime] = useState<RuntimeStatusResponse | null>(null)
   const [runtimeLoading, setRuntimeLoading] = useState(true)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
-  const [labCount, setLabCount] = useState<number | null>(null)
-  const [liveRuns, setLiveRuns] = useState<number | null>(null)
 
   const onSearch = useCallback((q: string) => setQuery(q.trim().toLowerCase()), [])
 
@@ -132,21 +116,6 @@ const Automation: React.FC = () => {
     void loadRuntime()
   }, [loadRuntime])
 
-  // The tab cards' counts, before either tab has loaded. Each tab keeps its
-  // own count current afterwards through setLabCount / setLiveRuns.
-  useEffect(() => {
-    let cancelled = false
-    automationService
-      .listRuns(1)
-      .then(res => { if (!cancelled) setLiveRuns(prev => prev ?? res.summary?.active ?? 0) })
-      .catch(() => undefined)
-    automationService
-      .listScriptLabCases()
-      .then(res => { if (!cancelled) setLabCount(prev => prev ?? res.counts?.approved_cases ?? 0) })
-      .catch(() => undefined)
-    return () => { cancelled = true }
-  }, [])
-
   const canExecute = hasPermission(user, 'automation.execute')
 
   const context: AutomationContext = useMemo(
@@ -156,43 +125,10 @@ const Automation: React.FC = () => {
       runtimeError,
       reloadRuntime: loadRuntime,
       canExecute,
-      query,
-      setLabCount,
-      setLiveRuns
+      query
     }),
     [runtime, runtimeLoading, runtimeError, loadRuntime, canExecute, query]
   )
-
-  const onRuns = location.pathname.includes('/automation/runs')
-  const onLab = location.pathname.includes('/automation/script-lab')
-
-  const tabs = [
-    {
-      to: 'script-lab',
-      label: 'Automation Lab',
-      detail: 'Generate, dry run, heal and download',
-      Icon: ScriptLabGlyph,
-      badge:
-        labCount === null ? null : (
-          <span className="inline-flex h-7 items-center rounded-full bg-[#F4F5F7] px-3 text-[13px] font-semibold text-[#1F2937]">
-            {labCount} case{labCount === 1 ? '' : 's'}
-          </span>
-        )
-    },
-    {
-      to: 'runs',
-      label: 'Runs',
-      detail: 'Execution history, progress and evidence',
-      Icon: RunsGlyph,
-      badge:
-        liveRuns ? (
-          <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-[#EEF4FF] px-3 text-[13px] font-semibold text-[#1D4ED8]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#1D4ED8]" />
-            {liveRuns} live
-          </span>
-        ) : null
-    }
-  ]
 
   return (
     <div className="relative flex flex-col gap-3">
@@ -229,50 +165,7 @@ const Automation: React.FC = () => {
         </div>
       </section>
 
-      {/* Tabs */}
-      <section className="rounded-[20px] border border-[#E8EAEE] bg-white p-3 shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]">
-        <nav className="grid gap-2.5 md:grid-cols-2">
-          {tabs.map(tab => (
-            <NavLink
-              key={tab.to}
-              to={tab.to}
-              className={({ isActive }) =>
-                [
-                  'group flex min-w-0 items-center gap-3 rounded-[16px] border border-l-[3px] px-3.5 py-3 transition',
-                  isActive
-                    ? 'border-[#F6D4D5] border-l-[#B71920] bg-white shadow-[0_4px_14px_rgba(183,25,32,0.10)]'
-                    : 'border-[#E8EAEE] border-l-transparent bg-[#F4F5F7] hover:border-[#F6D4D5] hover:bg-[#FFF8F8]'
-                ].join(' ')
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <span
-                    className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[12px] ${
-                      isActive
-                        ? 'bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white shadow-[0_6px_14px_rgba(183,25,32,0.22)]'
-                        : 'border border-[#E8EAEE] bg-white text-[#6B7280]'
-                    }`}
-                  >
-                    <tab.Icon className="h-[18px] w-[18px]" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className={`block text-[14px] font-bold leading-tight ${isActive ? 'text-[#941216]' : 'text-[#1F2937]'}`}>
-                      {tab.label}
-                    </span>
-                    <span className="block truncate text-[12.5px] text-[#6B7280]">{tab.detail}</span>
-                  </span>
-                  {tab.badge}
-                </>
-              )}
-            </NavLink>
-          ))}
-        </nav>
-      </section>
-
       <Outlet context={context} />
-
-      {onLab || onRuns ? <JourneyBar current={onRuns ? 6 : 5} /> : null}
     </div>
   )
 }

@@ -32,9 +32,9 @@ import TestAssistant from './pages/TestAssistant'
 import TestCases from './pages/test-assistant/TestCases'
 // Automation Studio and tabs
 import Automation from './pages/Automation'
-import Runs from './pages/automation/Runs'
 import Workbench from './pages/automation/Workbench'
-import ScriptLab from './pages/automation/ScriptLab'
+import LabProjects from './pages/automation/LabProjects'
+import LabWorkspace, { RunRedirect } from './pages/automation/LabWorkspace'
 import TestData from './pages/automation/TestData'
 import KnowledgeBase from './pages/automation/KnowledgeBase'
 import CaptureReceive from './pages/automation/CaptureReceive'
@@ -350,10 +350,13 @@ const AppRoutes: React.FC = () => {
           <Route index element={<Navigate to="script-lab" replace />} />
           <Route path="candidates" element={<Navigate to="../workbench" replace />} />
           <Route path="workbench" element={<Workbench />} />
-          <Route path="script-lab" element={<ScriptLab />} />
+          {/* The Automation Lab: projects, then one project's workspace. */}
+          <Route path="script-lab" element={<LabProjects />} />
+          <Route path="script-lab/:projectId" element={<LabWorkspace />} />
           <Route path="test-data" element={<Navigate to="/test-data" replace />} />
-          <Route path="runs" element={<Runs />} />
-          <Route path="runs/:runKey" element={<Runs />} />
+          {/* The Runs page is retired; its links land on the case the run belongs to. */}
+          <Route path="runs" element={<Navigate to="/automation/script-lab" replace />} />
+          <Route path="runs/:runKey" element={<RunRedirect />} />
         </Route>
       </Route>
 

@@ -62,6 +62,9 @@ const ReviewApproval: React.FC = () => {
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [deleting, setDeleting] = useState(false)
   const confirm = useConfirm()
+  // Which AI Checks start is in flight: a request id, '*' for the selected ones, or 'project'.
+  const [aiStarting, setAiStarting] = useState<string | null>(null)
+  const [aiNote, setAiNote] = useState('')
 
   const load = useCallback(async () => {
     try {
@@ -80,6 +83,13 @@ const ReviewApproval: React.FC = () => {
     window.addEventListener('test-case-review-updated', onUpdate)
     return () => window.removeEventListener('test-case-review-updated', onUpdate)
   }, [load])
+  // While AI Checks run, each request's figures fill in as its cases finish.
+  const anyRunning = Boolean(overview?.requests.some((item) => (item.ai_running ?? 0) > 0))
+  useEffect(() => {
+    if (!anyRunning) return
+    const id = window.setInterval(() => void load(), 5000)
+    return () => window.clearInterval(id)
+  }, [anyRunning, load])
 
   const onSearch = useCallback((q: string) => setQuery(q.trim().toLowerCase()), [])
   const onExport = useCallback(() => { void downloadRequestList(visibleRef.current) }, [])
@@ -162,6 +172,41 @@ const ReviewApproval: React.FC = () => {
       setDeleting(false)
     }
   }
+
+  // AI Checks on every pending case not checked yet, in these requests: one
+  // request, the selected ones, or a project's. The checks are the Test
+  // Assistant's; each request uses its own Knowledge Base, environment and applications.
+  const runAiChecks = async (targets: RequestSummary[], busyKey: string, scope: string) => {
+    const open = targets.filter((item) => PENDING.includes(item.overall_status))
+    if (!open.length) return
+    const unchecked = open.reduce((sum, item) => sum + (item.ai_unchecked ?? 0), 0)
+    const ok = await confirm({
+      title: `Run AI Checks on ${scope}?`,
+      body: `${open.length} pending request${open.length === 1 ? '' : 's'}${unchecked ? ` · about ${unchecked} test case${unchecked === 1 ? '' : 's'} not checked yet` : ''}`,
+      consequences: [
+        'AI Refine, Quality Review, Auto-Improve and AI Classify, as the Test Assistant ran them.',
+        'Each request uses the Knowledge Base, environment and applications it was generated with.',
+        'Cases already checked, or being checked, are left as they are.'
+      ],
+      confirmLabel: 'Run AI Checks'
+    })
+    if (!ok) return
+    setAiStarting(busyKey)
+    setAiNote('')
+    setError('')
+    try {
+      const res = await reviewService.startAiChecks({ request_ids: open.map((item) => item.request_id) })
+      const requestsStarted = new Set(res.batches.map((batch) => batch.request_id)).size
+      setAiNote(`AI Checks started on ${res.started} test case${res.started === 1 ? '' : 's'} in ${requestsStarted} request${requestsStarted === 1 ? '' : 's'}${res.skipped.checked ? `; ${res.skipped.checked} already checked were left as they are` : ''}.`)
+      await load()
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || 'AI Checks could not be started.')
+    } finally {
+      setAiStarting(null)
+    }
+  }
+  const projectChosen = projectFilter !== 'all' ? (projectFilter === 'none' ? null : projectOptions.find((item) => String(item.id) === projectFilter) ?? null) : undefined
+  const projectPending = projectChosen === undefined ? [] : visible.filter((item) => PENDING.includes(item.overall_status))
 
   const recent = requests
     .filter((item) => item.overall_status === 'APPROVED')
@@ -275,6 +320,18 @@ const ReviewApproval: React.FC = () => {
                 {projectOptions.map((item) => <option key={item.id} value={String(item.id)}>{item.ppm_id} · {item.name}</option>)}
                 <option value="none">No project</option>
               </select>
+              {projectChosen !== undefined && (
+                <button
+                  type="button"
+                  onClick={() => void runAiChecks(projectPending, 'project', projectChosen ? `project ${projectChosen.ppm_id}` : 'the requests with no project')}
+                  disabled={aiStarting !== null || projectPending.length === 0}
+                  title={projectPending.length === 0 ? 'No pending requests in this project' : 'Run AI Checks on every pending case of this project not checked yet'}
+                  data-audit-name="Run AI Checks on project"
+                  className="flex h-7 items-center gap-1.5 rounded-full bg-[#1F2937] px-3 text-[11.5px] font-bold text-white hover:bg-[#111827] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {aiStarting === 'project' ? 'Starting…' : `Run AI Checks · ${projectChosen ? projectChosen.ppm_id : 'No project'}`}
+                </button>
+              )}
               <button type="button" onClick={() => setSource('all')} className={`${CHIP} h-6 ${source === 'all' ? 'bg-[#1F2937] text-white' : 'bg-[#F4F5F7] text-[#1F2937]'}`}>All sources</button>
               {SOURCES.map((item) => (
                 <button key={item} type="button" onClick={() => setSource(item)} className={`${CHIP} h-6 ${source === item ? 'bg-[#1F2937] text-white' : 'bg-[#F4F5F7] text-[#1F2937]'}`}>{item}</button>
@@ -288,6 +345,12 @@ const ReviewApproval: React.FC = () => {
               <button type="button" onClick={() => setRqmNote('')} className="ml-auto font-semibold text-[#6B7280] hover:text-[#1F2937]">Dismiss</button>
             </div>
           )}
+          {aiNote && (
+            <div className="flex items-center gap-2 border-b border-[#CDEBD8] bg-[#F3FBF6] px-[18px] py-2 text-[12.5px] text-[#136B34]">
+              {aiNote}
+              <button type="button" onClick={() => setAiNote('')} className="ml-auto font-semibold text-[#6B7280] hover:text-[#1F2937]">Dismiss</button>
+            </div>
+          )}
           <div className="overflow-x-auto">
             <div className="min-w-[800px]">
               {selected.size > 0 && (
@@ -296,9 +359,18 @@ const ReviewApproval: React.FC = () => {
                   <button type="button" onClick={() => setSelected(new Set())} className="font-semibold text-[#6B7280] hover:text-[#1F2937]">Clear</button>
                   <button
                     type="button"
+                    onClick={() => { const chosen = visible.filter((item) => selected.has(item.request_id)); void runAiChecks(chosen, '*', `${chosen.length} selected request${chosen.length === 1 ? '' : 's'}`) }}
+                    disabled={aiStarting !== null || !visible.some((item) => selected.has(item.request_id) && PENDING.includes(item.overall_status))}
+                    data-audit-name="Run AI Checks on selected requests"
+                    className="ml-auto flex h-8 items-center gap-1.5 rounded-[10px] bg-[#1F2937] px-3 text-[12.5px] font-bold text-white hover:bg-[#111827] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {aiStarting === '*' ? 'Starting…' : `Run AI Checks on ${selected.size}`}
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => void deleteSelected()}
                     disabled={deleting}
-                    className="ml-auto flex h-8 items-center gap-1.5 rounded-[10px] border border-[#F0C2C0] bg-white px-3 text-[12.5px] font-bold text-[#A3231C] hover:bg-[#FEEBEC] disabled:opacity-50"
+                    className="flex h-8 items-center gap-1.5 rounded-[10px] border border-[#F0C2C0] bg-white px-3 text-[12.5px] font-bold text-[#A3231C] hover:bg-[#FEEBEC] disabled:opacity-50"
                   >
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
                     {deleting ? 'Deleting…' : `Delete ${selected.size}`}
@@ -354,6 +426,17 @@ const ReviewApproval: React.FC = () => {
                     </div>
                     <span className="text-[15px] font-bold text-[#1F2937]">{item.cases}</span>
                     <div>
+                      {(item.ai_running ?? 0) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/manager-review/${encodeURIComponent(item.request_id)}`)}
+                          className={`${CHIP} mb-1 h-5 bg-[#FDEBEC] text-[10.5px] text-[#941216]`}
+                          title="Open the request to watch the AI Checks"
+                        >
+                          <span className="box-border h-2 w-2 animate-spin rounded-full border-[1.5px] border-[#F6D4D5] border-t-[#B71920]" />
+                          AI Checks · {item.ai_running} running
+                        </button>
+                      )}
                       {checked > 0 ? (
                         <>
                           <div className="flex h-2 overflow-hidden rounded-full bg-[#E8EAEE]">
@@ -362,7 +445,30 @@ const ReviewApproval: React.FC = () => {
                           </div>
                           <div className="mt-[5px] text-[11.5px] text-[#6B7280]"><strong className="text-[#136B34]">{item.automation}</strong> Automation · <strong className="text-[#374151]">{item.manual}</strong> Manual</div>
                         </>
+                      ) : (item.ai_running ?? 0) > 0 ? null : pending ? (
+                        <div className="flex flex-col items-start gap-1">
+                          <span className="text-[11.5px] text-[#9CA3AF]">Not AI-checked</span>
+                          <button
+                            type="button"
+                            onClick={() => void runAiChecks([item], item.request_id, item.request_id)}
+                            disabled={aiStarting !== null}
+                            data-audit-name="Run AI Checks on request"
+                            className="flex h-6 items-center rounded-full bg-[#1F2937] px-2.5 text-[11px] font-bold text-white hover:bg-[#111827] disabled:opacity-50"
+                          >
+                            {aiStarting === item.request_id ? 'Starting…' : 'Run AI Checks'}
+                          </button>
+                        </div>
                       ) : <span className="text-[11.5px] text-[#9CA3AF]">Not AI-checked</span>}
+                      {checked > 0 && pending && (item.ai_unchecked ?? 0) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => void runAiChecks([item], item.request_id, item.request_id)}
+                          disabled={aiStarting !== null}
+                          className="mt-1 text-[11px] font-semibold text-[#B71920] hover:underline disabled:opacity-50"
+                        >
+                          {aiStarting === item.request_id ? 'Starting…' : `Check ${item.ai_unchecked} more`}
+                        </button>
+                      )}
                     </div>
                     <div>
                       {item.avg_after != null ? (
@@ -403,7 +509,7 @@ const ReviewApproval: React.FC = () => {
           <div className="flex flex-1 items-end px-[18px] py-3.5">
             <div className="flex items-center gap-2 text-[12px] text-[#6B7280]">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="1.8" aria-hidden><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
-              Requests from the Test Assistant have been through AI Checks. Approved Automation cases go straight to Automation Lab.
+              Requests arrive from the Test Assistant as generated. Run AI Checks on a project, a request or chosen cases; approved Automation cases go straight to Automation Lab.
             </div>
           </div>
         </section>

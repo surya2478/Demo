@@ -390,6 +390,20 @@ def _run_check(check_id: int) -> None:
     # Default KB cases go to AI_CHECKS_DEFAULT_KB_PROVIDER (Azure), not the AI
     # service generation uses: Prompt Shield blocks refine sent through it.
     provider = provider_for_kb(knowledge_base) or (settings.AI_CHECKS_DEFAULT_KB_PROVIDER or "").strip() or None
+    # ...but only where Azure is set up. A deployment without AZURE_OPENAI_*
+    # (a developer machine on OpenRouter, say) would otherwise fail every check
+    # on "Azure OpenAI is not configured" while a working provider sits unused.
+    if provider == "azure":
+        from ..generation import azure_llm
+
+        missing = azure_llm.missing_settings()
+        if missing:
+            logger.warning(
+                "AI Checks: check %s (KB %s) would use Azure, which is not configured (missing %s); "
+                "using AUTOMATION_LLM_PROVIDER / LLM_PROVIDER instead",
+                check_id, knowledge_base or "Default", ", ".join(missing),
+            )
+            provider = None
     logger.info("AI Checks: check %s (KB %s) uses provider %s", check_id, knowledge_base or "Default",
                 provider or "AUTOMATION_LLM_PROVIDER / LLM_PROVIDER")
     with use_provider(provider):

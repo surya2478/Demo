@@ -10,7 +10,11 @@ from sqlalchemy.orm import Session
 
 from ..database.connection import get_db
 from ..models.database import BitbucketSync, Project, TestCaseReview, TestCaseReviewDetail, TestCaseDetail
+from pydantic import BaseModel, Field
+
 from ..services import bitbucket_sync
+from ..services import review_ai_checks
+from ..services.automation import ai_checks as ai_checks_service
 from .projects import serialize_project
 from ..services.automation import applications as app_scope
 from ..utils.security import get_current_user_strict
@@ -813,6 +817,12 @@ def _request_summary(detail: TestCaseReviewDetail, cases: List[TestCaseDetail]) 
         'cases': len(cases),
         'pending_cases': sum(1 for case in cases if str(case.status).upper() == 'PENDING'),
         'ai_checked': len(checked),
+        'ai_running': sum(1 for case in cases if review_ai_checks.is_running(case)),
+        # Pending cases with no AI Checks results and none running: what "Run AI Checks" would check.
+        'ai_unchecked': sum(
+            1 for case in cases
+            if str(case.status).upper() == 'PENDING' and not _case_ai(case) and not review_ai_checks.is_running(case)
+        ),
         'automation': sum(1 for item in checked if item.get('classification') == 'automation'),
         'manual': sum(1 for item in checked if item.get('classification') == 'manual'),
         'test_data_pending': sum(1 for item in checked if item.get('test_data_pending')),
@@ -840,8 +850,10 @@ def review_overview(
         .all()
     )
     cases_by_request: Dict[str, List[TestCaseDetail]] = {}
-    for case in db.query(TestCaseDetail).filter(TestCaseDetail.status != DRAFT_STATUS).all():
+    all_cases = db.query(TestCaseDetail).filter(TestCaseDetail.status != DRAFT_STATUS).all()
+    for case in all_cases:
         cases_by_request.setdefault(case.request_id, []).append(case)
+    review_ai_checks.sync_rows(db, [case for case in all_cases if review_ai_checks.unsettled(case)])
 
     projects = _projects_by_id(db, {detail.project_id for detail in details})
     syncs = _syncs_by_request(db, {detail.request_id for detail in details})
@@ -1019,6 +1031,8 @@ async def get_review_detail_by_request_id(
         .filter(TestCaseDetail.request_id == request_id, TestCaseDetail.status != DRAFT_STATUS)
         .all()
     )
+    # AI Checks started here write their results back as they finish.
+    review_ai_checks.sync_rows(db, test_cases)
     project = db.get(Project, detail.project_id) if getattr(detail, 'project_id', None) else None
     sync = db.query(BitbucketSync).filter(BitbucketSync.request_id == request_id).first()
     return {
@@ -1118,6 +1132,22 @@ async def update_review_detail_decision(
         raise HTTPException(status_code=400, detail='Decision must be APPROVE or REJECT')
 
     row_updates = payload.get('rows') or []
+    if decision == 'APPROVE':
+        # A case is approved on its AI Checks results, so not while they are
+        # still being produced: a half-checked case must not reach the Lab.
+        sent_rows = (
+            db.query(TestCaseDetail)
+            .filter(TestCaseDetail.request_id == request_id, TestCaseDetail.status != DRAFT_STATUS)
+            .all()
+        )
+        review_ai_checks.sync_rows(db, sent_rows)
+        wanted = {str(row.get('test_case_id') or row.get('id')) for row in row_updates} if row_updates else None
+        busy = [c.test_case_id for c in sent_rows if (wanted is None or c.test_case_id in wanted) and review_ai_checks.is_running(c)]
+        if busy:
+            raise HTTPException(
+                status_code=409,
+                detail=f'AI Checks are still running on {len(busy)} of these case(s). Approve them once the checks finish.',
+            )
     if row_updates:
         for row in row_updates:
             test_case_id = row.get('test_case_id') or row.get('id')
@@ -1319,3 +1349,212 @@ async def review_summary(
     rows = db.query(TestCaseReview.status, db.func.count(TestCaseReview.id)).group_by(TestCaseReview.status).all()
     summary = {status: count for status, count in rows}
     return {'counts': summary}
+
+
+
+# --- AI Checks from Review & Approval -------------------------------------------------
+#
+# The Test Assistant sends cases for review as generated; the manager runs AI
+# Checks here -- on a project's requests, a request, or chosen cases. The
+# checks are the Test Assistant's own (services.automation.ai_checks); these
+# routes only pick the cases and guard them with the reviewer's role, since the
+# Test Assistant's AI Checks routes are for authors.
+
+class ReviewAIChecksRequest(BaseModel):
+    request_ids: List[str] = Field(default_factory=list, max_length=500)
+    test_case_ids: List[str] = Field(default_factory=list, max_length=2000)
+    # Check cases that were checked before again (their last results are replaced).
+    recheck: bool = False
+
+
+@router.post("/ai-checks/start", status_code=202)
+def start_review_ai_checks(
+    body: ReviewAIChecksRequest,
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    _require_review_manager(current_user)
+    if not body.request_ids and not body.test_case_ids:
+        raise HTTPException(status_code=400, detail='Choose a project, a request or test cases to check.')
+    query = db.query(TestCaseDetail).filter(TestCaseDetail.status != DRAFT_STATUS)
+    if body.test_case_ids:
+        query = query.filter(TestCaseDetail.test_case_id.in_(body.test_case_ids))
+    if body.request_ids:
+        query = query.filter(TestCaseDetail.request_id.in_(body.request_ids))
+    cases = query.all()
+    review_ai_checks.sync_rows(db, cases)
+    actor = (current_user or {}).get('username') or (current_user or {}).get('sub') or 'manager'
+    try:
+        result = review_ai_checks.start(db, cases, actor=actor, recheck=body.recheck)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not result['started']:
+        skipped = result['skipped']
+        reasons = [
+            f"{skipped['checked']} already checked" if skipped['checked'] else None,
+            f"{skipped['running']} being checked now" if skipped['running'] else None,
+            f"{skipped['not_pending']} already decided" if skipped['not_pending'] else None,
+        ]
+        raise HTTPException(
+            status_code=409,
+            detail='Nothing to check: ' + (', '.join(r for r in reasons if r) or 'no pending cases') + '.',
+        )
+    return result
+
+
+def _review_batch(call):
+    try:
+        return call()
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.get("/ai-checks/{batch_id}")
+def get_review_ai_checks(
+    batch_id: str,
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    _require_review_manager(current_user)
+    return _review_batch(lambda: ai_checks_service.batch_view(db, batch_id, include_steps=True))
+
+
+@router.post("/ai-checks/{batch_id}/checks/{check_id}/retry", status_code=202)
+def retry_review_ai_check(
+    batch_id: str,
+    check_id: int,
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    _require_review_manager(current_user)
+    _review_batch(lambda: ai_checks_service.retry(db, batch_id, check_id))
+    return {'status': 'queued'}
+
+
+@router.post("/ai-checks/{batch_id}/stop")
+def stop_review_ai_checks(
+    batch_id: str,
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    _require_review_manager(current_user)
+    stopped = _review_batch(lambda: ai_checks_service.stop(db, batch_id))
+    return {'status': 'stopping', 'stopped': stopped}
+
+
+@router.post("/ai-checks/{batch_id}/restart", status_code=202)
+def restart_review_ai_checks(
+    batch_id: str,
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    _require_review_manager(current_user)
+    queued = _review_batch(lambda: ai_checks_service.restart(db, batch_id, None))
+    return {'status': 'queued', 'queued': queued}
+
+
+class ReviewEditedStep(BaseModel):
+    action: str
+    action_type: Optional[str] = None
+    expected_result: Optional[str] = None
+    target: Optional[str] = None
+    test_data_ref: Optional[str] = None
+
+
+class ReviewSaveEditsRequest(BaseModel):
+    steps: List[ReviewEditedStep] = Field(min_length=1, max_length=200)
+    preconditions: Optional[str] = None
+    expected_result: Optional[str] = None
+
+
+@router.put("/ai-checks/{batch_id}/checks/{check_id}/steps", status_code=202)
+def save_review_ai_check_steps(
+    batch_id: str,
+    check_id: int,
+    body: ReviewSaveEditsRequest,
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    """A reviewer's step edits; Quality Review and AI Classify re-run, as for an author."""
+    _require_review_manager(current_user)
+    edits = body.model_dump(exclude_unset=True)
+    edits['steps'] = [step.model_dump() for step in body.steps]
+    _review_batch(lambda: ai_checks_service.save_edits(db, batch_id, check_id, edits))
+    # The case is written back again once the re-run finishes.
+    for case in db.query(TestCaseDetail).filter(TestCaseDetail.status == 'PENDING').all():
+        details = case.test_case_details if isinstance(case.test_case_details, dict) else {}
+        run = details.get('_ai_run') if isinstance(details.get('_ai_run'), dict) else None
+        if run and run.get('check_id') == check_id:
+            from sqlalchemy.orm.attributes import flag_modified
+
+            case.test_case_details = {**details, '_ai_run': {**run, 'status': 'running'}}
+            flag_modified(case, 'test_case_details')
+    db.commit()
+    return {'status': 'queued'}
+
+
+def _column_key(details: Dict[str, Any], *names: str) -> str:
+    """The case's own spelling of a column, matched on shape; the first name when it has none."""
+    shape = lambda text: re.sub(r'[^a-z0-9]', '', str(text).lower())
+    wanted = {shape(name) for name in names}
+    for key in details:
+        if not str(key).startswith('_') and shape(key) in wanted:
+            return key
+    return names[0]
+
+
+@router.put("/detail/{request_id}/test-case/{test_case_id}/steps")
+def save_review_case_steps(
+    request_id: str,
+    test_case_id: str,
+    body: ReviewSaveEditsRequest,
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    """A reviewer's step edits on a case not AI-checked: written straight onto its columns.
+
+    A checked case is edited through its AI Checks batch instead, so Quality
+    Review and AI Classify re-run and its results stay true to its steps.
+    """
+    _require_review_manager(current_user)
+    case = (
+        db.query(TestCaseDetail)
+        .filter(TestCaseDetail.request_id == request_id, TestCaseDetail.test_case_id == test_case_id)
+        .first()
+    )
+    if case is None:
+        raise HTTPException(status_code=404, detail='Test case not found.')
+    if str(case.status).upper() != 'PENDING':
+        raise HTTPException(status_code=409, detail='Only a test case waiting for review can be edited.')
+    details = dict(case.test_case_details) if isinstance(case.test_case_details, dict) else {}
+    if review_ai_checks.is_running(case):
+        raise HTTPException(status_code=409, detail='AI Checks are running on this case. Edit it once they finish.')
+    if isinstance(details.get('_ai'), dict):
+        raise HTTPException(status_code=409, detail='This case was AI-checked; edit it through its AI Checks so it is re-checked.')
+
+    # Numbered like the generated columns; a step's own expected result rides
+    # along in brackets so the next edit gets it back.
+    lines = []
+    for number, step in enumerate((s for s in body.steps if s.action.strip()), start=1):
+        expected = (step.expected_result or '').strip()
+        lines.append(f"{number}. {step.action.strip()}" + (f" (Expected: {expected})" if expected else ''))
+    if not lines:
+        raise HTTPException(status_code=400, detail='Keep at least one step.')
+    details[_column_key(details, 'Test Steps', 'Steps')] = '\n'.join(lines)
+    if body.preconditions is not None:
+        details[_column_key(details, 'Preconditions', 'Pre-conditions')] = body.preconditions
+    if body.expected_result is not None:
+        details[_column_key(details, 'Expected Result', 'Expected Results')] = body.expected_result
+    details['_edited'] = {
+        'by': (current_user or {}).get('username') or (current_user or {}).get('sub') or 'manager',
+        'at': _dubai_now().isoformat(),
+    }
+    from sqlalchemy.orm.attributes import flag_modified
+
+    case.test_case_details = details
+    flag_modified(case, 'test_case_details')
+    db.commit()
+    db.refresh(case)
+    return {'success': True, 'data': _serialize_test_case_detail(case)}

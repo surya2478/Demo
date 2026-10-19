@@ -580,14 +580,167 @@ def _phrase_locator(target: Optional[str], intent: str) -> tuple[str, Optional[s
     )
 
 
+# --- Automation Module: the Knowledge Base as a catalogue ---------------------
+#
+# A crawl only sees what it can reach unauthenticated, so on the B2B Portal it
+# never saw the login form's inputs, the RECEIVE OTP button or anything behind
+# sign-in. The QA team's verified XPath for exactly those controls sits in the
+# Knowledge Base -- the profile's `selectors` and `step_grounding_rules`, and
+# every flow's canonical steps -- and ground_case_structured_steps only reads it
+# for a step with NO target. A refined step always has one ("Username field"),
+# so the verified selector was never consulted and the step went to the
+# locator agent for a guess.
+#
+# These entries are shaped like crawl entries so grounding.match_step can score
+# them the same way, with the same bar and the same coverage rule.
+
+_XPATH_TAG_ROLE = (
+    (re.compile(r"^\(?//input\[[^\]]*@type=['\"]checkbox"), "checkbox"),
+    (re.compile(r"^\(?//input\[[^\]]*@type=['\"]radio"), "radio"),
+    (re.compile(r"^\(?//(?:input|textarea)\b"), "textbox"),
+    (re.compile(r"^\(?//select\b"), "combobox"),
+    (re.compile(r"^\(?//button\b"), "button"),
+    (re.compile(r"^\(?//a\b"), "link"),
+)
+
+
+def _selector_role(selector: str) -> str:
+    for pattern, role in _XPATH_TAG_ROLE:
+        if pattern.search(selector):
+            return role
+    return ""
+
+
+def _is_selector(target: Any) -> bool:
+    """True when a target is already a selector rather than a phrase."""
+    raw = str(target or "").strip()
+    return raw.startswith(("//", "(//", ".//", "(.//", "xpath=", "(xpath=", "#", "[")) or (
+        "data-testid=" in raw
+    )
+
+
+def kb_elements(profile: Optional[dict], flows: Optional[list[dict]] = None) -> list[dict]:
+    """The Knowledge Base's verified selectors, as catalogue-shaped entries.
+
+    Only `selectors`, `step_grounding_rules` and canonical steps: a profile's
+    `brd_declared_selectors` and a flow's `unverified_from_brd` are deliberately
+    left out, because anything here is emitted as fact.
+    """
+    from .knowledge_base import selector_labels
+
+    out: list[dict] = []
+    seen: set[str] = set()
+
+    def _add(selector: Any, name: str, meaning: str, keywords: Optional[list] = None) -> None:
+        selector = str(selector or "").strip()
+        if not selector.startswith(("//", "(//")) or "{" in selector or selector in seen:
+            return
+        seen.add(selector)
+        labels = selector_labels(selector)
+        out.append({
+            "element_name": name,
+            "role": _selector_role(selector),
+            "accessible_name": labels[0] if labels else None,
+            "business_meaning": meaning,
+            "recommended_locator": f"page.locator({_js(selector)}).first()",
+            "recommended_strategy": "kb_xpath",
+            "confidence_score": 90,
+            "page": None,
+            "keywords": [str(k).lower() for k in (keywords or []) if str(k).strip()],
+            "source": "knowledge_base",
+        })
+
+    profile = profile or {}
+    # Rules first: they carry the keywords a step is phrased in.
+    for rule in profile.get("step_grounding_rules") or []:
+        _add(rule.get("target"), str(rule.get("id") or ""), " ".join(rule.get("keywords") or []),
+             rule.get("keywords"))
+    for group, entries in (profile.get("selectors") or {}).items():
+        if isinstance(entries, dict):
+            for key, selector in entries.items():
+                if isinstance(selector, str):
+                    _add(selector, f"{group}_{key}", str(key).replace("_", " "))
+    for flow in flows or []:
+        for step in flow.get("canonical_steps") or []:
+            _add(step.get("target"), f"{flow.get('flow_id')}_{step.get('step_number')}",
+                 str(step.get("action") or ""))
+    return out
+
+
+_FILL_ROLES = frozenset({"textbox", "searchbox", "combobox", "spinbutton", ""})
+
+
+def _match_kb(step: dict, intent: str, elements: list[dict]) -> Optional[dict]:
+    """The Knowledge Base element a step names, or None when it is not clear."""
+    if not elements:
+        return None
+    # "Username and Password fields" is two controls and one fill; whichever
+    # half matched, the other would be left empty and the value put in the
+    # wrong box.
+    if intent == "fill" and re.search(r"\band\b", str(step.get("target") or ""), re.I):
+        return None
+    # "Select the organization ..." carrying a Test Data value: the value names
+    # the item to pick, and the KB's organisation selector is only the list it
+    # sits in. compile_playwright clicks the value's text for these.
+    if intent in ("click", "select") and step.get("test_data_ref"):
+        return None
+    if intent == "fill":
+        pool = [e for e in elements if e["role"] in _FILL_ROLES]
+    elif intent in ("click", "select"):
+        pool = [e for e in elements if e["role"] != "textbox"]
+    else:
+        pool = list(elements)
+
+    # A rule's keyword phrase in the step: the QA team's own wording for when
+    # the selector applies. Several rules disagreeing is no answer at all.
+    # A keyword is a prefix of what the step means, never a licence to drop
+    # the rest of it: "navigate to manage" is a keyword of the Manage link, and
+    # "Navigate to Manage Users" is not a step about that link.
+    text = f"{step.get('action') or ''} {step.get('target') or ''}".lower()
+    target_words = grounding._target_words(step.get("target"))
+
+    def _names_less(entry: dict) -> bool:
+        name = grounding._target_words(entry.get("accessible_name"))
+        return bool(name) and name < target_words
+
+    by_keyword = {
+        e["recommended_locator"]: e
+        for e in pool
+        if any(re.search(r"(?<![a-z0-9])" + re.escape(k) + r"(?![a-z0-9])", text) for k in e["keywords"])
+        and not _names_less(e)
+    }
+    if len(by_keyword) == 1:
+        return next(iter(by_keyword.values()))
+    if len(by_keyword) > 1:
+        return None
+
+    entry, _reason = grounding.match_step(step, pool)
+    return entry
+
+
 def build_locator(
-    step: dict, intent: str, *, catalog: Optional[list[dict]] = None
+    step: dict,
+    intent: str,
+    *,
+    catalog: Optional[list[dict]] = None,
+    kb: Optional[list[dict]] = None,
 ) -> tuple[str, Optional[str]]:
-    """A step's locator: grounded against the discovered catalogue if one was
-    given and it names a match, the phrase heuristic otherwise.
+    """A step's locator, from the first source that names its element.
+
+    1. A selector the step already carries -- ground_case_structured_steps puts
+       the Knowledge Base's XPath there -- is used as written. It used to be
+       scored against the crawl like a phrase, matched nothing, and was sent to
+       the locator agent to be replaced with a guess.
+    2. The discovered catalogue.
+    3. The Knowledge Base's verified selectors (kb_elements).
+    4. The phrase heuristic, with the reason it is a guess.
     """
     target = step.get("target")
 
+    if _is_selector(target):
+        return _phrase_locator(target, intent)
+
+    reason: Optional[str] = None
     if catalog:
         entry, reason = grounding.match_step(step, catalog)
         if entry is not None:
@@ -600,10 +753,42 @@ def build_locator(
                 "recorded locator is malformed and was not used. Re-run Application "
                 "Discovery to rebuild the catalogue."
             )
-        fallback_locator, fallback_todo = _phrase_locator(target, intent)
-        return fallback_locator, (reason or fallback_todo)
 
-    return _phrase_locator(target, intent)
+    kb_entry = _match_kb(step, intent, kb or [])
+    if kb_entry is not None:
+        return kb_entry["recommended_locator"], None
+
+    fallback_locator, fallback_todo = _phrase_locator(target, intent)
+    return fallback_locator, (reason or fallback_todo)
+
+
+def locator_candidates(step: dict, pool: list[dict], limit: int = 8) -> list[dict]:
+    """The elements nearest to a step, for the locator agent to choose among.
+
+    The agent used to receive the first forty entries of the crawl, which on the
+    B2B Portal were the consumer site's header links -- nothing near the step.
+    """
+    words = grounding._target_words(f"{step.get('target') or ''} {step.get('action') or ''}")
+    if not words:
+        return []
+    scored = []
+    for entry in pool:
+        known = grounding._target_words(
+            f"{entry.get('accessible_name') or ''} {entry.get('business_meaning') or ''} "
+            f"{(entry.get('element_name') or '').replace('_', ' ')}"
+        )
+        overlap = len(words & known)
+        if overlap:
+            scored.append((overlap, int(entry.get("confidence_score") or 0), entry))
+    scored.sort(key=lambda item: (-item[0], -item[1]))
+    return [
+        {
+            "role": entry.get("role"),
+            "name": entry.get("accessible_name") or entry.get("element_name"),
+            "locator": entry.get("recommended_locator"),
+        }
+        for _, _, entry in scored[:limit]
+    ]
 
 
 # --- Automation Module: post-conditions become assertions --------------------
@@ -633,12 +818,71 @@ _EXPECTED_URL_RE = re.compile(
 )
 _EXPECTED_QUOTED_RE = re.compile(r"[\"']([^\"']{2,80})[\"']")
 
+# --- Automation Module: what else a post-condition can name exactly ---------
+#
+# 14 of 40 steps in one B2B project carried a post-condition and asserted
+# nothing, because it quoted no label and named no path. Two more shapes are
+# specific enough to check without guessing:
+#
+#   * a Title Case name immediately before "modal"/"dialog"/"popup" -- "The
+#     Trade License Details modal opens" -- which is the dialog's own title;
+#   * a Title Case name immediately before "page"/"screen"/... followed by an
+#     arrival verb -- "The Manage Users page is displayed" -- which is the
+#     page's heading.
+#
+# Both compile to the same locator: a heading with that name, or a dialog
+# containing it. A heading role is not satisfied by the link the step clicked
+# to get there, which is what makes this safe after a navigation click. Names
+# that are generic ("Home", "Login") or that the step itself acted on are not
+# asserted.
+_TITLE_RUN = r"((?:[A-Z][\w&'/-]*\s+){0,4}[A-Z][\w&'/-]*)"
+_EXPECTED_DIALOG_RE = re.compile(_TITLE_RUN + r"\s+(?:modal|dialog|pop-?up|overlay|drawer)\b")
+_EXPECTED_PAGE_RE = re.compile(
+    _TITLE_RUN
+    + r"\s+(?:page|screen|section|panel|form|heading)\s+"
+    r"(?:is\s+|are\s+)?(?:now\s+)?(?:displayed|opens|opened|loads|loaded|shown|appears|visible|rendered)\b"
+)
+_GENERIC_TITLES = frozenset({
+    "the", "a", "an", "home", "login", "log", "sign", "main", "landing", "next", "previous",
+    "same", "current", "new", "this", "that", "user", "error", "success", "confirmation",
+})
+# Paired quotes: the opening quote may not follow a word character, so the
+# closing quote of '"-"' does not open a "quotation" of ' or '.
+_PAIRED_QUOTE_RE = re.compile(r"(?<![\w])[\"']([^\"'\n]{1,80})[\"'](?![\w])")
 
-def expected_assertion(expected: Any, intent: str) -> Optional[str]:
+
+def _named_title(text: str) -> Optional[str]:
+    for pattern in (_EXPECTED_DIALOG_RE, _EXPECTED_PAGE_RE):
+        match = pattern.search(text)
+        if not match:
+            continue
+        words = match.group(1).split()
+        # "The Trade License Details" -> drop a sentence-initial article.
+        while words and words[0].lower() in ("the", "a", "an"):
+            words = words[1:]
+        name = " ".join(words).strip()
+        if not name or len(name) < 4 or all(w.lower() in _GENERIC_TITLES for w in words):
+            continue
+        return name
+    return None
+
+
+def expected_assertion(
+    expected: Any,
+    intent: str,
+    *,
+    acted_on: Any = "",
+    href: Optional[str] = None,
+) -> Optional[str]:
     """A Playwright assertion for a step's expected_result, or None.
 
     None means "emit the comment, as before" -- see the note above for why that
     is the default rather than a locator guessed from a sentence.
+
+    `acted_on` is the step's own action and target. A value the step clicked or
+    typed is on the page before the step runs, so asserting it afterwards
+    proves nothing: TC-004 clicked 'TL123456' and then checked 'TL123456' was
+    visible. `href` is where a navigation click is recorded to lead.
     """
     if intent == "assert":
         # The step already emitted its own visibility assertion.
@@ -647,6 +891,7 @@ def expected_assertion(expected: Any, intent: str) -> Optional[str]:
     text = str(expected or "").strip()
     if not text:
         return None
+    acted = str(acted_on or "").lower()
 
     url_match = _EXPECTED_URL_RE.search(text)
     if url_match:
@@ -660,23 +905,31 @@ def expected_assertion(expected: Any, intent: str) -> Optional[str]:
                 "{ timeout: 15000 });"
             )
 
-    # A quoted selector or URL is not an observable string on the page.
-    literals = [
+    # A quoted selector or URL is not an observable string on the page, and
+    # neither is one character ('-').
+    quoted = [
         q.strip()
-        for q in _EXPECTED_QUOTED_RE.findall(text)
-        if q.strip() and not q.strip().startswith(("http", "/", ".", "#", "["))
+        for q in _PAIRED_QUOTE_RE.findall(text)
+        if q.strip()
+        and not q.strip().startswith(("http", "/", ".", "#", "["))
+        and not (acted and q.strip().lower() in acted)
     ]
+    literals = [q for q in quoted if len(q) >= 2]
     if literals:
         # "One of ('ADD TO CART' or 'Checkout Now') becomes visible" is satisfied
         # by either, so asserting the first one turns a passing application into
         # a red run. The post-condition already names the alternatives, so it
         # compiles to an alternation rather than being dropped.
-        if len(literals) > 1 and re.search(r"\bor\b", text, re.IGNORECASE):
+        if len(quoted) > 1 and re.search(r"\bor\b", text, re.IGNORECASE):
             # re.escape() escapes spaces too, and a backslash-space escape is
             # only valid in a JS regex under Annex B -- it throws under the `u` flag.
             pattern = "|".join(
-                dict.fromkeys(re.escape(l).replace(r"\ ", " ") for l in literals)
+                dict.fromkeys(re.escape(l).replace(r"\ ", " ") for l in quoted)
             )
+            # '"-" or "N/A"': a one-character alternative matches inside any
+            # text, so the whole alternation must then be the element's text.
+            if len(literals) < len(quoted):
+                pattern = rf"^\s*(?:{pattern})\s*$"
             return (
                 f"await expect(page.getByText(new RegExp({_js(pattern)}, 'i')).first())"
                 ".toBeVisible({ timeout: 15000 });"
@@ -684,6 +937,29 @@ def expected_assertion(expected: Any, intent: str) -> Optional[str]:
         return (
             f"await expect(page.getByText({_js(literals[0])}).first())"
             ".toBeVisible({ timeout: 15000 });"
+        )
+
+    title = _named_title(text)
+    if title:
+        name = _js(re.escape(title).replace(r"\ ", " "))
+        return (
+            f"await expect(page.getByRole('heading', {{ name: new RegExp({name}, 'i') }})"
+            f".or(page.getByRole('dialog').filter({{ hasText: new RegExp({name}, 'i') }}))"
+            ".first()).toBeVisible({ timeout: 15000 });"
+        )
+
+    # A navigation click whose destination the Knowledge Base or a recording
+    # names, and a post-condition saying the step arrives somewhere.
+    route = str(href or "").split("?")[0].split("#")[0].rstrip("/")
+    if (
+        intent == "click"
+        and route.startswith("/")
+        and len(route) > 2
+        and re.search(r"\b(page|screen|opens?|navigat\w*|redirect\w*|displayed|loads?)\b", text, re.I)
+    ):
+        return (
+            f"await expect(page).toHaveURL(new RegExp({_js(re.escape(route))}, 'i'), "
+            "{ timeout: 15000 });"
         )
 
     return None
@@ -720,6 +996,75 @@ def _case_signs_in(steps: list[dict]) -> bool:
     return any(
         _SIGN_IN_RE.search(f"{step.get('action') or ''} {step.get('target') or ''}") for step in steps
     )
+
+
+# --- Automation Module: a sign-in step the KB can do properly ----------------
+#
+# "Enter valid administrator credentials and log in" targeting "Username and
+# Password fields" is two controls, one data value and an implied click. It
+# compiled to getByLabel("Username and Password fields").fill(...), which
+# matches nothing. Where the matched flow declares how it signs in
+# (prerequisite_flows -- verified selectors, named Test Data), that sign-in
+# replaces such steps. Not for a case that is ABOUT signing in: a negative word
+# anywhere in the case's sign-in steps keeps them as written.
+_CREDENTIAL_RE = re.compile(r"\b(credentials?|password|log[\s-]?in|sign[\s-]?in|login)\b", re.I)
+_NEGATIVE_SIGN_IN_RE = re.compile(
+    r"\b(invalid|incorrect|wrong|locked|lockout|expired|empty|blank|without|forgot\w*|reset"
+    r"|unregistered|error|fails?|failed|attempts?)\b",
+    re.I,
+)
+
+
+def _sign_in_from_kb(
+    steps: list[dict],
+    prerequisite: list[dict],
+    catalog: list[dict],
+    kb_index: list[dict],
+) -> tuple[list[dict], list[dict], list[Any]]:
+    """(steps, prelude, replaced step numbers), with the KB's sign-in in place
+    of credential steps nothing can ground. Unchanged when that does not apply."""
+    if not prerequisite:
+        return steps, [], []
+    indexes = []
+    for index, step in enumerate(steps):
+        text = f"{step.get('action') or ''} {step.get('target') or ''}"
+        if not _CREDENTIAL_RE.search(text):
+            continue
+        intent = _intent(str(step.get("action") or ""), step.get("action_type"))
+        if intent in ("goto", "assert") or _is_navigation_target(step.get("target")):
+            continue
+        indexes.append(index)
+    if not indexes:
+        return steps, [], []
+    chosen = [steps[i] for i in indexes]
+    if any(
+        _NEGATIVE_SIGN_IN_RE.search(f"{s.get('action') or ''} {s.get('target') or ''} {s.get('expected_result') or ''}")
+        for s in chosen
+    ):
+        return steps, [], []
+
+    def _ungroundable(step: dict) -> bool:
+        text = f"{step.get('action') or ''} {step.get('target') or ''}"
+        if re.search(r"\bcredentials?\b", text, re.I):
+            return True
+        intent = _intent(str(step.get("action") or ""), step.get("action_type"))
+        _locator, todo = build_locator(step, intent, catalog=catalog, kb=kb_index)
+        return todo is not None
+
+    if not any(_ungroundable(s) for s in chosen):
+        return steps, [], []
+
+    prelude = [
+        {**step, "step_number": f"S{number}"}
+        for number, step in enumerate(prerequisite, start=1)
+    ]
+    label = f"S1-S{len(prelude)}"
+    replaced = [s.get("step_number") or (i + 1) for i, s in zip(indexes, chosen)]
+    out = list(steps)
+    for i in indexes:
+        out[i] = {**out[i], "_signed_in_by": label}
+    out[indexes[0]:indexes[0]] = prelude
+    return out, prelude, replaced
 
 
 def compile_playwright(
@@ -797,6 +1142,22 @@ def compile_playwright(
     # The flow's prerequisites (sign-in, usually) run first when the case's own
     # steps do not authenticate. Numbered S1, S2... so the case's step numbers
     # -- the ones its author and the run report use -- stay as they were.
+    # The Knowledge Base's verified selectors, and the part of the crawl that is
+    # this application rather than a site it links to. Only when the profile is
+    # the site being compiled against: for an unlinked case the profile is a
+    # guess from the case's wording, and a sign-in case for one application
+    # must not pick up another application's XPath because both say "username".
+    same_site = bool(flow_base_url) and _url_host(flow_base_url) == _url_host(target_url)
+    try:
+        kb_index = (
+            kb_elements(prof, kb.list_flows(app_for_kb) if app_for_kb else [])
+            if same_site and not is_api
+            else []
+        )
+    except Exception:  # noqa: BLE001 - the KB is optional infrastructure
+        kb_index = []
+    catalog = grounding.scope_catalog(catalog, flow_base_url if same_site else target_url)
+
     prelude: list[dict] = []
     if not is_api and flow and not _case_signs_in(steps):
         prelude = [
@@ -804,7 +1165,13 @@ def compile_playwright(
             for index, step in enumerate(kb.prerequisite_steps(flow, app_for_kb), start=1)
         ]
     last_case_number = (steps[-1].get("step_number") if steps else None) or len(steps)
-    steps = prelude + steps
+    replaced_sign_in: list[Any] = []
+    if not prelude and not is_api and flow and same_site:
+        steps, prelude, replaced_sign_in = _sign_in_from_kb(
+            steps, kb.prerequisite_steps(flow, app_for_kb), catalog, kb_index
+        )
+    else:
+        steps = prelude + steps
 
     try:
         unconfirmed = [] if is_api else kb.unconfirmed_features(full_case_text, app_for_kb)
@@ -841,7 +1208,13 @@ def compile_playwright(
         *scope_lines,
         " * Values come from environment variables so no credential or record id is baked into the file.",
     ]
-    if prelude:
+    if prelude and replaced_sign_in:
+        lines.append(
+            f" * Signs in with the Knowledge Base's verified sign-in ({comment_text(prelude[0].get('prerequisite_of'))}, "
+            f"steps S1-S{len(prelude)}) in place of step(s) "
+            f"{', '.join(str(n) for n in replaced_sign_in)}, whose controls it could not ground."
+        )
+    elif prelude:
         lines.append(f" * Signs in first ({comment_text(prelude[0].get('prerequisite_of'))}, steps S1-S{len(prelude)}).")
     for hit in unconfirmed:
         lines.append(
@@ -861,7 +1234,7 @@ def compile_playwright(
     data_refs = [
         str(step.get("test_data_ref"))
         for step in steps
-        if step.get("test_data_ref")
+        if step.get("test_data_ref") and not step.get("_signed_in_by")
     ]
     seen: list[str] = []
     for ref in data_refs:
@@ -956,6 +1329,12 @@ def compile_playwright(
 
             lines.append("")
             lines.append(f"  // {number}. {comment_text(action)}")
+            if step.get("_signed_in_by"):
+                lines.append(
+                    f"  // Done by the Knowledge Base's verified sign-in, steps {step['_signed_in_by']} above."
+                )
+                emitted += 1
+                continue
             # Everything appended from here to the end of this iteration is the
             # step's body, and gets wrapped in test.step() below.
             step_body_start = len(lines)
@@ -1193,7 +1572,7 @@ def compile_playwright(
                     todo = None
                     lines.append(f"  // [Guided Discovery] Ground-truth recorded locator for {comment_text(recorded_match.get('target_name'))}")
                 else:
-                    locator, todo = build_locator(step, intent, catalog=catalog)
+                    locator, todo = build_locator(step, intent, catalog=catalog, kb=kb_index)
 
                 data_var = re.sub(r"[^A-Za-z0-9]+", "_", str(data_ref)).lower() if data_ref else None
                 # "Select the organization with no users" carrying a Test Data
@@ -1229,6 +1608,9 @@ def compile_playwright(
                                 "target": target,
                                 "intent": intent,
                                 "reason": todo,
+                                # The nearest crawl and Knowledge Base elements,
+                                # so the agent can pick a real one.
+                                "candidates": locator_candidates(step, catalog + kb_index),
                             }
                         )
                         issues.append(StaticGateIssue("warning", f"Step {number}: {todo}"))
@@ -1275,7 +1657,12 @@ def compile_playwright(
 
             if expected and intent != "assert" and not expected_done:
                 lines.append(f"  // expected: {comment_text(expected)}")
-                assertion = expected_assertion(expected, intent)
+                assertion = expected_assertion(
+                    expected,
+                    intent,
+                    acted_on=f"{action} {target or ''}",
+                    href=_route(step.get("href"), target_url) if step.get("href") else None,
+                )
                 if assertion:
                     lines.append(f"  {assertion}")
 

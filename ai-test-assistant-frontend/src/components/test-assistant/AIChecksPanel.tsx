@@ -85,25 +85,29 @@ interface AIChecksPanelProps {
   onToggleAll: (checkIds: number[], on: boolean) => void
   onRetry: (checkId: number) => void
   onEdit: (checkId: number) => void
-  onSend: () => void
-  onDownload: () => void
+  /** Send for Approval -- the Test Assistant's. Left out on Review & Approval, where results apply as they finish. */
+  onSend?: () => void
+  onDownload?: () => void
   onStop: () => void
   onRestart: () => void
-  onDelete: () => void
+  /** Left out where cases cannot be removed from the batch (Review & Approval). */
+  onDelete?: () => void
   busy: 'stop' | 'restart' | 'delete' | null
   /** The request the generated cases were saved as. */
   savedAs?: string | null
-  sendCount: number
+  sendCount?: number
   /** Checks already sent for approval; the rest can still be sent. */
-  sentIds: Set<number>
+  sentIds?: Set<number>
+  /** The panel's title; "Output" on the Test Assistant. */
+  title?: string
   /** Download the cases in the RQM template, as generated or as AI Checks left them. */
   onDownloadCases?: (version: RqmVersion) => void
   downloadingCases?: boolean
 }
 
 const AIChecksPanel: React.FC<AIChecksPanelProps> = ({
-  batch, now, selected, onToggle, onToggleAll, onRetry, onEdit, onSend, onDownload, onStop, onRestart, onDelete, busy, savedAs, sendCount, sentIds,
-  onDownloadCases, downloadingCases = false
+  batch, now, selected, onToggle, onToggleAll, onRetry, onEdit, onSend, onDownload, onStop, onRestart, onDelete, busy, savedAs, sendCount = 0, sentIds = new Set<number>(),
+  onDownloadCases, downloadingCases = false, title = 'Output'
 }) => {
   const [filter, setFilter] = useState<Filter>('all')
   const s = batch.summary
@@ -159,7 +163,7 @@ const AIChecksPanel: React.FC<AIChecksPanelProps> = ({
     <section className="flex flex-col overflow-hidden rounded-[20px] border border-[#E8EAEE] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]">
       {/* Header */}
       <div className="flex flex-wrap items-center gap-2.5 px-[22px] pt-4">
-        <span className="text-[15px] font-bold text-[#1F2937]">Output</span>
+        <span className="text-[15px] font-bold text-[#1F2937]">{title}</span>
         <span className={`${CHIP} bg-[#F4F5F7] text-[#1F2937]`}>{batch.total} test cases</span>
         {savedAs && (
           <span className={`${CHIP} ${C_AUTO}`} title="Saved when AI Checks started; Send for Approval sends this request">
@@ -215,6 +219,7 @@ const AIChecksPanel: React.FC<AIChecksPanelProps> = ({
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1F2937" strokeWidth="1.8" aria-hidden><path d="M4 20h4L19 9l-4-4L4 16z" /></svg>
             Edit steps
           </button>
+          {onDownload && (
           <button
             type="button"
             onClick={onDownload}
@@ -222,6 +227,8 @@ const AIChecksPanel: React.FC<AIChecksPanelProps> = ({
           >
             Download
           </button>
+          )}
+          {onDelete && (
           <button
             type="button"
             onClick={onDelete}
@@ -233,6 +240,8 @@ const AIChecksPanel: React.FC<AIChecksPanelProps> = ({
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
             {busy === 'delete' ? 'Deleting…' : deleteCount ? `Delete ${deleteCount}` : 'Delete'}
           </button>
+          )}
+          {onSend && (
           <button
             type="button"
             onClick={onSend}
@@ -250,6 +259,7 @@ const AIChecksPanel: React.FC<AIChecksPanelProps> = ({
             {sendCount === 0 && sentTotal > 0 ? `${sentTotal} TCs Pending Approval` : `Send ${sendCount} for Approval`}
             {(sendCount > 0 || sentTotal === 0) && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg>}
           </button>
+          )}
         </div>
       </div>
 

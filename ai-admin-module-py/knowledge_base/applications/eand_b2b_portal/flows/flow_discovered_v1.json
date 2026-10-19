@@ -1,0 +1,44 @@
+{
+  "flow_id": "flow_discovered_v1",
+  "flow_name": "Discovered walkthrough (draft, crawl v1)",
+  "category": "Discovered",
+  "target_match_keywords": [],
+  "catalog_entrypoint": "https://devnew-sas.etisalat.ae/b2bportal/app/accounts/dashboard360",
+  "canonical_steps": [
+    {
+      "step_number": 1,
+      "action": "Navigate to e& UAE Business Online Portal | Manage Your Account & Services",
+      "target": "/b2bportal/app/accounts/dashboard360",
+      "href": null,
+      "expected_result": "e& UAE Business Online Portal | Manage Your Account & Services loads (HTTP 200 when crawled)."
+    },
+    {
+      "step_number": 2,
+      "action": "Click 'Consumer' to reach etisalat UAE | Mobile plans, TV & Internet plans, WiFi & Smartphones",
+      "target": "/en/index.html",
+      "href": "/en/index.html",
+      "expected_result": "etisalat UAE | Mobile plans, TV & Internet plans, WiFi & Smartphones loads (HTTP 200 when crawled)."
+    },
+    {
+      "step_number": 3,
+      "action": "Click 'Quick Pay/Recharge' to reach Etisalat UAE | Etisalat Business",
+      "target": "/b2bportal/quick-payment.html?locale=en",
+      "href": "/b2bportal/quick-payment.html?locale=en",
+      "expected_result": "Etisalat UAE | Etisalat Business loads (HTTP 200 when crawled)."
+    },
+    {
+      "step_number": 4,
+      "action": "Navigate to etisalat UAE | SMB Business Solutions UAE | Mobile, Internet & AI",
+      "target": "/en/smb/index.html",
+      "href": "/en/smb/index.html",
+      "expected_result": "etisalat UAE | SMB Business Solutions UAE | Mobile, Internet & AI loads (HTTP 200 when crawled)."
+    }
+  ],
+  "known_products": {},
+  "graph_edges": [],
+  "_draft": {
+    "generated_by": "Application Discovery crawl v1",
+    "generated_at": "2026-10-14T07:52:54.622293Z",
+    "status": "DRAFT -- the steps are pages the crawler reached, in the order it reached them, not a journey anybody designed. Rename, reorder, delete what is noise, and add known_products before using it."
+  }
+}
