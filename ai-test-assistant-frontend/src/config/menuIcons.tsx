@@ -13,7 +13,8 @@ import {
   HiOutlineGlobeAlt,
   HiOutlineBookOpen,
   HiOutlineDatabase,
-  HiOutlineChartPie
+  HiOutlineChartPie,
+  HiOutlineSupport
 } from 'react-icons/hi'
 
 export const menuIcons = {
@@ -32,6 +33,9 @@ export const menuIcons = {
   'automation/discovery': HiOutlineGlobeAlt,
   discovery: HiOutlineGlobeAlt,
   'automation/knowledge-base': HiOutlineBookOpen,
-  'test-data': HiOutlineDatabase
+  'test-data': HiOutlineDatabase,
+  'guides/local-tools': HiOutlineSupport,
+  'guides/application': HiOutlineBookOpen,
+  'guides/documentation': HiClipboardList
 }
 

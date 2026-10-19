@@ -40,7 +40,7 @@ from ..automation import classification
 from ..automation.eligibility import score_test_case, split_steps
 from ..automation.llm import LLMError
 from ..automation.refine import refine_case_content, refined_to_columns
-from ...models.automation import AutomationDeletedOrigin, AutomationTestCase
+from ...models.automation import AutomationApplication, AutomationDeletedOrigin, AutomationTestCase
 
 from . import knowledge_base as kb
 
@@ -131,6 +131,7 @@ def apply_classification(
 # A human has confirmed the data exists. Distinct from "ready", which is a
 # derived fact about the requirements list; this one is a decision.
 TEST_DATA_USER_PROVIDED = "user_provided"
+TEST_DATA_KB_PROVIDED = "kb_provided"
 
 
 def derive_test_data_status(case: AutomationTestCase) -> str:
@@ -147,8 +148,8 @@ def derive_test_data_status(case: AutomationTestCase) -> str:
     edited an unrelated field -- which is what an edit does, since this runs
     from rescore() on every save.
     """
-    if case.test_data_status == TEST_DATA_USER_PROVIDED:
-        return TEST_DATA_USER_PROVIDED
+    if case.test_data_status in (TEST_DATA_USER_PROVIDED, TEST_DATA_KB_PROVIDED):
+        return case.test_data_status
 
     requirements = case.test_data_requirements or []
     if not requirements:
@@ -571,6 +572,9 @@ def sync_approved_test_cases(db: Session) -> int:
             details = json.loads(row.test_case_details) if isinstance(row.test_case_details, str) else (row.test_case_details or {})
         except Exception:
             details = {}
+        selected_application = details.get("_automation_application") if isinstance(details, dict) else None
+        if not isinstance(selected_application, dict):
+            selected_application = {}
 
         raw_display = detail_value(details, "display_id")
         if raw_display:
@@ -629,8 +633,16 @@ def sync_approved_test_cases(db: Session) -> int:
             detail_value(details, "expected"),
             detail_value(details, "test_data"),
         ))
+        explicit_app = None
+        try:
+            explicit_app = db.get(AutomationApplication, int(selected_application.get("id"))) if selected_application.get("id") else None
+        except (TypeError, ValueError):
+            explicit_app = None
         app_url_match = re.search(r"https?://[^\s'\"\)]+", full_case_text)
-        if app_url_match:
+        if explicit_app is not None:
+            app_url = explicit_app.base_url
+            matched_app = explicit_app.app_key
+        elif app_url_match:
             app_url = app_url_match.group(0).rstrip(".,)")
             flow = kb.match_flow_blueprint(full_case_text)
             matched_app = (flow.get("_app_id") if flow else None) or kb.identify_app_id(full_case_text)
@@ -688,6 +700,8 @@ def sync_approved_test_cases(db: Session) -> int:
                 expected_result=detail_value(details, "expected") or None,
                 steps_structured=structured,
                 application_url=app_url,
+                application_id=explicit_app.id if explicit_app else None,
+                environment=explicit_app.environment if explicit_app else selected_application.get("environment"),
                 priority=detail_value(details, "priority") or "High",
                 origin="imported",
                 classification=CLASSIFICATION_UNDECIDED,
@@ -731,6 +745,10 @@ def sync_approved_test_cases(db: Session) -> int:
                 existing.origin_request_id = row.request_id
             if app_url and (not existing.application_url or "smb" in full_case_text.lower() and "smb" not in (existing.application_url or "")):
                 existing.application_url = app_url
+            if explicit_app is not None:
+                existing.application_id = explicit_app.id
+                existing.application_url = explicit_app.base_url
+                existing.environment = explicit_app.environment
 
             # Repair a row that is still showing the fallback.
             #

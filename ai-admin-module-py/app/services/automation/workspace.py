@@ -57,9 +57,8 @@ PLAYWRIGHT_PACKAGE_JSON = {
 # batches failing on "Test timeout of 30000ms exceeded" for that reason alone.
 # The runner's own subprocess cap still bounds the run.
 #
-# headless is fixed true — the decision recorded for this deployment. Run
-# settings persist as a run_config column so a headed profile can be added
-# later without reshaping this template.
+# Browser visibility follows each run; an operator may select an installed
+# browser channel for headed runs when bundled Chromium is unavailable.
 PLAYWRIGHT_CONFIG_TS_TEMPLATE = """import {{ defineConfig }} from '@playwright/test';
 
 export default defineConfig({{
@@ -76,6 +75,7 @@ export default defineConfig({{
   ],
   use: {{
 {base_url_line}    headless: {headless_str},
+    channel: {headed_channel},
     actionTimeout: 20_000,
     navigationTimeout: 45_000,
     trace: 'on',
@@ -315,6 +315,7 @@ def _render_playwright_config(
         test_dir=test_dir,
         slow_mo_ms=max(0, int(slow_mo_ms)),
         headless_str="true" if headless else "false",
+        headed_channel=json.dumps(settings.AUTOMATION_HEADED_BROWSER_CHANNEL) if not headless and settings.AUTOMATION_HEADED_BROWSER_CHANNEL else "undefined",
     )
 
 

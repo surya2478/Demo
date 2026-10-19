@@ -38,17 +38,23 @@ const ChangeSetCard: React.FC<{
   canDecide: boolean
   /** May correct a draft's proposed steps before it is decided. */
   canEdit?: boolean
+  initialOpen?: boolean
   onDone: (message: string, published: boolean) => void
-}> = ({ summary, canDecide, canEdit = false, onDone }) => {
+}> = ({ summary, canDecide, canEdit = false, initialOpen = false, onDone }) => {
   const [editingChange, setEditingChange] = useState<number | null>(null)
   const [revising, setRevising] = useState(false)
   const [full, setFull] = useState<ChangeSet | null>(null)
   const [impact, setImpact] = useState<KbImpact | null>(null)
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(initialOpen)
+  const [showTechnical, setShowTechnical] = useState(false)
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const pending = summary.status === 'draft' || summary.status === 'conflicted'
+  const agentChange = ['agent-review', 'agent-repair'].includes(summary.source) ? full?.changes?.find(change => change.file.startsWith('journeys/') && (change.op === 'create' || change.path === 'steps')) : undefined
+  const agentValue = agentChange?.after?.value as { name?: string; steps?: { step_number: number; action: string; screen_id?: string | null; element_id?: string | null }[] } | { step_number: number; action: string; screen_id?: string | null; element_id?: string | null }[] | undefined
+  const agentJourney = Array.isArray(agentValue) ? { name: summary.title, steps: agentValue } : agentValue
+  const scannedScreens = (full?.changes?.find(change => change.file === 'screens.json' && change.path === 'screens')?.after?.value as { elements?: unknown[] }[] | undefined) ?? []
 
   useEffect(() => {
     if (open && !full) knowledgeBaseService.changeSet(summary.id).then(setFull).catch(err => setError(errorText(err)))
@@ -101,13 +107,46 @@ const ChangeSetCard: React.FC<{
       {open && (
         <div className="mt-3 flex flex-col gap-2.5">
           {summary.description && <p className="m-0 text-[12.5px] text-[#4B5563]">{summary.description}</p>}
+          {pending && (
+            <div className="sticky top-0 z-10 flex flex-col gap-2 rounded-[10px] border border-[#E8EAEE] bg-white p-3 shadow-sm">
+              <label className="text-[12px] font-semibold text-[#374151]" htmlFor={`note-${summary.id}`}>Note (optional)</label>
+              <input id={`note-${summary.id}`} value={note} onChange={e => setNote(e.target.value)} className="h-9 rounded-[10px] border border-[#E8EAEE] px-3 text-[13px]" />
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => void act('approve')} disabled={!canDecide || busy !== null}
+                  title={canDecide ? 'Write these changes to the files and record a version' : 'Needs the automation.approve permission'}
+                  className="h-9 rounded-[12px] bg-[#B71920] px-4 text-[13px] font-bold text-white hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50">
+                  {busy === 'approve' ? 'Publishing…' : summary.kind === 'defect' ? 'Record defect' : 'Approve & publish'}
+                </button>
+                <button type="button" onClick={() => void act('reject')} disabled={!canDecide || busy !== null}
+                  className="h-9 rounded-[12px] border border-[#E8EAEE] bg-white px-4 text-[13px] font-bold text-[#1F2937] disabled:cursor-not-allowed disabled:opacity-50">
+                  {busy === 'reject' ? 'Rejecting…' : 'Reject'}
+                </button>
+                <button type="button" onClick={() => void act('discard')} disabled={busy !== null}
+                  className="h-9 rounded-[12px] px-3 text-[13px] font-bold text-[#A3231C] hover:underline disabled:opacity-50">
+                  {busy === 'discard' ? 'Discarding…' : 'Discard draft'}
+                </button>
+              </div>
+            </div>
+          )}
+          {agentJourney?.steps && <div className="rounded-[10px] border border-[#DDE5EE] bg-[#F8FAFC] p-3">
+            <div className="text-[12px] font-bold text-[#1F2937]">Proposed journey · {agentJourney.name}</div>
+            <p className="mb-2 mt-1 text-[11px] text-[#667085]">These steps came from the saved case. A control is verified only when public browser discovery found it.</p>
+            {!!scannedScreens.length && <p className="mb-2 mt-0 text-[11px] text-[#136B34]">This draft also saves {scannedScreens.length} scanned pages and {scannedScreens.reduce((total, screen) => total + (screen.elements?.length ?? 0), 0)} observed controls for future cases after approval.</p>}
+            <ol className="m-0 space-y-1.5 pl-5 text-[12px] text-[#344054]">{agentJourney.steps.map(step => {
+              const pageOnly = /^(open|visit|go to|navigate)\b/i.test(step.action)
+              const mapped = !!step.screen_id && (pageOnly || !!step.element_id)
+              return <li key={step.step_number}><span>{step.action}</span><span className={`ml-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${mapped ? 'bg-[#EAF7EF] text-[#136B34]' : 'bg-[#FFF4E5] text-[#805000]'}`}>{mapped ? pageOnly && !step.element_id ? 'Page found' : 'Control found' : 'Needs mapping'}</span></li>
+            })}</ol>
+            {!!agentJourney.steps.some(step => !step.screen_id || (!/^(open|visit|go to|navigate)\b/i.test(step.action) && !step.element_id)) && <p className="mb-0 mt-2 text-[11px] text-[#805000]">Browser replay will pause on unmapped steps. You can edit the draft steps before approval.</p>}
+          </div>}
           {impact && (
             <div className="rounded-[10px] border border-[#EBCFA4] bg-[#FFFBF4] p-2.5">
               <div className="mb-1.5 text-[12px] font-bold text-[#8A5000]">If approved, this touches</div>
               <ImpactSummary impact={impact} compact />
             </div>
           )}
-          {full?.changes?.map((c, i) => {
+          {['agent-review', 'agent-repair'].includes(summary.source) && <button type="button" onClick={() => setShowTechnical(value => !value)} className="w-fit text-[12px] font-bold text-[#B71920] hover:underline">{showTechnical ? 'Hide' : 'Show'} detailed Knowledge Base changes</button>}
+          {(['agent-review', 'agent-repair'].includes(summary.source) && !showTechnical ? [] : full?.changes || []).map((c, i) => {
             const steps = pending && canEdit && summary.kb === 'journey' ? proposedSteps(c) : null
             if (steps && editingChange === i) {
               return (
@@ -157,27 +196,6 @@ const ChangeSetCard: React.FC<{
           })}
           {summary.decision_note && <Note>Decision note: {summary.decision_note}</Note>}
           {error && <Note tone="warn">{error}</Note>}
-          {pending && (
-            <div className="flex flex-col gap-2">
-              <label className="text-[12px] font-semibold text-[#374151]" htmlFor={`note-${summary.id}`}>Note (optional)</label>
-              <input id={`note-${summary.id}`} value={note} onChange={e => setNote(e.target.value)} className="h-9 rounded-[10px] border border-[#E8EAEE] px-3 text-[13px]" />
-              <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => void act('approve')} disabled={!canDecide || busy !== null}
-                  title={canDecide ? 'Write these changes to the files and record a version' : 'Needs the automation.approve permission'}
-                  className="h-9 rounded-[12px] bg-[#B71920] px-4 text-[13px] font-bold text-white hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50">
-                  {busy === 'approve' ? 'Publishing…' : summary.kind === 'defect' ? 'Record defect' : 'Approve & publish'}
-                </button>
-                <button type="button" onClick={() => void act('reject')} disabled={!canDecide || busy !== null}
-                  className="h-9 rounded-[12px] border border-[#E8EAEE] bg-white px-4 text-[13px] font-bold text-[#1F2937] disabled:cursor-not-allowed disabled:opacity-50">
-                  {busy === 'reject' ? 'Rejecting…' : 'Reject'}
-                </button>
-                <button type="button" onClick={() => void act('discard')} disabled={busy !== null}
-                  className="h-9 rounded-[12px] px-3 text-[13px] font-bold text-[#A3231C] hover:underline disabled:opacity-50">
-                  {busy === 'discard' ? 'Discarding…' : 'Discard draft'}
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -196,7 +214,9 @@ const ChangeSetsDrawer: React.FC<{
   canDecide: boolean
   /** May correct a draft's proposed steps (automation.execute). */
   canEdit?: boolean
-}> = ({ appKey, tab, onTab, onClose, onPublished, onQueueChanged, canDecide, canEdit = false }) => {
+  presentation?: 'drawer' | 'modal'
+  changeSetIds?: number[]
+}> = ({ appKey, tab, onTab, onClose, onPublished, onQueueChanged, canDecide, canEdit = false, presentation = 'drawer', changeSetIds }) => {
   const [sets, setSets] = useState<ChangeSet[] | null>(null)
   const [versions, setVersions] = useState<KbVersionRow[] | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -204,11 +224,13 @@ const ChangeSetsDrawer: React.FC<{
   const [reverting, setReverting] = useState<number | null>(null)
   const [showDone, setShowDone] = useState(false)
 
+  const filterKey = (changeSetIds || []).join(',')
   const load = React.useCallback(() => {
     setError(null)
-    knowledgeBaseService.changeSets(appKey).then(r => setSets(r.change_sets)).catch(err => setError(errorText(err)))
-    knowledgeBaseService.versions(appKey).then(setVersions).catch(err => setError(errorText(err)))
-  }, [appKey])
+    const wanted = new Set(filterKey.split(',').filter(Boolean).map(Number))
+    knowledgeBaseService.changeSets(appKey).then(r => setSets(wanted.size ? r.change_sets.filter(item => wanted.has(item.id)) : r.change_sets)).catch(err => setError(errorText(err)))
+    if (presentation === 'drawer') knowledgeBaseService.versions(appKey).then(setVersions).catch(err => setError(errorText(err)))
+  }, [appKey, filterKey, presentation])
   useEffect(load, [load])
 
   useEffect(() => {
@@ -236,23 +258,23 @@ const ChangeSetsDrawer: React.FC<{
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/20" role="dialog" aria-modal="true" aria-label="Knowledge Base change sets" onClick={onClose}>
-      <div className="flex h-full w-full max-w-[560px] flex-col bg-[#F6F7F9] shadow-2xl" onClick={e => e.stopPropagation()}>
+    <div className={`fixed inset-0 z-50 flex ${presentation === 'modal' ? 'items-center justify-center bg-black/50 p-4' : 'justify-end bg-black/20'}`} role="dialog" aria-modal="true" aria-label="Knowledge Base change sets" onClick={onClose}>
+      <div className={`flex w-full flex-col bg-[#F6F7F9] shadow-2xl ${presentation === 'modal' ? 'h-[88vh] max-h-[780px] max-w-[840px] overflow-hidden rounded-[20px]' : 'h-full max-w-[560px]'}`} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between gap-3 border-b border-[#E8EAEE] bg-white px-5 py-4">
           <div>
-            <h2 className="m-0 text-[17px] font-bold text-[#1F2937]">Change sets</h2>
-            <p className="m-0 text-[12px] text-[#6B7280]">Nothing reaches a Knowledge Base until it is approved here</p>
+            <h2 className="m-0 text-[17px] font-bold text-[#1F2937]">{presentation === 'modal' ? 'Check Knowledge Base changes' : 'Change sets'}</h2>
+            <p className="m-0 text-[12px] text-[#6B7280]">{presentation === 'modal' ? 'Review the proposed Journey or Automation KB update, then approve & publish or reject it. This is separate from test-case approval.' : 'Nothing reaches a Knowledge Base until you approve it'}</p>
           </div>
           <button type="button" onClick={onClose} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-[#E8EAEE] bg-white text-[18px] leading-none text-[#374151]">×</button>
         </div>
-        <div role="tablist" className="flex gap-1 border-b border-[#E8EAEE] bg-white px-4">
+        {presentation === 'drawer' && <div role="tablist" className="flex gap-1 border-b border-[#E8EAEE] bg-white px-4">
           {([['review', `Review ${pending.length}`], ['history', `History ${versions?.length ?? ''}`]] as [Tab, string][]).map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => onTab(id)}
               className={`h-10 border-b-2 px-3 text-[13px] ${tab === id ? 'border-[#B71920] font-bold text-[#1F2937]' : 'border-transparent text-[#6B7280]'}`}>
               {label}
             </button>
           ))}
-        </div>
+        </div>}
 
         <div className="flex flex-1 flex-col gap-3 overflow-auto p-4">
           {message && <Note>{message}</Note>}
@@ -262,17 +284,23 @@ const ChangeSetsDrawer: React.FC<{
           {tab === 'review' && (
             <>
               {sets === null && <p className="text-[13px] text-[#6B7280]">Loading…</p>}
-              {sets && pending.length === 0 && <Note>No change set is waiting. Reconcile decisions, PDF extraction and crawls create them.</Note>}
+              {sets && pending.length === 0 && presentation === 'drawer' && <Note>No change set is waiting. Reconcile decisions, PDF extraction and crawls create them.</Note>}
               {pending.map(s => (
-                <ChangeSetCard key={s.id} summary={s} canDecide={canDecide} canEdit={canEdit}
-                  onDone={(text, published) => { setMessage(text); load(); onQueueChanged(); if (published) onPublished() }} />
+                <ChangeSetCard key={s.id} summary={s} canDecide={canDecide} canEdit={canEdit} initialOpen={presentation === 'modal'}
+                  onDone={(text, published) => {
+                    onQueueChanged()
+                    if (published) onPublished()
+                    if (presentation === 'modal' && pending.length <= 1) { onClose(); return }
+                    setMessage(text)
+                    load()
+                  }} />
               ))}
-              {decided.length > 0 && (
+              {presentation === 'drawer' && decided.length > 0 && (
                 <button type="button" onClick={() => setShowDone(v => !v)} className="w-fit text-[12.5px] font-bold text-[#B71920] hover:underline">
                   {showDone ? 'Hide' : 'Show'} {decided.length} decided
                 </button>
               )}
-              {showDone && decided.map(s => <ChangeSetCard key={s.id} summary={s} canDecide={false} onDone={() => undefined} />)}
+              {presentation === 'drawer' && showDone && decided.map(s => <ChangeSetCard key={s.id} summary={s} canDecide={false} onDone={() => undefined} />)}
             </>
           )}
 

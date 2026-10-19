@@ -33,6 +33,7 @@ import type {
   WorkbenchGrid,
   WorkbenchSource,
   DryRunResult,
+  ExecutionQueueState,
   DryRunState,
   FrameworkInfo,
   GenerateScriptsResult,
@@ -48,6 +49,7 @@ import type {
   IntakeUploadResult,
   DiscoveryState,
   HealRunResponse,
+  ScriptLocatorAudit,
   ElementCatalog,
   GroundResult,
   RecordedFlowObject,
@@ -141,6 +143,9 @@ const automationService = {
 
   healScript: (scriptId: number): Promise<HealRunResponse> =>
     call(() => api.post(`${BASE}/scripts/${scriptId}/heal`, undefined, LONG)),
+
+  auditScript: (scriptId: number): Promise<ScriptLocatorAudit> =>
+      call(() => api.get(`${BASE}/scripts/${scriptId}/audit`)),
 
   /** Runner stdout and stderr, as plain text. */
   getRunLog: async (runKey: string): Promise<string> => {
@@ -431,6 +436,7 @@ const automationService = {
     application_id?: number | null
     base_url?: string | null
     regenerate?: boolean
+    replace_edited?: boolean
   }): Promise<GenerateScriptsResult> =>
     call<GenerateScriptsResult>(() => api.post(`${BASE}/scripts/generate`, body, LONG)),
 
@@ -459,6 +465,21 @@ const automationService = {
   }): Promise<DryRunResult> =>
     call<DryRunResult>(() => api.post(`${BASE}/scripts/dry-run`, body, LONG)),
 
+  getExecutionQueue: (queueId: string): Promise<ExecutionQueueState> =>
+    call(() => api.get(`${BASE}/run-queues/${encodeURIComponent(queueId)}`)),
+
+  pauseExecutionQueue: (queueId: string): Promise<ExecutionQueueState> =>
+    call(() => api.post(`${BASE}/run-queues/${encodeURIComponent(queueId)}/pause`)),
+
+  resumeExecutionQueue: (queueId: string): Promise<ExecutionQueueState> =>
+    call(() => api.post(`${BASE}/run-queues/${encodeURIComponent(queueId)}/resume`)),
+
+  skipCurrentQueueRun: (queueId: string): Promise<ExecutionQueueState> =>
+    call(() => api.post(`${BASE}/run-queues/${encodeURIComponent(queueId)}/skip-current`)),
+
+  stopExecutionQueue: (queueId: string): Promise<ExecutionQueueState> =>
+    call(() => api.post(`${BASE}/run-queues/${encodeURIComponent(queueId)}/stop`)),
+
   createDeviceDryRun: async (scriptId: number, headless = true): Promise<CreateDeviceRunResponse> => {
     const response = await call<CreateRunResponse & { runner_token: string; expires_in_minutes: number }>(
       () => api.post(`${BASE}/scripts/${encodeURIComponent(scriptId)}/dry-run-local`, { headless })
@@ -479,6 +500,26 @@ const automationService = {
     call(() => api.post(`${BASE}/scripts/delete`, { case_ids: scriptIds })),
 
   /** Both downloads go through axios so the Authorization header travels. */
+  downloadLocalRunnerPackage: async (): Promise<Blob> => {
+    try {
+      const res = await api.get(`${BASE}/local-runner/package`, { responseType: 'blob' })
+      return res.data as Blob
+    } catch (err: any) {
+      throw new Error(automationError(err))
+    }
+  },
+
+  downloadBrowserCollectorPackage: async (engine: 'chromium' | 'firefox' | 'safari'): Promise<Blob> => {
+    try {
+      const res = await api.get(`${BASE}/browser-collector/package/${engine}`, {
+        params: { studio_origin: window.location.origin }, responseType: 'blob'
+      })
+      return res.data as Blob
+    } catch (err: any) {
+      throw new Error(automationError(err))
+    }
+  },
+
   downloadScript: async (scriptId: number): Promise<Blob> => {
     try {
       const res = await api.get(`${BASE}/scripts/${scriptId}/download`, { responseType: 'blob' })
@@ -650,6 +691,9 @@ const automationService = {
 
   getApplication: (applicationId: number): Promise<RegisteredApplication> =>
     call<RegisteredApplication>(() => api.get(`${BASE}/applications/${applicationId}`)),
+
+  assignCaseApplication: (caseId: number, applicationId: number): Promise<{ success: boolean }> =>
+    call(() => api.put(`${BASE}/scripts/cases/${caseId}/application`, { application_id: applicationId })),
 
   createApplication: (body: {
     name: string

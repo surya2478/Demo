@@ -109,6 +109,10 @@ def overview(kb: store.JourneyKB) -> Dict[str, Any]:
     linked = sum(1 for r in reconcile["rows"] if r["element_id"] and r["status"] in LINKED)
     docs = sources(kb)
     open_questions = sum(len(j.get("open_questions", [])) for j in kb.journeys.values())
+    captured_unmapped = sum(
+        1 for row in reconcile["rows"]
+        if row["status"] == diff.NOT_CRAWLED and row.get("observed_control")
+    )
     return {
         "app_id": kb.app_id,
         "app_name": kb.app_name,
@@ -116,7 +120,9 @@ def overview(kb: store.JourneyKB) -> Dict[str, Any]:
         "base_url": profile.get("base_url"),
         "journeys": {"total": len(leaves), "by_status": counts, "authored": len(kb.journeys), "open_questions": open_questions},
         "chapters": chapters,
-        "screens": {"catalogued": len(kb.screens), "elements": len(elements), "linked": linked},
+        "screens": {"catalogued": len(kb.screens), "elements": len(elements), "linked": linked,
+                    "observed": sum(bool(e.get("observed_selector") or e.get("observed_locator")) for e in elements),
+                    "captured_unmapped": captured_unmapped},
         "sources": {"documents": len(docs)},
         "automation": {"flows": len(_flows(kb)), "selectors": len(diff._selector_paths(profile))},
         "reconcile": reconcile["summary"],
@@ -151,7 +157,8 @@ def journey_detail(kb: store.JourneyKB, journey_id: str, db=None) -> Dict[str, A
         screen_id = str(step.get("screen_id") or "").split("|")[0]
         row = rows.get((screen_id, step.get("element_id")))
         if row:
-            link = {"status": row["status"], "automation_target": row["automation_target"], "app_labels": row["app_labels"]}
+            link = {"status": row["status"], "automation_target": row["automation_target"], "app_labels": row["app_labels"],
+                    "observed_control": row.get("observed_control", False)}
         elif step.get("element_id") and not any(
                 e.get("element_id") == step["element_id"]
                 for sid in str(step.get("screen_id") or "").split("|") for e in (kb.screens.get(sid.strip()) or {}).get("elements", [])):

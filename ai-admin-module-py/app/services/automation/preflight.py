@@ -8,15 +8,16 @@ Surfaced to the UI so an operator sees "Node not installed" before clicking
 Run, rather than an opaque failure five seconds after. The pytest detection is
 dropped — this deployment runs Playwright only.
 
-The result is cached for the process lifetime, so restart the backend after
-installing or upgrading the toolchain.
+Short-lived checks can be refreshed after installing or repairing the toolchain.
 """
 from __future__ import annotations
 
 import shutil
+import os
+import time
+import threading
 import subprocess
 from dataclasses import dataclass
-from functools import lru_cache
 from pathlib import Path
 
 from ...config import settings
@@ -29,7 +30,6 @@ class FrameworkSupport:
     detail: str  # short, human-readable, and actionable when False
 
 
-@lru_cache(maxsize=None)
 def resolve_node_tool(name: str) -> str | None:
     """Absolute path to a Node toolchain executable, or None if absent.
 
@@ -66,10 +66,9 @@ def _capture_version(args: list[str]) -> str | None:
     return output.splitlines()[0] if output else None
 
 
-@lru_cache(maxsize=1)
 def _detect_playwright() -> FrameworkSupport:
-    npx = npx_command()
-    if not npx:
+    node = resolve_node_tool("node")
+    if not node:
         return FrameworkSupport(
             "playwright",
             False,
@@ -77,19 +76,17 @@ def _detect_playwright() -> FrameworkSupport:
             "@playwright/test; rebuild it, or install Node on the host running "
             "the backend.",
         )
-    version = _capture_version([npx, "--yes", "playwright", "--version"])
-    if not version:
-        return FrameworkSupport(
-            "playwright",
-            False,
-            "@playwright/test is not installed. Run "
-            "`npm install -g @playwright/test && npx playwright install chromium` "
-            "where the backend runs.",
-        )
-    return FrameworkSupport("playwright", True, version)
+    project = os.environ.get("AUTOMATION_PLAYWRIGHT_PROJECT") or str(Path.cwd())
+    try:
+        probe = subprocess.run([node, "-e", "const {chromium}=require('@playwright/test'); chromium.launch({headless:true}).then(async b=>{await b.close();console.log(require('@playwright/test/package.json').version)}).catch(e=>{console.error(e.message);process.exit(1)})"],
+                               cwd=project, capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return FrameworkSupport("playwright", False, f"Browser launch check failed ({type(exc).__name__}). Check the backend browser runtime.")
+    if probe.returncode:
+        return FrameworkSupport("playwright", False, "Playwright was found but Chromium could not launch. Check AUTOMATION_PLAYWRIGHT_PROJECT and install the matching Chromium browser.")
+    return FrameworkSupport("playwright", True, probe.stdout.strip() + "; Chromium launch verified")
 
 
-@lru_cache(maxsize=1)
 def _detect_node() -> FrameworkSupport:
     node = resolve_node_tool("node")
     version = _capture_version([node, "--version"]) if node else None
@@ -98,12 +95,21 @@ def _detect_node() -> FrameworkSupport:
     return FrameworkSupport("node", True, version)
 
 
-def runtime_status() -> dict[str, FrameworkSupport]:
+_runtime_cache = None
+_runtime_lock = threading.Lock()
+
+
+def runtime_status(*, refresh: bool = False) -> dict[str, FrameworkSupport]:
     """One-call summary, used by the preflight endpoint and by the runner."""
-    return {
-        "node": _detect_node(),
-        "playwright": _detect_playwright(),
-    }
+    global _runtime_cache
+    with _runtime_lock:
+        if not refresh and _runtime_cache and time.monotonic() < _runtime_cache[0]:
+            return dict(_runtime_cache[1])
+        status = {"node": _detect_node(), "playwright": _detect_playwright()}
+        # Failures are short-lived; repairs take effect without a restart.
+        ttl = 60 if all(value.available for value in status.values()) else 5
+        _runtime_cache = (time.monotonic() + ttl, status)
+        return dict(status)
 
 
 def is_available(framework: str) -> tuple[bool, str]:

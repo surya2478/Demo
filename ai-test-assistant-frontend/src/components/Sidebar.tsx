@@ -45,16 +45,17 @@ const adminMenuGroups: MenuGroup[] = [
 
 const aiTestGenerationItems: MenuItem[] = [
   { path: '/test-assistant', label: 'Test Assistant', permission: 'testassistant.view' },
-  { path: '/manager-review', label: 'Review & Approve', permission: 'dashboard.view' },
-  { path: '/coverage-analysis', label: 'Coverage Analysis', permission: 'testassistant.view' }
+  { path: '/manager-review', label: 'Human Evaluation', permission: 'dashboard.view' },
+  // Approved test cases continue directly from review into Automation Studio.
+  { path: '/automation', label: 'Automation Studio', permission: 'automation.view' }
   // Approved Test Cases is hidden from the menu; its route still exists, and
   // its list and downloads move into Review & Approval.
 
      
     ]
   
-const aiTestAutomationtems: MenuItem[] = [
-    { path: '/automation', label: 'Automation Studio', permission: 'automation.view' },
+const testKnowledgeAndDataItems: MenuItem[] = [
+    { path: '/coverage-analysis', label: 'Coverage Analysis', permission: 'testassistant.view' },
     { path: '/automation/knowledge-base', label: 'Knowledge Base', permission: 'automation.view', beta: true },
     // The one source of test data for automation cases; the KB refers to it.
     { path: '/test-data', label: 'Test Data', permission: 'automation.view', beta: true },
@@ -62,6 +63,12 @@ const aiTestAutomationtems: MenuItem[] = [
     // from the menu for now; the page still opens at /automation/rnd-lab.
     // { path: '/automation/rnd-lab', label: 'AI R&D Lab', permission: 'automation.view', beta: true }
     ]
+
+const guideItems: MenuItem[] = [
+  { path: '/guides/local-tools', label: 'Setup & Local Tools', permission: 'automation.view' },
+  { path: '/guides/application', label: 'Application Guide', permission: 'automation.view' },
+  { path: '/guides/documentation', label: 'Documentation', permission: 'automation.view' }
+]
     
  
 
@@ -88,7 +95,8 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileClose }) 
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [isAdminModuleOpen, setIsAdminModuleOpen] = useState(false)
   const [isAiTestGenerationOpen, setIsAiTestGenerationOpen] = useState(true)
-  const [isAiTestAutomationOpen, setIsAiTestAutomationOpen] = useState(true)
+  const [isTestKnowledgeAndDataOpen, setIsTestKnowledgeAndDataOpen] = useState(true)
+  const [isGuidesOpen, setIsGuidesOpen] = useState(location.pathname.startsWith('/guides'))
   const [pendingReviews, setPendingReviews] = useState(0)
 
   // Review & Approve badge: requests waiting for a decision. Managers only --
@@ -120,13 +128,13 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileClose }) 
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     [
-      'group relative flex items-center gap-3 rounded-app px-3 py-2.5 text-sm font-semibold transition',
+      'group relative flex min-h-[42px] items-center gap-3 rounded-[11px] px-3 py-2.5 text-[13px] font-semibold transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-white/35',
       isActive
-        ? 'bg-app-sidebar-active text-white shadow-sm'
-        : 'text-white hover:bg-app-sidebar-hover hover:text-white'
+        ? 'bg-white/[0.17] text-white shadow-[inset_3px_0_0_#fff,0_5px_14px_rgba(0,0,0,0.13)]'
+        : 'text-white/75 hover:bg-white/[0.09] hover:text-white'
     ].join(' ')
 
-  const sectionButtonClass = 'flex w-full items-center justify-between rounded-app px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.14em] text-white/75 transition hover:bg-white/[0.08] hover:text-white focus:outline-none focus:ring-2 focus:ring-white/30'
+  const sectionButtonClass = 'flex w-full items-center justify-between rounded-[10px] px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.17em] text-white/60 transition hover:bg-white/[0.07] hover:text-white focus:outline-none focus:ring-2 focus:ring-white/30'
 
   const userRole =
     (user as any)?.roles?.[0] ??
@@ -136,20 +144,17 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileClose }) 
   const SidebarBody = (
     <div className="flex h-full w-full flex-col">
       {/* Logo header */}
-      <div className="flex items-center gap-3 px-5 pt-5 pb-4">
-        <div className="flex h-11 w-11 items-center justify-center rounded-app bg-white/10 backdrop-blur">
-          <img src="/etisalat-logo.svg" alt="Logo" className="h-7 w-7 object-contain" />
+      <div className="relative flex min-h-[82px] items-center gap-2.5 border-b border-white/10 px-3 py-3 pr-10 lg:pr-3">
+        <div className="relative h-[48px] w-[64px] shrink-0 overflow-hidden" aria-label="Etisalat">
+          <img src="/etisalat-white.png" alt="Etisalat" className="absolute left-1/2 top-1/2 w-[130px] max-w-none -translate-x-1/2 -translate-y-1/2 mix-blend-screen" />
+          <span className="brand-logo-glint" aria-hidden="true" />
         </div>
-        <div className="min-w-0">
-          <div className="truncate text-sm font-semibold leading-tight text-white">
-            Test Case Intelligence
-          </div>
-          <div className="truncate text-[10px] font-medium uppercase tracking-[0.14em] text-white/55">
-            AI Testing Platform
-          </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[15px] font-bold leading-[1.1] tracking-tight text-white">Test Case<br />Intelligence</div>
+          <div className="mt-1 text-[9px] font-semibold uppercase tracking-[0.04em] text-white/65">AI testing platform</div>
         </div>
         <button
-          className="ml-auto rounded-md p-1.5 text-white/70 hover:bg-white/10 hover:text-white lg:hidden"
+          className="absolute right-3 top-3 rounded-md p-1.5 text-white/70 hover:bg-white/10 hover:text-white lg:hidden"
           onClick={onMobileClose}
           aria-label="Close menu"
         >
@@ -157,37 +162,34 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileClose }) 
         </button>
       </div>
 
-      {/* Workspace selector */}
-      <div className="px-4 pb-4">
-        <button
-          type="button"
-          className="flex w-full items-center justify-between rounded-app border border-white/10 bg-white/[0.04] px-3 py-2.5 text-left transition hover:bg-white/[0.08]"
-        >
+      {/* Current workspace */}
+      <div className="px-3 pb-5 pt-4">
+        <div className="flex w-full items-center justify-between rounded-[12px] border border-white/15 bg-white/[0.07] px-3 py-3 text-left shadow-[0_7px_20px_rgba(0,0,0,0.08)]">
           <div className="min-w-0">
             <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/55">
               Workspace
             </div>
             <div className="truncate text-sm font-semibold text-white">Enterprise QA</div>
           </div>
-          {/* <HiOutlineChevronDown className="text-white/60" /> */}
-        </button>
+          <span className="h-2 w-2 rounded-full bg-[#79DEA3]" aria-label="Active workspace" />
+        </div>
       </div>
 
       {/* Nav */}
-      <nav className="app-scroll flex-1 overflow-y-auto px-3 pb-4">
-        <div className="mb-4">
-          <button type="button" onClick={() => setIsAdminModuleOpen((open) => !open)} aria-expanded={isAdminModuleOpen} className={sectionButtonClass}>
+      <nav className="app-scroll flex-1 overflow-y-auto pb-6 pl-3 pr-4 pt-2" aria-label="Main navigation">
+        <div className="mb-3">
+          <button type="button" onClick={() => setIsAdminModuleOpen((open) => !open)} aria-expanded={isAdminModuleOpen} className={`${sectionButtonClass} ${isAdminModuleOpen ? 'bg-white/[0.08] text-white' : ''}`}>
             <span>Admin Module</span>
             <HiOutlineChevronDown className={`h-4 w-4 transition-transform ${isAdminModuleOpen ? 'rotate-180' : ''}`} />
           </button>
           {isAdminModuleOpen && (
-            <div className="mt-1 border-l border-white/10 pl-3">
+            <div className="mt-1 space-y-2 rounded-[12px] border border-white/10 bg-black/[0.10] p-2">
               {adminMenuGroups.map((group) => {
                 const visible = group.items.filter(canSee)
                 if (visible.length === 0) return null
                 return (
-                  <div key={group.heading} className="mb-3">
-                    <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">{group.heading}</div>
+                  <div key={group.heading}>
+                    <div className="px-2 py-1.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-white/50">{group.heading}</div>
                     <div className="space-y-0.5">
                       {visible.map((item) => {
                         const IconComponent = (menuIcons as any)[item.path.slice(1)]
@@ -206,7 +208,7 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileClose }) 
           )}
         </div>
 
-        <div className="mb-4">
+        <div className="mb-3">
           <button type="button" onClick={() => setIsAiTestGenerationOpen((open) => !open)} aria-expanded={isAiTestGenerationOpen} className={sectionButtonClass}>
             <span>AI Test Generation</span>
             <HiOutlineChevronDown className={`h-4 w-4 transition-transform ${isAiTestGenerationOpen ? 'rotate-180' : ''}`} />
@@ -217,7 +219,7 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileClose }) 
                 const IconComponent = (menuIcons as any)[item.path.slice(1)]
                 const badge = item.path === '/manager-review' && pendingReviews > 0 ? pendingReviews : null
                 return (
-                  <NavLink key={item.path} to={item.path} className={linkClass} onClick={onMobileClose}>
+                  <NavLink key={item.path} to={item.path} className={({ isActive }) => linkClass({ isActive: item.path === '/automation' ? location.pathname === '/automation' || (location.pathname.startsWith('/automation/') && !location.pathname.startsWith('/automation/knowledge-base') && !location.pathname.startsWith('/automation/rnd-lab')) : isActive })} onClick={onMobileClose} end={item.path === '/automation'}>
                     {IconComponent && <IconComponent className="h-[18px] w-[18px] flex-shrink-0" />}
                     <span className="truncate">{item.label}</span>
                     {badge !== null && (
@@ -232,17 +234,17 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileClose }) 
           )}
         </div>
 
-        <div className="mb-4">
-          <button type="button" onClick={() => setIsAiTestAutomationOpen((open) => !open)} aria-expanded={isAiTestAutomationOpen} className={sectionButtonClass}>
-            <span>AI Test Automation</span>
-            <HiOutlineChevronDown className={`h-4 w-4 transition-transform ${isAiTestAutomationOpen ? 'rotate-180' : ''}`} />
+        <div className="mb-3">
+          <button type="button" onClick={() => setIsTestKnowledgeAndDataOpen((open) => !open)} aria-expanded={isTestKnowledgeAndDataOpen} className={sectionButtonClass}>
+            <span>Test Knowledge &amp; Data</span>
+            <HiOutlineChevronDown className={`h-4 w-4 transition-transform ${isTestKnowledgeAndDataOpen ? 'rotate-180' : ''}`} />
           </button>
-          {isAiTestAutomationOpen && (
+          {isTestKnowledgeAndDataOpen && (
             <div className="mt-1 space-y-0.5">
-              {aiTestAutomationtems.filter(canSee).map((item) => {
+              {testKnowledgeAndDataItems.filter(canSee).map((item) => {
                 const IconComponent = (menuIcons as any)[item.path.slice(1)]
                 return (
-                  <NavLink key={item.path} to={item.path} className={linkClass} onClick={onMobileClose}>
+                  <NavLink key={item.path} to={item.path} className={linkClass} onClick={onMobileClose} end={item.path === '/automation'}>
                     {IconComponent && <IconComponent className="h-[18px] w-[18px] flex-shrink-0" />}
                     <span className="truncate">{item.label}</span>
                     {item.beta && (
@@ -254,10 +256,24 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileClose }) 
             </div>
           )}
         </div>
+
+        <div className="mb-3">
+          <button type="button" onClick={() => setIsGuidesOpen(open => !open)} aria-expanded={isGuidesOpen} className={sectionButtonClass}>
+            <span>Guides &amp; Help</span>
+            <HiOutlineChevronDown className={`h-4 w-4 transition-transform ${isGuidesOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {isGuidesOpen && <div className="mt-1 space-y-0.5">{guideItems.filter(canSee).map(item => {
+            const IconComponent = (menuIcons as any)[item.path.slice(1)]
+            return <NavLink key={item.path} to={item.path} className={linkClass} onClick={onMobileClose}>
+              {IconComponent && <IconComponent className="h-[18px] w-[18px] flex-shrink-0" />}
+              <span className="truncate">{item.label}</span>
+            </NavLink>
+          })}</div>}
+        </div>
       </nav>
 
       {/* User card */}
-      <div className="border-t border-white/10 p-3">
+      <div className="border-t border-white/15 bg-black/[0.10] p-3">
         <div className="relative">
           <button
             type="button"
@@ -265,7 +281,9 @@ const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onMobileClose }) 
               e.stopPropagation()
               setUserMenuOpen(v => !v)
             }}
-            className="flex w-full items-center gap-3 rounded-app px-2 py-2 text-left transition hover:bg-white/[0.06]"
+            className="flex w-full items-center gap-3 rounded-[12px] border border-white/10 bg-white/[0.05] px-3 py-2.5 text-left transition hover:border-white/25 hover:bg-white/[0.10] focus:outline-none focus:ring-2 focus:ring-white/30"
+            aria-expanded={userMenuOpen}
+            aria-label="Account menu"
           >
             <div
               className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white shadow-sm"

@@ -33,9 +33,10 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Any, Optional
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 from . import grounding
 
@@ -87,12 +88,9 @@ async function appears(locator, ms = 5000) {
     .catch(() => false);
 }
 
-/** Remove the consent overlay that otherwise intercepts every later click. */
+/** Resolve only observed cookie choices; never remove application DOM. */
 async function dismissOverlays(page) {
-  await page.evaluate(() => {
-    document.querySelector('#usercentrics-root')?.remove();
-    if (document.body) document.body.style.overflow = 'auto';
-  }).catch(() => {});
+  return observedInteractions.resolveConsent(page);
 }
 
 /**
@@ -143,6 +141,15 @@ async function navigateTo(page, route, hrefHint) {
   return 'goto';
 }
 """
+
+# Inline the same browser-observed interaction implementation used by live
+# authoring, keeping downloaded scripts portable without a backend file path.
+_interaction_source = Path(__file__).with_name("live_navigation.cjs").read_text(encoding="utf-8")
+_interaction_source = _interaction_source.split("// BEGIN PORTABLE OBSERVED INTERACTIONS\n", 1)[1].split("// END PORTABLE OBSERVED INTERACTIONS", 1)[0]
+NAVIGATION_HELPER = ("const observedInteractions = (() => { let page, consentScope;\n"
+                     + _interaction_source
+                     + "return {clickObserved, resolveConsent: async target => {page=target; return dismissOptionalCookies();}};\n})();\n"
+                     + NAVIGATION_HELPER)
 
 FRAMEWORKS = ("playwright", "katalon", "appium")
 FRAMEWORK_LABELS = {
@@ -474,10 +481,152 @@ def sanitize_catalog_locator(expr: Optional[str]) -> Optional[str]:
     cleaned = _WHITESPACE_RUN.sub(" ", expr).strip()
     if not cleaned:
         return None
-    quotes = sum(1 for c in cleaned if c in ("'", '"', "`"))
-    if quotes % 2 != 0:
+    # Discovery may store a CSS selector rather than a Playwright expression.
+    # A bare `[data-test="username"]` emitted after `await` is parsed as an
+    # assignment expression, not a locator, and makes the entire spec invalid.
+    if cleaned.startswith("page."):
+        return cleaned if not re.search(r"[\r\n;]", cleaned) else None
+    if re.search(r"[\r\n;`]", cleaned):
         return None
-    return cleaned
+    return f"page.locator({_js(cleaned)})"
+
+
+def _ground_with_observed_journey_selectors(
+    case: Any, steps: list[dict], target_url: str, catalog: Optional[list[dict]] = None
+) -> list[dict]:
+    """Ground each step by app host, active page route and unique captured control.
+
+    Journey keyword/title matching is deliberately absent: it can select a
+    different application's journey and is not evidence that a locator works.
+    """
+    from .control_evidence import choose_control, host, observed_controls, route
+
+    active_route = route(target_url)
+    explicit_route = False
+    grounded = []
+    for step in steps:
+        updated = dict(step)
+        target = str(step.get("target") or "").strip()
+        intent = _intent(str(step.get("action") or ""), step.get("action_type"))
+        if intent == "goto":
+            if target.startswith("/") or (target.startswith(("http://", "https://")) and host(target) == host(target_url)):
+                active_route = route(target)
+                explicit_route = True
+        elif target and not target.startswith(("//", "(//", ".//", "xpath=", ".", "#", "[", "input[", "button[", "page.")):
+            controls = observed_controls(target_url, active_route or None, catalog)
+            if not controls and not explicit_route:
+                candidates = observed_controls(target_url, None, catalog)
+                if len({control.screen_route for control in candidates}) == 1:
+                    controls = candidates
+            match = choose_control(target, intent, controls)
+            if match and sanitize_catalog_locator(match.selector):
+                updated["target"] = match.selector
+        grounded.append(updated)
+    return grounded
+
+
+def _observed_literal_assertion(action: str, target: str, observation: Optional[dict], screen_url: str) -> Optional[str]:
+    """Keep positive title/text checks tied to the replayed destination."""
+    from .control_evidence import host, route
+    if (not isinstance(observation, dict) or host(observation.get("url")) != host(screen_url)
+            or route(observation.get("url")) != route(screen_url)):
+        return None
+    values = re.findall(r"['\"]([^'\"]+)['\"]", action)
+    if not values:
+        return None
+    guard = f"await expect(page).toHaveURL({_js(observation['url'])});"
+    if "title" in target.lower() and len(values) == 1 and values[0] == observation.get("title"):
+        return guard + f"\n  await expect(page).toHaveTitle({_js(values[0])});"
+    text = observation.get("visible_text") or []
+    text = " ".join(text) if isinstance(text, list) else str(text)
+    normalize = lambda value: " ".join(str(value).split())
+    if not all(normalize(value) in normalize(text) for value in values):
+        return None
+    if "button" in target.lower():
+        if len(values) != 1 or values[0] not in (observation.get("controls") or []):
+            return None
+        # The capture supplies the visible label, not an ARIA role. Preserve
+        # that evidence instead of inventing 'button' for a link styled as one.
+        pattern = r"^\s*" + r"\s+".join(re.escape(word) for word in values[0].split()) + r"\s*$"
+        locator = (f"page.getByText(new RegExp({_js(pattern)}, 'i'))"
+                   ".locator(\"xpath=ancestor-or-self::*[self::button or self::a or self::input or @role='button'][1]\")")
+        return guard + f"\n  await expect({locator}).toBeVisible();\n  await expect({locator}).toBeEnabled();"
+    return guard + "\n  " + "\n  ".join(
+        "await expect.poll(async () => (await page.locator('body').innerText()).replace(/\\s+/g, ' ').trim())"
+        + f".toContain({_js(normalize(value))});" for value in values)
+
+
+def _observed_result_assertion(action: str, target: str, expected: str,
+                               case_expected: str, application_url: str,
+                               observation: Optional[dict]) -> Optional[str]:
+    """Compile a result check only when the completed replay observed its state.
+
+    An absent control has no locator to capture. Its name must come from the
+    saved requirement, and the final visible-control survey must be complete.
+    Positive alerts use a unique selector captured from the final DOM.
+    """
+    from .control_evidence import host, route
+
+    if not isinstance(observation, dict) or host(observation.get("url")) != host(application_url):
+        return None
+    destination = _EXPECTED_URL_RE.search(expected)
+    if destination and re.search(r"\b(?:alert|notification|control|heading)\b", expected, re.I):
+        raw_path = destination.group(1)
+        expected_route = route(urljoin(application_url, raw_path))
+        if route(observation.get("url")) != expected_route:
+            return None
+        assertions = [f"await expect(page).toHaveURL(new RegExp({_js(re.escape(expected_route))}, 'i'), {{ timeout: 15000 }});"]
+        if re.search(r"\b(?:alert|notification)\b", expected, re.I):
+            controls = observation.get("assertion_controls")
+            matches = [item for item in controls or [] if isinstance(item, dict) and item.get("kind") == "alert" and str(item.get("text") or "").casefold() in expected.casefold()]
+            if len(matches) != 1:
+                return None
+            locator = sanitize_catalog_locator(str(matches[0].get("selector") or ""))
+            if not locator:
+                return None
+            assertions.append(f"await expect({locator}).toBeVisible({{ timeout: 10000 }});")
+        visible_control = re.search(r"\bthe\s+([\w -]{2,80}?)\s+control\s+is\s+(?:visible|shown|displayed|present)\b", expected, re.I)
+        if visible_control:
+            label = visible_control.group(1).strip()
+            visible = observation.get("controls")
+            if observation.get("controls_truncated") is not False or not isinstance(visible, list) or sum(str(item).casefold() == label.casefold() for item in visible) != 1:
+                return None
+            assertions.append(f"await expect(page.getByText({_js(label)}, {{ exact: true }})).toBeVisible({{ timeout: 10000 }});")
+        return "\n  ".join(assertions)
+    if route(observation.get("url")) != route(application_url):
+        return None
+    missing = re.search(r"\bthe\s+([\w -]{2,80}?)\s+control\s+is\s+(?:absent|not\s+(?:shown|visible|displayed))\b", action, re.I)
+    if missing:
+        label = missing.group(1).strip()
+        if (label.casefold() not in case_expected.casefold()
+                or not re.search(r"\b(absent|not displayed|not visible|not shown)\b", case_expected, re.I)
+                or observation.get("controls_truncated") is not False):
+            return None
+        visible = observation.get("controls")
+        if not isinstance(visible, list) or any(label.casefold() in str(value).casefold() for value in visible):
+            return None
+        return f"await expect(page.getByText({_js(label)}, {{ exact: true }})).toBeHidden({{ timeout: 10000 }});"
+    if target.casefold().strip() not in {"alert", "alerts", "error", "errors", "error message"}:
+        return None
+    candidates = observation.get("assertion_controls")
+    if not isinstance(candidates, list) or len(candidates) != 1:
+        return None
+    item = candidates[0]
+    if not isinstance(item, dict) or item.get("kind") != "alert":
+        return None
+    label, selector = str(item.get("text") or ""), str(item.get("selector") or "")
+    if not label or label.casefold() not in expected.casefold() or not selector.startswith(("//", "#", "[")):
+        return None
+    locator = sanitize_catalog_locator(selector)
+    return f"await expect({locator}).toBeVisible({{ timeout: 10000 }});" if locator else None
+
+
+_LEGACY_BARE_SELECTOR = re.compile(r'(?m)(\bawait\s+)(\[[^\r\n\]]+\])(?=\.(?:fill|click|check|press|selectOption)\s*\()')
+
+
+def repair_legacy_bare_selectors(code: str) -> str:
+    """Repair only the old generated `await [attribute=value].fill()` form."""
+    return _LEGACY_BARE_SELECTOR.sub(lambda match: match.group(1) + f'page.locator({_js(match.group(2))}).first()', code)
 
 
 _API_PATTERN = re.compile(
@@ -509,6 +658,11 @@ def _phrase_locator(target: Optional[str], intent: str) -> tuple[str, Optional[s
         return "page.locator('body')", "No target on this step — using page body fallback."
 
     raw = target.strip()
+
+    if raw.startswith("page."):
+        verified = sanitize_catalog_locator(raw)
+        if verified:
+            return verified, None
 
     # --- Automation Module: XPath is a selector, not a phrase ----------------
     # Playwright auto-detects an XPath locator, but only if the expression
@@ -587,6 +741,12 @@ def build_locator(
     given and it names a match, the phrase heuristic otherwise.
     """
     target = step.get("target")
+
+    # The screen-scoped resolver already selected this observed locator.
+    # A broader catalogue search must not override it with another page's
+    # similarly named control.
+    if isinstance(target, str) and target.strip().startswith(("page.", "#", "[", "input[", "button[")):
+        return _phrase_locator(target, intent)
 
     if catalog:
         entry, reason = grounding.match_step(step, catalog)
@@ -695,6 +855,7 @@ def compile_playwright(
     base_url: Optional[str] = None,
     catalog: Optional[list[dict]] = None,
     locator_overrides: Optional[dict[int, dict[str, Any]]] = None,
+    outcome_observation: Optional[dict] = None,
 ) -> CompiledScript:
     """Render an optimized Playwright spec from a refined case.
     Supports both Web UI automation and REST API testing.
@@ -748,6 +909,7 @@ def compile_playwright(
             f"application URL on the case before generating a script."
         )
 
+    steps = _ground_with_observed_journey_selectors(case, steps, target_url, catalog)
     is_api = _is_api_case(case, steps)
 
     lines: list[str] = [
@@ -760,8 +922,8 @@ def compile_playwright(
         f" * Mode: {'REST API Test' if is_api else 'Web UI Automation'}",
         " *",
         " * Execution Boundary:",
-        " *   - Automated Scope: Up to and including Variant Configuration + ADD TO CART + Shopping Cart Verification.",
-        " *   - External Boundary: Real OTP / Credit Card / UAE PASS authentication require external credentials.",
+        " *   - Automated Scope: Only the approved actions and assertions below.",
+        " *   - External Boundary: Credentials and human challenges require authorized test inputs.",
         " * Values come from environment variables so no credential or record id is baked into the file.",
         " */",
     ]
@@ -854,6 +1016,18 @@ def compile_playwright(
             issues.append(StaticGateIssue("error", "The case has no structured steps to compile."))
             lines.append("  // No structured steps. Refine this case before generating.")
 
+        # Playwright creates a blank page. Cases may begin with a fill or click
+        # because the entry page is implicit in the application binding. Open
+        # that bound page before the first interaction; never guess a URL from
+        # the field name or silently wait for a locator on about:blank.
+        if steps:
+            first = steps[0]
+            first_action = str(first.get("action") or "")
+            first_navigates = _intent(first_action, first.get("action_type")) == "goto" or _is_navigation_target(first.get("target"))
+            if not first_navigates:
+                lines.append(f"  await navigateTo(page, {_js(_route(target_url, target_url))}, null);")
+
+        current_screen_url = target_url
         for step in steps:
             number = step.get("step_number") or (emitted + 1)
             action = str(step.get("action") or "").strip()
@@ -861,6 +1035,7 @@ def compile_playwright(
             data_ref = step.get("test_data_ref")
             expected = step.get("expected_result")
             intent = _intent(action, step.get("action_type"))
+            fill_assertion = None
 
             lines.append("")
             lines.append(f"  // {number}. {comment_text(action)}")
@@ -872,13 +1047,35 @@ def compile_playwright(
             target_lower = (target or "").lower()
             is_cookie_dismissal = any(k in action_lower or k in target_lower for k in ["cookie", "privacy", "usercentrics", "consent", "overlay", "banner"])
 
-            # Extract quoted term if present in action or target
-            quote_match = re.search(r'["\']([^"\']+)["\']', f"{action} {target or ''}")
+            # A target may be a CSS selector such as [id="username"]. Its
+            # quoted attribute is a locator, never the value to type.
+            quote_match = re.search(r'["\']([^"\']+)["\']', action)
             quoted_term = quote_match.group(1).strip() if quote_match else ""
 
             is_verify_step = any(k in action_lower for k in ["verify", "assert", "review", "summary", "shopping cart", "screen is displayed", "page is displayed", "email verification"]) or (number == len(steps) and ("verify" in action_lower or "assert" in action_lower or "screen" in action_lower or "page" in action_lower))
 
-            if is_cookie_dismissal:
+            result_assertion = ((_observed_literal_assertion(action, str(target or ""), outcome_observation, current_screen_url)
+                                 or _observed_result_assertion(action, str(target or ""), str(expected or ""),
+                                                         str(case.expected_result or ""), target_url,
+                                                         outcome_observation)) if intent == "assert" else None)
+            destination = re.search(r"https?://[^\s'\"]+", str(expected or ""))
+            if intent != "assert" and destination:
+                current_screen_url = destination.group(0).rstrip(".")
+            if (intent == "assert" and outcome_observation and not result_assertion
+                    and str(target or "").lower().startswith(("page title", "visible text", "button '"))):
+                issues.append(StaticGateIssue("error", f"Step {number}: the requested result is not present in the captured destination evidence. Capture it before generating."))
+            if result_assertion:
+                lines.append(f"  {result_assertion}")
+            elif intent == "assert" and expected and _EXPECTED_URL_RE.search(str(expected)):
+                route_assertion = expected_assertion(expected, "goto")
+                if route_assertion:
+                    lines.append(f"  {route_assertion}")
+                if re.search(r"\b(?:alert|notification|control)\b", str(expected), re.I):
+                    issues.append(StaticGateIssue(
+                        "error",
+                        f"Step {number}: the expected alert or control has no browser-observed post-action evidence. Capture the outcome before running this script.",
+                    ))
+            elif is_cookie_dismissal:
                 lines.append("  // Dismiss cookie / privacy overlay")
                 lines.append("  await dismissOverlays(page);")
                 lines.append("  try {")
@@ -1072,8 +1269,11 @@ def compile_playwright(
                         break
 
                 if recorded_match and recorded_match.get("recommended_locator"):
-                    locator = recorded_match["recommended_locator"]
-                    todo = None
+                    locator = sanitize_catalog_locator(recorded_match["recommended_locator"])
+                    if not locator:
+                        locator, todo = build_locator(step, intent, catalog=catalog)
+                    else:
+                        todo = None
                     lines.append(f"  // [Guided Discovery] Ground-truth recorded locator for {comment_text(recorded_match.get('target_name'))}")
                 else:
                     locator, todo = build_locator(step, intent, catalog=catalog)
@@ -1107,15 +1307,21 @@ def compile_playwright(
                         lines.append(f"  // TODO: {comment_text(todo)}")
 
                 if intent == "fill":
-                    value = (
-                        re.sub(r"[^A-Za-z0-9]+", "_", str(data_ref)).lower()
-                        if data_ref
-                        else _js(quoted_term or "Test Data")
-                    )
-                    lines.append(f"  await {locator}.fill({value});")
+                    if data_ref:
+                        value = re.sub(r"[^A-Za-z0-9]+", "_", str(data_ref)).lower()
+                    elif quoted_term and not re.search(r"password|passcode|secret|token", f"{action} {target or ''}", re.I):
+                        value = _js(quoted_term)
+                    else:
+                        value = None
+                        issues.append(StaticGateIssue(
+                            "error", f"Step {number}: input value is not linked to Test Data. Add a value for this application and environment, then regenerate.",
+                        ))
+                    if value is not None:
+                        lines.append(f"  await {locator}.fill({value});")
+                        fill_assertion = f"await expect({locator}).toHaveValue({value}, {{ timeout: 15000 }});"
                 elif intent == "select":
                     if any(k in locator.lower() for k in [".plan-card", "button", "tab", "role=", "div", "radio", ":has-text", "hastext", "card"]):
-                        lines.append(f"  await {locator}.click();")
+                        lines.append(f"  await observedInteractions.clickObserved(page, {locator}, page.url());")
                     else:
                         value = (
                             re.sub(r"[^A-Za-z0-9]+", "_", str(data_ref)).lower()
@@ -1128,11 +1334,11 @@ def compile_playwright(
                 elif intent == "wait":
                     lines.append("  await page.waitForLoadState('networkidle');")
                 else:
-                    lines.append(f"  await {locator}.click();")
+                    lines.append(f"  await observedInteractions.clickObserved(page, {locator}, page.url());")
 
             if expected and intent != "assert":
                 lines.append(f"  // expected: {comment_text(expected)}")
-                assertion = expected_assertion(expected, intent)
+                assertion = fill_assertion if intent == "fill" else expected_assertion(expected, intent)
                 if assertion:
                     lines.append(f"  {assertion}")
 
@@ -1841,6 +2047,8 @@ def run_static_gate(code: str, emitted: int, expected_steps: int) -> list[Static
         issues.append(
             StaticGateIssue("error", "The spec points at a placeholder domain (example.com).")
         )
+    if re.search(r"\bawait\s+\[[^\n]+?\]\.(?:fill|click|check|press|selectOption)\s*\(", code):
+        issues.append(StaticGateIssue("error", "A CSS selector was used as code instead of a Playwright locator. Regenerate or edit the script before running."))
 
     # first/last/nth are methods on a Locator, not properties, so `.first.click()`
     # reads the function object and calls `.click` on it: "TypeError:
@@ -1883,6 +2091,37 @@ def run_static_gate(code: str, emitted: int, expected_steps: int) -> list[Static
     return issues
 
 
+def validate_case_contract(code: str, case: Any) -> list[StaticGateIssue]:
+    """Catch stored specs that perform a different action than the approved case.
+
+    This runs again before execution, including for scripts generated before
+    the current compiler. It never substitutes a locator or test-data value.
+    """
+    issues: list[StaticGateIssue] = []
+    blocks = re.split(r"(?=^\s*await test\.step\()", code or "", flags=re.M)
+    for step in (case.steps_structured or []):
+        number = step.get("step_number")
+        if not number:
+            continue
+        block = next((part for part in blocks if re.match(rf"\s*await test\.step\(\s*['\"]{number}\.", part)), "")
+        if not block:
+            continue
+        executable = "\n".join(line for line in block.splitlines() if not line.lstrip().startswith("//"))
+        expected = str(step.get("expected_result") or "")
+        if str(step.get("action_type") or "").lower() == "fill":
+            match = re.search(r"\b(?:contains?|has|equals?|is)\s+(?:the\s+value\s+)?['\"]([^'\"]+)['\"]", expected, re.I)
+            literal = re.search(r"\.fill\(\s*(['\"])(.*?)\1\s*\)", executable)
+            if match and literal and match.group(1) != literal.group(2):
+                issues.append(StaticGateIssue("error", f"Step {number}: generated input differs from the approved value. Regenerate after linking this step to Test Data."))
+        if str(step.get("action_type") or "").lower() == "assert":
+            if _EXPECTED_URL_RE.search(expected) and "toHaveURL(" not in executable:
+                issues.append(StaticGateIssue("error", f"Step {number}: the approved destination is not asserted. Regenerate after capturing the result page."))
+            combined = f"{step.get('action') or ''} {expected} {getattr(case, 'expected_result', '') or ''}"
+            if re.search(r"\bcontrol\s+is\s+(?:absent|not\s+(?:visible|shown|displayed))\b", combined, re.I) and "toBeHidden(" not in executable:
+                issues.append(StaticGateIssue("error", f"Step {number}: the required absent control is not asserted. Regenerate using a complete browser observation."))
+    return issues
+
+
 def compile_for(
     case: Any,
     framework: str,
@@ -1890,6 +2129,7 @@ def compile_for(
     base_url: Optional[str] = None,
     catalog: Optional[list[dict]] = None,
     locator_overrides: Optional[dict[int, dict[str, Any]]] = None,
+    outcome_observation: Optional[dict] = None,
 ) -> CompiledScript:
     """`catalog` and `locator_overrides` reach Playwright and Katalon, which
     both compile grounded locators. Appium is still a generate-only skeleton --
@@ -1904,6 +2144,7 @@ def compile_for(
             base_url=base_url,
             catalog=catalog,
             locator_overrides=locator_overrides,
+            outcome_observation=outcome_observation,
         )
     if framework == "katalon":
         return compile_katalon(

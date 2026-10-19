@@ -171,7 +171,7 @@ const ReviewAndApproval: React.FC = () => {
   const successMessageTimeouts = useRef<number[]>([])
 
   usePageHeader({
-    title: 'Review & Approval',
+    title: 'Human Evaluation',
     subtitle: 'Review submitted test case requests and approve or reject them before knowledge base sync.'
   })
 

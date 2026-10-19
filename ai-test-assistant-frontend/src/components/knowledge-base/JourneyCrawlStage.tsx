@@ -1058,7 +1058,10 @@ const JourneyCrawlStage: React.FC<{
   canApprove?: boolean
   onProposed: () => void
   onAutomationReady: () => void
-}> = ({ appKey, application, canExecute, canApprove = false, onProposed, onAutomationReady }) => {
+  /** Automation Studio hides a server action that this deployment cannot run. */
+  serverRuntimeReady?: boolean
+  initialJourneyId?: string | null
+}> = ({ appKey, application, canExecute, canApprove = false, onProposed, onAutomationReady, serverRuntimeReady = true, initialJourneyId = null }) => {
   const [params] = useSearchParams()
   const [taxonomy, taxError] = useLoad(appKey, () => knowledgeBaseService.taxonomy(appKey))
   const [coverage] = useLoad(appKey, () => knowledgeBaseService.testData(appKey))
@@ -1083,7 +1086,7 @@ const JourneyCrawlStage: React.FC<{
   const [headed, setHeaded] = useState(false)
   const [localHeaded, setLocalHeaded] = useState(false)
   // ?journey= (from the Journey Map) picks the journey to walk; else the last one.
-  const askedJourney = params.get('journey')
+  const askedJourney = initialJourneyId || params.get('journey')
   useEffect(() => {
     if (journeyId || !journeys.length) return
     setJourneyId(journeys.some(j => j.id === askedJourney) ? (askedJourney as string) : journeys[journeys.length - 1].id)
@@ -1415,7 +1418,7 @@ const JourneyCrawlStage: React.FC<{
                 {(['journey', 'flow', 'browser', 'record', 'capture'] as const).map(s => (
                   <button key={s} type="button" role="radio" aria-checked={source === s} onClick={() => setSource(s)}
                     className={`px-3 text-[12.5px] font-semibold normal-case tracking-normal ${source === s ? 'bg-[#1F2937] text-white' : 'bg-white text-[#374151]'}`}>
-                    {s === 'journey' ? 'Server dry run' : s === 'flow' ? 'A flow blueprint' : s === 'browser' ? 'Browser crawl' : s === 'record' ? 'Record it myself' : 'Upload a capture'}
+                    {s === 'journey' ? (serverRuntimeReady ? 'Server dry run' : 'Journey') : s === 'flow' ? 'A flow blueprint' : s === 'browser' ? 'Browser crawl' : s === 'record' ? 'Record it myself' : 'Upload a capture'}
                   </button>
                 ))}
               </div>
@@ -1452,7 +1455,7 @@ const JourneyCrawlStage: React.FC<{
                 ))}
               </select>
             </label>
-            <button
+            {serverRuntimeReady && <button
               type="button"
               onClick={() => void start()}
               disabled={!canExecute || !plan || busy !== null || active || missing.length > 0 || blocked}
@@ -1460,7 +1463,7 @@ const JourneyCrawlStage: React.FC<{
               className="h-[34px] rounded-[10px] bg-[#B71920] px-4 text-[13px] font-bold text-white hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {busy === 'start' ? 'Starting…' : 'Start dry run'}
-            </button>
+            </button>}
             <label className={LABEL}>
               Device browser
               <select aria-label="Device browser mode" value={localHeaded ? 'headed' : 'headless'} onChange={event => setLocalHeaded(event.target.value === 'headed')} className={SELECT}>

@@ -304,6 +304,7 @@ def _send_saved_request(
         row.test_case_id: row
         for row in db.query(TestCaseDetail).filter(TestCaseDetail.request_id == detail.request_id).all()
     }
+    request_application = _shared_request_application(db, list(saved_rows.values()))
     document_id = next((row.document_id for row in saved_rows.values() if row.document_id), None) or _get_document_id(payload, detail.request_id)
     request_by = str(payload.get('request_by') or username)
 
@@ -319,6 +320,15 @@ def _send_saved_request(
             db.add(item)
         elif str(item.status).upper() != DRAFT_STATUS:
             continue  # already sent
+        # The checked row sent by the browser contains the edited case, not
+        # server-owned request metadata. Keep the application selected earlier
+        # (including when this is another case sent from the same draft).
+        if not _case_application_values(details):
+            application = _case_application(item) if item is not None else None
+            if application is None:
+                application = request_application
+            if application is not None:
+                details['_automation_application'] = application
         item.test_case_details = details
         item.status = 'PENDING'
         item.generated_by = request_by
@@ -706,18 +716,70 @@ def _case_ai(case: TestCaseDetail) -> Dict[str, Any]:
     return ai if isinstance(ai, dict) else {}
 
 
+def _case_application(case: TestCaseDetail) -> Optional[Dict[str, Any]]:
+    details = case.test_case_details if isinstance(case.test_case_details, dict) else {}
+    return _case_application_values(details)
+
+
+def _case_application_values(details: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    value = details.get('_automation_application')
+    return value if isinstance(value, dict) and value.get('id') else None
+
+
+def _shared_request_application(db: Session, cases: List[TestCaseDetail]) -> Optional[Dict[str, Any]]:
+    """Resolve only an unambiguous, active application already saved on this request."""
+    ids = {str(app['id']) for case in cases if (app := _case_application(case))}
+    if len(ids) != 1:
+        return None
+    from ..models.automation import AutomationApplication
+
+    try:
+        application = db.get(AutomationApplication, int(next(iter(ids))))
+    except (TypeError, ValueError):
+        return None
+    if application is None or not application.is_active:
+        return None
+    return {
+        'id': application.id,
+        'name': application.name,
+        'app_key': application.app_key,
+        'base_url': application.base_url,
+        'environment': application.environment,
+    }
+
+
 def _request_summary(detail: TestCaseReviewDetail, cases: List[TestCaseDetail]) -> Dict[str, Any]:
     ai = [_case_ai(case) for case in cases]
     checked = [item for item in ai if item]
     after = [float(item['score_after']) for item in checked if item.get('score_after') is not None]
     before = [float(item['score_before']) for item in checked if item.get('score_before') is not None]
+    application = next((_case_application(case) for case in cases if _case_application(case)), None)
+    review_cases = [case for case in cases if str(case.status).upper() != DRAFT_STATUS]
+    application_complete = bool(application) and all(
+        (_case_application(case) or {}).get('id') == application['id'] for case in review_cases
+    )
     approved = [case for case in cases if str(case.status).upper() == 'APPROVED']
     document_id = next((case.document_id for case in cases if case.document_id), None)
+    case_ids = []
+    for case in cases:
+        details = case.test_case_details if isinstance(case.test_case_details, dict) else {}
+        for value in (
+            case.test_case_id,
+            details.get('Test Case ID'),
+            details.get('TC ID'),
+            details.get('Case ID'),
+        ):
+            text = str(value or '').strip()
+            if text and text not in case_ids:
+                case_ids.append(text)
     return {
         **_serialize_review_detail(detail),
         'document_name': _document_name(detail, document_id),
         'source_group': _source_group(detail),
         'cases': len(cases),
+        # Lets the review queue find a request from either its request id or
+        # any user-facing/internal test-case id without loading every detail.
+        'case_ids': case_ids,
         'pending_cases': sum(1 for case in cases if str(case.status).upper() == 'PENDING'),
         'ai_checked': len(checked),
         'automation': sum(1 for item in checked if item.get('classification') == 'automation'),
@@ -726,6 +788,8 @@ def _request_summary(detail: TestCaseReviewDetail, cases: List[TestCaseDetail]) 
         'avg_before': round(sum(before) / len(before), 1) if before else None,
         'avg_after': round(sum(after) / len(after), 1) if after else None,
         'sent_to_lab': sum(1 for case in approved if _case_ai(case).get('classification') == 'automation'),
+        'application': application,
+        'application_complete': application_complete,
     }
 
 
@@ -928,15 +992,104 @@ async def get_review_detail_by_request_id(
     )
     project = db.get(Project, detail.project_id) if getattr(detail, 'project_id', None) else None
     sync = db.query(BitbucketSync).filter(BitbucketSync.request_id == request_id).first()
+    from ..services.automation.evaluation_handoff import linked_check, packet
+    from ..models.automation import AutomationTestCase
+    serialized = []
+    for item in test_cases:
+        output = _serialize_test_case_detail(item)
+        check = linked_check(db, item)
+        if check:
+            output['test_case_details'] = {**(item.test_case_details or {}),
+                '_agent_resolution': packet(check, db.get(AutomationTestCase, check.case_id))}
+        serialized.append(output)
     return {
         'data': {
             **_serialize_review_detail(detail),
             'project': serialize_project(project),
+            'application': next((_case_application(item) for item in test_cases if _case_application(item)), None),
             'bitbucket_sync': bitbucket_sync.serialize_sync(sync),
             'bitbucket_config': bitbucket_sync.configuration_status(),
         },
-        'test_cases': [_serialize_test_case_detail(item) for item in test_cases],
+        'test_cases': serialized,
     }
+
+
+@router.post("/detail/{request_id}/cases/{test_case_id}/resume-agents", status_code=202)
+def resume_review_agents(request_id: str, test_case_id: str, payload: Dict[str, Any],
+                         current_user=Depends(get_current_user_strict), db: Session = Depends(get_db)):
+    _require_review_manager(current_user)
+    from ..services.authz import user_has_permission
+    if not user_has_permission(current_user, 'automation.execute'):
+        raise HTTPException(status_code=403, detail='Browser execution permission is required to continue the agents.')
+    from ..services.automation.evaluation_handoff import linked_check
+    from ..services.automation import ai_checks
+    row = db.query(TestCaseDetail).filter(TestCaseDetail.request_id == request_id, TestCaseDetail.test_case_id == test_case_id).first()
+    if not row or row.status != 'PENDING':
+        raise HTTPException(status_code=409, detail='Only a pending evaluation case can be resumed.')
+    check = linked_check(db, row)
+    if not check:
+        raise HTTPException(status_code=409, detail='This case has no matching saved agent handoff.')
+    if check.status in {'queued', 'running'}:
+        return {'status': check.status}
+    if ai_checks._is_active(check.batch_id):
+        raise HTTPException(status_code=409, detail='Wait for the other cases in this batch to finish before changing its inputs.')
+    try:
+        if 'steps' in payload:
+            revised = payload['steps']
+            if not isinstance(revised, str) or not revised.strip() or len(revised) > 20000:
+                raise ValueError('Provide the intended steps (up to 20,000 characters).')
+            state = dict(check.steps or {})
+            state.setdefault('_original_source', dict(check.source_row or {}))
+            state['_human_edits'] = [*(state.get('_human_edits') or []), {'steps': revised.strip()}]
+            check.steps = state
+            check.source_row = {**(check.source_row or {}), 'Test Steps': revised.strip()}
+        if payload.get('page_url'):
+            from ..services.automation.registry import address_for_crawl
+            from ..services.automation.discovery import validated_capture_urls
+            state = dict(check.steps or {})
+            setup = dict(state.get('_agent_setup') or {})
+            address = address_for_crawl(db, setup['app_key'], setup['environment'])
+            extra = validated_capture_urls(address or '', [str(payload['page_url'])])
+            setup['additional_urls'] = list(dict.fromkeys([*(setup.get('additional_urls') or []), *extra]))[-5:]
+            check.steps = {**state, '_agent_setup': setup, '_force_discovery': True}
+            db.commit()
+        if 'steps' in payload:
+            ai_checks._reset(check)
+            db.commit()
+            ai_checks._launch(check.batch_id, [check.id])
+        else:
+            ai_checks.retry(db, check.batch_id, check.id)
+    except (LookupError, ValueError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {'status': 'queued'}
+
+
+@router.post('/detail/{request_id}/cases/{test_case_id}/record-login', status_code=202)
+def record_review_login(request_id: str, test_case_id: str, current_user=Depends(get_current_user_strict), db: Session = Depends(get_db)):
+    _require_review_manager(current_user)
+    from ..services.authz import user_has_permission
+    from ..services.automation.evaluation_handoff import linked_check
+    from ..services.journeys import journey_record, crawl_runs
+    from ..models.kb_changes import KbCrawlRun
+    if not user_has_permission(current_user, 'automation.execute'):
+        raise HTTPException(status_code=403, detail='Browser execution permission is required.')
+    row = db.query(TestCaseDetail).filter(TestCaseDetail.request_id == request_id, TestCaseDetail.test_case_id == test_case_id).first()
+    check = linked_check(db, row) if row and row.status == 'PENDING' else None
+    if not check or check.status in {'running', 'queued'}:
+        raise HTTPException(status_code=409, detail='Wait for the agents to pause before recording this pending case.')
+    state = dict(check.steps or {})
+    previous = db.get(KbCrawlRun, state.get('_review_recording_id')) if state.get('_review_recording_id') else None
+    if previous and previous.status in {'running', 'queued'}:
+        return crawl_runs.view(previous)
+    setup = state.get('_agent_setup') or {}
+    try:
+        crawl = journey_record.start(db, app_id=setup['app_key'], journey_id='', application_id=setup['application_id'],
+            environment=setup['environment'], actor=current_user.get('username'), new_journey_name=f'Login capture for {test_case_id}', profile_id=setup.get('profile_id'))
+    except (ValueError, LookupError, crawl_runs.Unavailable) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    check.steps = {**state, '_review_recording_id': crawl.id}
+    db.commit()
+    return crawl_runs.view(crawl)
 
 
 @router.get("/detail/{request_id}/bitbucket-sync")
@@ -1023,6 +1176,41 @@ async def update_review_detail_decision(
         decision = 'REJECT'
     if decision not in {'APPROVE', 'REJECT'}:
         raise HTTPException(status_code=400, detail='Decision must be APPROVE or REJECT')
+
+    if decision == 'APPROVE':
+        requested_ids = {
+            str(row.get('test_case_id') or row.get('id'))
+            for row in (payload.get('rows') or [])
+            if row.get('test_case_id') or row.get('id')
+        }
+        all_request_rows = db.query(TestCaseDetail).filter(TestCaseDetail.request_id == request_id).all()
+        approval_rows = (
+            db.query(TestCaseDetail)
+            .filter(TestCaseDetail.request_id == request_id, TestCaseDetail.status != DRAFT_STATUS)
+            .all()
+        )
+        if requested_ids:
+            approval_rows = [row for row in approval_rows if str(row.test_case_id) in requested_ids]
+            if len(approval_rows) != len(requested_ids):
+                raise HTTPException(status_code=400, detail='One or more selected test cases are not available for approval.')
+        from ..services.automation.evaluation_handoff import linked_check, packet
+        from ..models.automation import AutomationTestCase
+        for row in approval_rows:
+            if (row.test_case_details or {}).get('_agent_resolution'):
+                check = linked_check(db, row)
+                if not check or packet(check, db.get(AutomationTestCase, check.case_id))['state'] != 'ready':
+                    raise HTTPException(status_code=409, detail='Complete the outstanding agent work in Human Evaluation before approving this case for automation.')
+        if any(_case_application(row) is None for row in approval_rows):
+            shared_application = _shared_request_application(db, all_request_rows)
+            if shared_application is not None:
+                for row in all_request_rows:
+                    if _case_application(row) is None:
+                        row.test_case_details = {**(row.test_case_details or {}), '_automation_application': shared_application}
+        if any(_case_application(row) is None for row in approval_rows):
+            raise HTTPException(
+                status_code=409,
+                detail='Select or register the application before approving these test cases.',
+            )
 
     row_updates = payload.get('rows') or []
     if row_updates:
@@ -1114,6 +1302,47 @@ async def update_review_detail_decision(
             )
 
     return {'success': True, 'data': _serialize_review_detail(detail)}
+
+
+@router.put("/detail/{request_id}/application")
+def assign_review_application(
+    request_id: str,
+    payload: Dict[str, Any],
+    current_user=Depends(get_current_user_strict),
+    db: Session = Depends(get_db),
+):
+    """Persist the target application on every case in one review request."""
+    _require_review_manager(current_user)
+    detail = db.query(TestCaseReviewDetail).filter(TestCaseReviewDetail.request_id == request_id).first()
+    if not detail:
+        raise HTTPException(status_code=404, detail='Review request not found')
+
+    from ..models.automation import AutomationApplication
+
+    try:
+        application_id = int(payload.get('application_id'))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail='Choose an application.')
+    application = db.get(AutomationApplication, application_id)
+    if application is None or not application.is_active:
+        raise HTTPException(status_code=404, detail='The selected application is not available.')
+
+    association = {
+        'id': application.id,
+        'name': application.name,
+        'app_key': application.app_key,
+        'base_url': application.base_url,
+        'environment': application.environment,
+    }
+    rows = db.query(TestCaseDetail).filter(TestCaseDetail.request_id == request_id).all()
+    if not rows:
+        raise HTTPException(status_code=404, detail='No test cases were found for this request.')
+    for row in rows:
+        values = dict(row.test_case_details or {})
+        values['_automation_application'] = association
+        row.test_case_details = values
+    db.commit()
+    return {'success': True, 'application': association, 'updated': len(rows)}
 
 
 @router.post("/delete")

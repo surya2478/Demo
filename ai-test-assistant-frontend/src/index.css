@@ -295,6 +295,107 @@
   }
 }
 
+/* A bright glint clipped to the PNG's alpha: transparent areas stay untouched. */
+.brand-logo-glint {
+  position: absolute;
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  width: 130px;
+  aspect-ratio: 1586 / 992;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.18) 42%, #ff8c94 48%, #fff 53%, #f14b57 57%, transparent 65%);
+  background-size: 260% 100%;
+  -webkit-mask-image: url('/etisalat-white.png');
+  mask-image: url('/etisalat-white.png');
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  animation: brand-logo-glint 3.5s ease-in-out infinite;
+}
+
+.brand-logo-glint-login { width: 285px; }
+
+@keyframes brand-logo-glint {
+  0%, 12% { background-position: 100% 50%; opacity: 0; }
+  20% { opacity: 1; }
+  45% { background-position: 0% 50%; opacity: 1; }
+  55%, 100% { background-position: 0% 50%; opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-logo-glint { display: none; }
+}
+
+/* Test Assistant hero: distinct, slow-moving pieces keep the small banner alive. */
+.assistant-hero-ring,
+.assistant-hero-core,
+.assistant-hero-tile,
+.assistant-hero-dot { will-change: transform, opacity; }
+
+.assistant-hero-ring-outer { animation: assistant-ring-outer 6s ease-in-out infinite; }
+.assistant-hero-ring-middle { animation: assistant-ring-middle 6s ease-in-out 0.8s infinite; }
+.assistant-hero-ring-inner { animation: assistant-ring-inner 5s ease-in-out 0.4s infinite; }
+.assistant-hero-core { animation: assistant-core-breathe 4s ease-in-out infinite; }
+.assistant-hero-tile-left { animation: assistant-float-left 4.8s ease-in-out infinite; }
+.assistant-hero-tile-right { animation: assistant-float-right 5.2s ease-in-out 0.6s infinite; }
+.assistant-hero-dot-one { animation: assistant-dot 3.8s ease-in-out infinite; }
+.assistant-hero-dot-two { animation: assistant-dot 4.3s ease-in-out 0.9s infinite; }
+.assistant-hero-dot-three { animation: assistant-dot 3.5s ease-in-out 1.5s infinite; }
+
+@keyframes assistant-ring-outer {
+  0%, 100% { transform: translate(-50%, -50%) scale(0.97); opacity: 0.55; }
+  50% { transform: translate(-50%, -50%) scale(1.12); opacity: 1; }
+}
+@keyframes assistant-ring-middle {
+  0%, 100% { transform: translate(-50%, -50%) scale(1.07); opacity: 0.45; }
+  50% { transform: translate(-50%, -50%) scale(0.94); opacity: 1; }
+}
+@keyframes assistant-ring-inner {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
+  50% { transform: translate(-50%, -50%) scale(1.08); opacity: 1; }
+}
+@keyframes assistant-core-breathe {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); filter: brightness(1); }
+  50% { transform: translate(-50%, -50%) scale(1.08); filter: brightness(1.18); }
+}
+@keyframes assistant-float-left {
+  0%, 100% { transform: translateY(0) rotate(-18deg); }
+  50% { transform: translate(8px, -12px) rotate(-5deg); }
+}
+@keyframes assistant-float-right {
+  0%, 100% { transform: translateY(0) rotate(14deg); }
+  50% { transform: translate(-9px, 10px) rotate(26deg); }
+}
+@keyframes assistant-dot {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.65; }
+  50% { transform: translate(5px, -8px) scale(1.35); opacity: 1; }
+}
+
+.settings-hero-halo { animation: assistant-ring-outer 6s ease-in-out infinite; }
+.settings-hero-gear { animation: settings-gear-turn 18s linear infinite; transform-origin: center; }
+.settings-hero-cube-one { animation: assistant-float-right 4.8s ease-in-out infinite; }
+.settings-hero-cube-two { animation: assistant-float-left 5.4s ease-in-out 0.6s infinite; }
+.settings-hero-cube-three { animation: assistant-float-right 5.1s ease-in-out 1.2s infinite; }
+.settings-hero-cube-four { animation: assistant-float-left 4.6s ease-in-out 0.9s infinite; }
+
+@keyframes settings-gear-turn {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-hero-ring,
+  .assistant-hero-core,
+  .assistant-hero-tile,
+  .assistant-hero-dot,
+  .settings-hero-halo,
+  .settings-hero-gear,
+  .settings-hero-cube { animation: none; will-change: auto; }
+}
+
 .logo-container {
   height: 40px;
   display: flex;

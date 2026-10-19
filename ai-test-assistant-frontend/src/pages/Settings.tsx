@@ -85,9 +85,9 @@ const Settings: React.FC = () => {
           {/* Decorative gear illustration */}
           <div className="pointer-events-none absolute right-[200px] top-1/2 hidden h-full w-[420px] -translate-y-1/2 lg:block">
             <div className="absolute inset-0">
-              <div className="absolute left-1/2 top-1/2 h-[160px] w-[160px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle_at_40%_30%,rgba(255,255,255,0.85),rgba(253,235,236,0.7)_60%,rgba(253,200,202,0.3)_100%)]" />
+              <div className="settings-hero-halo absolute left-1/2 top-1/2 h-[160px] w-[160px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle_at_40%_30%,rgba(255,255,255,0.85),rgba(253,235,236,0.7)_60%,rgba(253,200,202,0.3)_100%)]" />
               {/* Gear */}
-              <svg viewBox="0 0 120 120" className="absolute left-1/2 top-1/2 h-[110px] w-[110px] -translate-x-1/2 -translate-y-1/2 drop-shadow-[0_18px_30px_rgba(183,25,32,0.18)]">
+              <svg viewBox="0 0 120 120" className="settings-hero-gear absolute left-1/2 top-1/2 h-[110px] w-[110px] -translate-x-1/2 -translate-y-1/2 drop-shadow-[0_18px_30px_rgba(183,25,32,0.18)]">
                 <defs>
                   <linearGradient id="gearGrad" x1="0" y1="0" x2="1" y2="1">
                     <stop offset="0%" stopColor="#fbbcc0" />
@@ -102,10 +102,10 @@ const Settings: React.FC = () => {
                 <circle cx="60" cy="60" r="10" fill="#fbbcc0" />
               </svg>
               {/* Floating cubes */}
-              <div className="absolute left-[6%] top-[24%] h-5 w-5 rotate-12 rounded-[6px] bg-app-brand-200 shadow-[0_8px_18px_rgba(183,25,32,0.18)]" />
-              <div className="absolute right-[8%] top-[18%] h-4 w-4 -rotate-6 rounded-[5px] bg-app-brand-300 shadow-[0_6px_12px_rgba(183,25,32,0.15)]" />
-              <div className="absolute right-[12%] bottom-[16%] h-6 w-6 rotate-12 rounded-[7px] bg-[#f8a4a8] shadow-[0_10px_24px_rgba(183,25,32,0.18)]" />
-              <div className="absolute left-[14%] bottom-[20%] h-4 w-4 -rotate-12 rounded-[5px] bg-app-brand-300 shadow-[0_6px_14px_rgba(183,25,32,0.14)]" />
+              <div className="settings-hero-cube settings-hero-cube-one absolute left-[6%] top-[24%] h-5 w-5 rotate-12 rounded-[6px] bg-app-brand-200 shadow-[0_8px_18px_rgba(183,25,32,0.18)]" />
+              <div className="settings-hero-cube settings-hero-cube-two absolute right-[8%] top-[18%] h-4 w-4 -rotate-6 rounded-[5px] bg-app-brand-300 shadow-[0_6px_12px_rgba(183,25,32,0.15)]" />
+              <div className="settings-hero-cube settings-hero-cube-three absolute right-[12%] bottom-[16%] h-6 w-6 rotate-12 rounded-[7px] bg-[#f8a4a8] shadow-[0_10px_24px_rgba(183,25,32,0.18)]" />
+              <div className="settings-hero-cube settings-hero-cube-four absolute left-[14%] bottom-[20%] h-4 w-4 -rotate-12 rounded-[5px] bg-app-brand-300 shadow-[0_6px_14px_rgba(183,25,32,0.14)]" />
             </div>
           </div>
 

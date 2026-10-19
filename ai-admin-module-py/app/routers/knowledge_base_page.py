@@ -137,6 +137,12 @@ def register_application(body: ApplicationIn, db: Session = Depends(get_db),
             raise HTTPException(status_code=500, detail=f"The Journey KB could not be written: {exc}") from exc
     else:
         onboarding.rename(key, name)
+    # A new application's first browser crawl needs an app-scoped, empty
+    # Automation KB to propose selectors against. This contains no selectors;
+    # captured values still require a reviewed change set.
+    registered_kb = store.load(key)
+    if registered_kb is not None:
+        store.ensure_automation_baseline(registered_kb, addresses[environment])
     db.commit()
     return {"app_key": key, "name": name, "journey_kb_created": created_kb, "warnings": warnings, **_registration(db, key)}
 
