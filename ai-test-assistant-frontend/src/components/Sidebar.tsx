@@ -58,8 +58,9 @@ const aiTestAutomationtems: MenuItem[] = [
     { path: '/automation/knowledge-base', label: 'Knowledge Base', permission: 'automation.view', beta: true },
     // The one source of test data for automation cases; the KB refers to it.
     { path: '/test-data', label: 'Test Data', permission: 'automation.view', beta: true },
-    // BRD + design + KB + script mapped per approved automation case.
-    { path: '/automation/rnd-lab', label: 'AI R&D Lab', permission: 'automation.view', beta: true },
+    // BRD + design + KB + script mapped per approved automation case. Hidden
+    // from the menu for now; the page still opens at /automation/rnd-lab.
+    // { path: '/automation/rnd-lab', label: 'AI R&D Lab', permission: 'automation.view', beta: true }
     ]
     
  
