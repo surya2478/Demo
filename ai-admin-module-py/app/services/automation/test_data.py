@@ -120,6 +120,41 @@ def required_names(code: str) -> list[str]:
     return seen
 
 
+def bind_observed_case_values(db: Session, case: Any) -> list[dict[str, Any]]:
+    """Link explicit authored fill values to matching vault entries, never to a guessed value.
+
+    The approved case may name a value in its expected result while omitting
+    ``test_data_ref``. A selector's quoted attribute (for example
+    ``[id="username"]``) is *not* input data. Match the authored value and
+    field against the case's own application/environment before compiling.
+    Missing matches remain unbound and the compiler's gate refuses the run.
+    """
+    steps = [dict(step) for step in (case.steps_structured or [])]
+    app = find_app(db, urls=(getattr(case, "application_url", None),))
+    if app is None:
+        return steps
+    environment = run_environment(app, None, getattr(case, "environment", None))
+    entries = [entry for entry in app.entries if entry.environment in (environment, ALL_ENVIRONMENTS)]
+    for step in steps:
+        if str(step.get("action_type") or "").lower() != "fill":
+            continue
+        existing_ref = str(step.get("test_data_ref") or "")
+        if existing_ref and not resolve(entries, environment, [PREFIX + re.sub(r"[^A-Za-z0-9]+", "_", existing_ref).strip("_").upper()])["missing"]:
+            continue
+        expected = str(step.get("expected_result") or "")
+        match = re.search(r"\b(?:contains?|has|equals?|is)\s+(?:the\s+value\s+)?['\"]([^'\"]+)['\"]", expected, re.I)
+        if not match:
+            continue
+        authored_value = match.group(1)
+        field = _field(_tokens(f"{step.get('target') or ''} {step.get('action') or ''}"))
+        candidates = [entry for entry in entries if _field(_tokens(entry.key)) == field and value_of(entry) == authored_value]
+        if not candidates:
+            continue
+        candidates.sort(key=lambda entry: (entry.environment != environment, entry.key))
+        step["test_data_ref"] = candidates[0].key
+    return steps
+
+
 # --- Matching a name to a stored value ----------------------------------------------
 
 # Checked in this order, so LOGIN_PASSWORD is a password, not a login.

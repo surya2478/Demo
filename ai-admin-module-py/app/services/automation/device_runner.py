@@ -158,7 +158,7 @@ def progress(db: Session, run_key: str, token: str, value: dict[str, Any]) -> di
         str(value.get("log_tail") or ""), data.get("secrets") or []
     )[-50_000:]
     run.run_metadata = {
-        **metadata, "step_progress": snapshot, "live_log": clean_tail,
+        **metadata, "step_progress": snapshot or metadata.get("step_progress") or {}, "live_log": clean_tail or metadata.get("live_log", ""),
         "device_agent": {**agent, "state": "running", "message": str(value.get("message") or "Running on device.")[:500],
                          "last_progress_at": datetime.utcnow().isoformat()},
     }
@@ -264,9 +264,23 @@ def finish(
     return run
 
 
-def fail(db: Session, run_key: str, token: str, message: str) -> AutomationRun:
+def fail(db: Session, run_key: str, token: str, message: str, log: str = "") -> AutomationRun:
     run, agent = _authorise(db.query(AutomationRun).filter(AutomationRun.run_key == run_key).first(), token)
-    run.status = "failed"; run.outcome = "blocked"; run.error_message = (message or "Device Playwright stopped.")[:1000]
+    metadata = dict(run.run_metadata or {})
+    case = db.get(AutomationTestCase, run.test_case_id) if run.test_case_id else None
+    data = test_data.for_code(
+        db, str(metadata.get("code") or ""), environment=run.environment,
+        case_url=case.application_url if case else None, base_url=metadata.get("base_url"),
+        case_environment=case.environment if case else None,
+    )
+    secrets = data.get("secrets") or []
+    clean_message = test_data.redact(message or "Device Playwright stopped.", secrets)
+    clean_log = test_data.redact(log or clean_message, secrets)
+    workspace = ws.reset_workspace(run.run_key)
+    log_path = workspace / "run.log"
+    log_path.write_text(clean_log[:1_000_000], encoding="utf-8", errors="replace")
+    run.workspace_path = str(workspace); run.log_path = str(log_path)
+    run.status = "failed"; run.outcome = "blocked"; run.error_message = clean_message[:1000]
     run.completed_at = datetime.utcnow()
     run.run_metadata = {**(run.run_metadata or {}), "device_agent": {
         **agent, "token_hash": None, "state": "failed", "finished": True, "message": run.error_message,

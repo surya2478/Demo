@@ -175,6 +175,7 @@ class Settings(BaseSettings):
     AUTOMATION_ENABLED: bool = Field(default=True)
     AUTOMATION_STORAGE_PATH: str = Field(default="./storage/automation")
     AUTOMATION_NODE_PATH: str = Field(default="npx")
+    AUTOMATION_HEADED_BROWSER_CHANNEL: str = Field(default="")
     AUTOMATION_RUN_TIMEOUT_SECONDS: int = Field(default=600)
     # --- Automation Module: test data vault ------------------------------------
     # The Fernet key that encrypts credentials saved in Automation Studio's

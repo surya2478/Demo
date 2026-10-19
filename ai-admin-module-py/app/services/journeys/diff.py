@@ -303,6 +303,7 @@ def reconcile_elements(kb: store.JourneyKB, profile: Dict[str, Any]) -> Dict[str
                 "type": element.get("type"),
                 "basis": element.get("basis"),
                 "locator_hint": element.get("locator_hint"),
+                "observed_control": bool(element.get("observed_selector") or element.get("observed_locator")),
                 "journeys": element.get("used_by_journeys") or [
                     j["journey_id"] for j in kb.journeys.values() if screen["screen_id"] in j.get("screens", [])
                 ],

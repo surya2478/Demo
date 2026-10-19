@@ -144,6 +144,24 @@ export interface HealRunResponse {
   confidence: number
 }
 
+export interface ScriptLocatorAudit {
+  code_errors: string[]
+  code_warnings: string[]
+  matched: number
+  needs_update: number
+  unverified: number
+  scope: 'saved_capture_only'
+  actions: Array<{
+    step: number
+    line: number
+    action: string
+    locator: string
+    status: 'matched' | 'needs_update' | 'unverified'
+    suggested_locator: string | null
+    screen_route: string
+  }>
+}
+
 export interface RunDetail extends RunSummary {
   has_log: boolean
   /** Returned only by the single-run endpoint, never by the list. */
@@ -549,6 +567,7 @@ export interface DryRunBrief {
   failed_title: string | null
   error_message: string | null
   is_healed: boolean
+  execution_target?: 'server' | 'device' | null
 }
 
 export interface ScriptLabCase {
@@ -561,6 +580,11 @@ export interface ScriptLabCase {
   steps: number
   test_data_status: TestDataStatus
   application_url: string | null
+  application_id?: number | null
+  /** Journey selected during AI Checks, used to open an in-place crawl. */
+  journey_id?: string | null
+  grounding_status?: GroundingStatus
+  grounding_summary?: GroundingSummary | null
   /** Who generated the review request it came from. */
   created_by?: string | null
   /** SIT, UAT...: chosen on Generate Test Cases; its runs use it. */
@@ -620,8 +644,20 @@ export interface BitbucketScriptSyncResult {
 }
 
 export interface DryRunResult {
-  queued: Array<{ script_id: number; run_key: string }>
+  queue_id: string
+  queued: Array<{ script_id: number; run_key: string; queue_position?: number }>
   refused: Array<{ script_id: number; reason: string }>
+}
+
+export interface ExecutionQueueState {
+  queue_id: string
+  paused: boolean
+  counts: Record<string, number>
+  outcomes?: Record<string, number>
+  active_run_key: string | null
+  remaining: number
+  skipped_run_key?: string
+  stopped?: number
 }
 
 export interface DryRunState {
@@ -748,9 +784,12 @@ export interface DiscoveryRun {
   auth_detail: string | null
   pages_discovered: number
   elements_discovered: number
-  explored_pages: Array<{ url: string; title: string; status: number | null }>
+  explored_pages: Array<{ url: string; requested_url?: string | null; title: string; status: number | null; linked_auth?: boolean; blocked_by_overlay?: boolean;
+    linked_auth_controls?: Array<{ page_url: string; role: string; accessible_name: string;
+      recommended_locator: string; confidence_score: number }> }>
   /** Why a page could not be crawled — a thin catalogue explains itself. */
-  blockers: Array<{ url: string; reason: string }>
+  blockers: Array<{ url: string; reason: string; kind?: string; source_url?: string;
+    entry_url?: string; target_url?: string; link_text?: string }>
   error: string | null
   /** The crawl is an ordinary run, so it has a run_key with a log and evidence. */
   run_key: string | null

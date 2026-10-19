@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 HOST, PORT = "127.0.0.1", 8765
-VERSION = "1.3.2"
+VERSION = "1.3.3"
 running_lock = threading.Lock()
 
 
@@ -303,6 +303,8 @@ def run(pair):
     if not running_lock.acquire(blocking=False):
         raise RuntimeError("Another local Playwright run is already active on this device.")
     workspace = Path(tempfile.mkdtemp(prefix="automation-studio-local-"))
+    process = None
+    log = None
     try:
         endpoint = pair.get("endpoint") or f"/automation/knowledge-base/local-runner/sessions/{pair['id']}"
         cfg = api(pair, endpoint)
@@ -341,6 +343,7 @@ def run(pair):
         process = subprocess.Popen(command,
                                    cwd=workspace, env=env, stdout=log, stderr=subprocess.STDOUT)
         last = None
+        last_heartbeat = 0.0
         started = time.monotonic()
         while process.poll() is None:
             progress_file = workspace / cfg["progress_file"]
@@ -378,6 +381,14 @@ def run(pair):
                     pass
                 except urllib.error.HTTPError:
                     process.terminate(); raise RuntimeError("The Studio cancelled or rejected this local run.")
+            elif time.monotonic() - last_heartbeat >= 2:
+                # A syntax error can prevent the reporter from creating a
+                # progress file. Keep cancellation responsive even then.
+                try:
+                    api(pair, f"{endpoint}/progress", "POST", {"message": "Preparing Playwright on this device.", "progress": {}})
+                except urllib.error.HTTPError:
+                    process.terminate(); raise RuntimeError("The Studio cancelled or rejected this local run.")
+                last_heartbeat = time.monotonic()
             time.sleep(0.75)
         log.close()
         output_file = workspace / cfg["output_file"]
@@ -418,11 +429,20 @@ def run(pair):
     except Exception as error:
         try:
             endpoint = pair.get("endpoint") or f"/automation/knowledge-base/local-runner/sessions/{pair['id']}"
-            api(pair, f"{endpoint}/fail", "POST", {"message": str(error)[:1000]})
+            failure_log = (workspace / "local-run.log").read_text(encoding="utf-8", errors="replace")[-1_000_000:] if (workspace / "local-run.log").exists() else ""
+            api(pair, f"{endpoint}/fail", "POST", {"message": str(error)[-1000:], "log": failure_log})
         except Exception:
             pass
         raise
     finally:
+        if process is not None and process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+        if log is not None and not log.closed:
+            log.close()
         running_lock.release()
 
 
@@ -451,6 +471,8 @@ class Handler(BaseHTTPRequestHandler):
             origin = self.headers.get("Origin") or ""
             if origin != pair["studio"]:
                 raise ValueError("This Studio origin is not authorised to use the local runner.")
+            if running_lock.locked():
+                raise RuntimeError("Device runner is busy with another test. Try again shortly.")
             threading.Thread(target=self.execute, args=(pair,), daemon=True).start()
             data = json.dumps({"accepted": True, "version": VERSION}).encode()
             self.send_response(202); self.cors(origin); self.send_header("Content-Type", "application/json"); self.end_headers(); self.wfile.write(data)

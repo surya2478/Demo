@@ -223,6 +223,15 @@ def apply(doc: Any, op: str, path: str, value: Any = None) -> Any:
         try:
             parent = _step(parent, segment)
         except KeyError as exc:
+            # Older Journey KBs and the original onboarding template had no
+            # profile namespace. A profile is a child of this one known
+            # object, so create that container without allowing arbitrary
+            # misspelled paths to sprout new parents.
+            if (op == "set" and parent is doc and segment == ("key", "test_data_profiles")
+                    and isinstance(doc, dict) and isinstance(doc.get("roles"), list)):
+                doc["test_data_profiles"] = {}
+                parent = doc["test_data_profiles"]
+                continue
             raise ChangeSetError(f"'{path}': nothing at {exc}.") from exc
     kind, arg = segments[-1]
     if op == "remove":

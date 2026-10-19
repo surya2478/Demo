@@ -192,11 +192,10 @@ async def start_background_tasks():
     asyncio.create_task(_session_cleanup_loop())
 
     # --- Automation Module: reclaim runs abandoned by a restart ---------------
-    # Runs execute as asyncio tasks in this process, so a restart orphans any
-    # that were in flight. Without this sweep they stay at "running" forever and
-    # the UI polls them indefinitely; marking them blocked tells the truth and
-    # lets the operator retrigger. Runs in a thread because it is synchronous
-    # SQLite work and must not block the event loop during startup.
+    # Runs execute as asyncio tasks in this process. A restart interrupts the
+    # active browser, while server runs that were still queued are safe to
+    # restore from the database. Runs in a thread because this is synchronous
+    # database work and must not block the event loop during startup.
     try:
         from .services.automation.job_manager import job_manager, sweep_orphaned_runs
 
@@ -206,9 +205,13 @@ async def start_background_tasks():
         # schedule work from either context.
         job_manager.bind_loop(asyncio.get_running_loop())
 
-        reclaimed = await asyncio.to_thread(sweep_orphaned_runs)
+        reclaimed, waiting = await asyncio.to_thread(sweep_orphaned_runs)
+        for run_key in waiting:
+            job_manager.enqueue(run_key)
         if reclaimed:
             print(f"[Automation] Marked {reclaimed} run(s) abandoned by a restart")
+        if waiting:
+            print(f"[Automation] Restored {len(waiting)} queued run(s)")
     except Exception as exc:  # noqa: BLE001 - never block startup on this
         print(f"[Automation] Startup hook skipped: {exc}")
 

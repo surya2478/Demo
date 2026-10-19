@@ -139,8 +139,9 @@ class AutomationTestCase(Base):
     classified_at = Column(DateTime, nullable=True)
 
     test_data_required = Column(Boolean, nullable=False, default=False)
-    # not_required | pending | ready -- pending blocks approval, which is the
-    # whole reason it is tracked separately from test_data_requirements.
+    # not_required | pending | ready | user_provided | kb_provided. Pending
+    # blocks approval; kb_provided means a ready vault profile covers the
+    # required fields, not that browser execution has proved the account.
     test_data_status = Column(String(20), nullable=False, default="not_required", index=True)
     test_data_notes = Column(Text, nullable=True)
 
@@ -500,9 +501,8 @@ class AutomationDiscoveryRun(Base):
     application_url = Column(Text, nullable=True)
     application_environment = Column(String(50), nullable=True)
 
-    # Kept for the seam: authenticated discovery needs credential storage,
-    # which needs a crypto dependency this deployment does not carry yet.
-    # Until then every crawl runs as an anonymous visitor.
+    # Anonymous scans and Test Data-backed sign-in scans are distinct. A
+    # protected-page catalogue is accepted only after browser verification.
     auth_mode = Column(String(20), nullable=False, default="none")
     auth_status = Column(String(30), nullable=False, default="not_required")
     auth_detail = Column(Text, nullable=True)
@@ -707,6 +707,14 @@ class AutomationDeletedOrigin(Base):
 
     deleted_by = Column(String(255), nullable=True)
     deleted_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class AutomationAICheckLease(Base):
+    """Cross-process batch ownership; checkpoints live on AutomationAICheck."""
+    __tablename__ = "automation_ai_check_leases"
+    batch_id = Column(String(40), primary_key=True)
+    owner = Column(String(40), nullable=False)
+    expires_at = Column(DateTime, nullable=False, index=True)
 
 
 class AutomationAICheck(Base):

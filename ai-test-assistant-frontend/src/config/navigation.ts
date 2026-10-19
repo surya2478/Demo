@@ -8,7 +8,7 @@ export const menuItems: MenuItem[] = [
   },
   {
     path: '/manager-review',
-    label: 'Review & Approve',
+    label: 'Human Evaluation',
     allowedRoles: ['admin', 'manager']
   },
   {

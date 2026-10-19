@@ -466,6 +466,7 @@ const ROW_SELECT_APP = 'grid grid-cols-[22px_88px_minmax(0,1fr)_150px_130px_90px
 
 interface CaseSelection {
   selected: Set<string>
+  locked?: Set<string>
   onToggle: (id: string) => void
   onToggleAll: (ids: string[], on: boolean) => void
 }
@@ -490,7 +491,7 @@ export const CaseGrid: React.FC<{
 }> = ({ cases, streaming, footerNote, selection, applicationOf, applicationPicker }) => {
   const withSelect = Boolean(selection) && !streaming
   const row = applicationOf ? (withSelect ? ROW_SELECT_APP : ROW_APP) : (withSelect ? ROW_SELECT : ROW)
-  const ids = cases.map((item) => item.id)
+  const ids = cases.map((item) => item.id).filter(id => !selection?.locked?.has(id))
   const allOn = Boolean(selection) && ids.length > 0 && ids.every((id) => selection!.selected.has(id))
   const counts = cases.reduce<Record<CaseType, number>>(
     (acc, item) => ({ ...acc, [item.type]: acc[item.type] + 1 }),
@@ -521,14 +522,15 @@ export const CaseGrid: React.FC<{
             {withSelect && (
               <input
                 type="checkbox"
-                aria-label={`Select ${item.id}`}
+                aria-label={selection!.locked?.has(item.id) ? `${item.id} already sent for evaluation` : `Select ${item.id}`}
                 checked={selection!.selected.has(item.id)}
+                disabled={selection!.locked?.has(item.id)}
                 onChange={() => selection!.onToggle(item.id)}
-                className="h-4 w-4 accent-[#B71920]"
+                className="h-4 w-4 accent-[#B71920] disabled:opacity-35"
               />
             )}
             <span className="font-semibold">{item.id}</span>
-            <span className="truncate" title={item.title}>{item.title}</span>
+            <span className="flex min-w-0 items-center gap-2" title={item.title}><span className="truncate">{item.title}</span>{selection?.locked?.has(item.id) && <span className="shrink-0 rounded-full bg-[#EAF7EF] px-1.5 py-0.5 text-[10px] font-semibold text-[#136B34]">Sent</span>}</span>
             {applicationOf && (() => {
               const app = applicationOf(item)
               const picker = !streaming && applicationPicker && !applicationPicker.locked?.(item) ? applicationPicker : undefined

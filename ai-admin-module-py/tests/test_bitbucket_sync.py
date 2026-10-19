@@ -233,6 +233,26 @@ class BitbucketSyncTests(unittest.TestCase):
         self.assertEqual(loaded.project_key, "AIT")
         self.assertEqual(loaded.base_url, "https://bitbucket.example.com")
 
+    def test_config_reads_the_application_file_directly(self):
+        raw = {
+            "enabled": True,
+            "provider": "data_center",
+            "base_url": "https://bitbucket.example.com",
+            "project_key": "AIT",
+            "auth": {},
+            "proxy": {},
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            package_config = Path(directory) / "app" / "bitbucket_config.json"
+            package_config.parent.mkdir()
+            package_config.write_text(json.dumps(raw), encoding="utf-8")
+            with patch.object(bitbucket_sync, "PACKAGE_CONFIG_PATH", package_config), patch.object(
+                bitbucket_sync, "CONFIG_PATH", Path(directory) / "missing.json"
+            ), patch.dict(os.environ, {"BITBUCKET_CONFIG_PATH": ""}, clear=False):
+                loaded = BitbucketConfig.load()
+
+        self.assertEqual(loaded.project_key, "AIT")
+
     def test_export_is_deterministic_and_excludes_internal_ai_payload(self):
         project = SimpleNamespace(ppm_id="PPM-1", name="Checkout")
         detail = SimpleNamespace(

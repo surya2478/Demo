@@ -619,7 +619,7 @@ def _stream_chat_completions(
         temperature,
     )
 
-    for attempt in (1, 2):
+    for attempt in (1, 2, 3):
         try:
             response = requests.post(
                 url, headers=headers, json=body, timeout=timeout, stream=True
@@ -632,7 +632,11 @@ def _stream_chat_completions(
             raise GenerationUnavailable(f"{label} could not be reached: {exc}") from exc
         # Reasoning models (Azure's among them) accept only the default
         # temperature: retry once without it, as azure_llm does.
-        if attempt == 1 and response.status_code == 400 and "temperature" in (response.text or "").lower():
+        if attempt < 3 and label == "OpenRouter" and response.status_code == 400 and "reasoning is mandatory" in (response.text or "").lower() and body.get("reasoning") != {"enabled": True}:
+            response.close()
+            body = {**body, "reasoning": {"enabled": True}}
+            continue
+        if attempt < 3 and "temperature" in body and response.status_code == 400 and "temperature" in (response.text or "").lower():
             response.close()
             logger.info("%s rejected 'temperature'; retrying without it", label)
             body = {k: v for k, v in body.items() if k != "temperature"}

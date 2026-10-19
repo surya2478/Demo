@@ -37,7 +37,7 @@ export interface KbOverview {
   base_url: string | null
   journeys: { total: number; by_status: Partial<Record<JourneyStatus, number>>; authored: number; open_questions: number }
   chapters: { id: string; title: string; status: JourneyStatus; journeys: number }[]
-  screens: { catalogued: number; elements: number; linked: number }
+  screens: { catalogued: number; elements: number; linked: number; observed?: number; captured_unmapped?: number }
   sources: { documents: number }
   automation: { flows: number; selectors: number }
   reconcile: Partial<Record<ElementStatus, number>>
@@ -76,6 +76,7 @@ export interface JourneyStepLink {
   status: ElementStatus
   automation_target: string | null
   app_labels: string[]
+  observed_control?: boolean
   /** Why the step's element cannot be resolved, when it cannot. */
   note?: string
 }
@@ -99,6 +100,7 @@ export interface JourneyDetail {
     journey_id: string
     name: string
     journey_path: string[]
+    source?: { kind?: string; case_id?: number; discovery_id?: number }
     sources: string[]
     roles: string[]
     shared?: boolean
@@ -141,6 +143,7 @@ export interface ReconcileRow {
   design_label: string | null
   type: string | null
   locator_hint: string | null
+  observed_control?: boolean
   journeys: string[]
   status: ElementStatus
   automation_ref: string | null
@@ -239,6 +242,7 @@ export interface CrawlPlan {
   scenario?: CrawlScenario | null
   warnings?: string[]
   screen_names?: Record<string, string>
+  signatures?: Record<string, { route?: string | null }>
 }
 
 export interface WalkFlow { flow_id: string; flow_name: string; category: string | null; steps: number }

@@ -86,9 +86,9 @@ const ReviewApproval: React.FC = () => {
 
   usePageHeader({
     eyebrow: 'AI Test Generation',
-    title: 'Review & Approval',
+    title: 'Human Evaluation',
     showSearch: true,
-    searchPlaceholder: 'Search requests, documents, people...',
+    searchPlaceholder: 'Search project, PPM, request or test-case ID...',
     onSearch,
     actions: (
       <button
@@ -114,7 +114,7 @@ const ReviewApproval: React.FC = () => {
     inTab(item, tab)
     && (source === 'all' || item.source_group === source)
     && (projectFilter === 'all' || (projectFilter === 'none' ? !item.project : String(item.project?.id) === projectFilter))
-    && (!query || [item.document_name, item.request_id, item.request_by, item.project?.ppm_id, item.project?.name].some((v) => String(v ?? '').toLowerCase().includes(query)))
+    && (!query || [item.document_name, item.request_id, item.request_by, item.project?.ppm_id, item.project?.name, ...(item.case_ids ?? [])].some((v) => String(v ?? '').toLowerCase().includes(query)))
   ).sort((a, b) => (Date.parse(b.request_date_time ?? '') || 0) - (Date.parse(a.request_date_time ?? '') || 0)), [requests, tab, source, projectFilter, query])
   const projectOptions = useMemo(() => {
     const byId = new Map<number, { id: number; ppm_id: string; name: string }>()
@@ -142,7 +142,7 @@ const ReviewApproval: React.FC = () => {
     const inLab = chosen.reduce((sum, item) => sum + item.sent_to_lab, 0)
     const ok = await confirm({
       title: count === 1 ? `Delete ${chosen[0].request_id}?` : `Delete ${count} requests?`,
-      body: count === 1 ? chosen[0].document_name : `${count} requests with ${cases} test cases will be removed from Review & Approval.`,
+      body: count === 1 ? chosen[0].document_name : `${count} requests with ${cases} test cases will be removed from Human Evaluation.`,
       consequences: [
         `Their ${cases} test case${cases === 1 ? '' : 's'} and review decisions are deleted.`,
         ...(inLab ? [`${inLab} already in Automation Studio stay there.`] : []),
@@ -323,8 +323,10 @@ const ReviewApproval: React.FC = () => {
                 const waitingLong = PENDING.includes(item.overall_status) && item.request_date_time && now - Date.parse(item.request_date_time) > 2 * 3600 * 1000
                 const checked = item.automation + item.manual
                 const pending = PENDING.includes(item.overall_status)
+                const recentlyAdded = Boolean(pending && item.request_date_time && now - Date.parse(item.request_date_time) <= 30 * 60 * 1000)
+                const primaryTitle = item.project ? `${item.project.ppm_id} · ${item.project.name}` : item.document_name
                 return (
-                  <div key={item.request_id} className={`${REQ} py-3.5 ${selected.has(item.request_id) ? 'bg-[#FFF8F8]' : ''}`}>
+                  <div key={item.request_id} className={`${REQ} py-3.5 ${selected.has(item.request_id) ? 'bg-[#FFF8F8]' : recentlyAdded ? 'bg-[#FFFBF4]' : ''}`}>
                     <input
                       type="checkbox"
                       aria-label={`Select ${item.request_id}`}
@@ -340,11 +342,10 @@ const ReviewApproval: React.FC = () => {
                     <div className="flex min-w-0 items-center gap-3">
                       <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] border border-[#F6D4D5] bg-[#FFF5F5]"><DocIcon /></div>
                       <div className="min-w-0">
-                        <div className="truncate text-[13.5px] font-bold text-[#1F2937]" title={item.document_name}>{item.document_name}</div>
+                        <div className="truncate text-[13.5px] font-bold text-[#1F2937]" title={primaryTitle}>{primaryTitle}</div>
                         <div className="mt-[3px] flex items-center gap-1.5 overflow-hidden whitespace-nowrap">
-                          {item.project && (
-                            <span className={`${CHIP} h-5 bg-[#FFF5F5] text-[10.5px] text-[#941216]`} title={`${item.project.ppm_id} · ${item.project.name}`}>{item.project.ppm_id}</span>
-                          )}
+                          {recentlyAdded && <span className={`${CHIP} h-5 bg-[#FFF0C2] text-[10.5px] text-[#8A5000]`}>New</span>}
+                          {item.project && <span className="max-w-[210px] truncate text-[11.5px] text-[#6B7280]" title={item.document_name}>{item.document_name}</span>}
                           <span className={`${CHIP} h-5 text-[10.5px] ${SOURCE_TONE[item.source_group]}`}>{item.source_group}</span>
                           <span className={`text-[11.5px] ${waitingLong ? 'font-semibold text-[#A3231C]' : 'text-[#6B7280]'}`}>{ageLabel(item.request_date_time, now)}</span>
                           <span className="text-[11.5px] text-[#6B7280]">· {item.request_by} ·</span>
@@ -385,14 +386,16 @@ const ReviewApproval: React.FC = () => {
                     />
                     <button
                       type="button"
-                      onClick={() => navigate(`/manager-review/${encodeURIComponent(item.request_id)}`)}
+                      onClick={() => item.overall_status === 'APPROVED'
+                        ? navigate('/automation/workbench')
+                        : navigate(`/manager-review/${encodeURIComponent(item.request_id)}`)}
                       className={`flex h-9 items-center justify-center rounded-[12px] px-3.5 text-[13px] font-bold transition ${
                         pending && index === 0
                           ? 'bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] hover:opacity-95'
                           : 'border-[1.5px] border-[#B71920] bg-white text-[#B71920] hover:bg-[#FFF5F5]'
                       }`}
                     >
-                      {pending ? 'Review' : 'Open'}
+                      {pending ? 'Review' : item.overall_status === 'APPROVED' ? 'Next step' : 'Open'}
                     </button>
                   </div>
                 )
@@ -417,13 +420,17 @@ const ReviewApproval: React.FC = () => {
           {recent.length === 0 && <div className="py-3 text-[12px] text-[#6B7280]">Nothing approved yet.</div>}
           {recent.map((item) => (
             <div key={item.request_id} className="flex flex-col gap-1 border-b border-[#F1F2F4] py-3">
-              <div className="truncate text-[13px] font-semibold text-[#1F2937]" title={item.document_name}>{item.document_name}</div>
+              <div className="truncate text-[13px] font-semibold text-[#1F2937]" title={item.project ? `${item.project.ppm_id} · ${item.project.name}` : item.document_name}>{item.project ? `${item.project.ppm_id} · ${item.project.name}` : item.document_name}</div>
+              {item.project && <div className="truncate text-[11.5px] text-[#6B7280]" title={item.document_name}>{item.document_name}</div>}
               <div className="text-[12px] text-[#6B7280]">{item.approved_count} approved{item.sent_to_lab ? <> · <strong className="text-[#136B34]">{item.sent_to_lab} sent to Automation Lab</strong></> : null}</div>
               <div className="flex justify-between text-[11.5px] text-[#9CA3AF]">
                 <span>{formatStamp(item.reviewed_date_time)}</span>
-                <button type="button" onClick={() => void download(item.request_id)} disabled={downloading === item.request_id} className="font-semibold text-[#B71920] hover:text-[#941216] disabled:opacity-50">
-                  {downloading === item.request_id ? 'Downloading…' : 'Download'}
-                </button>
+                <span className="flex items-center gap-2">
+                  <button type="button" onClick={() => void download(item.request_id)} disabled={downloading === item.request_id} className="font-semibold text-[#B71920] hover:text-[#941216] disabled:opacity-50">
+                    {downloading === item.request_id ? 'Downloading…' : 'Download'}
+                  </button>
+                  <button type="button" onClick={() => navigate('/automation/workbench')} className="font-bold text-[#136B34] hover:text-[#0F5A2B]">Next step →</button>
+                </span>
               </div>
             </div>
           ))}

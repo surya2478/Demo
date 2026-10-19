@@ -340,6 +340,31 @@ def save_entries(
             current = test_data.decrypt(entry.value) if was_secret else entry.value
             entry.value = test_data.encrypt(current) if item.is_secret and current is not None else current
         entry.updated_by = actor
+
+    # Keep Automation Studio's readiness badge in sync with the vault change.
+    # The script is the source of the TESTDATA_* contract, so this also covers
+    # variables automatically added from the Studio quick editor.
+    db.flush()
+    current_scripts = (
+        db.query(AutomationScript)
+        .filter(AutomationScript.is_current.is_(True))
+        .all()
+    )
+    for script in current_scripts:
+        case = script.test_case
+        if case is None:
+            continue
+        report = test_data.for_code(
+            db,
+            script.code or "",
+            environment=None,
+            case_url=case.application_url,
+            case_environment=case.environment,
+        )
+        linked = report.get("application") or {}
+        if linked.get("id") != app.id or not report.get("needed"):
+            continue
+        case.test_data_status = "pending" if report.get("missing") else "ready"
     db.commit()
     db.refresh(app)
     return _app(app, _environments(db))
