@@ -95,14 +95,10 @@ export function useRunPolling(
         }
       } catch (err: any) {
         if (!mountedRef.current) return
-        // Transient network/auth-refresh failures should not strand the
-        // Execution drawer on "Loading" or freeze an in-progress run.
+        // A transient failure should not kill the loop on a live run, but it
+        // should be visible. Keep the last good run on screen.
         setError(err?.message ?? 'Could not load this run.')
-        setPolling(true)
-        if (!document.hidden) {
-          clearTimer()
-          timerRef.current = window.setTimeout(() => poll(false), Math.max(intervalMs, 3000))
-        }
+        setPolling(false)
       } finally {
         if (mountedRef.current) {
           setRefreshing(false)
@@ -129,8 +125,6 @@ export function useRunPolling(
       return
     }
 
-    setRun(null)
-    setError(null)
     setLoading(true)
     void poll(true)
 
@@ -148,7 +142,7 @@ export function useRunPolling(
         clearTimer()
         return
       }
-      if (runKey && (!run || !isTerminal(run.status))) {
+      if (runKey && run && !isTerminal(run.status)) {
         void poll(false)
       }
     }

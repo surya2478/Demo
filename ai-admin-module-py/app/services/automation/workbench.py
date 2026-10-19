@@ -40,7 +40,7 @@ from ..automation import classification
 from ..automation.eligibility import score_test_case, split_steps
 from ..automation.llm import LLMError
 from ..automation.refine import refine_case_content, refined_to_columns
-from ...models.automation import AutomationApplication, AutomationDeletedOrigin, AutomationTestCase
+from ...models.automation import AutomationDeletedOrigin, AutomationTestCase
 
 from . import knowledge_base as kb
 
@@ -131,7 +131,6 @@ def apply_classification(
 # A human has confirmed the data exists. Distinct from "ready", which is a
 # derived fact about the requirements list; this one is a decision.
 TEST_DATA_USER_PROVIDED = "user_provided"
-TEST_DATA_KB_PROVIDED = "kb_provided"
 
 
 def derive_test_data_status(case: AutomationTestCase) -> str:
@@ -148,8 +147,8 @@ def derive_test_data_status(case: AutomationTestCase) -> str:
     edited an unrelated field -- which is what an edit does, since this runs
     from rescore() on every save.
     """
-    if case.test_data_status in (TEST_DATA_USER_PROVIDED, TEST_DATA_KB_PROVIDED):
-        return case.test_data_status
+    if case.test_data_status == TEST_DATA_USER_PROVIDED:
+        return TEST_DATA_USER_PROVIDED
 
     requirements = case.test_data_requirements or []
     if not requirements:
@@ -572,9 +571,6 @@ def sync_approved_test_cases(db: Session) -> int:
             details = json.loads(row.test_case_details) if isinstance(row.test_case_details, str) else (row.test_case_details or {})
         except Exception:
             details = {}
-        selected_application = details.get("_automation_application") if isinstance(details, dict) else None
-        if not isinstance(selected_application, dict):
-            selected_application = {}
 
         raw_display = detail_value(details, "display_id")
         if raw_display:
@@ -633,25 +629,15 @@ def sync_approved_test_cases(db: Session) -> int:
             detail_value(details, "expected"),
             detail_value(details, "test_data"),
         ))
-        # An application picked for the case in Human Evaluation / Agents
-        # Refine (_automation_application) is explicit and wins. Otherwise a
-        # case linked to the application the user chose on Generate runs
-        # there, and nowhere else; one from a generation that chose
-        # applications but could not be told apart gets no URL rather than a
-        # guess. Only an older, unlinked case goes through the inference below.
+        # A case linked to the application the user chose runs there, and
+        # nowhere else; one from a generation that chose applications but
+        # could not be told apart gets no URL rather than a guess. Only an
+        # older, unlinked case goes through the inference below.
         from . import applications as app_scope
 
-        explicit_app = None
-        try:
-            explicit_app = db.get(AutomationApplication, int(selected_application.get("id"))) if selected_application.get("id") else None
-        except (TypeError, ValueError):
-            explicit_app = None
-        choice, chosen = (None, False) if explicit_app is not None else app_scope.for_row(details)
+        choice, chosen = app_scope.for_row(details)
         app_url_match = None if chosen else re.search(r"https?://[^\s'\"\)]+", full_case_text)
-        if explicit_app is not None:
-            app_url = explicit_app.base_url
-            matched_app = explicit_app.app_key
-        elif chosen:
+        if chosen:
             app_url = app_scope.url_for(db, choice, full_case_text) if choice else None
         elif app_url_match:
             app_url = app_url_match.group(0).rstrip(".,)")
@@ -711,8 +697,7 @@ def sync_approved_test_cases(db: Session) -> int:
                 expected_result=detail_value(details, "expected") or None,
                 steps_structured=structured,
                 application_url=app_url,
-                application_id=explicit_app.id if explicit_app else app_scope.crawl_application_id(db, choice),
-                environment=explicit_app.environment if explicit_app else selected_application.get("environment"),
+                application_id=app_scope.crawl_application_id(db, choice),
                 priority=detail_value(details, "priority") or "High",
                 origin="imported",
                 classification=CLASSIFICATION_UNDECIDED,
@@ -761,10 +746,6 @@ def sync_approved_test_cases(db: Session) -> int:
                     existing.application_url = app_url
             elif app_url and (not existing.application_url or "smb" in full_case_text.lower() and "smb" not in (existing.application_url or "")):
                 existing.application_url = app_url
-            if explicit_app is not None:
-                existing.application_id = explicit_app.id
-                existing.application_url = explicit_app.base_url
-                existing.environment = explicit_app.environment
 
             # Repair a row that is still showing the fallback.
             #

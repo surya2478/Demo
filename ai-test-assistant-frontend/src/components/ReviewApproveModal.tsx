@@ -292,7 +292,7 @@ const ReviewApproveModal: React.FC<ReviewApproveModalProps> = ({
               onClick={handleSubmit}
               className="rounded-[12px] bg-[linear-gradient(180deg,#ff191f_0%,#d7141c_48%,#b91017_100%)] px-4 py-2.5 text-[13px] font-semibold text-white shadow-[0_8px_20px_rgba(183,25,32,0.22)] transition hover:opacity-95"
             >
-              Send for Evaluation
+              Send for Approval
             </button>
           </div>
         </div>

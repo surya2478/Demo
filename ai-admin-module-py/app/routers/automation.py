@@ -16,14 +16,11 @@ import csv
 import io
 import json
 import logging
-import re
 import shutil
-import uuid
 import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, Optional
-from urllib.parse import urlsplit
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +45,6 @@ from ..models.automation import (
     AutomationScript,
     AutomationTestCase,
 )
-from ..models.kb_changes import KbCrawlRun
 from ..services.authz import require_permission
 from ..services.automation import workspace as ws
 from ..services.automation.eligibility import COLUMN_ALIASES, score_test_case, split_steps
@@ -58,14 +54,12 @@ from ..services.automation.preflight import is_ready, runtime_status
 from ..services.automation.refine import refine_case_content, refined_to_columns
 from ..services.automation import compiler, locator_agent
 from ..services.automation import discovery
-from ..services.automation import agent_auth
 from ..services.automation import grounding
 from ..services.automation import classification
 from ..services.automation import extraction
 from ..services.automation import intake
 from ..services.automation import workbench as wb
 from ..services.automation import healer
-from ..services.automation.locator_audit import audit_script
 from ..services.automation import test_data
 from ..services.automation import device_runner
 from ..services.automation import knowledge_base as kb
@@ -92,7 +86,7 @@ def get_runtime_status(current_user: dict = Depends(require_permission(PERM_VIEW
     failure five seconds later. Every unavailable entry carries a `detail` that
     names what to install.
     """
-    status = runtime_status(refresh=True)
+    status = runtime_status()
     frameworks = {
         name: {"available": support.available, "detail": support.detail}
         for name, support in status.items()
@@ -365,7 +359,6 @@ class DeviceFinishRequest(BaseModel):
 
 class DeviceFailRequest(BaseModel):
     message: str = Field(default="Device Playwright stopped.", max_length=1000)
-    log: str = Field(default="", max_length=1_000_000)
 
 
 def _device_token(authorization: Optional[str]) -> str:
@@ -592,7 +585,7 @@ def finish_device_run(run_key: str, body: DeviceFinishRequest, authorization: Op
 @router.post("/local-runner/runs/{run_key}/fail")
 def fail_device_run(run_key: str, body: DeviceFailRequest, authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)):
     try:
-        return _run_summary(device_runner.fail(db, run_key, _device_token(authorization), body.message, body.log))
+        return _run_summary(device_runner.fail(db, run_key, _device_token(authorization), body.message))
     except device_runner.DeviceRunnerError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -632,7 +625,6 @@ def _dry_run_brief(run: AutomationRun) -> dict:
         "failed_title": failed.get("title") if failed else None,
         "error_message": (failed or {}).get("error") or run.error_message,
         "is_healed": bool(meta.get("is_healed")),
-        "execution_target": (run.run_config or {}).get("execution_target") or ("device" if meta.get("device_agent") else "server"),
     }
 
 
@@ -734,7 +726,7 @@ def get_run(
 
     return {
         **_run_summary(run),
-        "has_log": bool((run.log_path and Path(run.log_path).exists()) or metadata.get("live_log")),
+        "has_log": bool(run.log_path and Path(run.log_path).exists()),
         # What actually executed, so the spec can be read beside its results.
         # Only on this endpoint: a code blob per row would inflate the runs
         # list many times over for a column nobody reads there.
@@ -782,21 +774,11 @@ def cancel_run(
         device_runner.cancel(db, run)
         return {"run_key": run_key, "cancelling": True}
 
-    was_waiting = job_manager.is_pending(run_key)
     if not job_manager.cancel(run_key):
         raise HTTPException(
             status_code=409,
             detail="This run is not being executed by this process, so it cannot be cancelled here.",
         )
-    if was_waiting:
-        run.status = "cancelled"
-        run.outcome = None
-        run.error_message = "Removed from the execution queue by the user."
-        run.completed_at = datetime.utcnow()
-        if run.script and run.script.dry_run_key == run.run_key:
-            run.script.dry_run_status = "blocked"
-            run.script.dry_run_summary = {"reason": run.error_message}
-        db.commit()
     return {"run_key": run_key, "cancelling": True}
 
 
@@ -806,28 +788,6 @@ class HealRunResponse(BaseModel):
     changes_made: list[str] = Field(default_factory=list)
     original_code: str
     confidence: int = 85
-
-
-def _run_auth_rejection(run: AutomationRun | None) -> bool:
-    """Read only a known failure signal from the local browser trace, never page instructions."""
-    if not run or not run.workspace_path:
-        return False
-    workspace = Path(run.workspace_path).resolve()
-    signals = (b"username and password could not be verified", b"invalid credentials",
-               b"incorrect password", b"authentication failed", b"sign in failed", b"login failed")
-    try:
-        for trace in (workspace / "artifacts").glob("*-trace.zip"):
-            if not trace.resolve().is_relative_to(workspace) or trace.stat().st_size > 15_000_000:
-                continue
-            with zipfile.ZipFile(trace) as archive:
-                for member in archive.infolist():
-                    if member.filename.endswith(".trace") and member.file_size <= 2_000_000:
-                        evidence = archive.read(member).lower()
-                        if any(signal in evidence for signal in signals):
-                            return True
-    except (OSError, zipfile.BadZipFile, RuntimeError):
-        pass
-    return False
 
 
 @router.post("/runs/{run_key}/heal", response_model=HealRunResponse)
@@ -856,13 +816,15 @@ def heal_run_spec(
     err_msg = (first_fail.error_message if first_fail else "") or (run.error_message or "")
     stack = first_fail.stack_trace if first_fail else ""
 
-    application_id = run.application_id or (run.test_case.application_id if run.test_case else None)
     discovered_rows = (
         db.query(AutomationDiscoveredElement)
-        .join(AutomationDiscoveryRun, AutomationDiscoveredElement.discovery_run_id == AutomationDiscoveryRun.id)
-        .filter(AutomationDiscoveryRun.is_current == True, AutomationDiscoveryRun.application_id == application_id)
+        .join(
+            AutomationDiscoveryRun,
+            AutomationDiscoveredElement.discovery_run_id == AutomationDiscoveryRun.id,
+        )
+        .filter(AutomationDiscoveryRun.is_current == True)
         .all()
-    ) if application_id is not None else []
+    )
     discovered_list = [
         {
             "role": d.role,
@@ -878,8 +840,7 @@ def heal_run_spec(
         error_message=err_msg,
         stack_trace=stack,
         discovered_elements=discovered_list,
-        base_url=metadata.get("base_url") or (run.test_case.application_url if run.test_case else None),
-        authentication_rejected=_run_auth_rejection(run),
+        base_url=metadata.get("base_url"),
     )
 
     return HealRunResponse(
@@ -924,13 +885,15 @@ def heal_script_spec(
             err_msg = fail_res.error_message or ""
             stack = fail_res.stack_trace or ""
 
-    application_id = script.test_case.application_id if script.test_case else None
     discovered_rows = (
         db.query(AutomationDiscoveredElement)
-        .join(AutomationDiscoveryRun, AutomationDiscoveredElement.discovery_run_id == AutomationDiscoveryRun.id)
-        .filter(AutomationDiscoveryRun.is_current == True, AutomationDiscoveryRun.application_id == application_id)
+        .join(
+            AutomationDiscoveryRun,
+            AutomationDiscoveredElement.discovery_run_id == AutomationDiscoveryRun.id,
+        )
+        .filter(AutomationDiscoveryRun.is_current == True)
         .all()
-    ) if application_id is not None else []
+    )
     discovered_list = [
         {
             "role": d.role,
@@ -946,8 +909,7 @@ def heal_script_spec(
         error_message=err_msg,
         stack_trace=stack,
         discovered_elements=discovered_list,
-        base_url=script.test_case.application_url if script.test_case else None,
-        authentication_rejected=_run_auth_rejection(latest_run),
+        base_url=None,
     )
 
     return HealRunResponse(
@@ -2489,9 +2451,6 @@ class GenerateScriptsRequest(BaseModel):
     # Regenerating replaces the current script for the pair rather than adding
     # a version nobody asked for.
     regenerate: bool = True
-    # Explicit UI confirmation permits replacing an edited current version.
-    # The old version is superseded, never deleted, for run provenance.
-    replace_edited: bool = False
     # Ask a model for the locators the compiler had to guess. None means
     # "whatever the deployment is configured for"; true or false overrides
     # it for this request, which is what makes the difference demonstrable
@@ -2499,54 +2458,8 @@ class GenerateScriptsRequest(BaseModel):
     ai_locators: Optional[bool] = None
 
 
-def _completed_case_outcome(db: Session, case: AutomationTestCase) -> Optional[dict]:
-    """Use only the latest completed replay for this exact case journey and host."""
-    diff = case.journey_diff if isinstance(case.journey_diff, dict) else {}
-    journey_id = diff.get("journey_id")
-    if not journey_id or not case.application_url:
-        return None
-    crawl = (db.query(KbCrawlRun).filter(KbCrawlRun.journey_id == journey_id)
-             .order_by(KbCrawlRun.id.desc()).first())
-    if not crawl or crawl.status != "completed" or not isinstance(crawl.result, dict):
-        return None
-    if crawl.application_id != case.application_id or crawl.environment != case.environment:
-        return None
-    result = crawl.result
-    plan = crawl.plan if isinstance(crawl.plan, dict) else {}
-    planned = [item for item in plan.get("items", []) if isinstance(item, dict) and not item.get("setup")]
-    authored = [step for step in (case.steps_structured or []) if str(step.get("action_type") or "").lower() != "assert"]
-    if len(planned) != len(authored):
-        return None
-    for step, item in zip(authored, planned):
-        kind = {"navigate": "goto", "select": "click"}.get(str(step.get("action_type") or "").lower(), str(step.get("action_type") or "").lower())
-        if step.get("step_number") != item.get("step_number") or kind != item.get("kind"):
-            return None
-        target = str(step.get("target") or "")
-        element = item.get("element") if isinstance(item.get("element"), dict) else {}
-        if kind in {"fill", "click"} and target and target not in {element.get("element_id"), element.get("kb_target")}:
-            observed_target = any(
-                isinstance(row, dict) and row.get("element_id") == element.get("element_id")
-                and row.get("selector") == target
-                and urlsplit(row.get("url") or "").hostname == urlsplit(case.application_url).hostname
-                for row in result.get("rows", [])
-            )
-            if not observed_target:
-                return None
-        if kind == "fill" and step.get("test_data_ref"):
-            expected_variable = "TESTDATA_" + re.sub(r"[^A-Za-z0-9]+", "_", str(step["test_data_ref"])).strip("_").upper()
-            if item.get("variable") != expected_variable:
-                return None
-    observed = result.get("outcome_observation")
-    if (not isinstance(observed, dict) or result.get("derailed")
-            or not result.get("steps") or any(step.get("status") != "done" for step in result["steps"] if isinstance(step, dict))):
-        return None
-    if urlsplit(observed.get("url") or "").hostname != urlsplit(case.application_url).hostname:
-        return None
-    return observed
-
-
 class DryRunRequest(BaseModel):
-    script_ids: list[int] = Field(min_length=1, max_length=100)
+    script_ids: list[int] = Field(min_length=1)
     environment: Optional[str] = Field(default=None, max_length=50)
     base_url: Optional[str] = Field(default=None, max_length=2000)
     slow_mo_ms: Optional[int] = Field(default=None, ge=0, le=10000)
@@ -2565,10 +2478,6 @@ class ScriptDecisionRequest(BaseModel):
 class SyncScriptsRequest(BaseModel):
     case_ids: list[int] = Field(min_length=1)
     framework: str = Field(default="playwright", max_length=30)
-
-
-class AssignCaseApplicationRequest(BaseModel):
-    application_id: int
 
 
 def _script_detail(script: AutomationScript) -> dict:
@@ -2667,22 +2576,8 @@ def list_approved_automation_cases(
         )
     } if any(s.dry_run_key for s in scripts) else {}
     by_case: dict[int, list[dict]] = {}
-    case_data_status: dict[int, str] = {}
     for script in scripts:
         detail = _script_detail(script)
-        if script.framework == "playwright" and script.test_case is not None:
-            contract_errors = [issue.message for issue in compiler.validate_case_contract(script.code or "", script.test_case) if issue.level == "error"]
-            if contract_errors:
-                gate = dict(detail.get("static_gate_result") or {})
-                gate["errors"] = list(dict.fromkeys([*(gate.get("errors") or []), *contract_errors]))
-                gate["passed"] = False
-                detail["static_gate_result"] = gate
-            data_report = test_data.for_code(
-                db, script.code or "", environment=None,
-                case_url=script.test_case.application_url,
-                case_environment=script.test_case.environment,
-            )
-            case_data_status[script.test_case_id] = "pending" if data_report.get("missing") else ("ready" if data_report.get("needed") else "not_required")
         run = dry_runs.get(script.dry_run_key)
         if run is not None:
             # Read through the run, as get_dry_run does: the column on the
@@ -2714,13 +2609,9 @@ def list_approved_automation_cases(
                 "priority": case.priority,
                 "steps": len(case.steps_structured or []),
                 "created_at": case.created_at.isoformat() if case.created_at else None,
-                "test_data_status": case_data_status.get(case.id, case.test_data_status),
+                "test_data_status": case.test_data_status,
                 "application_url": case.application_url,
-                "application_id": case.application_id,
                 "environment": case.environment,
-                "journey_id": (case.journey_diff or {}).get("journey_id") if isinstance(case.journey_diff, dict) else None,
-                "grounding_status": case.grounding_status,
-                "grounding_summary": case.grounding_summary,
                 "scripts": by_case.get(case.id, []),
                 "project": projects.get(case.project_id),
                 "request_id": case.origin_request_id,
@@ -2731,47 +2622,6 @@ def list_approved_automation_cases(
             }
             for case in cases
         ],
-    }
-
-
-@router.put("/scripts/cases/{case_id}/application")
-def assign_case_application(
-    case_id: int,
-    body: AssignCaseApplicationRequest,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
-):
-    """Link a Studio case to a registered application without leaving the drawer."""
-    case = db.get(AutomationTestCase, case_id)
-    if case is None:
-        raise HTTPException(status_code=404, detail="Test case not found.")
-    application = _application_or_404(db, body.application_id)
-    case.application_id = application.id
-    case.application_url = application.base_url
-    case.environment = application.environment
-
-    current_scripts = [script for script in (case.scripts or []) if script.is_current]
-    if current_scripts:
-        reports = [
-            test_data.for_code(
-                db,
-                script.code or "",
-                environment=None,
-                case_url=case.application_url,
-                case_environment=case.environment,
-            )
-            for script in current_scripts
-        ]
-        needed = any(report.get("needed") for report in reports)
-        missing = any(report.get("missing") for report in reports)
-        case.test_data_status = "pending" if missing else ("ready" if needed else "not_required")
-    db.commit()
-    return {
-        "success": True,
-        "case_id": case.id,
-        "application_id": application.id,
-        "application_url": application.base_url,
-        "environment": application.environment,
     }
 
 
@@ -2848,11 +2698,6 @@ def generate_scripts(
                 ]
                 db.commit()
 
-        bound_steps = test_data.bind_observed_case_values(db, case)
-        if bound_steps != (case.steps_structured or []):
-            case.steps_structured = bound_steps
-            db.flush()
-
         script_key = f"{case.id}:{body.framework}"
         existing = (
             db.query(AutomationScript)
@@ -2867,41 +2712,24 @@ def generate_scripts(
                 {"display_id": case.display_id, "reason": "A current script already exists."}
             )
             continue
-        if existing and existing.edited_by_user and body.regenerate and not body.replace_edited:
+        if existing and existing.edited_by_user and body.regenerate:
             skipped.append(
                 {
                     "display_id": case.display_id,
                     "reason": (
-                        "The current script has edits. Confirm replacing edits to regenerate it."
+                        "The current script has hand-written edits. Delete it first if you "
+                        "really want to discard them."
                     ),
                 }
             )
             continue
 
         try:
-            outcome_observation = _completed_case_outcome(db, case) if body.framework == "playwright" else None
-            case_catalog = catalog
-            if outcome_observation:
-                # Use the exact replay that passed the case/host/step checks
-                # above, not another case's latest broad discovery catalogue.
-                replay = (db.query(KbCrawlRun)
-                          .filter(KbCrawlRun.journey_id == case.journey_diff["journey_id"])
-                          .order_by(KbCrawlRun.id.desc()).first())
-                case_catalog = [
-                    {"page_url": row.get("url"), "recommended_locator": row.get("selector"),
-                     "accessible_name": row.get("app_label") or row.get("design_label"),
-                     "element_name": row.get("element_id"), "role": row.get("type")}
-                    for row in replay.result.get("rows", [])
-                    if row.get("outcome") in {"confirmed", "new", "healed"}
-                    and row.get("selector") and row.get("url")
-                    and not row.get("ambiguous") and not row.get("data_dependent")
-                ]
             compiled = compiler.compile_for(
                 case,
                 body.framework,
                 base_url=body.base_url or case.application_url,
-                catalog=case_catalog,
-                outcome_observation=outcome_observation,
+                catalog=catalog,
             )
 
             # --- Automation Module: AI fills only what the compiler flagged ---
@@ -2926,16 +2754,15 @@ def generate_scripts(
                     compiled.unresolved,
                     application_url=body.base_url or case.application_url,
                     application_name=getattr(case, "category", None),
-                    candidates=case_catalog,
+                    candidates=catalog,
                 )
                 if resolved:
                     compiled = compiler.compile_for(
                         case,
                         body.framework,
                         base_url=body.base_url or case.application_url,
-                        catalog=case_catalog,
+                        catalog=catalog,
                         locator_overrides=resolved,
-                        outcome_observation=outcome_observation,
                     )
         except ValueError as exc:
             skipped.append({"display_id": case.display_id, "reason": str(exc)})
@@ -2966,12 +2793,6 @@ def generate_scripts(
             created_by=username,
         )
         db.add(script)
-        if body.framework == "playwright":
-            data_report = test_data.for_code(
-                db, compiled.code, environment=None,
-                case_url=case.application_url, case_environment=case.environment,
-            )
-            case.test_data_status = "pending" if data_report.get("missing") else ("ready" if data_report.get("needed") else "not_required")
         produced.append(script)
 
     db.commit()
@@ -3058,34 +2879,6 @@ def _load_script(db: Session, script_id: int) -> AutomationScript:
     return script
 
 
-def _prepare_generated_script_for_run(db: Session, script: AutomationScript) -> dict:
-    """Recheck stored code and repair the one legacy generated selector defect.
-
-    Never rewrite a human-edited script. Older generated scripts were saved
-    before the CSS-locator fix and may have a stale passing gate result.
-    """
-    if script.framework != "playwright":
-        return script.static_gate_result or {}
-    code = script.code or ""
-    repaired = compiler.repair_legacy_bare_selectors(code) if not script.edited_by_user else code
-    issues = compiler.run_static_gate(repaired, repaired.count("test.step("), repaired.count("test.step("))
-    if script.test_case is not None:
-        issues.extend(compiler.validate_case_contract(repaired, script.test_case))
-    errors = [item.message for item in issues if item.level == "error"]
-    previous = script.static_gate_result or {}
-    for prior in previous.get("errors") or []:
-        if repaired != code and "CSS selector was used as code" in prior:
-            continue
-        if prior not in errors:
-            errors.append(prior)
-    gate = {**previous, "passed": not errors, "errors": errors}
-    if repaired != code or gate != previous:
-        script.code = repaired
-        script.static_gate_result = gate
-        db.commit()
-    return gate
-
-
 @router.get("/scripts/{script_id}")
 def get_script(
     script_id: int,
@@ -3093,30 +2886,6 @@ def get_script(
     current_user: dict = Depends(require_permission(PERM_VIEW)),
 ):
     return _script_detail(_load_script(db, script_id))
-
-
-@router.get("/scripts/{script_id}/audit")
-def audit_script_spec(
-    script_id: int,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission(PERM_VIEW)),
-):
-    """Read-only locator/code evidence audit for the saved script."""
-    script = _load_script(db, script_id)
-    case = script.test_case
-    application_id = case.application_id if case else None
-    rows = (
-        db.query(AutomationDiscoveredElement)
-        .join(AutomationDiscoveryRun, AutomationDiscoveredElement.discovery_run_id == AutomationDiscoveryRun.id)
-        .filter(AutomationDiscoveryRun.is_current == True, AutomationDiscoveryRun.application_id == application_id)
-        .all()
-    ) if application_id is not None else []
-    discovered = [
-        {"role": row.role, "accessible_name": row.accessible_name,
-         "recommended_locator": row.recommended_locator, "page_url": row.page_url}
-        for row in rows
-    ]
-    return audit_script(script.code or "", case.application_url if case else None, discovered)
 
 
 @router.patch("/scripts/{script_id}")
@@ -3129,13 +2898,6 @@ def edit_script(
     """Hand-edit a script, then re-run the static gate over what was typed."""
     script = _load_script(db, script_id)
     script.code = body.code
-    # A run describes the code that was executed, not subsequent edits. Keep
-    # its immutable AutomationRun record, but do not show its failed step as
-    # the status of a script whose step structure has changed.
-    script.dry_run_status = "not_run"
-    script.dry_run_summary = None
-    script.dry_run_key = None
-    script.dry_run_at = None
     # Flagged so regeneration warns before discarding the edit.
     script.edited_by_user = True
     script.static_gate_result = {
@@ -3204,9 +2966,6 @@ def dry_run_scripts(
         raise HTTPException(status_code=503, detail=f"The browser runtime is not available. {detail}")
 
     username = (current_user or {}).get("username")
-    # One submission is one controllable queue. The id is stored on every run
-    # so pause/skip/stop remains scoped to this user batch in production.
-    queue_id = f"queue-{uuid.uuid4().hex[:12]}"
     queued, refused = [], []
 
     for script_id in body.script_ids:
@@ -3225,7 +2984,7 @@ def dry_run_scripts(
                 }
             )
             continue
-        gate = _prepare_generated_script_for_run(db, script)
+        gate = script.static_gate_result or {}
         if gate.get("passed") is False:
             refused.append(
                 {
@@ -3248,6 +3007,11 @@ def dry_run_scripts(
         missing_data = test_data.missing_message(data_report)
         if missing_data:
             refused.append({"script_id": script_id, "reason": missing_data})
+            continue
+
+        permitted, reason = job_manager.capacity()
+        if not permitted:
+            refused.append({"script_id": script_id, "reason": reason})
             continue
 
         run_key = new_run_key()
@@ -3275,7 +3039,6 @@ def dry_run_scripts(
                 "code": script.code,
                 "base_url": body.base_url,
                 "file_name": script.file_name,
-                "queue_id": queue_id,
             },
             triggered_by=username,
         )
@@ -3287,12 +3050,8 @@ def dry_run_scripts(
         db.commit()
         db.refresh(run)
 
-        queue_position = job_manager.enqueue(run_key, group_id=queue_id)
-        queued.append({
-            "script_id": script.id,
-            "run_key": run_key,
-            "queue_position": queue_position,
-        })
+        job_manager.submit(run_key)
+        queued.append({"script_id": script.id, "run_key": run_key})
 
     audit_log(
         actor=username or "unknown",
@@ -3308,122 +3067,7 @@ def dry_run_scripts(
 
     if not queued and refused:
         raise HTTPException(status_code=409, detail=refused[0]["reason"])
-    return {"queue_id": queue_id, "queued": queued, "refused": refused}
-
-
-def _owned_queue_runs(db: Session, queue_id: str, current_user: dict) -> list[AutomationRun]:
-    username = str((current_user or {}).get("username") or "")
-    runs = (
-        db.query(AutomationRun)
-        .filter(AutomationRun.triggered_by == username)
-        .order_by(AutomationRun.id.asc())
-        .all()
-    )
-    owned = [run for run in runs if (run.run_metadata or {}).get("queue_id") == queue_id]
-    if not owned:
-        raise HTTPException(status_code=404, detail="This execution queue was not found.")
-    return owned
-
-
-def _queue_snapshot(runs: list[AutomationRun], queue_id: str) -> dict[str, Any]:
-    counts: dict[str, int] = {}
-    outcomes: dict[str, int] = {}
-    for run in runs:
-        counts[run.status] = counts.get(run.status, 0) + 1
-        if run.status not in ("queued", "running"):
-            result = run.outcome or run.status
-            outcomes[result] = outcomes.get(result, 0) + 1
-    return {
-        "queue_id": queue_id,
-        "paused": job_manager.is_group_paused(queue_id),
-        "counts": counts,
-        "outcomes": outcomes,
-        "active_run_key": next((run.run_key for run in runs if run.status == "running"), None),
-        "remaining": sum(counts.get(status, 0) for status in ("queued", "running")),
-    }
-
-
-@router.get("/run-queues/{queue_id}")
-def execution_queue_state(
-    queue_id: str,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission(PERM_VIEW)),
-):
-    return _queue_snapshot(_owned_queue_runs(db, queue_id, current_user), queue_id)
-
-
-@router.post("/run-queues/{queue_id}/pause")
-def pause_execution_queue(
-    queue_id: str,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
-):
-    runs = _owned_queue_runs(db, queue_id, current_user)
-    job_manager.pause_group(queue_id)
-    return _queue_snapshot(runs, queue_id)
-
-
-@router.post("/run-queues/{queue_id}/resume")
-def resume_execution_queue(
-    queue_id: str,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
-):
-    runs = _owned_queue_runs(db, queue_id, current_user)
-    job_manager.resume_group(queue_id)
-    return _queue_snapshot(runs, queue_id)
-
-
-def _mark_waiting_cancelled(db: Session, run: AutomationRun, message: str) -> None:
-    run.status = "cancelled"
-    run.outcome = None
-    run.error_message = message
-    run.completed_at = datetime.utcnow()
-    if run.script and run.script.dry_run_key == run.run_key:
-        run.script.dry_run_status = "blocked"
-        run.script.dry_run_summary = {"reason": message}
-
-
-@router.post("/run-queues/{queue_id}/skip-current")
-def skip_current_queue_run(
-    queue_id: str,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
-):
-    runs = _owned_queue_runs(db, queue_id, current_user)
-    current = next((run for run in runs if run.status == "running"), None)
-    if current is None:
-        current = next((run for run in runs if run.status == "queued"), None)
-    if current is None:
-        raise HTTPException(status_code=409, detail="This queue has no run to skip.")
-    was_waiting = job_manager.is_pending(current.run_key)
-    if not job_manager.cancel(current.run_key):
-        raise HTTPException(status_code=409, detail="The current run cannot be stopped by this server process.")
-    if was_waiting:
-        _mark_waiting_cancelled(db, current, "Skipped by the user; the queue continued with the next test.")
-        db.commit()
-    return {**_queue_snapshot(runs, queue_id), "skipped_run_key": current.run_key}
-
-
-@router.post("/run-queues/{queue_id}/stop")
-def stop_execution_queue(
-    queue_id: str,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
-):
-    runs = _owned_queue_runs(db, queue_id, current_user)
-    stopped = 0
-    for run in runs:
-        if run.status not in ("queued", "running"):
-            continue
-        was_waiting = job_manager.is_pending(run.run_key)
-        if job_manager.cancel(run.run_key):
-            stopped += 1
-            if was_waiting:
-                _mark_waiting_cancelled(db, run, "The remaining execution queue was stopped by the user.")
-    job_manager.discard_group(queue_id)
-    db.commit()
-    return {**_queue_snapshot(runs, queue_id), "stopped": stopped}
+    return {"queued": queued, "refused": refused}
 
 
 @router.post("/scripts/{script_id}/dry-run-local", status_code=201)
@@ -3446,7 +3090,7 @@ def dry_run_script_on_device(
         raise HTTPException(status_code=404, detail="Script not found.")
     if script.framework != "playwright":
         raise HTTPException(status_code=409, detail="Only Playwright scripts can run on a device.")
-    gate = _prepare_generated_script_for_run(db, script)
+    gate = script.static_gate_result or {}
     if gate.get("passed") is False:
         raise HTTPException(status_code=409, detail="Static gate failed: " + "; ".join(gate.get("errors") or []))
     previous = (
@@ -4032,7 +3676,6 @@ class DiscoveryRequest(BaseModel):
     crawling one application in a second environment.
     """
 
-    headless: bool = True
     application_id: Optional[int] = None
     application_url: Optional[str] = Field(default=None, max_length=2000)
     application_environment: Optional[str] = Field(default=None, max_length=50)
@@ -4040,10 +3683,6 @@ class DiscoveryRequest(BaseModel):
     # "chrome" (installed Google Chrome) or "chromium" (Playwright's); blank
     # takes AUTOMATION_CRAWL_BROWSER.
     browser: Optional[Literal["chrome", "chromium"]] = None
-    login_journey_id: Optional[str] = None
-    profile_id: Optional[str] = None
-    focus_terms: list[str] = Field(default_factory=list, max_length=12)
-    additional_urls: list[str] = Field(default_factory=list, max_length=5)
 
 
 class GroundRequest(BaseModel):
@@ -4163,9 +3802,6 @@ def _absorb_discovery_result(db: Session, run: AutomationDiscoveryRun) -> Automa
     if execution.status == "cancelled":
         run.status = "failed"
         run.error = "The crawl was cancelled."
-        if run.auth_mode == "test_data":
-            run.auth_status = "failed"
-            run.auth_detail = run.error
         db.commit()
         return run
 
@@ -4187,9 +3823,6 @@ def _absorb_discovery_result(db: Session, run: AutomationDiscoveryRun) -> Automa
             execution.error_message
             or "The crawl produced no catalogue. Its log explains what stopped it."
         )
-        if run.auth_mode == "test_data":
-            run.auth_status = "failed"
-            run.auth_detail = run.error[:500]
         db.commit()
         return run
 
@@ -4200,22 +3833,8 @@ def _absorb_discovery_result(db: Session, run: AutomationDiscoveryRun) -> Automa
     except ValueError as exc:
         run.status = "failed"
         run.error = str(exc)
-        if run.auth_mode == "test_data":
-            run.auth_status = "failed"
-            run.auth_detail = run.error[:500]
         db.commit()
         return run
-
-    if run.auth_mode == "test_data":
-        authentication = parsed.get("auth") or {}
-        run.auth_status = "verified" if authentication.get("verified") is True else "failed"
-        run.auth_detail = str(authentication.get("detail") or "Sign-in was not verified.")[:500]
-        if run.auth_status != "verified":
-            run.status = "failed"
-            run.error = run.auth_detail
-            run.blockers = parsed["blockers"]
-            db.commit()
-            return run
 
     for element in parsed["elements"]:
         db.add(AutomationDiscoveredElement(discovery_run_id=run.id, **element))
@@ -4275,22 +3894,6 @@ def start_discovery(
             ),
         )
     environment = (body.application_environment or application.environment or "").strip() or None
-    try:
-        body.additional_urls = discovery.validated_capture_urls(target_url, body.additional_urls)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    auth_plan = None
-    if body.login_journey_id:
-        from ..services.journeys import store
-        kb_data = store.load(application.app_key)
-        auth_plan = (agent_auth.observed_login_plan(
-            kb_data, base_url=target_url, profile_id=body.profile_id,
-            requested_journey=body.login_journey_id, environment=environment) if kb_data else None)
-        if not auth_plan:
-            raise HTTPException(status_code=400, detail="No unique approved login journey has browser-observed controls on this application host and screen.")
-        required = auth_plan.get("credential_variables") or ["TESTDATA_USERNAME", "TESTDATA_PASSWORD"]
-        if not agent_auth.login_variables_ready(db, application.app_key, environment or "", required):
-            raise HTTPException(status_code=400, detail="The approved login profile needs username and password Test Data in this environment.")
 
     # Versioned, not overwritten: a case grounded against the previous
     # catalogue keeps pointing at the run it was actually matched against.
@@ -4308,11 +3911,11 @@ def start_discovery(
         status="queued",
         application_url=target_url,
         application_environment=environment,
-        auth_mode="test_data" if auth_plan else "none",
-        auth_status="pending" if auth_plan else "not_required",
+        auth_mode="none",
+        auth_status="not_required",
         auth_detail=(
-            "Sign-in with environment Test Data is pending browser verification."
-            if auth_plan else "Crawled as an anonymous visitor."
+            "Crawled as an anonymous visitor. Authenticated discovery needs credential "
+            "storage, which this deployment does not carry yet."
         ),
         created_by=username,
     )
@@ -4326,19 +3929,12 @@ def start_discovery(
         framework="playwright",
         environment=environment,
         status="queued",
-        # A rejected sign-in or inaccessible page is evidence, not a script
-        # defect. Let discovery report it; the generic healer must not rewrite
-        # this host- and screen-scoped browser evidence workflow.
-        run_config={"headless": body.headless and not bool(auth_plan and auth_plan.get('interactive')),
-                    "slow_mo_ms": 1000, "mode": "discovery", "auto_heal": False,
+        run_config={"headless": True, "slow_mo_ms": 1000, "mode": "discovery",
                     "browser": body.browser or ws.default_browser()},
         run_metadata={
             "code": discovery.build_discovery_spec(
                 target_url,
                 max_pages=body.max_pages,
-                auth=auth_plan,
-                focus_terms=body.focus_terms,
-                additional_urls=body.additional_urls,
                 # Derived from max_pages and capped below the runner's own
                 # subprocess timeout, so asking for more pages actually buys
                 # time for them instead of timing out partway through.

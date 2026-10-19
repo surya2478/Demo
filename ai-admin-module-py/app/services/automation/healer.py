@@ -8,10 +8,8 @@ scripts before publishing final test results.
 from __future__ import annotations
 
 import logging
-import json
 import re
 from typing import Any, Optional
-from urllib.parse import urlparse
 from pydantic import BaseModel, Field
 
 from ...config import settings
@@ -19,96 +17,6 @@ from . import llm
 from . import knowledge_base as kb
 
 logger = logging.getLogger(__name__)
-
-
-def _heal_captured_form_locators(
-    code: str, error_message: str, stack_trace: str,
-    discovered_elements: list[dict[str, Any]] | None, base_url: str | None,
-) -> tuple[str, str, list[str]] | None:
-    """Repair every captured input on the failed form, not only the first failure."""
-    failure = f"{error_message}\n{stack_trace}"
-    if not re.search(r"locator\.(?:fill|click|check|selectOption)|waiting for getBy", failure, re.I):
-        return None
-    from .control_evidence import choose_control, host, observed_controls, route
-    from .compiler import sanitize_catalog_locator
-
-    urls = re.findall(r"https?://[^\s'\"`]+", code)
-    application_url = base_url if host(base_url) else next((url for url in urls if host(url)), "")
-    if not application_url:
-        return None
-
-    fill_pattern = re.compile(
-        r"(?P<lookup>page\.getBy(?:Label|Placeholder)\((?P<quote>['\"])(?P<label>.+?)(?P=quote)\)(?:\.first\(\))?)"
-        r"\.fill\((?P<value>[A-Za-z_][A-Za-z_0-9]*)\);"
-    )
-    lines = code.splitlines(keepends=True)
-    changed: list[str] = []
-    unmatched: list[str] = []
-    assertions = 0
-    active_route = route(application_url)
-    control_cache: dict[str, list] = {}
-    for index, line in enumerate(lines):
-        navigation = re.search(r"(?:navigateTo\(page,\s*|page\.goto\()(['\"])(/[^'\"]+|https?://[^'\"]+)\1", line)
-        if navigation:
-            destination = navigation.group(2)
-            if destination.startswith("/") or host(destination) == host(application_url):
-                active_route = route(destination)
-        if active_route not in control_cache:
-            control_cache[active_route] = observed_controls(application_url, active_route or None, discovered_elements)
-        controls = control_cache[active_route]
-        found = fill_pattern.search(line)
-        if found:
-            label = found.group("label")
-            control = choose_control(label, "fill", controls)
-            locator = sanitize_catalog_locator(control.selector) if control else None
-            if not locator:
-                unmatched.append(label)
-                continue
-            lines[index] = line.replace(found.group("lookup"), locator, 1)
-            if index and "[AI-resolved locator" in lines[index - 1]:
-                indent = re.match(r"\s*", lines[index - 1]).group(0)
-                lines[index - 1] = f"{indent}// [Captured control] {label}: {control.selector}\n"
-            changed.append(f"{label} → {control.selector}")
-            # A filled input's value is not page text. Fix only this step's
-            # immediate assertion, not one from a later page or action.
-            for next_index in range(index + 1, min(index + 4, len(lines))):
-                candidate = lines[next_index]
-                if "await test.step(" in candidate or candidate.strip() == "});":
-                    break
-                if re.search(r"await expect\(page\.getByText\(.+\)\.first\(\)\)\.toBeVisible\(\{ timeout: 15000 \}\);", candidate):
-                    indent = re.match(r"\s*", candidate).group(0)
-                    lines[next_index] = f"{indent}await expect({locator}).toHaveValue({found.group('value')}, {{ timeout: 15000 }});\n"
-                    assertions += 1
-                    break
-            continue
-        # Repair an action whose guessed role/name points at the wrong control.
-        # Only rewrite a test-step statement, never a helper or optional overlay.
-        if not line.lstrip().startswith("await page.getByRole(") or ".click(" not in line:
-            continue
-        role_match = re.search(r"page\.getByRole\((['\"])(?P<role>[^'\"]+)\1,\s*\{\s*name:\s*(['\"])(?P<label>.+?)\3\s*\}\)", line)
-        if not role_match:
-            continue
-        label = role_match.group("label")
-        control = choose_control(label, "click", controls)
-        locator = sanitize_catalog_locator(control.selector) if control else None
-        if not locator:
-            unmatched.append(label)
-            continue
-        indent = re.match(r"\s*", line).group(0)
-        lines[index] = f"{indent}await {locator}.click();\n"
-        changed.append(f"{label} action → {control.selector} (click errors now surface)")
-    healed = "".join(lines)
-    if not changed:
-        return None
-    action_count = sum(" action → " in item for item in changed)
-    summary = f"Replaced {len(changed) - action_count} guessed input locators and {action_count} action locators with application- and screen-matched captured controls; corrected {assertions} input-value assertions."
-    if unmatched:
-        summary += f" No captured match for: {', '.join(sorted(set(unmatched)))}; those locators were left unchanged."
-    return (
-        healed,
-        summary,
-        changed + ([f"Unverified locators left unchanged: {', '.join(sorted(set(unmatched)))}."] if unmatched else []),
-    )
 
 
 class HealResponse(BaseModel):
@@ -566,7 +474,6 @@ def diagnose_and_heal(
     stack_trace: str,
     discovered_elements: list[dict[str, Any]] | None = None,
     base_url: str | None = None,
-    authentication_rejected: bool = False,
 ) -> tuple[str, str, list[str]]:
     """Analyzes execution failure and produces a healed test script.
 
@@ -574,33 +481,14 @@ def diagnose_and_heal(
     """
     logger.info("Healer Agent analyzing test failure: %s", (error_message or "")[:200])
 
-    if authentication_rejected and re.search(r"log\s*out|sign\s*out|logout|signout", f"{error_message}\n{stack_trace}", re.I):
-        return (code,
-                "The browser trace shows that the application rejected the sign-in credentials. The Log Out control never appeared because login did not succeed; changing its locator would not fix this run. Select a working account in Test Data, then rerun. The script was left unchanged.",
-                [])
-
-    label_fix = _heal_captured_form_locators(
-        code, error_message or "", stack_trace or "", discovered_elements, base_url
-    )
-    if label_fix is not None:
-        healed_code, diagnosis, changes = label_fix
-        return _reject_if_broken(healed_code, diagnosis, changes, original=code, source="Captured control")
-
     # 1. Try instant rule-based fix
-    is_locator_failure = bool(re.search(r"locator\.(?:fill|click|check|selectOption)|waiting for getBy", f"{error_message}\n{stack_trace}", re.I))
-    rule_fix = None if is_locator_failure else _fast_rule_heal(code, error_message or "", stack_trace or "")
+    rule_fix = _fast_rule_heal(code, error_message or "", stack_trace or "")
     if rule_fix is not None:
         healed_code, diagnosis, changes = rule_fix
         logger.info("Rule-based healer successfully produced repair: %s", diagnosis)
         return _reject_if_broken(
             healed_code, diagnosis, changes, original=code, source="Rule-based"
         )
-
-    # A locator failure without a unique, captured control is an evidence gap.
-    # Sending the entire script to the LLM adds long latency and can invent a
-    # selector that has never been observed in this application.
-    if is_locator_failure:
-        return (code, "No unique captured control matched the failed locator on this application and screen. The script was not changed; recapture the page or inspect the locator audit.", [])
 
     # 2. Try LLM-based intelligent healing
     discovered_summary = []
@@ -647,12 +535,7 @@ def diagnose_and_heal(
             temperature=0.1,
             timeout=45.0,
         )
-        failed_label = re.search(r"getByLabel\((['\"])(.+?)\1\)", f"{error_message}\n{stack_trace}")
-        unresolved_label = failed_label and re.search(
-            r"getByLabel\((['\"])" + re.escape(failed_label.group(2)) + r"\1\)",
-            response.healed_code,
-        )
-        if response.healed_code and "test(" in response.healed_code and not unresolved_label:
+        if response.healed_code and "test(" in response.healed_code:
             logger.info("LLM Healer produced repaired script. Diagnosis: %s", response.diagnosis)
             return _reject_if_broken(
                 response.healed_code,
@@ -664,8 +547,6 @@ def diagnose_and_heal(
     except Exception as exc:
         logger.warning("LLM Healer call failed (%s). Falling back to safe script adjustment.", exc)
 
-    # A click workaround cannot repair a missing fill locator. Never present it
-    # as a successful fix for that failure.
     # 3. Fallback safe healing: wrap clicks with try/catch force click
     fallback_code = re.sub(
         r"await\s+page\.(getBy[A-Za-z]+\([^)]+\))\.click\(\);",

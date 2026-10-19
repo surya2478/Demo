@@ -135,8 +135,6 @@ const KnowledgeBase: React.FC = () => {
         const list = registered.applications ?? []
         setApplications(list)
         setJourneyApps(kbApps)
-        const requested = params.get('app')
-        const requestedSelection = requested && (list.find(a => a.app_key === requested) ? `reg:${list.find(a => a.app_key === requested)!.id}` : kbApps.some(k => k.app_id === requested) ? `kb:${requested}` : null)
         const stored = window.localStorage.getItem(SELECTION_STORAGE_KEY)
         const valid = (key: string | null) =>
           !!key && (list.some(a => `reg:${a.id}` === key) || kbApps.some(k => `kb:${k.app_id}` === key))
@@ -147,7 +145,6 @@ const KnowledgeBase: React.FC = () => {
           : null
         setSelection(
           askedKey ? askedKey
-            : valid(requestedSelection) ? requestedSelection
             : valid(stored) ? stored
             : firstWithKb ? `reg:${firstWithKb.id}`
               : kbApps[0] ? `kb:${kbApps[0].app_id}`
@@ -156,7 +153,7 @@ const KnowledgeBase: React.FC = () => {
       })
       .catch((err: any) => live && setAppsError(err?.message ?? 'Registered applications could not be read.'))
     return () => { live = false }
-  }, [appsTick]) // URL application selection is read on the initial load.
+  }, [appsTick])
 
   const selectedApp = selection?.startsWith('reg:') ? applications.find(a => `reg:${a.id}` === selection) ?? null : null
   const selectedAppId = selectedApp?.id ?? null
@@ -206,10 +203,8 @@ const KnowledgeBase: React.FC = () => {
 
   // Bumped after a publish or revert, so every stage reloads what changed.
   const [revision, setRevision] = useState(0)
-  const [dataCoverage, setDataCoverage] = useState<{ profiles: number; ready: number; missing: number } | null>(null)
   const [pending, setPending] = useState(0)
   const [drawer, setDrawer] = useState<null | 'review' | 'history'>(null)
-  useEffect(() => { if (params.get('review') === '1' && appKey) setDrawer('review') }, [params, appKey])
 
   const loadPending = useCallback(() => {
     if (!appKey) { setPending(0); return }
@@ -219,11 +214,9 @@ const KnowledgeBase: React.FC = () => {
 
   useEffect(() => {
     setOverview(null)
-    setDataCoverage(null)
     if (!appKey) return
     let live = true
     knowledgeBaseService.overview(appKey).then(o => live && setOverview(o)).catch(() => undefined)
-    knowledgeBaseService.testData(appKey).then(c => live && setDataCoverage({ profiles: c.profiles.length, ready: c.totals.ready, missing: c.totals.missing })).catch(() => undefined)
     return () => { live = false }
   }, [appKey, revision])
 
@@ -257,16 +250,16 @@ const KnowledgeBase: React.FC = () => {
     return [
       s('setup', 'Start here', !kbKey ? 'Register an application' : registeredForCrawl && appKey ? 'Registered · ready' : 'Finish registering', registeredForCrawl && appKey ? 'done' : kbKey ? 'attn' : 'idle'),
       s('sources', 'Sources', overview ? `${overview.sources.documents} document${overview.sources.documents === 1 ? '' : 's'}` : '—', overview ? 'done' : 'idle'),
-      s('journeys', 'Journey KB', j ? `${j.authored} authored · ${overview?.sources.documents ?? 0} source documents` : '—', j?.authored ? 'done' : j ? 'attn' : 'idle'),
-      s('model', 'App Model', overview ? `${overview.screens.catalogued} screens · ${overview.screens.observed ?? 0} observed controls` : '—', overview ? 'done' : 'idle'),
-      s('testdata', 'Test Data', dataCoverage ? `${dataCoverage.profiles} profiles · ${dataCoverage.ready} ready · ${dataCoverage.missing} missing` : 'Checking coverage', dataCoverage?.ready ? 'done' : appKey ? 'attn' : 'idle'),
+      s('journeys', 'Journey KB', j ? `${j.authored} authored · ${j.by_status.source_available ?? 0} ready` : '—', j && (j.by_status.source_available ?? 0) > 0 ? 'attn' : j ? 'done' : 'idle'),
+      s('model', 'App Model', overview ? `${overview.screens.catalogued} screens` : '—', overview ? 'done' : 'idle'),
+      s('testdata', 'Test Data', 'Coverage per environment', appKey ? 'attn' : 'idle'),
       s('crawl', 'Walk & Dry run', selectedApp ? 'Journeys and flows, live' : 'Add it in Test Data', selectedApp?.discovery ? 'done' : 'idle'),
       s('automation', 'Automation KB', overview ? `${overview.automation.flows} flows · ${overview.automation.selectors} selectors` : `${selectedApp?.knowledge_base.flows ?? 0} flow${selectedApp?.knowledge_base.flows === 1 ? '' : 's'}`, (overview?.automation.flows ?? selectedApp?.knowledge_base.flows ?? 0) > 0 ? 'done' : 'idle'),
       s('map', 'Journey Map', 'Steps · selectors · flows', j?.authored ? 'attn' : 'idle'),
-      s('reconcile', 'Reconcile', overview ? `${drift} to decide · ${overview.screens.captured_unmapped ?? 0} captured, unmapped · ${Math.max(0, (r.NOT_CRAWLED ?? 0) - (overview.screens.captured_unmapped ?? 0))} not captured` : '—', drift || (r.NOT_CRAWLED ?? 0) ? 'attn' : overview ? 'done' : 'idle'),
+      s('reconcile', 'Reconcile', overview ? `${drift} to decide · ${r.NOT_CRAWLED ?? 0} not crawled` : '—', drift ? 'attn' : overview ? 'done' : 'idle'),
       s('heal', 'Change & Heal', 'BRD changes · follow-ups', appKey ? 'done' : 'idle')
     ]
-  }, [overview, dataCoverage, selectedApp, appKey, kbKey, envAddresses])
+  }, [overview, selectedApp, appKey, kbKey, envAddresses])
   const stageById = useMemo(() => new Map(stages.map((s, i) => [s.id, { ...s, n: i + 1 }])), [stages])
 
   const needsJourneyKb = ['sources', 'journeys', 'map', 'model', 'testdata', 'reconcile', 'heal'].includes(stage)
@@ -335,11 +328,6 @@ const KnowledgeBase: React.FC = () => {
 
       {appsError && <Note tone="warn">{appsError}</Note>}
       {deletedNote && <Note>{deletedNote}</Note>}
-      {overview && <div role="status" className="rounded-[14px] border border-[#D7E2F0] bg-[#F5F9FF] px-4 py-3 text-[12px] text-[#344054]">
-        <strong className="block text-[13px] text-[#1F2937]">What this project has now</strong>
-        <span>{overview.journeys.authored} authored journeys · {overview.screens.catalogued} catalogued screens · {overview.screens.observed ?? 0} browser-observed controls · {overview.screens.linked} approved control mappings · {overview.screens.captured_unmapped ?? 0} captured controls still unmapped · {dataCoverage?.profiles ?? 0} Test Data profiles ({dataCoverage?.ready ?? 0} ready for an environment).</span>
-        <span className="mt-1 block">Captured controls are evidence, not executable locators. Unmapped controls must be reconciled and verified on the correct application screen. An authored journey may still need a linked source document.</span>
-      </div>}
 
       <nav aria-label="Knowledge Base stages" className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(150px,0.7fr)_repeat(3,minmax(0,2fr))]">
         {PHASES.map((phase, p) => (

@@ -10,14 +10,12 @@
  * panel afterwards: a transform would make it the containing block for the
  * fixed-position dialogs opened from inside it (Spec, confirmations).
  */
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect } from 'react'
 
 interface Props {
   label: string
   /** Tailwind width classes for the panel. */
   width: string
-  /** Centered workspace for detailed case editing; other consumers stay drawers. */
-  variant?: 'side' | 'centered'
   onClose: () => void
   onPrev?: (() => void) | null
   onNext?: (() => void) | null
@@ -31,39 +29,20 @@ const typing = (target: EventTarget | null) => {
   return Boolean(el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)))
 }
 
-const SideDrawer: React.FC<Props> = ({ label, width, variant = 'side', onClose, onPrev, onNext, paused, children }) => {
-  const dialogRef = useRef<HTMLElement>(null)
-  useEffect(() => {
-    if (variant !== 'centered') return
-    const previous = document.activeElement as HTMLElement | null
-    dialogRef.current?.focus()
-    return () => previous?.focus()
-  }, [variant])
+const SideDrawer: React.FC<Props> = ({ label, width, onClose, onPrev, onNext, paused, children }) => {
   useEffect(() => {
     if (paused) return
     const onKey = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return
+      if (event.defaultPrevented || typing(event.target)) return
       // A confirmation or editor opened over the drawer handles its own keys.
       if (document.querySelectorAll('[aria-modal="true"]').length > 1) return
-      if (variant === 'centered' && event.key === 'Tab') {
-        const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])') ?? [])
-          .filter(element => element.getClientRects().length > 0)
-        if (focusable.length) {
-          const first = focusable[0]
-          const last = focusable[focusable.length - 1]
-          if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
-          else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
-        }
-        return
-      }
-      if (typing(event.target)) return
       if (event.key === 'Escape') onClose()
       else if (event.key === 'ArrowUp' && onPrev) { event.preventDefault(); onPrev() }
       else if (event.key === 'ArrowDown' && onNext) { event.preventDefault(); onNext() }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, onPrev, onNext, paused, variant])
+  }, [onClose, onPrev, onNext, paused])
 
   // The page under the drawer stays where it was.
   useEffect(() => {
@@ -74,20 +53,18 @@ const SideDrawer: React.FC<Props> = ({ label, width, variant = 'side', onClose, 
 
   return (
     <div
-      className={`fixed inset-0 z-[60] flex bg-[rgba(17,24,39,0.5)] ${variant === 'centered' ? 'items-center justify-center p-3 sm:p-5' : 'justify-end'}`}
+      className="fixed inset-0 z-[60] flex justify-end bg-[rgba(17,24,39,0.38)]"
       style={{ animation: 'sideDrawerFade 160ms ease-out' }}
       onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}
       role="presentation"
     >
-      <style>{'@keyframes sideDrawerFade{from{opacity:0}to{opacity:1}}@keyframes sideDrawerIn{from{transform:translateX(48px);opacity:.6}to{transform:none;opacity:1}}@keyframes caseModalIn{from{transform:translateY(16px) scale(.985);opacity:.6}to{transform:none;opacity:1}}'}</style>
+      <style>{'@keyframes sideDrawerFade{from{opacity:0}to{opacity:1}}@keyframes sideDrawerIn{from{transform:translateX(48px);opacity:.6}to{transform:none;opacity:1}}'}</style>
       <aside
-        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        tabIndex={-1}
-        className={`flex w-full flex-col overflow-hidden bg-white ${variant === 'centered' ? 'h-[min(94vh,1000px)] rounded-[22px] border border-white/70 shadow-[0_32px_90px_rgba(15,23,42,0.3)]' : 'h-full shadow-[-24px_0_60px_rgba(15,23,42,0.18)]'} ${width}`}
-        style={{ animation: `${variant === 'centered' ? 'caseModalIn' : 'sideDrawerIn'} 200ms cubic-bezier(.2,.8,.2,1)` }}
+        className={`flex h-full w-full flex-col overflow-hidden bg-white shadow-[-24px_0_60px_rgba(15,23,42,0.18)] ${width}`}
+        style={{ animation: 'sideDrawerIn 200ms cubic-bezier(.2,.8,.2,1)' }}
       >
         {children}
       </aside>

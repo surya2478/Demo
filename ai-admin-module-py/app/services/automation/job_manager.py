@@ -9,10 +9,9 @@ worker process to a deployment whose whole point is having neither.
 
 What is given up, stated plainly so nobody discovers it later:
 
-  * A backend restart loses an in-flight browser process. Running work is
-    marked failed; server runs that were still waiting are restored in FIFO
-    order from their database rows.
-  * There is no automatic retry. A failed run is re-triggered by a person.
+  * A backend restart loses in-flight runs. They are marked failed on the next
+    startup sweep rather than left as "running" forever.
+  * There is no retry queue. A failed run is re-triggered by a person.
   * Runs do not survive being distributed across replicas, because there are
     none.
 
@@ -31,10 +30,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import threading
 import time
 import uuid
-from collections import deque
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -92,14 +89,6 @@ class JobManager:
         # add_done_callback(), which is all this class needs of them.
         self._tasks: dict[str, Any] = {}
         self._cancels: dict[str, asyncio.Event] = {}
-        # Runs accepted after the active browser slots are full wait here. The
-        # database row remains `queued`, so the queue is visible through the
-        # normal Runs and Automation Studio APIs rather than living only in
-        # the browser that submitted it.
-        self._pending: deque[str] = deque()
-        self._pending_groups: dict[str, str] = {}
-        self._paused_groups: set[str] = set()
-        self._lock = threading.RLock()
         self._loop: Optional[asyncio.AbstractEventLoop] = None
 
     def bind_loop(self, loop: asyncio.AbstractEventLoop) -> None:
@@ -123,16 +112,7 @@ class JobManager:
         return max(1, int(settings.AUTOMATION_MAX_CONCURRENT_RUNS or 1))
 
     def active_count(self) -> int:
-        with self._lock:
-            return sum(1 for task in self._tasks.values() if not task.done())
-
-    def pending_count(self) -> int:
-        with self._lock:
-            return len(self._pending)
-
-    def is_pending(self, run_key: str) -> bool:
-        with self._lock:
-            return run_key in self._pending
+        return sum(1 for task in self._tasks.values() if not task.done())
 
     def capacity(self) -> tuple[bool, str]:
         """Whether another run may start, and why not when it may not.
@@ -161,8 +141,7 @@ class JobManager:
         application loop instead; an async caller schedules directly.
         """
         cancel = asyncio.Event()
-        with self._lock:
-            self._cancels[run_key] = cancel
+        self._cancels[run_key] = cancel
         coro = self._execute(run_key, cancel)
 
         try:
@@ -180,82 +159,17 @@ class JobManager:
         else:
             handle = asyncio.create_task(coro)
 
-        with self._lock:
-            self._tasks[run_key] = handle
+        self._tasks[run_key] = handle
         handle.add_done_callback(lambda _h: self._forget(run_key))
 
-    def enqueue(self, run_key: str, group_id: Optional[str] = None) -> int:
-        """Start now when a slot is free, otherwise append to the FIFO queue.
-
-        Returns zero for a run started immediately, or its one-based waiting
-        position. The concurrency limit still controls actual browser
-        processes; accepting a batch no longer turns every item after the
-        first into a refusal when the safe production limit is one.
-        """
-        with self._lock:
-            if run_key in self._tasks:
-                return 0
-            if run_key in self._pending:
-                return list(self._pending).index(run_key) + 1
-            if self.active_count() < self.limit:
-                self.submit(run_key)
-                return 0
-            self._pending.append(run_key)
-            if group_id:
-                self._pending_groups[run_key] = group_id
-            return len(self._pending)
-
     def _forget(self, run_key: str) -> None:
-        with self._lock:
-            self._tasks.pop(run_key, None)
-            self._cancels.pop(run_key, None)
-        self._drain_pending()
-
-    def _drain_pending(self) -> None:
-        """Fill slots from FIFO without letting one paused batch block others."""
-        with self._lock:
-            while self._pending and self.active_count() < self.limit:
-                next_key = next(
-                    (
-                        key for key in self._pending
-                        if self._pending_groups.get(key) not in self._paused_groups
-                    ),
-                    None,
-                )
-                if next_key is None:
-                    return
-                self._pending.remove(next_key)
-                self._pending_groups.pop(next_key, None)
-                self.submit(next_key)
-
-    def pause_group(self, group_id: str) -> None:
-        """Hold future runs in one submitted batch; an active run may finish."""
-        with self._lock:
-            self._paused_groups.add(group_id)
-
-    def resume_group(self, group_id: str) -> None:
-        with self._lock:
-            self._paused_groups.discard(group_id)
-        self._drain_pending()
-
-    def is_group_paused(self, group_id: str) -> bool:
-        with self._lock:
-            return group_id in self._paused_groups
-
-    def discard_group(self, group_id: str) -> None:
-        """Forget a terminal batch without starting any of its held work."""
-        with self._lock:
-            self._paused_groups.discard(group_id)
+        self._tasks.pop(run_key, None)
+        self._cancels.pop(run_key, None)
 
     def cancel(self, run_key: str) -> bool:
         """Ask a run to stop. The runner terminates the browser process and
         reports whatever artifacts it already captured."""
-        with self._lock:
-            if run_key in self._pending:
-                self._pending.remove(run_key)
-                self._pending_groups.pop(run_key, None)
-                return True
-            event = self._cancels.get(run_key)
+        event = self._cancels.get(run_key)
         if event is None:
             return False
         # asyncio.Event.set() is not thread-safe, and this is usually called
@@ -272,8 +186,7 @@ class JobManager:
         return True
 
     def is_active(self, run_key: str) -> bool:
-        with self._lock:
-            task = self._tasks.get(run_key)
+        task = self._tasks.get(run_key)
         return task is not None and not task.done()
 
     # ── Execution ────────────────────────────────────────────────────────────
@@ -687,28 +600,20 @@ def new_run_key() -> str:
     return f"run-{uuid.uuid4().hex[:12]}"
 
 
-def sweep_orphaned_runs() -> tuple[int, list[str]]:
-    """Mark active runs abandoned and return recoverable queued server runs.
+def sweep_orphaned_runs() -> int:
+    """Mark runs abandoned by a restart.
 
-    A queued server run has not started and is safe to restore. A running run,
-    and a device run whose browser belongs to a vanished client connection,
-    cannot be resumed honestly. Called once at startup.
+    Without this a backend restart leaves rows at "running" that no task will
+    ever finish, and the UI polls them indefinitely. Called once at startup.
     """
     db = SessionLocal()
     try:
         orphans = (
             db.query(AutomationRun)
             .filter(AutomationRun.status.in_(["queued", "running"]))
-            .order_by(AutomationRun.id.asc())
             .all()
         )
-        recoverable: list[str] = []
-        failed = 0
         for run in orphans:
-            is_device = (run.run_config or {}).get("execution_target") == "device"
-            if run.status == "queued" and not is_device:
-                recoverable.append(run.run_key)
-                continue
             run.status = "failed"
             run.outcome = "blocked"
             run.error_message = (
@@ -716,14 +621,13 @@ def sweep_orphaned_runs() -> tuple[int, list[str]]:
                 "abandoned. Trigger it again."
             )
             run.completed_at = datetime.utcnow()
-            failed += 1
-        if failed:
+        if orphans:
             db.commit()
-        return failed, recoverable
+        return len(orphans)
     except Exception:  # noqa: BLE001
         logger.exception("Could not sweep orphaned automation runs")
         db.rollback()
-        return 0, []
+        return 0
     finally:
         db.close()
 

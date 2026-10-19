@@ -1,5 +1,5 @@
 import React, { useState, ChangeEvent, useEffect, useMemo, useRef } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import '../../styles/animations.css'
 import { loadConfigFromServer, getConfig } from '../../config/ai-api'
 import MarkdownViewer from '../../components/MarkdownViewer'
@@ -28,10 +28,6 @@ import SelectApplications, { fetchTargetApplications, type TargetApplication } f
 import JourneyBar from '../../components/test-assistant/JourneyBar'
 import { CaseGrid, InputSummary, ProgressPanel, normalizeLegacyTable, parseStreamingCases, removeCasesFromMarkdown } from '../../components/test-assistant/GenerationOutput'
 import AIChecksPanel, { isSettled } from '../../components/test-assistant/AIChecksPanel'
-import AgentControlCapture from '../../components/test-assistant/AgentControlCapture'
-import AgentReviewSetup from '../../components/test-assistant/AgentReviewSetup'
-import AgentTestDataSetup from '../../components/test-assistant/AgentTestDataSetup'
-import ChangeSetsDrawer from '../../components/knowledge-base/ChangeSetsDrawer'
 import { useConfirm } from '../../components/ui/ConfirmDialog'
 import { ProjectChip, ProjectDialog } from '../../components/project/ProjectDetails'
 import SessionList from '../../components/project/SessionList'
@@ -39,7 +35,7 @@ import { useProject } from '../../context/ProjectContext'
 import projectService, { projectLabel, type GenerationSnapshot, type Project, type SessionSummary } from '../../services/projectService'
 import StepEditor from '../../components/test-assistant/StepEditor'
 import { detectProject } from '../../utils/detectProject'
-import aiChecksService, { type AgentName, type AgentSetup, type AgentDecisionResult, type AgentScanProgress, type CheckBatch, type CheckItem, type EditedStep } from '../../services/aiChecksService'
+import aiChecksService, { type CheckBatch, type CheckItem, type EditedStep } from '../../services/aiChecksService'
 import { publishTokenUsage } from '../../components/test-assistant/TokenUsageChip'
 import RqmDownload, { type RqmVersion } from '../../components/test-assistant/RqmDownload'
 import { downloadRqm } from '../../utils/rqmTemplate'
@@ -68,7 +64,6 @@ type ReviewDocumentItem = {
 
 const TestCases: React.FC = () => {
   const navigate = useNavigate()
-  const [sessionParams] = useSearchParams()
   const [inputType, setInputType] = useState<'text' | 'file' | 'e2e-spark' | 'figma-pdf'>('text')
   const [textValue, setTextValue] = useState('')
   const [fileInputs, setFileInputs] = useState<File[]>([])
@@ -94,7 +89,6 @@ const TestCases: React.FC = () => {
   const userAuth = useAuth();
   const [approvalNotification, setApprovalNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [submittedTestCaseCount, setSubmittedTestCaseCount] = useState<number | null>(null)
-  const [sentGeneratedIds, setSentGeneratedIds] = useState<Set<string>>(() => new Set())
   const [workflowStageRequestId, setWorkflowStageRequestId] = useState<string | null>(null)  
   const [knowledgeBaseError, setKnowledgeBaseError] = useState('')
   const [figmaCopyStatus, setFigmaCopyStatus] = useState<'copied' | 'failed' | null>(null)
@@ -208,27 +202,7 @@ const TestCases: React.FC = () => {
   // AI Checks (screen 3): Refine -> Review -> Improve -> Classify, before approval.
   const [aiBatchId, setAiBatchId] = useState<string | null>(null)
   const [aiBatch, setAiBatch] = useState<CheckBatch | null>(null)
-  const aiChecksSectionRef = useRef<HTMLDivElement | null>(null)
-  const focusNewCheckRef = useRef(false)
-  const [kbCheckOpen, setKbCheckOpen] = useState(false)
-  const [kbCheckIds, setKbCheckIds] = useState<number[]>([])
-  const [repairCheckId, setRepairCheckId] = useState<number | null>(null)
-  const [agentDecisionOpen, setAgentDecisionOpen] = useState(false)
-  const [agentDecisionScope, setAgentDecisionScope] = useState<'one' | 'batch'>('one')
-  const [agentDecisionBusy, setAgentDecisionBusy] = useState(false)
-  const [agentDecisionError, setAgentDecisionError] = useState('')
-  const [agentDecisionResults, setAgentDecisionResults] = useState<AgentDecisionResult[]>([])
-  const [agentScan, setAgentScan] = useState<AgentScanProgress | null>(null)
-  const [agentScanOpen, setAgentScanOpen] = useState(false)
-  const [agentScanCheckId, setAgentScanCheckId] = useState<number | null>(null)
   const [aiStarting, setAiStarting] = useState(false)
-  const [refineDialogOpen, setRefineDialogOpen] = useState(false)
-  const [refineChoice, setRefineChoice] = useState<'knowledge_base' | 'agents' | 'none'>('agents')
-  const [approvalManagerEnabled, setApprovalManagerEnabled] = useState(true)
-  const [agentSetup, setAgentSetup] = useState<AgentSetup | null>(null)
-  const [resumeAgentSetupAfterProject, setResumeAgentSetupAfterProject] = useState(false)
-  const [casesSaving, setCasesSaving] = useState(false)
-  const casesSavingRef = useRef(false)
   const [aiError, setAiError] = useState('')
   const [aiSelected, setAiSelected] = useState<Set<number>>(() => new Set())
   const [aiEditing, setAiEditing] = useState<number | null>(null)
@@ -236,9 +210,9 @@ const TestCases: React.FC = () => {
   const [aiEditError, setAiEditError] = useState('')
   const aiAutoSelectedRef = useRef<Set<number>>(new Set())
   const [aiBusy, setAiBusy] = useState<'stop' | 'restart' | 'delete' | null>(null)
-  // Saving and AI Checks are deliberately separate. Generation remains only
-  // in the browser until the author clicks Save. AI Checks never creates or
-  // replaces that saved draft.
+  // Save & Run AI Checks saves the generated cases as a request first; Send
+  // for Approval later sends that same request. Saved test_case_id by the
+  // case's Test Case ID, so each sent row updates its own saved row.
   const [savedRequestId, setSavedRequestIdState] = useState<string | null>(null)
   // The id is needed straight after it is set (save, then start the checks).
   const savedRequestIdRef = useRef<string | null>(null)
@@ -250,8 +224,9 @@ const TestCases: React.FC = () => {
   // Checks already sent; Send for Approval can run again for the rest.
   const [aiSentIds, setAiSentIds] = useState<Set<number>>(() => new Set())
   // --- Project and saved sessions --------------------------------------------
-  // Manually saved cases are kept as sessions under the current project, and
-  // the page reopens the latest unfinished one when opened with nothing on it.
+  // Generated cases are saved as a session the moment generation ends, under
+  // the current project, and the page reopens the latest unfinished one when
+  // it is opened with nothing on it.
   const { project, setProject } = useProject()
   // Read at save time: Generate may be clicked in the same moment a project is
   // chosen, before a re-render has put it in this render's closure.
@@ -709,13 +684,13 @@ const TestCases: React.FC = () => {
 
   const handleSendForApproval = async (rows: Record<string, string>[], documents: ReviewDocumentItem[] = getReviewDocuments()) => {
     try {
-      // Reuse the independently saved draft when there is one.
+      // The request Save & Run AI Checks saved, when there is one.
       const requestId = savedRequestId || `REQ-${Date.now()}`
       const requestBy = (authUser.user as any)?.username || (authUser.user as any)?.email || 'system'
       const documentId = getApprovalDocumentId(documents)
       const stageRequestId = workflowStageRequestId || requestId
       const uniqueRows = deduplicateTestCases(rows).map((row, index) => {
-        const baseId = String((row as Record<string, unknown>)['Test Case ID'] || row.id || `TC-${index + 1}`).trim()
+        const baseId = typeof row.id === 'string' && row.id.trim() ? row.id.trim() : `TC-${index + 1}`
         const savedId = savedCaseIdsRef.current.get(String((row as Record<string, string>)['Test Case ID'] ?? '').trim())
         const id = savedId || `${requestId}-TC-${savedRequestId ? `S${index + 1}` : index + 1}`
         return {
@@ -791,13 +766,11 @@ const TestCases: React.FC = () => {
         setAiSelected((current) => new Set(Array.from(current).filter((id) => !sentChecks.includes(id))))
       }
       setSubmittedTestCaseCount((current) => (current ?? 0) + uniqueRows.length)
-      setSentGeneratedIds((current) => new Set([...Array.from(current), ...uniqueRows.map((row) => row.sourceRowId).filter(Boolean)]))
-      setGridSelected(new Set())
-      setApprovalNotification({ message: `${uniqueRows.length} test case${uniqueRows.length === 1 ? '' : 's'} sent for evaluation`, type: 'success' })
+      setApprovalNotification({ message: `${uniqueRows.length} test case${uniqueRows.length === 1 ? '' : 's'} sent for approval`, type: 'success' })
       return true
     } catch (error) {
       console.error('[TestCases] Failed to submit for approval:', error)
-      setApprovalNotification({ message: 'Failed to send for evaluation', type: 'error' })
+      setApprovalNotification({ message: 'Failed to send for approval', type: 'error' })
       return false
     }
   }
@@ -1169,10 +1142,7 @@ const copyFigmaExtractedText = async () => {
       }
 
       setLoading(true)
-      // Refresh at action time so a configuration change (for example,
-      // switching to the local OpenRouter-backed service) cannot leave this
-      // button using a stale URL cached by an older browser session.
-      const config = await loadConfigFromServer()
+      const config = getConfig()
 
       // --- Where documents get extracted --------------------------------
       //
@@ -1404,7 +1374,6 @@ const copyFigmaExtractedText = async () => {
   let fullText = ''
   const handleGenerate = async () => {
     setSubmittedTestCaseCount(null)
-    setSentGeneratedIds(new Set())
 
     
     setKnowledgeBaseError('')
@@ -1669,6 +1638,7 @@ const copyFigmaExtractedText = async () => {
         const tableText = normalizeLegacyTable(fullText)
         if (tableText !== fullText) setResponse(tableText)
         setTestCasesData(tableText);
+        await autosaveGeneration(tableText, stopRequestedRef.current)
         await startWorkflow(getWorkflowDocumentName(), {
           PROCESS_DOCUMENT: 'COMPLETED',
           GENERATE_TEST_CASES: 'COMPLETED',
@@ -1714,14 +1684,11 @@ const copyFigmaExtractedText = async () => {
     setAiBatchId(null)
     setAiBatch(null)
     setAiError('')
-    setCasesSaving(false)
-    casesSavingRef.current = false
     setAiSelected(new Set())
     setAiBusy(null)
     setSavedRequestId(null)
     savedCaseIdsRef.current = new Map()
     setAiSentIds(new Set())
-    setSentGeneratedIds(new Set())
     setAiEditing(null)
     setAiEditError('')
     aiAutoSelectedRef.current = new Set()
@@ -1730,73 +1697,30 @@ const copyFigmaExtractedText = async () => {
 
   // Same rows Review & Send uses, so the checks start from exactly the table
   // the author sees.
-  const selectedGeneratedRows = () => {
+  const handleRunAiChecks = async () => {
     const allRows = extractAndConsolidateTestCases(response || output || '').rows
     const idOf = (row: Record<string, string>) =>
       String(Object.entries(row).find(([key]) => /test\s*case\s*id/i.test(key))?.[1] ?? '').trim()
-    const remaining = allRows.filter((row) => !sentGeneratedIds.has(idOf(row)))
-    return gridSelected.size ? remaining.filter((row) => gridSelected.has(idOf(row))) : remaining
-  }
-
-  const handleRunAiChecks = async (mode: 'knowledge_base' | 'agents') => {
-    const rows = selectedGeneratedRows()
+    const rows = gridSelected.size ? allRows.filter((row) => gridSelected.has(idOf(row))) : allRows
     if (!rows.length) {
       setAiError('No test cases were found in the output to check.')
       return
     }
-    if (!savedRequestIdRef.current) {
-      setAiError('Save the generated test cases first. Your saved draft will stay unchanged while AI Checks runs separately.')
-      return
-    }
-    if (mode === 'agents' && !projectRef.current) {
-      setAiError('Choose or register a project before starting Agents Refine.')
-      return
-    }
-    if (mode === 'agents' && !agentSetup) {
-      setAiError('Complete the application, environment and Test Data setup first.')
-      return
-    }
     setAiStarting(true)
     setAiError('')
     try {
-      if (mode === 'agents' && savedRequestIdRef.current && projectRef.current) {
-        await projectService.updateSession(savedRequestIdRef.current, { project_id: projectRef.current.id })
+      // 1. Save: the generated cases are on record before any check runs.
+      //    Skipped when an earlier attempt saved them and only the checks failed.
+      if (!savedRequestIdRef.current) {
+        const saved = await saveGeneratedCases(allRows)
+        if (!saved) return
       }
-      const batchId = await aiChecksService.start(rows, mode === 'knowledge_base' ? selectedKnowledgeBaseOption.knowledgeBase || undefined : undefined, savedRequestIdRef.current || undefined, selectedEnvironment || undefined, selectedApplicationIds, mode, agentSetup || undefined, mode === 'agents' && approvalManagerEnabled)
-      focusNewCheckRef.current = true
-      setOutputOpen(false)
+      // 2. AI Checks.
+      const batchId = await aiChecksService.start(rows, selectedKnowledgeBaseOption.knowledgeBase || undefined, savedRequestIdRef.current || undefined, selectedEnvironment || undefined, selectedApplicationIds)
       setAiBatchId(batchId)
       setAiBatch(await aiChecksService.get(batchId))
-      setRefineDialogOpen(false)
     } catch (error: any) {
       setAiError(error?.response?.data?.detail || error?.message || 'AI Checks could not be started.')
-    } finally {
-      setAiStarting(false)
-    }
-  }
-
-  const handleSkipRefine = async () => {
-    const rows = selectedGeneratedRows()
-    if (!rows.length) {
-      setAiError('No test cases were found to send for evaluation.')
-      return
-    }
-    if (!savedRequestIdRef.current) {
-      setAiError('Save the generated test cases before sending them for evaluation.')
-      return
-    }
-    setAiStarting(true)
-    setAiError('')
-    try {
-      aiCheckIdsRef.current = new Map()
-      const sent = await handleSendForApproval(rows, [])
-      if (!sent) {
-        setAiError('The cases could not be sent for evaluation. Your saved draft is unchanged; please retry.')
-        return
-      }
-      setRefineDialogOpen(false)
-      const roles: string[] = ([] as string[]).concat((authUser.user as any)?.roles ?? [])
-      if (roles.some((role) => role === 'manager' || role === 'admin')) navigate('/manager-review')
     } finally {
       setAiStarting(false)
     }
@@ -1817,28 +1741,16 @@ const copyFigmaExtractedText = async () => {
     stopped
   })
 
-  const handleSaveGeneratedCases = async () => {
-    if (savedRequestIdRef.current) {
-      setApprovalNotification({ message: 'These generated test cases are already saved.', type: 'success' })
-      return
-    }
-    const rows = extractAndConsolidateTestCases(response || output || '').rows
-    if (!rows.length) {
-      setAiError('No generated test cases were found to save.')
-      return
-    }
-    setAiError('')
-    const saved = await saveGeneratedCases(rows)
-    if (saved) {
-      setApprovalNotification({ message: `${rows.length} test case${rows.length === 1 ? '' : 's'} saved safely. You can run AI Checks now or return later.`, type: 'success' })
-    }
+  // Called when generation ends (finished or stopped), so nothing generated
+  // exists only in this browser tab.
+  const autosaveGeneration = async (outputText: string, stopped: boolean) => {
+    const rows = extractAndConsolidateTestCases(outputText).rows
+    if (!rows.length) return
+    const saved = await saveGeneratedCases(rows, generationSnapshot(outputText, stopped))
+    if (saved) setApprovalNotification({ message: `${rows.length} test case${rows.length === 1 ? '' : 's'} saved${projectRef.current ? ` to ${projectRef.current.ppm_id}` : ''}`, type: 'success' })
   }
 
   const saveGeneratedCases = async (rows: Record<string, string>[], generation?: GenerationSnapshot): Promise<boolean> => {
-    if (savedRequestIdRef.current) return true
-    if (casesSavingRef.current) return false
-    casesSavingRef.current = true
-    setCasesSaving(true)
     const requestId = `REQ-${Date.now()}`
     const requestBy = (authUser.user as any)?.username || (authUser.user as any)?.email || 'system'
     const documents = getReviewDocuments()
@@ -1881,9 +1793,6 @@ const copyFigmaExtractedText = async () => {
     } catch (error: any) {
       setAiError(`The test cases could not be saved. ${error?.response?.data?.detail || error?.message || ''}`.trim())
       return false
-    } finally {
-      casesSavingRef.current = false
-      setCasesSaving(false)
     }
   }
 
@@ -1946,64 +1855,6 @@ const copyFigmaExtractedText = async () => {
       await refreshAiBatch(aiBatchId)
     } catch (error: any) {
       setAiError(error?.response?.data?.detail || 'Retry could not be started.')
-    }
-  }
-
-  const handleContinueBrowserReplay = async (checkId: number) => {
-    if (!aiBatchId) return
-    if (!window.confirm('This will rerun this case and allow its data-changing browser actions, including form submissions, in the selected test environment. Continue?')) return
-    setAiError('')
-    try {
-      await aiChecksService.continueBrowserReplay(aiBatchId, checkId)
-      await refreshAiBatch(aiBatchId)
-    } catch (error: any) {
-      setAiError(error?.response?.data?.detail || 'Browser replay could not be continued.')
-    }
-  }
-
-  const handleAgentDataEntryRetry = async (checkId: number) => {
-    if (!aiBatchId) return
-    setAiError('')
-    try {
-      const result = await aiChecksService.retryDataEntry(aiBatchId, checkId)
-      await refreshAiBatch(aiBatchId)
-      if (result.status === 'failed') setAiError(result.message || 'Knowledge Base preparation still needs attention.')
-      if (result.change_set_ids?.length) { setKbCheckIds(result.change_set_ids); setKbCheckOpen(true) }
-    } catch (error: any) {
-      setAiError(error?.response?.data?.detail || 'Knowledge Base preparation could not be retried.')
-    }
-  }
-
-  const handleAgentAnalysisRetry = async (checkId: number) => {
-    if (!aiBatchId) return
-    setAiError('')
-    try {
-      await aiChecksService.retryAnalysis(aiBatchId, checkId)
-      await refreshAiBatch(aiBatchId)
-    } catch (error: any) {
-      setAiError(error?.response?.data?.detail || 'Analysis could not be resumed from the saved browser capture.')
-    }
-  }
-
-  const handleAgentStageRetry = async (checkId: number, agent: AgentName) => {
-    if (!aiBatchId) return
-    setAiError('')
-    try {
-      await aiChecksService.retryAgent(aiBatchId, checkId, agent)
-      await refreshAiBatch(aiBatchId)
-    } catch (error: any) {
-      setAiError(error?.response?.data?.detail || `${agent.replaceAll('_', ' ')} could not be retried from its saved checkpoint.`)
-    }
-  }
-
-  const handleAgentRecheck = async (checkId: number) => {
-    if (!aiBatchId) return
-    setAiError('')
-    try {
-      await aiChecksService.recheck(aiBatchId, checkId)
-      await refreshAiBatch(aiBatchId)
-    } catch (error: any) {
-      setAiError(error?.response?.data?.detail || 'Agent recheck could not be started.')
     }
   }
 
@@ -2112,7 +1963,7 @@ const copyFigmaExtractedText = async () => {
     }
   }
 
-  const restoreSession = async (requestId: string, requestedBatchId?: string) => {
+  const restoreSession = async (requestId: string) => {
     try {
       const session = await projectService.session(requestId)
       const g = session.generation || {}
@@ -2138,7 +1989,6 @@ const copyFigmaExtractedText = async () => {
       setInputsFolded(true)
       setOutputOpen(true)
       setShowFullTable(false)
-      setGridSelected(new Set())
       if (session.project && session.project.id !== projectRef.current?.id) setProject(session.project)
       setSavedRequestId(session.request_id)
       savedCaseIdsRef.current = new Map(session.rows.map((row) => [row.display_id, row.test_case_id] as [string, string]))
@@ -2147,20 +1997,15 @@ const copyFigmaExtractedText = async () => {
       ))
       const sentRows = session.rows.filter((row) => row.status !== 'DRAFT').length
       setSubmittedTestCaseCount(sentRows > 0 ? sentRows : null)
-      setSentGeneratedIds(new Set(session.rows.filter((row) => row.status !== 'DRAFT').map((row) => String(row.display_id || '').trim()).filter(Boolean)))
-      const batchId = requestedBatchId || session.ai_batch_id
-      if (batchId) {
-        const batch = await aiChecksService.get(batchId)
-        if (requestedBatchId && !batch.items.every(item => item.evaluation_handoff?.request_id === session.request_id)) {
-          throw new Error('This AI Checks batch does not belong to the requested evaluation.')
-        }
+      if (session.ai_batch_id) {
+        const batch = await aiChecksService.get(session.ai_batch_id)
         const sent = batch.items.filter((item) => item.sent).map((item) => item.check_id)
         // A reopened session starts with its finished, unsent cases ticked.
         aiAutoSelectedRef.current = new Set(batch.items.filter((item) => item.status === 'done').map((item) => item.check_id))
         aiCheckIdsRef.current = new Map(batch.items.map((item) => [String(item.display_id || item.source_row['Test Case ID'] || ''), item.check_id] as [string, number]))
         setAiSentIds(new Set(sent))
         setAiSelected(new Set(batch.items.filter((item) => item.status === 'done' && !item.sent).map((item) => item.check_id)))
-        setAiBatchId(batchId)
+        setAiBatchId(session.ai_batch_id)
         setAiBatch(batch)
       }
       try { sessionStorage.removeItem('ta_closed_session') } catch { /* storage unavailable */ }
@@ -2209,14 +2054,14 @@ const copyFigmaExtractedText = async () => {
     const automation = aiSendable.filter((item) => item.classification === 'automation').length
     const dataPending = aiSendable.filter((item) => item.test_data_pending).length
     const ok = await confirm({
-      title: `Send ${count} test case${count === 1 ? '' : 's'} for evaluation?`,
+      title: `Send ${count} test case${count === 1 ? '' : 's'} for approval?`,
       body: `${automation} Automation · ${count - automation} Manual${projectRef.current ? ` · ${projectLabel(projectRef.current)}` : ''}`,
       consequences: [
         'The manager sees each case with its AI Checks results and can approve or reject it.',
         ...(dataPending ? [`${dataPending} still ${dataPending === 1 ? 'needs' : 'need'} test data; they are flagged for the manager.`] : []),
         'Approved Automation cases go on to Automation Lab.'
       ],
-      confirmLabel: `Send ${count} for Evaluation`
+      confirmLabel: `Send ${count} for Approval`
     })
     if (!ok) return
     aiCheckIdsRef.current = new Map(
@@ -2228,31 +2073,6 @@ const copyFigmaExtractedText = async () => {
     if (!sent) return
     const roles: string[] = ([] as string[]).concat((authUser.user as any)?.roles ?? [])
     if (roles.some((role) => role === 'manager' || role === 'admin')) navigate('/manager-review')
-  }
-
-  const handleSendUnverifiedForEvaluation = async (checkId: number) => {
-    const item = aiBatch?.items.find((candidate) => candidate.check_id === checkId)
-    if (!item || item.status !== 'awaiting_approval' || item.agents?.navigation_guide?.status !== 'needs_approval') return
-    const ok = await confirm({
-      title: `Send ${item.display_id || 'this case'} for human evaluation?`,
-      body: 'The journey mapping has not been verified. The original generated case will be sent without AI Checks results or automation approval.',
-      consequences: ['A manager can review the original test case; automation readiness has not been established.', 'No proposed Knowledge Base changes will be published.'],
-      confirmLabel: 'Send original for Evaluation'
-    })
-    if (!ok) return
-    aiCheckIdsRef.current = new Map()
-    const sent = await handleSendForApproval([item.source_row], [])
-    if (!sent) return
-    setAiSentIds((current) => new Set([...Array.from(current), checkId]))
-    setAiSelected((current) => new Set(Array.from(current).filter((id) => id !== checkId)))
-    if (aiBatchId) {
-      try {
-        await aiChecksService.markUnverifiedSent(aiBatchId, checkId)
-        await refreshAiBatch(aiBatchId)
-      } catch (error: any) {
-        setAiError(error?.response?.data?.detail || 'The case was sent for Evaluation, but its sent marker could not be saved. Avoid sending it again until the page is refreshed.')
-      }
-    }
   }
 
   const handleAiDownload = () => {
@@ -2477,10 +2297,6 @@ const copyFigmaExtractedText = async () => {
       projectSkippedRef.current = true
     }
     if (gate) void handleGenerate()
-    if (resumeAgentSetupAfterProject) {
-      setResumeAgentSetupAfterProject(false)
-      if (chosen) setRefineDialogOpen(true)
-    }
   }
 
   const getGenerateButtonLabel = () => {
@@ -2527,99 +2343,25 @@ const copyFigmaExtractedText = async () => {
     () => parseStreamingCases(response || output || '', !isGenerationStreaming),
     [response, output, isGenerationStreaming]
   )
-  const remainingGeneratedCount = streamParse.cases.filter((item) => !sentGeneratedIds.has(item.id)).length
 
   useEffect(() => {
     setGridSelected((current) => {
       if (!current.size) return current
       const present = new Set(streamParse.cases.map((item) => item.id))
-      const next = new Set(Array.from(current).filter((id) => present.has(id) && !sentGeneratedIds.has(id)))
+      const next = new Set(Array.from(current).filter((id) => present.has(id)))
       return next.size === current.size ? current : next
     })
-  }, [streamParse.cases, sentGeneratedIds])
+  }, [streamParse.cases])
 
   // Poll while any case is still being checked; the job runs on the server
   // and its progress lives in the database.
   const aiRunning = Boolean(aiBatch && aiBatch.items.some((item) => item.status === 'queued' || item.status === 'running'))
-  const aiAwaitingApproval = Boolean(aiBatch?.items.some((item) => item.agents?.navigation_guide?.status === 'needs_approval' || item.agents?.data_entry?.status === 'needs_approval'))
-  const agentChangeIds = aiBatch?.items.flatMap((item) => [
-    ...(item.agents?.navigation_guide?.status === 'needs_approval' ? item.agents.navigation_guide.change_set_ids || [] : []),
-    ...(item.agents?.data_entry?.status === 'needs_approval' ? item.agents.data_entry.change_set_ids || [] : [])
-  ]) || []
-  const canKb = (permission: string) => {
-    const current: any = authUser.user
-    const roles: string[] = (current?.roles as string[]) || (current?.role ? [current.role] : [])
-    return roles.some((role) => String(role).toLowerCase() === 'admin') || ((current?.permissions as string[]) || []).includes(permission)
-  }
-  const pendingAgentCheck = aiBatch?.items.find((item) => item.status === 'awaiting_approval' &&
-    (item.agents?.navigation_guide?.status === 'needs_approval' || item.agents?.data_entry?.status === 'needs_approval'))
-  const heldReasons = agentDecisionResults.flatMap((result) => result.check_id === pendingAgentCheck?.check_id ? result.held : [])
-  const needsAgentData = heldReasons.some((reason) => /test data profile|test data.*ready|input steps/i.test(reason))
-  const needsAgentEvidence = heldReasons.some((reason) => /observed|control|discovery|screen|browser evidence/i.test(reason))
-  const handleAgentDecision = async (scope: 'one' | 'batch' | 'off') => {
-    if (!aiBatchId) return
-    setAgentDecisionBusy(true)
-    setAgentDecisionError('')
-    try {
-      const result = await aiChecksService.agentDecision(aiBatchId, scope, scope === 'one' ? pendingAgentCheck?.check_id : undefined)
-      setAgentDecisionResults(result.results)
-      await refreshAiBatch(aiBatchId)
-      if (scope === 'off') setAgentDecisionOpen(false)
-    } catch (reason: any) {
-      setAgentDecisionError(reason?.response?.data?.detail || reason?.message || 'The agent decision could not be completed.')
-    } finally { setAgentDecisionBusy(false) }
-  }
-  const handleRetryApprovalManager = async (checkId: number) => {
-    if (!aiBatchId) return
-    setAiError('')
-    try {
-      const result = await aiChecksService.agentDecision(aiBatchId, 'one', checkId)
-      await refreshAiBatch(aiBatchId)
-      if (result.results[0]?.held?.length) setAiError(result.results[0].held.join(' '))
-    } catch (reason: any) {
-      setAiError(reason?.response?.data?.detail || reason?.message || 'Approval Manager could not be retried.')
-    }
-  }
-  const handleAgentScan = async (reuseExisting = false, checkId = agentScanCheckId ?? pendingAgentCheck?.check_id) => {
-    if (!aiBatchId || !checkId) return
-    setAgentDecisionBusy(true)
-    setAgentDecisionError('')
-    try {
-      setAgentScan(await aiChecksService.scanMissingAgentControls(aiBatchId, checkId, reuseExisting))
-    } catch (reason: any) {
-      setAgentDecisionError(reason?.response?.data?.detail || reason?.message || 'The browser scan could not start.')
-    } finally { setAgentDecisionBusy(false) }
-  }
-  useEffect(() => {
-    const checkId = agentScanCheckId ?? pendingAgentCheck?.check_id
-    if ((!agentDecisionOpen && !agentScanOpen) || agentScan?.status !== 'scanning' || !aiBatchId || !checkId) return
-    const id = window.setInterval(async () => {
-      try {
-        const progress = await aiChecksService.agentScanProgress(aiBatchId, checkId)
-        setAgentScan(progress)
-        if (progress.status !== 'scanning') await refreshAiBatch(aiBatchId)
-      } catch (reason: any) {
-        setAgentScan({ status: 'failed', message: reason?.response?.data?.detail || reason?.message || 'Could not check scan progress.' })
-      }
-    }, 3500)
-    return () => window.clearInterval(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentDecisionOpen, agentScanOpen, agentScan?.status, aiBatchId, agentScanCheckId, pendingAgentCheck?.check_id])
   useEffect(() => {
     if (!aiBatchId || (aiBatch && !aiRunning)) return
     const id = window.setInterval(() => void refreshAiBatch(aiBatchId), 2500)
     return () => window.clearInterval(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aiBatchId, aiRunning])
-
-  useEffect(() => {
-    if (!aiBatchId || !aiAwaitingApproval) return
-    const id = window.setInterval(() => void refreshAiBatch(aiBatchId), 15000)
-    const onFocus = () => void refreshAiBatch(aiBatchId)
-    window.addEventListener('focus', onFocus)
-    return () => { window.clearInterval(id); window.removeEventListener('focus', onFocus) }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aiBatchId, aiAwaitingApproval])
 
   useEffect(() => {
     if (!aiRunning) return
@@ -2654,11 +2396,6 @@ const copyFigmaExtractedText = async () => {
   useEffect(() => {
     if (restoreTriedRef.current || !showEmptyOutput || loading) return
     restoreTriedRef.current = true
-    const requestedSession = sessionParams.get('request')
-    if (requestedSession) {
-      void restoreSession(requestedSession, sessionParams.get('batch') || undefined)
-      return
-    }
     let closed: string | null = null
     try { closed = sessionStorage.getItem('ta_closed_session') } catch { /* storage unavailable */ }
     projectService.sessions({ projectId: project?.id ?? null, mine: true, open: true, limit: 1 })
@@ -2678,19 +2415,8 @@ const copyFigmaExtractedText = async () => {
         : fileInputs.map((file) => file.name).join(', ') || restoredDocumentNames.join(', ') || 'No files'
 
   useEffect(() => {
-    if (!aiBatchId && (isGenerationStreaming || response || output)) setOutputOpen(true)
-  }, [isGenerationStreaming, response, output, aiBatchId])
-
-  useEffect(() => {
-    if (aiBatchId) setOutputOpen(false)
-  }, [aiBatchId])
-
-  useEffect(() => {
-    if (!focusNewCheckRef.current || !aiBatch) return
-    focusNewCheckRef.current = false
-    const frame = requestAnimationFrame(() => aiChecksSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
-    return () => cancelAnimationFrame(frame)
-  }, [aiBatch])
+    if (isGenerationStreaming || response || output) setOutputOpen(true)
+  }, [isGenerationStreaming, response, output])
 
   useEffect(() => {
     publishTokenUsage({ used: userTokensUsed, allocation: userTokenAllocation, isAdmin: isAdminUser, loading: tokenCheckLoading })
@@ -3062,7 +2788,47 @@ const copyFigmaExtractedText = async () => {
         )}
 
         {/* Output: closed until generation starts, then progress and cases in place */}
-        {!hasOutput && !generationError ? (
+        {aiBatch && aiEditing !== null && aiBatch.items.find((item) => item.check_id === aiEditing) ? (
+          <StepEditor
+            key={aiEditing}
+            item={aiBatch.items.find((item) => item.check_id === aiEditing)!}
+            totalCases={aiBatch.total}
+            saving={aiSaving}
+            error={aiEditError}
+            onCancel={() => { setAiEditing(null); setAiEditError('') }}
+            onSave={handleAiSaveSteps}
+          />
+        ) : aiBatch ? (
+          <AIChecksPanel
+            batch={aiBatch}
+            now={nowTick}
+            selected={aiSelected}
+            onToggle={(checkId) => setAiSelected((current) => {
+              const next = new Set(current)
+              if (next.has(checkId)) next.delete(checkId)
+              else next.add(checkId)
+              return next
+            })}
+            onToggleAll={(ids, on) => setAiSelected((current) => {
+              const next = new Set(current)
+              ids.forEach((id) => (on ? next.add(id) : next.delete(id)))
+              return next
+            })}
+            onRetry={handleAiRetry}
+            onEdit={(checkId) => { setAiEditError(''); setAiEditing(checkId) }}
+            onSend={handleAiSend}
+            onDownload={handleAiDownload}
+            onDownloadCases={(version) => void handleRqmDownload(version)}
+            downloadingCases={rqmDownloading}
+            onStop={handleAiStop}
+            onRestart={handleAiRestart}
+            onDelete={handleAiDelete}
+            busy={aiBusy}
+            savedAs={savedRequestId}
+            sendCount={aiSendable.length}
+            sentIds={aiSentIds}
+          />
+        ) : !hasOutput && !generationError ? (
           <section className="rounded-[16px] border border-[#E8EAEE] bg-white px-[22px] py-3 shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]">
             <div className="flex flex-wrap items-center gap-2.5">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B71920" strokeWidth="1.8" aria-hidden><path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5" /></svg>
@@ -3074,10 +2840,7 @@ const copyFigmaExtractedText = async () => {
             </span>
             <div className="ml-auto flex items-center gap-2">
               <button type="button" disabled title="Generate test cases first" className="flex h-[34px] cursor-not-allowed items-center rounded-[12px] bg-[#F4F5F7] px-4 text-[13px] font-bold text-[#9CA3AF]">
-                Save test cases
-              </button>
-              <button type="button" disabled title="Save generated test cases first" className="flex h-[34px] cursor-not-allowed items-center rounded-[12px] bg-[#F4F5F7] px-4 text-[13px] font-bold text-[#9CA3AF]">
-                Run AI Checks
+                Save &amp; Run AI Checks
               </button>
               <span className="box-border flex h-[34px] w-[34px] items-center justify-center rounded-[10px] border border-[#E8EAEE]" aria-hidden>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C4C8CF" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>
@@ -3108,7 +2871,6 @@ const copyFigmaExtractedText = async () => {
                 </span>
               )}
               <div className="ml-auto flex flex-wrap items-center gap-2">
-                {(!aiBatchId || outputOpen || isGenerationStreaming || generationError) && <>
                 {isGenerationStreaming ? (
                   <button
                     type="button"
@@ -3161,38 +2923,18 @@ const copyFigmaExtractedText = async () => {
                 )}
                 <button
                   type="button"
-                  onClick={() => void handleSaveGeneratedCases()}
-                  data-audit-name="Save generated test cases"
-                  disabled={isGenerationStreaming || Boolean(generationError) || streamParse.cases.length === 0 || casesSaving || Boolean(savedRequestId)}
-                  title={savedRequestId ? `Saved safely as ${savedRequestId}` : streamParse.cases.length === 0 ? 'Generate test cases first' : 'Save all generated test cases as a draft without running AI Checks'}
-                  className={`flex h-[34px] items-center gap-1.5 rounded-[12px] border px-4 text-[13px] font-bold transition ${
-                    savedRequestId
-                      ? 'cursor-default border-[#BFE3CD] bg-[#EAF7EF] text-[#136B34]'
-                      : isGenerationStreaming || generationError || streamParse.cases.length === 0
-                        ? 'cursor-not-allowed border-transparent bg-[#F4F5F7] text-[#9CA3AF]'
-                        : 'border-[#D8DCE3] bg-white text-[#1F2937] hover:border-[#B71920] hover:text-[#941216]'
-                  }`}
-                >
-                  {savedRequestId && (
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden><path d="M5 12l4 4L19 6" /></svg>
-                  )}
-                  {casesSaving ? 'Saving…' : savedRequestId ? 'Saved' : 'Save test cases'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setAiError(''); setRefineChoice('agents'); setApprovalManagerEnabled(canKb('automation.approve')); setRefineDialogOpen(true) }}
-                  data-audit-name="Run AI Checks"
-                  disabled={isGenerationStreaming || Boolean(generationError) || remainingGeneratedCount === 0 || aiStarting || !savedRequestId}
-                  title={remainingGeneratedCount === 0 ? 'All generated cases have already been sent' : !savedRequestId ? 'Save the generated test cases first' : 'Choose how to check selected unsent cases, or all remaining cases when none are selected'}
+                  onClick={handleRunAiChecks}
+                  data-audit-name="Save & Run AI Checks"
+                  disabled={isGenerationStreaming || Boolean(generationError) || streamParse.cases.length === 0 || aiStarting || submittedTestCaseCount !== null}
+                  title={streamParse.cases.length === 0 ? 'Generate test cases first' : 'Save the test cases, then refine, review, improve and classify them before approval'}
                   className={`flex h-[34px] items-center rounded-[12px] px-4 text-[13px] font-bold transition ${
-                    isGenerationStreaming || generationError || remainingGeneratedCount === 0 || !savedRequestId
+                    isGenerationStreaming || generationError || streamParse.cases.length === 0 || submittedTestCaseCount !== null
                       ? 'cursor-not-allowed bg-[#F4F5F7] text-[#9CA3AF]'
                       : 'bg-[#1F2937] text-white hover:bg-[#111827]'
                   }`}
                 >
-                  {aiStarting ? 'Starting…' : gridSelected.size > 0 ? `Check ${gridSelected.size} cases` : submittedTestCaseCount !== null ? `Check ${remainingGeneratedCount} remaining` : 'Check cases'}
+                  {aiStarting ? 'Saving…' : gridSelected.size > 0 ? `Save & Run AI Checks on ${gridSelected.size}` : 'Save & Run AI Checks'}
                 </button>
-                </>}
                 {!isGenerationStreaming && !generationError && (
                   <button
                     type="button"
@@ -3208,15 +2950,6 @@ const copyFigmaExtractedText = async () => {
                 )}
               </div>
             </div>
-
-            {outputOpen && !isGenerationStreaming && !generationError && streamParse.cases.length > 0 && (
-              <div className="mx-[22px] mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-[12px] border border-[#E8EAEE] bg-[#FAFAFB] px-3.5 py-2 text-[11.5px] text-[#6B7280]">
-                <span><strong className="text-[#1F2937]">1. Save</strong> keeps the generated test cases safe as a draft.</span>
-                <span><strong className="text-[#1F2937]">2. Choose a check path</strong> to refine with a KB, use QA agents, or send as generated.</span>
-                {submittedTestCaseCount !== null && remainingGeneratedCount > 0 && <span className="font-semibold text-[#941216]">{remainingGeneratedCount} remain. Select their checkboxes below, then choose Check cases.</span>}
-                {savedRequestId && <span className="ml-auto font-semibold text-[#136B34]">Draft saved · {savedRequestId}</span>}
-              </div>
-            )}
 
             {aiError && (
               <div className="mx-[22px] mt-3.5 rounded-[12px] border border-[#F6D4D5] bg-[#FFF8F8] px-3.5 py-2.5 text-[12.5px] text-[#7A0B0D]" role="alert">
@@ -3240,9 +2973,8 @@ const copyFigmaExtractedText = async () => {
                 <CaseGrid
                   cases={streamParse.cases}
                   streaming={isGenerationStreaming}
-                  selection={{
+                  selection={submittedTestCaseCount !== null ? undefined : {
                     selected: gridSelected,
-                    locked: sentGeneratedIds,
                     onToggle: (id) => setGridSelected((current) => {
                       const next = new Set(current)
                       if (next.has(id)) next.delete(id)
@@ -3277,182 +3009,8 @@ const copyFigmaExtractedText = async () => {
           </section>
         )}
 
-        {aiBatch && <div ref={aiChecksSectionRef} className="scroll-mt-20">{(
-          aiEditing !== null && aiBatch.items.find((item) => item.check_id === aiEditing) ? (
-            <StepEditor
-              key={aiEditing}
-              item={aiBatch.items.find((item) => item.check_id === aiEditing)!}
-              totalCases={aiBatch.total}
-              saving={aiSaving}
-              error={aiEditError}
-              onCancel={() => { setAiEditing(null); setAiEditError('') }}
-              onSave={handleAiSaveSteps}
-            />
-          ) : (
-            <AIChecksPanel
-              batch={aiBatch}
-              now={nowTick}
-              selected={aiSelected}
-              onToggle={(checkId) => setAiSelected((current) => {
-                const next = new Set(current)
-                if (next.has(checkId)) next.delete(checkId)
-                else next.add(checkId)
-                return next
-              })}
-              onToggleAll={(ids, on) => setAiSelected((current) => {
-                const next = new Set(current)
-                ids.forEach((id) => (on ? next.add(id) : next.delete(id)))
-                return next
-              })}
-              onRetry={handleAiRetry}
-              onContinueBrowserReplay={handleContinueBrowserReplay}
-              onRepair={(checkId) => setRepairCheckId(checkId)}
-              repairPanel={repairCheckId !== null && aiBatch.agent_setup ? (() => {
-                const item = aiBatch.items.find(row => row.check_id === repairCheckId)
-                const journeyId = item?.agents?.navigation_guide?.journey_id
-                return item && journeyId && aiBatchId ? <AgentControlCapture key={repairCheckId} item={item} batchId={aiBatchId} setup={aiBatch.agent_setup!} journeyId={journeyId} onClose={() => setRepairCheckId(null)} onDraft={ids => { setKbCheckIds(ids); setKbCheckOpen(true); setRepairCheckId(null); void refreshAiBatch(aiBatchId) }} onRetryNavigation={() => { setRepairCheckId(null); void handleAgentStageRetry(item.check_id, 'navigation_guide') }} />
-                  : <div className="mx-[22px] mt-3 rounded-[10px] border border-[#EBCFA4] bg-[#FFFBF4] p-3 text-[12px] text-[#805000]">This case has no approved journey to replay yet. Review its pending Journey KB draft first. <button type="button" onClick={() => setRepairCheckId(null)} className="ml-2 font-bold underline">Close</button></div>
-              })() : null}
-              onRecheck={handleAgentRecheck}
-              onRetryDataEntry={handleAgentDataEntryRetry}
-              onRetryAnalysis={handleAgentAnalysisRetry}
-              onRetryAgent={handleAgentStageRetry}
-              onEdit={(checkId) => { setAiEditError(''); setAiEditing(checkId) }}
-              onCheckChanges={() => { setKbCheckIds(agentChangeIds); setKbCheckOpen(true) }}
-              onReviewChanges={(ids) => { setKbCheckIds(ids); setKbCheckOpen(true) }}
-              onScanMissing={(checkId) => {
-                setAgentDecisionOpen(false)
-                setAgentScanCheckId(checkId)
-                setAgentScan(null)
-                setAgentDecisionError('')
-                setAgentScanOpen(true)
-                if (aiBatchId) void aiChecksService.agentScanProgress(aiBatchId, checkId).then(setAgentScan).catch(() => setAgentScan({ status: 'idle' }))
-              }}
-              onAgentDecide={() => { setAgentDecisionScope('batch'); setAgentDecisionResults([]); setAgentScan(null); setAgentScanCheckId(null); setAgentDecisionError(''); setAgentDecisionOpen(true) }}
-              onRetryApprovalManager={handleRetryApprovalManager}
-              onDataSaved={() => { if (aiBatchId) void refreshAiBatch(aiBatchId) }}
-              onDataProfileDraft={(changeSetId) => { setKbCheckIds([changeSetId]); setKbCheckOpen(true) }}
-              canAgentDecide={canKb('automation.approve')}
-              onReuseKbEvidenceChange={async enabled => {
-                if (!aiBatchId) throw new Error('AI Checks batch is unavailable.')
-                await aiChecksService.setReuseKbEvidence(aiBatchId, enabled)
-                await refreshAiBatch(aiBatchId)
-              }}
-              onSend={handleAiSend}
-              onSendOriginal={handleSendUnverifiedForEvaluation}
-              onDownload={handleAiDownload}
-              onDownloadCases={(version) => void handleRqmDownload(version)}
-              downloadingCases={rqmDownloading}
-              onStop={handleAiStop}
-              onRestart={handleAiRestart}
-              onDelete={handleAiDelete}
-              busy={aiBusy}
-              savedAs={savedRequestId}
-              sendCount={aiSendable.length}
-              sentIds={aiSentIds}
-            />
-          )
-        )}</div>}
-
         <JourneyBar current={journeyStep} />
       </div>
-
-      {refineDialogOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(17,24,39,0.48)] p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !aiStarting) setRefineDialogOpen(false) }}>
-          <div role="dialog" aria-modal="true" aria-labelledby="refine-dialog-title" onKeyDown={(event) => { if (event.key === 'Escape' && !aiStarting) setRefineDialogOpen(false) }} className="flex max-h-[90vh] w-full max-w-[650px] flex-col overflow-hidden rounded-[20px] border border-[#E8EAEE] bg-white shadow-[0_24px_60px_rgba(16,24,40,0.22)]">
-            <div className="border-b border-[#ECEEF2] px-6 py-5">
-              <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#B71920]">Next step</div>
-              <h2 id="refine-dialog-title" className="m-0 text-[19px] font-bold text-[#1F2937]">How would you like to check these cases?</h2>
-              <p className="mb-0 mt-1 text-[13px] text-[#647084]">{gridSelected.size || remainingGeneratedCount} unsent test case{(gridSelected.size || remainingGeneratedCount) === 1 ? '' : 's'} · Your saved draft will not be replaced.</p>
-            </div>
-            <div className="space-y-2.5 overflow-y-auto px-6 py-5" role="radiogroup" aria-label="Check method">
-              {([
-                { value: 'agents', title: 'Agents Refine', detail: 'Recommended for new or incomplete project knowledge. Agents prepare journeys, capture browser evidence, check results, and publish only supported Knowledge Base updates when Approval Manager is enabled.', tag: 'Recommended' },
-                { value: 'knowledge_base', title: 'Knowledge Base AI Refine', detail: `Use when this project already has a prepared, mapped Knowledge Base. Refine and classify using ${selectedKnowledgeBaseOption.label} without a new guided crawl.`, tag: 'Prepared KB' },
-                { value: 'none', title: 'Proceed without refine', detail: 'Send the saved cases to Human Evaluation exactly as generated. No AI checks or browser verification will run.', tag: 'Not recommended' },
-              ] as const).map((option) => (
-                <button key={option.value} type="button" role="radio" aria-checked={refineChoice === option.value} autoFocus={option.value === 'agents'} disabled={aiStarting} onClick={() => { setRefineChoice(option.value); setAiError('') }} className={`w-full rounded-[14px] border p-4 text-left transition ${refineChoice === option.value ? 'border-[#B71920] bg-[#FFF7F7] shadow-[0_0_0_2px_rgba(183,25,32,0.08)]' : 'border-[#E5E8EE] bg-white hover:border-[#BAC1CC] hover:bg-[#FAFBFC]'}`}>
-                  <span className="flex items-start gap-3">
-                    <span className={`mt-0.5 flex h-[18px] w-[18px] flex-none items-center justify-center rounded-full border-2 ${refineChoice === option.value ? 'border-[#B71920]' : 'border-[#B8C0CC]'}`}>{refineChoice === option.value && <span className="h-2 w-2 rounded-full bg-[#B71920]" />}</span>
-                    <span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2"><strong className="text-[14px] text-[#1F2937]">{option.title}</strong><span className="rounded-full bg-[#F0F2F5] px-2 py-0.5 text-[10px] font-semibold text-[#5B6573]">{option.tag}</span></span><span className="mt-1 block text-[12px] leading-5 text-[#667085]">{option.detail}</span></span>
-                  </span>
-                </button>
-              ))}
-              {refineChoice === 'agents' && <div role="group" aria-label="Agents Refine setup">
-                <label className="mb-2.5 flex cursor-pointer items-start gap-3 rounded-[10px] border border-[#D7E2F0] bg-[#F5F9FF] px-3 py-2.5 text-[12px] text-[#344054]">
-                  <input type="checkbox" checked={approvalManagerEnabled} disabled={aiStarting || !canKb('automation.approve')} onChange={(event) => setApprovalManagerEnabled(event.target.checked)} className="mt-0.5 accent-[#B71920]" />
-                  <span><strong className="block text-[#1F2937]">Use Approval Manager</strong><span className="mt-0.5 block text-[#667085]">{canKb('automation.approve') ? 'On by default for this check batch. It reviews evidence and reusable KB data, and only approves supported changes. Anything uncertain remains for you.' : 'Requires Knowledge Base approval permission. You can still run Agents Refine and review changes yourself.'}</span></span>
-                </label>
-                <div className="rounded-[10px] border border-[#E5E8EE] bg-[#FAFBFC] px-3 py-2 text-[12px]"><span className="font-semibold">Project:</span> {project ? projectLabel(project) : 'Not selected'} <button type="button" className="ml-2 font-semibold text-[#B71920] hover:underline" onClick={() => { setResumeAgentSetupAfterProject(true); setRefineDialogOpen(false); setProjectDialog('edit') }}>{project ? 'Change' : 'Choose or register'}</button></div>
-                <AgentReviewSetup environment={selectedEnvironment || 'QA'} caseCount={gridSelected.size || remainingGeneratedCount} onChange={setAgentSetup} />
-              </div>}
-              {aiError && <div role="alert" className="rounded-[10px] border border-[#F2CECF] bg-[#FFF8F8] px-3 py-2 text-[12px] text-[#941216]">{aiError}</div>}
-            </div>
-            <div className="flex items-center justify-between gap-3 border-t border-[#ECEEF2] bg-[#FAFBFC] px-6 py-4">
-              <span className="text-[11px] text-[#667085]">You can return to the saved draft later.</span>
-              <div className="flex gap-2">
-                <button type="button" disabled={aiStarting} onClick={() => setRefineDialogOpen(false)} className="rounded-[10px] border border-[#DDE1E7] bg-white px-4 py-2 text-[12px] font-semibold text-[#344054] hover:bg-[#F5F6F8]">Cancel</button>
-                <button type="button" disabled={aiStarting} onClick={() => { if (refineChoice === 'none') void handleSkipRefine(); else void handleRunAiChecks(refineChoice) }} className="rounded-[10px] bg-[#B71920] px-4 py-2 text-[12px] font-bold text-white hover:bg-[#941216] disabled:opacity-60">{aiStarting ? 'Working…' : refineChoice === 'none' ? 'Send for evaluation' : 'Start AI checks'}</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {kbCheckOpen && aiBatch?.agent_setup?.app_key && <ChangeSetsDrawer
-        appKey={aiBatch.agent_setup.app_key}
-        tab="review"
-        onTab={() => undefined}
-        onClose={() => { setKbCheckOpen(false); if (aiBatchId) void refreshAiBatch(aiBatchId) }}
-        onPublished={() => { if (aiBatchId) void refreshAiBatch(aiBatchId) }}
-        onQueueChanged={() => { if (aiBatchId) void refreshAiBatch(aiBatchId) }}
-        canDecide={canKb('automation.approve')}
-        canEdit={canKb('automation.execute')}
-        presentation="modal"
-        changeSetIds={kbCheckIds}
-      />}
-
-      {agentScanOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setAgentScanOpen(false) }}>
-        <div role="dialog" aria-modal="true" aria-labelledby="agent-scan-title" className="w-full max-w-[620px] rounded-[18px] border border-[#E8EAEE] bg-white p-5 shadow-2xl">
-          <div className="flex items-start justify-between gap-3"><div><h2 id="agent-scan-title" className="m-0 text-[18px] font-bold text-[#1F2937]">Map missing journey controls</h2><p className="mb-0 mt-1 text-[12px] text-[#667085]">{aiBatch?.items.find(item => item.check_id === agentScanCheckId)?.display_id}: reuse saved browser evidence or rescan the application. No control is marked verified until the browser has observed it.</p></div><button type="button" onClick={() => setAgentScanOpen(false)} className="rounded-[8px] border px-2 py-1 text-[12px]">Close</button></div>
-          {agentScan?.status === 'scanning' ? <div role="status" aria-live="polite" className="mt-4 rounded-[10px] border border-[#D6E4F5] bg-[#F5F9FF] p-3 text-[12px]"><div className="font-bold text-[#244B7D]">{agentScan.phase || 'Starting browser scan'} · {agentScan.observed_pages ?? 0}/{agentScan.max_pages ?? 30} pages</div><div className="mt-1">{agentScan.observed_controls ?? 0} controls captured · {agentScan.blockers ?? 0} blocked pages</div>{agentScan.current_url && <div className="mt-1 break-all text-[#667085]">Checking: {agentScan.current_url}</div>}{!!agentScan.recent_pages?.length && <div className="mt-2 border-t pt-2">Recently captured: {agentScan.recent_pages.slice(-3).map(page => page.title || page.url).join(' · ')}</div>}</div> : null}
-          {agentScan?.status === 'prepared' && <div role="status" className="mt-4 rounded-[10px] border border-[#BBDFC8] bg-[#F5FBF7] p-3 text-[12px]">{agentScan.reused_capture ? 'Rechecked saved capture' : 'Fresh scan completed'}: {agentScan.observed_pages ?? 0} pages · {agentScan.observed_controls ?? 0} controls. Draft #{agentScan.change_set_id} is ready; {agentScan.unresolved?.length ?? 0} step(s) still need a verified control.</div>}
-          {agentScan?.status === 'failed' && <div role="alert" className="mt-4 rounded-[10px] border border-[#F0C2C0] bg-[#FFF7F7] p-3 text-[12px] text-[#A3231C]">{agentScan.message || 'The scan could not finish.'}</div>}
-          {!!agentScan?.unresolved?.length && <div className="mt-3 rounded-[10px] border border-[#EBCFA4] bg-[#FFFBF4] p-3 text-[12px]"><strong>Still to map:</strong> {agentScan.unresolved.join(' · ')}</div>}
-          {agentDecisionError && <div role="alert" className="mt-3 text-[12px] text-[#A3231C]">{agentDecisionError}</div>}
-          <p className="mt-4 text-[12px] text-[#667085]">If a control remains ambiguous, approve the Journey KB draft, then use “Capture controls” on this same page to replay to that step in a visible browser and select it yourself.</p>
-          <div className="mt-4 flex flex-wrap gap-2"><button type="button" disabled={agentDecisionBusy || agentScan?.status === 'scanning'} onClick={() => void handleAgentScan(true)} className="rounded-[9px] bg-[#B71920] px-3 py-2 text-[12px] font-bold text-white disabled:opacity-50">{agentDecisionBusy ? 'Starting…' : 'Recheck saved capture'}</button><button type="button" disabled={agentDecisionBusy || agentScan?.status === 'scanning'} onClick={() => void handleAgentScan(false)} className="rounded-[9px] border px-3 py-2 text-[12px] font-bold disabled:opacity-50">Run fresh browser crawl</button>{agentScan?.change_set_id && <button type="button" onClick={() => { setKbCheckIds([agentScan.change_set_id!]); setKbCheckOpen(true); setAgentScanOpen(false) }} className="rounded-[9px] border px-3 py-2 text-[12px] font-bold">Review new draft</button>}{!agentScan?.change_set_id && agentChangeIds.length > 0 && <button type="button" onClick={() => { setKbCheckIds(agentChangeIds); setKbCheckOpen(true); setAgentScanOpen(false) }} className="rounded-[9px] border px-3 py-2 text-[12px] font-bold">Review current draft</button>}</div>
-        </div>
-      </div>}
-
-      {agentDecisionOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !agentDecisionBusy) setAgentDecisionOpen(false) }}>
-        <div role="dialog" aria-modal="true" aria-labelledby="agent-decision-title" onKeyDown={(event) => { if (event.key === 'Escape' && !agentDecisionBusy) setAgentDecisionOpen(false) }} className="flex max-h-[calc(100vh-2rem)] w-full max-w-[590px] flex-col overflow-hidden rounded-[18px] border border-[#E8EAEE] bg-white shadow-2xl">
-          <div className="border-b border-[#ECEEF2] px-5 py-4"><div className="text-[11px] font-bold uppercase tracking-widest text-[#B71920]">Approval Manager · optional delegation</div><h2 id="agent-decision-title" className="mb-0 mt-1 text-[19px] font-bold text-[#1F2937]">{aiBatch?.agent_auto_approval ? 'Approval Manager is assigned to this batch' : 'Assign approvals to Approval Manager?'}</h2><p className="mb-0 mt-1 text-[12px] text-[#667085]">{aiBatch?.agent_auto_approval ? 'Approval Manager checks KB data and browser evidence for each proposal. Fully supported changes can publish; uncertain ones stay for you.' : 'Approval Manager works alongside the other agents. It first checks ready stored KB data, then evaluates proposed KB changes. It never invents valid sign-in credentials or approves unverified controls.'}</p></div>
-          <div className="space-y-2 overflow-y-auto p-5">
-            {!aiBatch?.agent_auto_approval && <button type="button" onClick={() => setAgentDecisionScope('one')} className={`w-full rounded-[12px] border p-3 text-left ${agentDecisionScope === 'one' ? 'border-[#B71920] bg-[#FFF7F7]' : 'border-[#E5E8EE] bg-white'}`}><span className="text-[13px] font-bold text-[#1F2937]">This change only</span><span className="mt-1 block text-[11px] text-[#667085]">Check the pending proposal for {pendingAgentCheck?.display_id || 'this case'} now. Later proposals still need your choice.</span></button>}
-            {!aiBatch?.agent_auto_approval && <button type="button" onClick={() => setAgentDecisionScope('batch')} className={`w-full rounded-[12px] border p-3 text-left ${agentDecisionScope === 'batch' ? 'border-[#B71920] bg-[#FFF7F7]' : 'border-[#E5E8EE] bg-white'}`}><span className="text-[13px] font-bold text-[#1F2937]">All cases in this check batch · recommended</span><span className="mt-1 block text-[11px] text-[#667085]">Check current and later proposals in this batch. Approval Manager prefers compatible ready KB Test Data. This does not affect other batches or projects.</span></button>}
-            {aiBatch?.agent_auto_approval && <button type="button" disabled={agentDecisionBusy} onClick={() => void handleAgentDecision('off')} className="text-[12px] font-bold text-[#A3231C] hover:underline disabled:opacity-50">Turn off automatic decisions for this batch</button>}
-            {agentDecisionResults.map((result) => <div key={result.check_id} className={`rounded-[9px] border px-3 py-2 text-[12px] ${result.held.length ? 'border-[#EBCFA4] bg-[#FFFBF4] text-[#805000]' : 'border-[#BBDFC8] bg-[#F5FBF7] text-[#136B34]'}`}>{result.held.length ? <><strong>Held for you:</strong> {result.held.join(' ')}</> : <><strong>Approved:</strong> {result.approved.map((id) => `#${id}`).join(', ')}. Browser work will continue.</>}</div>)}
-            {needsAgentData && pendingAgentCheck && aiBatchId && <AgentTestDataSetup batchId={aiBatchId} checkId={pendingAgentCheck.check_id} onSaved={() => { if (aiBatchId) void refreshAiBatch(aiBatchId) }} onProfileDraft={(changeSetId) => { setKbCheckIds([changeSetId]); setKbCheckOpen(true); setAgentDecisionOpen(false) }} />}
-            {needsAgentEvidence && pendingAgentCheck && <div className="rounded-[10px] border border-[#DCE4EE] bg-[#F8FAFD] p-3 text-[12px] text-[#344054]">
-              <div className="font-bold">Capture the missing evidence</div>
-              <p className="mb-2 mt-1 text-[#667085]">Scan the registered application again from here. The agent will prepare a new draft using only controls it actually finds. Any remaining steps or Test Data still need your attention; the scan will not approve them automatically.</p>
-              {agentScan?.status === 'scanning' && <div role="status" aria-live="polite" className="mb-3 rounded-[9px] border border-[#D6E4F5] bg-white p-3 text-[#344054]">
-                <div className="flex items-center gap-2 font-bold"><span className="h-2 w-2 animate-pulse rounded-full bg-[#2770B6]" />{agentScan.phase || 'Starting browser scan'}</div>
-                <div className="mt-2 grid grid-cols-3 gap-2 text-center text-[11px]"><div className="rounded bg-[#F3F7FC] p-2"><strong className="block text-[16px]">{agentScan.observed_pages ?? 0}</strong>Pages captured</div><div className="rounded bg-[#F3F7FC] p-2"><strong className="block text-[16px]">{agentScan.observed_controls ?? 0}</strong>Controls found</div><div className="rounded bg-[#F3F7FC] p-2"><strong className="block text-[16px]">{agentScan.blockers ?? 0}</strong>Pages blocked</div></div>
-                {agentScan.current_url && <div className="mt-2 break-all text-[11px] text-[#667085]">Checking: {agentScan.current_url}</div>}
-                {!!agentScan.recent_pages?.length && <div className="mt-2 border-t border-[#E7EBF0] pt-2 text-[11px]"><div className="mb-1 font-bold">Recently captured</div>{agentScan.recent_pages.slice(-3).reverse().map((page, index) => <div key={`${page.url}-${index}`} className="truncate text-[#667085]" title={page.url}>✓ {page.title || page.url}</div>)}</div>}
-                <div className="mt-2 text-[11px] text-[#667085]">This can take a few minutes. The counts update as each page is checked.</div>
-              </div>}
-              {agentScan?.status === 'failed' && <div role="alert" className="mb-2 text-[#A3231C]">{agentScan.message}</div>}
-              {agentScan?.status === 'prepared' && <div role="status" className="mb-2">Scanned {agentScan.observed_pages || 0} pages. Draft #{agentScan.change_set_id} is ready; {agentScan.unresolved?.length || 0} step(s) still need a control. {agentScan.unresolved?.length ? 'Check or split compound steps before approval.' : 'The agent will recheck the evidence.'}</div>}
-              <div className="flex flex-wrap gap-2"><button type="button" disabled={agentDecisionBusy || agentScan?.status === 'scanning'} onClick={() => void handleAgentScan(true)} className="rounded-[8px] bg-[#344054] px-3 py-2 font-bold text-white disabled:opacity-50">Recheck saved capture</button><button type="button" disabled={agentDecisionBusy || agentScan?.status === 'scanning'} onClick={() => void handleAgentScan(false)} className="rounded-[8px] border border-[#D0D5DD] bg-white px-3 py-2 font-bold disabled:opacity-50">Run fresh crawl</button>{agentScan?.change_set_id && <button type="button" onClick={() => { setKbCheckIds([agentScan.change_set_id!]); setKbCheckOpen(true); setAgentDecisionOpen(false) }} className="rounded-[8px] border border-[#D0D5DD] bg-white px-3 py-2 font-bold">Check new draft</button>}</div>
-            </div>}
-            {agentDecisionError && <div role="alert" className="rounded-[9px] border border-[#F0C2C0] bg-[#FFF7F7] px-3 py-2 text-[12px] text-[#A3231C]">{agentDecisionError}</div>}
-          </div>
-          <div className="flex justify-end gap-2 border-t border-[#ECEEF2] bg-[#FAFBFC] px-5 py-4"><button type="button" disabled={agentDecisionBusy} onClick={() => setAgentDecisionOpen(false)} className="rounded-[9px] border border-[#DDE1E7] bg-white px-4 py-2 text-[12px] font-semibold text-[#344054]">Close</button>{!aiBatch?.agent_auto_approval && <button type="button" disabled={agentDecisionBusy || agentScan?.status === 'scanning' || (agentDecisionScope === 'one' && !pendingAgentCheck)} onClick={() => void handleAgentDecision(agentDecisionScope)} className="rounded-[9px] bg-[#B71920] px-4 py-2 text-[12px] font-bold text-white disabled:opacity-50">{agentDecisionBusy ? 'Checking…' : agentDecisionScope === 'one' ? 'Check this change' : 'Enable for this batch'}</button>}</div>
-        </div>
-      </div>}
 
       <ProjectDialog
         open={projectDialog !== null}

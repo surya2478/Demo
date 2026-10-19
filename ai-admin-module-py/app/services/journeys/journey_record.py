@@ -148,7 +148,7 @@ def with_check(steps: List[Dict[str, Any]], final_url: Optional[str], screenshot
 
 
 def start(db: Session, *, app_id: str, journey_id: str, application_id: int, environment: Optional[str] = None,
-          actor: Optional[str] = None, new_journey_name: Optional[str] = None, profile_id: Optional[str] = None) -> KbCrawlRun:
+          actor: Optional[str] = None) -> KbCrawlRun:
     """Open a browser at the environment's address for someone to do the journey in."""
     from ..automation.job_manager import job_manager, new_run_key
     from ..automation.preflight import is_ready, runtime_status
@@ -173,12 +173,8 @@ def start(db: Session, *, app_id: str, journey_id: str, application_id: int, env
     if application.app_key != kb.app_id:
         raise RecordError(f"{application.name} is registered as '{application.app_key}', not '{kb.app_id}'.")
     journey = kb.journeys.get(journey_id)
-    if journey is None and not new_journey_name:
+    if journey is None:
         raise LookupError(f"'{journey_id}' has no authored journey file to record into.")
-    if new_journey_name:
-        from uuid import uuid4
-        journey_id = f"{kb.manifest.get('id_prefix') or 'APP'}.RECORDED.{uuid4().hex[:12].upper()}"
-        journey = {'name': new_journey_name[:180]}
     environment = (environment or application.environment or "SIT").strip()
     if environment.upper() in blocked_environments():
         raise RecordError(f"Recordings do not run against {environment}. Use SIT, QA, UAT or RC.")
@@ -190,10 +186,6 @@ def start(db: Session, *, app_id: str, journey_id: str, application_id: int, env
     plan = {"source": SOURCE, "app_id": kb.app_id, "journey_id": journey_id, "journey_name": journey.get("name") or journey_id,
             "entry": journey_crawl.entry_address(base_url), "base_url": base_url, "max_minutes": minutes,
             "app_name": application.name, "items": [], "scope": [journey_id], "variables": []}
-    if new_journey_name:
-        from ..automation.agent_auth import trusted_auth_origins
-        origin = urlsplit(base_url)
-        plan.update(new_journey=True, profile_id=profile_id, allowed_origins=sorted({f'{origin.scheme}://{origin.netloc}'} | trusted_auth_origins(kb, environment)))
     run_key = new_run_key()
     db.add(AutomationRun(
         run_key=run_key, framework="playwright", environment=environment, status="queued",
@@ -252,17 +244,7 @@ def absorb(db: Session, crawl: KbCrawlRun) -> KbCrawlRun:
     # spec saves after every action.
     if output.get("events"):
         steps = recording_steps(output, app_name=(crawl.plan or {}).get("app_name") or "the application")
-        if (crawl.plan or {}).get('new_journey'):
-            # Keep full origins for first-time recordings: /login on another host
-            # must never be replayed on the application's host by accident.
-            steps[0]['recorded'].update(route=output.get('landed') or output.get('entry'), url=output.get('landed') or output.get('entry'))
-            events = _merge_otp(output.get('events') or [])
-            for step, event in zip(steps[1:], events):
-                step['recorded'].update(url=event.get('url'), led_to=event.get('led_to'))
-            if steps[-1]['recorded'].get('kind') == 'verify':
-                steps[-1]['recorded'].update(route=output.get('final_url'), url=output.get('final_url'))
         crawl.result = {"recording": steps, "events": len(output.get("events") or []), "final_url": output.get("final_url"),
-                        "auth_success": output.get('auth_success'),
                         "ended": output.get("reason"), "entry": {"address": output.get("entry"), "landed": output.get("landed")},
                         "steps": [], "rows": [], "summary": {}, "blockers": []}
         crawl.status = "completed"
@@ -290,8 +272,6 @@ def save(db: Session, crawl_id: int, steps: List[Dict[str, Any]], *, link_flow: 
     if kb is None:
         raise LookupError(f"No Journey KB for '{crawl.app_id}'.")
     journey = kb.journeys.get(crawl.journey_id)
-    if (crawl.plan or {}).get('new_journey'):
-        return _save_new(db, crawl, kb, steps, actor=actor)
     if journey is None:
         raise LookupError(f"No journey '{crawl.journey_id}'.")
     clean = []
@@ -314,77 +294,6 @@ def save(db: Session, crawl_id: int, steps: List[Dict[str, Any]], *, link_flow: 
         crawl.automation_change_set_id = created["automation"].id
     db.commit()
     return created
-
-
-def _save_new(db, crawl, kb, steps, *, actor):
-    """Create a reviewable journey from server-captured evidence, never client selectors."""
-    if crawl.journey_change_set_id:
-        return {'journey': db.get(KbChangeSet, crawl.journey_change_set_id),
-                'automation': db.get(KbChangeSet, crawl.automation_change_set_id) if crawl.automation_change_set_id else None}
-    observed = (crawl.result or {}).get('recording') or []
-    allowed = set((crawl.plan or {}).get('allowed_origins') or [])
-    clean = []
-    for step in steps:
-        rec = step.get('recorded') or {}
-        if not any(rec == item.get('recorded') for item in observed):
-            raise RecordError('A recorded target was changed or was not captured by this browser.')
-        for field in ('url', 'route', 'led_to'):
-            if rec.get(field):
-                url = urlsplit(rec[field])
-                if f'{url.scheme}://{url.netloc}' not in allowed:
-                    raise RecordError('The recording visited an unapproved host. Approve that login origin before capturing it.')
-        if rec.get('kind') not in ('goto', 'verify') and rec.get('unique') is not True:
-            raise RecordError('A recorded control is ambiguous; capture that step again.')
-        clean.append({'step_number': len(clean) + 1, 'action': step['action'], 'expected_result': step.get('expected_result') or '',
-                      'recorded': {**rec, 'recording': crawl.id, 'environment': crawl.environment,
-                                   'fresh_otp': rec.get('field') == 'otp' or rec.get('kind') == 'otp'}})
-    journey = {'journey_id': crawl.journey_id, 'name': crawl.plan['journey_name'],
-        'journey_path': ['Recorded journeys', crawl.plan['journey_name']], 'summary': 'Browser-observed human-assisted journey.',
-        'steps': clean, 'screens': [], 'prerequisite_journeys': [], 'next_journeys': [], 'business_rules': [],
-        'conditional_branches': [], 'test_scenarios': [], 'open_questions': [],
-        'source': {'kind': 'human_recorded', 'crawl_id': crawl.id, 'environment': crawl.environment}}
-    if (crawl.result or {}).get('auth_success'):
-        journey['recorded_auth_success'] = crawl.result['auth_success']
-    # Field bindings, never the values typed during capture. Reuse an exact
-    # selected profile when possible; otherwise draft case-isolated keys.
-    field_names = list(dict.fromkeys(step['recorded'].get('field') for step in clean
-        if step['recorded'].get('kind') == 'fill' and step['recorded'].get('field') not in {None, 'otp', 'text'}))
-    profiles = dict((kb.roles or {}).get('test_data_profiles') or {})
-    selected_id = (crawl.plan or {}).get('profile_id')
-    selected = profiles.get(selected_id) or {}
-    aliases = {'username': {'username', 'email', 'email address'}, 'email': {'email', 'email address', 'username'},
-               'mobile': {'mobile', 'mobile number', 'phone', 'phone number'}, 'password': {'password'}}
-    bindings = {field: [item for item in selected.get('fields') or [] if str(item.get('name', '')).lower() in aliases.get(field, {field})] for field in field_names}
-    profile_changes = []
-    if field_names:
-        if not all(len(items) == 1 for items in bindings.values()):
-            selected_id = f'RECORDED_LOGIN_{crawl.id}'
-            profiles[selected_id] = {'name': f'Test identity for {journey["name"]}', 'kind': 'vault',
-                'fields': [{'name': field, 'variable': f'TESTDATA_CAPTURE{crawl.id}_{field.upper()}'} for field in field_names]}
-            bindings = {item['name']: [item] for item in profiles[selected_id]['fields']}
-            profile_changes.append({'file': 'roles.json', 'op': 'set', 'path': 'test_data_profiles', 'value': profiles})
-        journey['authentication_profile_id'] = selected_id
-        for step in clean:
-            field = step['recorded'].get('field')
-            if field in bindings:
-                step['recorded']['variable'] = bindings[field][0]['variable']
-    flow_id = journey_map.new_flow_id(crawl.journey_id, journey_map._flows(kb))
-    journey['automation_flow_ids'] = [flow_id]
-    generated = journey_map.generate_steps(kb, journey_map._profile(kb), journey, None)
-    flow = changesets.draft(db, app_id=kb.automation_app_id, kb='automation', source=journey_map.SOURCE, actor=actor,
-        title=f'Recorded flow: {journey["name"]}', changes=[{'file': f'flows/{flow_id}.json', 'op': 'create', 'path': '$',
-            'value': journey_map._flow_doc(kb, journey, flow_id, generated, journey_map._profile(kb))}])
-    overlay_file = 'sources/taxonomy_overlay.json'
-    overlay = json.loads((kb.directory / overlay_file).read_text(encoding='utf-8'))
-    nodes = [*(overlay.get('added_nodes') or []), {'id': crawl.journey_id, 'title': journey['name'], 'parent': None, 'kind': 'journey'}]
-    proposal = changesets.draft(db, app_id=kb.app_id, kb='journey', source='manual', actor=actor,
-        title=f'Recorded journey: {journey["name"]}', origin={'map': {'journey_id': crawl.journey_id, 'pair': flow.id}},
-        changes=[{'file': f'journeys/recorded_{crawl.id}.json', 'op': 'create', 'path': '$', 'value': journey},
-                 {'file': overlay_file, 'op': 'set', 'path': 'added_nodes', 'value': nodes}, *profile_changes])
-    flow.origin = {'map': {'journey_id': crawl.journey_id, 'pair': proposal.id}}
-    crawl.journey_change_set_id, crawl.automation_change_set_id = proposal.id, flow.id
-    db.commit()
-    return {'journey': proposal, 'automation': flow}
 
 
 # --- The recorder -------------------------------------------------------------------------------
@@ -576,13 +485,12 @@ test('record a journey', async ({ page }) => {
   let landed = null;
   let entryShot = null;
   let finalShot = null;
-  let authSuccess = null;
   // The last address seen, kept even if the person closes the window.
   let lastUrl = null;
   const save = () => {
     if (!page.isClosed()) lastUrl = page.url();
     writeAtomic('__OUTPUT__', JSON.stringify({ entry: PLAN.entry, landed, entry_shot: entryShot, events, finished, reason,
-      final_url: lastUrl, final_shot: finalShot, auth_success: authSuccess }, null, 2));
+      final_url: lastUrl, final_shot: finalShot }, null, 2));
   };
   const progress = () => writeAtomic('__PROGRESS__', JSON.stringify({
     total: events.length, current: null, finished,
@@ -595,13 +503,6 @@ test('record a journey', async ({ page }) => {
     try { await page.screenshot({ path: path.join(process.cwd(), file), timeout: 4000, ...masked(page) }); return file; } catch (e) { return null; }
   };
 
-  if (PLAN.allowed_origins) await page.context().route('**/*', async route => {
-    const request = route.request();
-    if (request.isNavigationRequest() && !PLAN.allowed_origins.includes(new URL(request.url()).origin)) {
-      await route.abort('blockedbyclient'); return;
-    }
-    await route.continue();
-  });
   await page.exposeBinding('__kbRecord', async (source, ev) => {
     if (finished || !ev || source.frame !== page.mainFrame()) return;
     const last = events[events.length - 1];
@@ -644,15 +545,6 @@ test('record a journey', async ({ page }) => {
   // A field still being typed in when the recording ended counts too.
   if (!page.isClosed()) await page.evaluate(() => document.activeElement && document.activeElement.blur()).catch(() => {});
   await sleep(300);
-  if (!page.isClosed()) {
-    for (const role of ['button', 'link']) {
-      const marker = page.getByRole(role, {name: /^(log|sign)\s*out$/i});
-      if (await marker.count() === 1 && await marker.isVisible()) {
-        authSuccess = {url: page.url(), locator: {strategy: 'role', role, name: (await marker.innerText()).trim()}};
-        break;
-      }
-    }
-  }
   finalShot = await shoot('end');
   save(); progress();
 });
@@ -661,7 +553,7 @@ test('record a journey', async ({ page }) => {
 
 def build_spec(plan: Dict[str, Any]) -> str:
     return (
-        _SPEC.replace("__PLAN__", json.dumps({"entry": plan["entry"], "max_minutes": plan["max_minutes"], "allowed_origins": plan.get('allowed_origins')}))
+        _SPEC.replace("__PLAN__", json.dumps({"entry": plan["entry"], "max_minutes": plan["max_minutes"]}))
         .replace("__STOP__", STOP_FILE)
         .replace("__OUTPUT__", OUTPUT_FILE)
         .replace("__PROGRESS__", journey_crawl.PROGRESS_FILE)

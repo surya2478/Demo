@@ -331,23 +331,23 @@ const TestAssistant: React.FC = () => {
 
           <div className="relative h-[140px] overflow-hidden border-t border-app bg-[radial-gradient(circle_at_50%_38%,rgba(255,255,255,1),rgba(255,255,255,0.96)_35%,rgba(253,235,236,0.78)_58%,rgba(255,255,255,0.98)_100%)] lg:h-auto lg:border-l lg:border-t-0">
             <div className="absolute inset-0">
-              <div className="assistant-hero-ring assistant-hero-ring-outer absolute left-1/2 top-1/2 h-[150px] w-[150px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-app-brand-200/60" />
-              <div className="assistant-hero-ring assistant-hero-ring-middle absolute left-1/2 top-1/2 h-[118px] w-[118px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-app-brand-100/70" />
-              <div className="assistant-hero-ring assistant-hero-ring-inner absolute left-1/2 top-1/2 h-[88px] w-[88px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-app-brand-200/70 shadow-[0_0_0_10px_rgba(183,25,32,0.04)]" />
-              <div className="assistant-hero-core absolute left-1/2 top-1/2 h-[68px] w-[68px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle_at_32%_28%,#ff9296_0,#d71e23_48%,#880d13_100%)] shadow-[0_10px_24px_rgba(148,18,22,0.26)]" />
+              <div className="absolute left-1/2 top-1/2 h-[150px] w-[150px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-app-brand-200/60" />
+              <div className="absolute left-1/2 top-1/2 h-[118px] w-[118px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-app-brand-100/70" />
+              <div className="absolute left-1/2 top-1/2 h-[88px] w-[88px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-app-brand-200/70 shadow-[0_0_0_10px_rgba(183,25,32,0.04)]" />
+              <div className="absolute left-1/2 top-1/2 h-[68px] w-[68px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle_at_32%_28%,#ff9296_0,#d71e23_48%,#880d13_100%)] shadow-[0_10px_24px_rgba(148,18,22,0.26)]" />
               <div className="absolute left-1/2 top-1/2 flex h-[68px] w-[68px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-[30px] font-bold tracking-[-0.06em] text-white">
                 AI
               </div>
 
-              <div className="assistant-hero-tile assistant-hero-tile-left absolute left-[14%] top-[24%] flex h-9 w-9 rotate-[-18deg] items-center justify-center rounded-[12px] border border-app-brand-100 bg-white/90 text-app-brand-700 shadow-[0_8px_18px_rgba(183,25,32,0.1)]">
+              <div className="absolute left-[14%] top-[24%] flex h-9 w-9 rotate-[-18deg] items-center justify-center rounded-[12px] border border-app-brand-100 bg-white/90 text-app-brand-700 shadow-[0_8px_18px_rgba(183,25,32,0.1)]">
                 <HeroCodeGlyph className="h-5 w-5" />
               </div>
-              <div className="assistant-hero-tile assistant-hero-tile-right absolute right-[12%] top-[28%] flex h-9 w-9 rotate-[14deg] items-center justify-center rounded-[12px] border border-app-brand-100 bg-white/90 text-app-brand-700 shadow-[0_8px_18px_rgba(183,25,32,0.1)]">
+              <div className="absolute right-[12%] top-[28%] flex h-9 w-9 rotate-[14deg] items-center justify-center rounded-[12px] border border-app-brand-100 bg-white/90 text-app-brand-700 shadow-[0_8px_18px_rgba(183,25,32,0.1)]">
                 <HeroChartGlyph className="h-5 w-5" />
               </div>
-              <div className="assistant-hero-dot assistant-hero-dot-one absolute left-[16%] top-[64%] h-2.5 w-2.5 rounded-md bg-app-brand-500 shadow-[0_0_0_6px_rgba(183,25,32,0.08)]" />
-              <div className="assistant-hero-dot assistant-hero-dot-two absolute right-[20%] top-[16%] h-2 w-2 rounded-[3px] bg-app-brand-500" />
-              <div className="assistant-hero-dot assistant-hero-dot-three absolute right-[26%] top-[70%] h-2.5 w-2.5 rounded-md bg-app-brand-300" />
+              <div className="absolute left-[16%] top-[64%] h-2.5 w-2.5 rounded-md bg-app-brand-500 shadow-[0_0_0_6px_rgba(183,25,32,0.08)]" />
+              <div className="absolute right-[20%] top-[16%] h-2 w-2 rounded-[3px] bg-app-brand-500" />
+              <div className="absolute right-[26%] top-[70%] h-2.5 w-2.5 rounded-md bg-app-brand-300" />
             </div>
           </div>
         </div>

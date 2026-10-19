@@ -421,7 +421,7 @@ const entryText = (entry: unknown) => {
   return String(entry)
 }
 
-export const Evidence: React.FC<{ run: RunDetail; result: RunResultRow | null }> = ({ run, result }) => {
+const Evidence: React.FC<{ run: RunDetail; result: RunResultRow | null }> = ({ run, result }) => {
   const consoleLogs = useMemo(() => asList(result?.console_logs), [result])
   const networkLogs = useMemo(() => asList(result?.network_logs), [result])
   const tabs: { key: EvidenceTab; label: string; enabled: boolean }[] = [

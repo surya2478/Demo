@@ -50,7 +50,6 @@ from __future__ import annotations
 
 import json
 import re
-from urllib.parse import urlparse
 from typing import Any, Dict, List, Optional
 
 from . import diff, store
@@ -109,32 +108,6 @@ def _profile_variable(profile: Dict[str, Any], *words: str) -> Optional[str]:
     return None
 
 
-def _profile_variable_for_input(profile: Dict[str, Any], element: Dict[str, Any]) -> Optional[str]:
-    """Match a form field to its Test Data value without guessing by 'name'."""
-    label = _clean(element.get("label"))
-    tokens = set(re.findall(r"[a-z]+", label.lower()))
-    if not tokens:
-        return None
-    if "confirm" in tokens or "confirmation" in tokens:
-        tokens = {"password"}
-    ranked = []
-    for field in profile.get("fields", []):
-        field_tokens = set(re.findall(r"[a-z]+", str(field.get("name") or "").lower()))
-        if not field_tokens:
-            continue
-        if tokens == field_tokens:
-            score = 100
-        elif tokens <= field_tokens and len(tokens) > 1:
-            score = len(tokens) * 10
-        elif len(tokens) == 1 and tokens == field_tokens:
-            score = 10
-        else:
-            continue
-        ranked.append((score, field.get("variable")))
-    ranked.sort(reverse=True)
-    return ranked[0][1] if ranked and ranked[0][1] and (len(ranked) == 1 or ranked[0][0] > ranked[1][0]) else None
-
-
 def _descriptor(kb: store.JourneyKB, screen: Dict[str, Any], element: Dict[str, Any], automation: Dict[str, Any]) -> Dict[str, Any]:
     ref = element.get("automation_ref")
     target = diff._resolve_ref(automation, ref) if ref else None
@@ -153,8 +126,7 @@ def _descriptor(kb: store.JourneyKB, screen: Dict[str, Any], element: Dict[str, 
         # A selector the Automation KB already holds is tried first: finding
         # it confirms it; missing it is itself a finding.
         # Routes ("/b2bportal/home.html") are not selectors; XPaths ("//a") are.
-        "kb_target": target if target and not (target.startswith("/") and not target.startswith("//"))
-        else element.get("observed_selector"),
+        "kb_target": target if target and not (target.startswith("/") and not target.startswith("//")) else None,
         "group": etype == "otp_input_group",
         "is_input": etype in INPUT_TYPES,
     }
@@ -199,10 +171,7 @@ def _signature(kb: store.JourneyKB, screen: Dict[str, Any], automation: Dict[str
             markers.append(desc)
     markers.sort(key=lambda d: (not d["kb_target"], not d["hint"].get("roles"), d["type"] != "heading"))
     route = _screen_route(kb, screen, automation)
-    parsed_route = urlparse(route or "")
-    route_origin = f"{parsed_route.scheme}://{parsed_route.netloc}" if parsed_route.scheme and parsed_route.netloc else None
-    return {"name": screen.get("name") or screen["screen_id"], "route": _path_of(route),
-            "origin": route_origin, "markers": markers[:MARKERS_PER_SCREEN]}
+    return {"name": screen.get("name") or screen["screen_id"], "route": _path_of(route), "markers": markers[:MARKERS_PER_SCREEN]}
 
 
 def _ids(value: Any) -> List[str]:
@@ -245,14 +214,20 @@ def scenario_for(journey: Dict[str, Any], profile_id: Optional[str]) -> Optional
 
 
 def entry_address(base_url: str) -> str:
-    """Use the registered environment URL exactly as configured.
+    """Where a journey walk begins: the environment's own address, as a folder.
 
-    A path without an extension may be a page (for example /login), not a
-    directory. Adding a slash silently changes the destination and can turn a
-    working entry page into a 404. Directory applications must register their
-    canonical trailing-slash URL explicitly.
+    A folder without its trailing slash is not a page: the B2B portal answers
+    /b2bportal with a redirect to an internal host, /b2bportal/ with its login page.
     """
-    return (base_url or "").strip()
+    url = (base_url or "").strip()
+    match = re.match(r"^(https?://[^/?#]+)(/[^?#]*)?$", url)
+    if not match:
+        return url
+    path = match.group(2) or "/"
+    last = path.rstrip("/").rsplit("/", 1)[-1]
+    if not path.endswith("/") and "." not in last:
+        path += "/"
+    return match.group(1) + path
 
 
 def build_plan(
@@ -334,7 +309,6 @@ def build_plan(
                                 "Fix it on the Journey Map.")
             if element is None and step.get("recorded"):
                 item.update(_recorded_item(step, data_profile))
-                item['auth_success'] = walked.get('recorded_auth_success')
                 items.append(item)
                 continue
             if element is None:
@@ -357,17 +331,14 @@ def build_plan(
                 item.update(kind="otp", variable=_profile_variable(data_profile, "otp"))
             elif etype in INPUT_TYPES:
                 words = ("password",) if etype == "password_input" else ("email", "username", "user")
-                item.update(kind="fill", variable=_profile_variable_for_input(data_profile, element)
-                            or _profile_variable(data_profile, *words))
-            elif etype in {"select", "dropdown"}:
-                item.update(kind="select", variable=_profile_variable_for_input(data_profile, element))
+                item.update(kind="fill", variable=_profile_variable(data_profile, *words))
             elif etype == "card_list":
                 item.update(kind="click", text_variable=_profile_variable(data_profile, "organization", "org"))
             elif etype in CLICK_TYPES:
                 item["kind"] = "click"
             else:
                 item["kind"] = "capture"
-            if item["kind"] in ("fill", "otp", "select") and not item.get("variable"):
+            if item["kind"] in ("fill", "otp") and not item.get("variable"):
                 item["kind"] = "capture"
                 item["reason"] = f"the data profile '{profile_id}' names no value for this field"
             items.append(item)
@@ -396,7 +367,6 @@ def build_plan(
     return {
         "app_id": kb.app_id, "journey_id": journey_id, "journey_name": journey["name"],
         "scope": [j["journey_id"] for j in scope], "base_url": base_url, "profile_id": profile_id,
-        "auth_journey_ids": [j["journey_id"] for j in scope if j.get("authentication_profile_id")],
         "entry": entry_address(base_url), "entry_fallback": fallback,
         "scenario": {k: scenario.get(k) for k in ("scenario_id", "type", "title", "steps", "rules", "branch")} if scenario else None,
         "warnings": warnings,
@@ -426,16 +396,13 @@ def _recorded_item(step: Dict[str, Any], data_profile: Dict[str, Any]) -> Dict[s
         "type": "otp_input_group" if otp else ("text_input" if fills else None), "hint": {}, "kb_ref": None,
         "kb_target": rec.get("target"), "group": otp, "is_input": fills,
     }
-    out: Dict[str, Any] = {"element": element, "recorded_url": rec.get('url')}
+    out: Dict[str, Any] = {"element": element}
     if rec.get("led_to"):
         out["led_to"] = rec["led_to"]
     if rec.get("at"):
         out["at"] = rec["at"]
     if fills:
         field = rec.get("field") or "text"
-        if (field == 'otp' or otp) and rec.get('fresh_otp'):
-            out.update(kind='manual_otp', boxes=rec.get('boxes') or 1)
-            return out
         # Recorded before the recorder checked for an email box first: a single
         # field labelled "Enter your email to receive OTP" (userEmailField) was
         # saved as an OTP field, and every walk typed the code into it.
@@ -443,8 +410,7 @@ def _recorded_item(step: Dict[str, Any], data_profile: Dict[str, Any]) -> Dict[s
             field = "email"
         words = {"username": ("username", "email", "user"), "email": ("email", "username", "user"), "password": ("password",),
                  "otp": ("otp",), "mobile": ("mobile", "phone")}.get(field, (field,))
-        recorded_variable = rec.get('variable') if re.fullmatch(r'TESTDATA_[A-Z0-9_]+', str(rec.get('variable') or '')) else None
-        variable = recorded_variable or _profile_variable(data_profile, *words) or (f"TESTDATA_{field.upper()}" if field != "text" else None)
+        variable = _profile_variable(data_profile, *words) or (f"TESTDATA_{field.upper()}" if field != "text" else None)
         if variable:
             out.update(kind="otp" if otp else "fill", variable=variable)
         else:
@@ -650,13 +616,6 @@ import path from 'path';
 // Values are read from TESTDATA_* only; nothing typed is recorded.
 
 const PLAN = __PLAN__;
-const applicationOrigin = new URL(PLAN.base_url).origin;
-const approvedAuthOrigins = new Set(PLAN.trusted_auth_origins || []);
-const authJourneys = new Set(PLAN.auth_journey_ids || []);
-const allowedOrigin = (item, url) => {
-  const origin = new URL(url).origin;
-  return origin === applicationOrigin || (authJourneys.has(item.journey_id) && approvedAuthOrigins.has(origin));
-};
 const T = { action: 8000, settle: 8000, outcome: 25000 };
 
 // Which values the crawl reads -- listed literally so the runner can resolve
@@ -889,7 +848,7 @@ async function selectForRecapture(page, item) {
     if (old) old.remove();
     const banner = document.createElement('div');
     banner.id = '__automation_recapture_banner';
-    banner.textContent = `Test Case Intelligence · Step ${order}: click the element for “${text}” · Esc to stop`;
+    banner.textContent = `Automation Studio · Step ${order}: click the element for “${text}”`;
     Object.assign(banner.style, {
       position: 'fixed', zIndex: '2147483647', left: '16px', right: '16px', top: '16px',
       padding: '14px 18px', borderRadius: '10px', background: '#1f2937', color: '#fff',
@@ -920,15 +879,7 @@ async function selectForRecapture(page, item) {
         parts.unshift(`${name}[${Math.max(1, siblings.indexOf(node) + 1)}]`);
         node = node.parentElement;
       }
-      const structural = '/html[1]/' + parts.join('/');
-      return count(structural) === 1 ? structural : null;
-    };
-    const stop = (event) => {
-      if (event.key !== 'Escape') return;
-      document.removeEventListener('click', handler, true);
-      document.removeEventListener('keydown', stop, true);
-      banner.remove();
-      resolve(null);
+      return '/html[1]/' + parts.join('/');
     };
     const handler = (event) => {
       if (!(event.target instanceof Element) || event.target.closest('#__automation_recapture_banner')) return;
@@ -937,13 +888,10 @@ async function selectForRecapture(page, item) {
       const label = element.labels && element.labels[0] ? element.labels[0].innerText : '';
       const appLabel = ((element.innerText || '').trim() || element.getAttribute('aria-label') || label || element.getAttribute('placeholder') || '').replace(/\s+/g, ' ').slice(0, 160);
       document.removeEventListener('click', handler, true);
-      document.removeEventListener('keydown', stop, true);
       banner.remove();
-      const selector = selectorFor(element);
-      resolve({ selector, tag: element.tagName.toLowerCase(), role: element.getAttribute('role') || '', app_label: appLabel });
+      resolve({ selector: selectorFor(element), tag: element.tagName.toLowerCase(), role: element.getAttribute('role') || '', app_label: appLabel });
     };
     document.addEventListener('click', handler, true);
-    document.addEventListener('keydown', stop, true);
   }), { order: item.step_number, text: item.text });
 }
 
@@ -980,11 +928,9 @@ const screenName = (id) => ((PLAN.signatures || {})[id] || {}).name || id;
 async function recognise(page, ids) {
   let best = null;
   const here = pathOf(page.url());
-  const hereOrigin = new URL(page.url()).origin;
   for (const id of ids) {
     const sig = (PLAN.signatures || {})[id];
     if (!sig) continue;
-    if (sig.origin && sig.origin !== hereOrigin) continue;
     let hits = 0;
     for (const m of sig.markers) if (await present(page, m)) hits++;
     const routed = !!(sig.route && here && sig.route === here);
@@ -1016,50 +962,6 @@ function pageSignals() {
     if (vis(b) && /\b(sending|loading|please wait|processing|submitting|verifying|signing in)\b/i.test(b.innerText || b.value || '')) { busy = true; break; }
   }
   return { errors: [...new Set(errors)].slice(0, 3), busy };
-}
-
-// Evidence for the expected result is collected after the last action, not
-// inferred from a successful click. Never capture input values or body text.
-function outcomeSnapshot() {
-  const visible = (e) => {
-    const b = e.getBoundingClientRect(); const s = getComputedStyle(e);
-    return b.width > 1 && b.height > 1 && s.visibility !== 'hidden' && s.display !== 'none' && s.opacity !== '0';
-  };
-  const take = (selector, limit) => [...document.querySelectorAll(selector)]
-    .filter(visible).map(e => (e.innerText || e.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ').slice(0, 200))
-    .filter(Boolean).filter((value, index, all) => all.indexOf(value) === index).slice(0, limit);
-  const unique = (e) => {
-    for (const name of ['id', 'data-testid', 'data-test']) {
-      const value = e.getAttribute(name);
-      if (!value || value.length > 100) continue;
-      const selector = `[${name}="${CSS.escape(value)}"]`;
-      if (document.querySelectorAll(selector).length === 1) return selector;
-    }
-    const role = e.getAttribute('role');
-    if (role && /^[a-z-]+$/i.test(role)) {
-      const selector = `[role="${role}"]`;
-      if (document.querySelectorAll(selector).length === 1) return selector;
-    }
-    return null;
-  };
-  return {
-    alerts: take('[role=alert],[role=alertdialog],[aria-live=assertive],.flash,.alert,.alert-danger,.alert-error,.error-message,.invalid-feedback', 6),
-    headings: take('h1,h2,h3,[role=heading]', 8),
-    controls: take('button,a,[role=button],[role=link],input[type=submit]', 30),
-    controls_truncated: [...document.querySelectorAll('button,a,[role=button],[role=link],input[type=submit]')].filter(visible).length > 30,
-    assertion_controls: [...document.querySelectorAll('[role=alert],[role=alertdialog],[aria-live=assertive],.flash,.alert,.alert-danger,.alert-error,.error-message,.invalid-feedback')]
-      .filter(visible).map(e => ({ kind: 'alert', text: (e.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 200), selector: unique(e) }))
-      .filter(e => e.text && e.selector).slice(0, 6),
-  };
-}
-
-function redactSnapshot(snapshot) {
-  const values = (PLAN.variables || []).map(name => env(name)).filter(value => value && value.length >= 3);
-  const redact = value => values.reduce((text, secret) => text.split(secret).join('[TEST DATA]'), value);
-  const walk = value => typeof value === 'string' ? redact(value)
-    : Array.isArray(value) ? value.map(walk)
-    : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, walk(item)])) : value;
-  return walk(snapshot);
 }
 
 // After an action the design says leads somewhere: wait for one of its
@@ -1139,7 +1041,6 @@ test('journey-guided crawl', async ({ page }) => {
   const sweep = [];
   const swept = new Set();
   const blockers = [];
-  let outcomeObservation = null;
   let current = null;
   let finished = false;
   // Every screen the walk reaches, catalogued once: all its interactive elements.
@@ -1163,8 +1064,7 @@ test('journey-guided crawl', async ({ page }) => {
   const arrived = async (screenId) => {
     if (!screenId) return;
     const here = pathOf(page.url());
-    const addressKey = new URL(page.url()).origin + here;
-    if (!routes[screenId] && here && !claimed[addressKey]) { routes[screenId] = addressKey; claimed[addressKey] = screenId; }
+    if (!routes[screenId] && here && !claimed[here]) { routes[screenId] = here; claimed[here] = screenId; }
     await inventory(screenId);
     if (!swept.has(screenId) && PLAN.screens[screenId]) {
       swept.add(screenId);
@@ -1213,9 +1113,6 @@ test('journey-guided crawl', async ({ page }) => {
       if (!PLAN.entry_fallback) throw new Error(entry.error || `${entry.address} redirected to ${entry.landed}`);
       entry.note = entry.error ? `${entry.address} did not open (${entry.error})` : `${entry.address} redirected to ${entry.landed}, outside the environment`;
       entry.fallback = new URL(PLAN.entry_fallback, entry.address).toString();
-      const firstAction = (PLAN.items || []).find((item) => item.kind !== 'skip');
-      if (!firstAction || !allowedOrigin(firstAction, entry.fallback))
-        throw new Error('Entry fallback points outside the approved application and authentication hosts.');
       await page.goto(entry.fallback, { waitUntil: 'domcontentloaded', timeout: 35000 });
       await settle(page);
       entry.landed = page.url();
@@ -1237,20 +1134,11 @@ test('journey-guided crawl', async ({ page }) => {
       }
       if (item.kind === 'skip') { record({ ...out, status: 'skipped', reason: item.reason }); continue; }
       if (derailed) { record({ ...out, status: 'blocked', reason: derailed.reason }); continue; }
-      if (item.kind === 'click' && item.auth_success && item.led_to === item.auth_success.url && page.url() === item.led_to) {
-        const spec = item.auth_success.locator;
-        const marker = page.getByRole(spec.role, {name:spec.name, exact:true});
-        if (await marker.count() === 1 && await marker.isVisible()) {
-          record({...out, status:'auto', url:page.url(), note:'The human OTP submission already reached the recorded authenticated screen.'});
-          continue;
-        }
-      }
       await pause(page);
       current = { order: index + 1, step_number: item.step_number, text: item.text, kind: item.kind };
       progress();
       if (PLAN.interactive_capture_order === index + 1) {
         const picked = await selectForRecapture(page, item);
-        if (!picked) { record({ ...out, status: 'stopped', reason: 'The person cancelled control selection.' }); break; }
         const capture = {
           screen_id: item.element?.screen_id || item.screen_id || 'FLOW',
           element_id: item.element?.element_id || `step_${item.step_number}`,
@@ -1274,17 +1162,11 @@ test('journey-guided crawl', async ({ page }) => {
       };
       try {
         if (item.kind === 'goto') {
-          const destination = new URL(item.route, entry.fallback || entry.address).toString();
-          if (!allowedOrigin(item, destination)) {
-            const status = missing('The route is outside the approved application and authentication hosts.');
-            record({ ...out, status, reason: 'Unapproved navigation host' });
-            continue;
-          }
           // Already there -- the application opened it from its own address -- or open it.
           let shown = item.screen_id ? await recognise(page, [item.screen_id]) : null;
           const already = !!shown;
           if (!shown) {
-            await page.goto(destination, { waitUntil: 'domcontentloaded', timeout: 35000 });
+            await page.goto(new URL(item.route, entry.fallback || entry.address).toString(), { waitUntil: 'domcontentloaded', timeout: 35000 });
             await settle(page);
             shown = item.screen_id ? await recognise(page, [item.screen_id]) : { screen_id: null };
           }
@@ -1326,11 +1208,6 @@ test('journey-guided crawl', async ({ page }) => {
           continue;
         }
         const el = item.element;
-        if (!allowedOrigin(item, page.url())) {
-          const status = missing('The current page is outside the approved application and authentication hosts.');
-          record({ ...out, status, reason: 'Unapproved action host' });
-          continue;
-        }
         const textValue = env(item.text_variable);
         const r = await capture(page, el, textValue);
         const loc = r._loc;
@@ -1364,36 +1241,7 @@ test('journey-guided crawl', async ({ page }) => {
         // What the page says before acting, so the outcome is judged on what is new.
         const baseline = item.expect && item.expect.length
           ? (await page.evaluate(pageSignals).catch(() => ({ errors: [] }))).errors : [];
-        if (item.recorded_url) {
-          const expected = new URL(item.recorded_url, PLAN.base_url || PLAN.entry);
-          const actual = new URL(page.url());
-          if (actual.origin !== expected.origin || actual.pathname !== expected.pathname)
-            throw new Error('Recorded action reached a different host or screen; recapture is required.');
-        }
-        if (item.kind === 'manual_otp') {
-          if (await loc.count() !== item.boxes) throw new Error('OTP control is missing or ambiguous');
-          const until = Date.now() + 120000;
-          let filled = false;
-          while (Date.now() < until) {
-            if (!item.auth_success) throw new Error('OTP replay needs an observed authenticated success marker. Record the completed login first.');
-            const spec = item.auth_success.locator;
-            const marker = page.getByRole(spec.role, {name:spec.name, exact:true});
-            filled = page.url() === item.auth_success.url && await marker.count() === 1 && await marker.isVisible();
-            if (filled) break;
-            await page.waitForTimeout(500);
-          }
-          if (!filled) throw new Error('A fresh OTP is required in the visible browser; no saved code was used.');
-        }
         if (item.kind === 'fill') await loc.first().fill(env(item.variable), { timeout: T.action });
-        if (item.kind === 'select') {
-          if (await loc.count() !== 1) throw new Error('Selection control is ambiguous');
-          const wanted = env(item.variable);
-          if (!wanted) throw new Error('Selection requires environment Test Data: ' + item.variable);
-          const options = await loc.locator('option').evaluateAll(nodes => nodes.map(n => ({value:n.value,label:n.textContent.trim(),disabled:n.disabled})));
-          const matches = options.filter(o => !o.disabled && (o.value === wanted || o.label === wanted));
-          if (matches.length !== 1) throw new Error('Selection Test Data does not identify one observed enabled option');
-          await loc.selectOption({value:matches[0].value}, {timeout:T.action});
-        }
         if (item.kind === 'otp') {
           const digits = env(item.variable).replace(/\D/g, '').split('');
           const n = await loc.count();
@@ -1407,8 +1255,7 @@ test('journey-guided crawl', async ({ page }) => {
           if (outcome.screen && outcome.kind !== 'error') await arrived(outcome.screen);
         } else if (item.led_to) {
           // A recorded step led to this address when it was recorded: it should again.
-          const destination = new URL(item.led_to, PLAN.base_url || PLAN.entry);
-          const reached = await page.waitForURL((u) => u.origin === destination.origin && pathOf(u.toString()) === pathOf(destination.toString()), { timeout: T.outcome }).then(() => true).catch(() => false);
+          const reached = await page.waitForURL((u) => pathOf(u.toString()) === (item.led_to.replace(/\/+$/, '') || '/'), { timeout: T.outcome }).then(() => true).catch(() => false);
           await settle(page);
           if (!reached) outcome = { kind: 'recorded', url: page.url(), led: item.led_to };
         } else {
@@ -1432,15 +1279,10 @@ test('journey-guided crawl', async ({ page }) => {
   } finally {
     watching = false;
     await frames.catch(() => {});
-    try {
-      await settle(page);
-      await inventory(null);
-      outcomeObservation = { url: page.url(), ...redactSnapshot(await page.evaluate(outcomeSnapshot)) };
-    } catch (e) { /* final outcome is unknown; never fabricate it */ }
     current = null;
     finished = true;
     progress();
-    fs.writeFileSync(path.join(process.cwd(), '__OUTPUT__'), JSON.stringify({ steps, sweep, pages, blockers, final_url: page.url(), outcome_observation: outcomeObservation, entry, routes, derailed }, null, 2));
+    fs.writeFileSync(path.join(process.cwd(), '__OUTPUT__'), JSON.stringify({ steps, sweep, pages, blockers, final_url: page.url(), entry, routes, derailed }, null, 2));
   }
 });
 """
@@ -1545,7 +1387,6 @@ def evaluate(plan: Dict[str, Any], output: Dict[str, Any]) -> Dict[str, Any]:
         "steps": output.get("steps", []),
         "blockers": output.get("blockers", []),
         "final_url": output.get("final_url"),
-        "outcome_observation": output.get("outcome_observation"),
         "entry": output.get("entry"),
         "derailed": output.get("derailed"),
         "scenario": plan.get("scenario"),

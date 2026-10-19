@@ -228,7 +228,7 @@ const StepEditor: React.FC<StepEditorProps> = ({ item, totalCases, saving, error
 
         <div className="mt-1 flex items-center gap-2 border-t border-[#E8EAEE] pt-2.5 text-[12px] text-[#6B7280]">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="1.8" aria-hidden><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
-          Saving re-runs the Quality Check and AI Classify for this case, so its score and Automation / Manual verdict stay current.
+          Saving re-runs Quality Review and AI Classify for this case, so its score and Automation / Manual verdict stay current.
         </div>
       </div>
     </section>

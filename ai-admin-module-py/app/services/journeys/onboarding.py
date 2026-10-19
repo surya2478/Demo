@@ -151,7 +151,7 @@ def create(app_key: str, app_name: str, *, id_prefix: Optional[str] = None, outl
         _write(directory / "roles.json", {"_purpose": "User types. Test preconditions name a role id from here.", "roles": [
             {"role_id": "ROLE_ANONYMOUS", "name": "Not signed in", "basis": "default"},
             {"role_id": "ROLE_USER", "name": "Signed-in user", "basis": "default"},
-        ], "test_data_profiles": {}})
+        ]})
         _write(directory / "state_models.json", {"_purpose": "State machines implied by the design.", "state_models": []})
         (directory / "journeys").mkdir(parents=True, exist_ok=True)
         (directory / "sources" / "documents").mkdir(parents=True, exist_ok=True)

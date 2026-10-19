@@ -82,15 +82,10 @@ def start(db: Session, *, app_id: str, journey_id: str, application_id: int,
     if not base_url:
         raise LocalRunnerError(f"{application.name} has no address for {environment}.")
     plan = crawl_runs._plan(kb, journey_id, base_url=base_url, profile_id=profile_id,
-                            stop_before=stop_before, allow_risky=allow_risky, environment=environment)
+                            stop_before=stop_before, allow_risky=allow_risky)
     if capture_step is not None:
         if capture_step > len(plan.get("items") or []):
             raise LocalRunnerError(f"Step {capture_step} is not part of this flow.")
-        if not allow_risky and plan.get("first_risky") and plan["first_risky"] < capture_step:
-            raise LocalRunnerError(
-                f"Step {plan['first_risky']} changes application data before the selected control. "
-                "Review the earlier steps and explicitly allow those actions to continue."
-            )
         plan["interactive_capture_order"] = int(capture_step)
         plan["stop_before"] = None
         plan["stop_reason"] = None

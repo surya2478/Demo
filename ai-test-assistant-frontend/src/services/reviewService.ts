@@ -53,7 +53,6 @@ export interface RequestSummary {
   approved_count: number
   rejected_count: number
   cases: number
-  case_ids?: string[]
   pending_cases: number
   ai_checked: number
   automation: number
@@ -64,9 +63,6 @@ export interface RequestSummary {
   sent_to_lab: number
   /** The project it was generated for; null for requests from before projects. */
   project?: { id: number; ppm_id: string; name: string } | null
-  application?: { id: number; name: string; app_key: string; base_url: string; environment: string } | null
-  /** False when a case sent later lost the request's application association. */
-  application_complete?: boolean
   bitbucket_sync?: BitbucketSyncInfo | null
   bitbucket_config?: BitbucketConfigStatus
 }
@@ -116,22 +112,6 @@ export interface ReviewCase {
   reviewed_datetime: string | null
 }
 
-export interface AgentResolution {
-  recovery?: import('./aiChecksService').CheckItem['recovery']
-  browser_summary?: { observed_instructions: number; total_instructions: number; replay_status: string }
-  recording_id?: number | null
-  check_id: number
-  batch_id: string
-  state: 'ready' | 'working' | 'needs_input'
-  reason: string | null
-  completed_agents: string[]
-  setup: import('./aiChecksService').AgentSetup
-  evidence: Record<string, { discovery_id?: number; crawl_id?: number; journey_id?: string; change_set_ids?: number[] }>
-}
-
-export const resolutionOf = (item: ReviewCase): AgentResolution | null => item.test_case_details?._agent_resolution || null
-export const canApproveAutomation = (item: ReviewCase): boolean => !resolutionOf(item) || resolutionOf(item)?.state === 'ready'
-
 export const PENDING = ['PENDING_REVIEW', 'PARTIALLY_APPROVED']
 
 export const aiOf = (item: ReviewCase): AIResults | null => {
@@ -158,69 +138,7 @@ export const caseTitle = (item: ReviewCase) =>
 export const caseDisplayId = (item: ReviewCase) =>
   detailOf(item, 'Test Case ID', 'TC ID', 'Case ID') || item.test_case_id
 
-/** Older/imported reviews may have AI scores but no structured AI step list.
- * Their submitted Test Steps are still the reviewed version; do not invent edits.
- */
-export const reviewedStepsOf = (item: ReviewCase): AIResults['steps'] => {
-  const steps = aiOf(item)?.steps
-  if (Array.isArray(steps) && steps.length) return steps
-  return splitSteps(detailOf(item, 'Test Steps', 'Steps')).map((action, index) => ({
-    step_number: index + 1,
-    action,
-    action_type: null,
-    expected_result: null
-  }))
-}
-
-export const originalStepsOf = (item: ReviewCase): string[] => {
-  const original = aiOf(item)?.original
-  const originalText = original && detailOf({ ...item, test_case_details: original }, 'Test Steps', 'Steps')
-  return splitSteps(originalText || detailOf(item, 'Test Steps', 'Steps'))
-}
-
-export interface ReviewFieldDifference {
-  label: string
-  before: string
-  after: string
-  formattingOnly: boolean
-  sensitive: boolean
-}
-
-const comparisonFields = [
-  { label: 'Description', names: ['Test Case Description', 'Description', 'Title'] },
-  { label: 'Preconditions', names: ['Preconditions'] },
-  { label: 'Test Data', names: ['Test Data'] },
-  { label: 'Expected Result', names: ['Expected Result'] },
-  { label: 'Priority', names: ['Priority'] },
-  { label: 'Category', names: ['Category'] }
-]
-
-/** Compare the actual generated snapshot with the submitted case, not just steps.
- * The snapshot does not record who made an edit, so this is a version diff,
- * not an attribution of every difference to AI.
- */
-export const reviewFieldDifferences = (item: ReviewCase): ReviewFieldDifference[] => {
-  const original = aiOf(item)?.original
-  if (!original || !Object.keys(original).length) return []
-  const baseline = { ...item, test_case_details: original }
-  const semantic = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
-  const mask = (value: string) => value.replace(/\b(password|passcode|pin|token|secret|api[ _-]?key)\b(\s*[:=]\s*)([^;\n,]+)/gi,
-    (_match, key: string, separator: string) => `${key}${separator}[hidden]`)
-  return comparisonFields.flatMap(({ label, names }) => {
-    const rawBefore = detailOf(baseline, ...names)
-    const rawAfter = detailOf(item, ...names)
-    if (rawBefore === rawAfter) return []
-    const sensitive = label === 'Test Data'
-    return [{ label, before: sensitive ? mask(rawBefore) : rawBefore || '—',
-      after: sensitive ? mask(rawAfter) : rawAfter || '—',
-      formattingOnly: semantic(rawBefore) === semantic(rawAfter), sensitive }]
-  })
-}
-
 const reviewService = {
-  resumeAgents: async (requestId: string, caseId: string, pageUrl?: string, steps?: string): Promise<void> => {
-    await api.post(`/test-case-reviews/detail/${encodeURIComponent(requestId)}/cases/${encodeURIComponent(caseId)}/resume-agents`, { page_url: pageUrl || undefined, steps })
-  },
   overview: async (): Promise<Overview> => (await api.get('/test-case-reviews/overview')).data,
   detail: async (requestId: string): Promise<{ data: RequestSummary; test_cases: ReviewCase[] }> =>
     (await api.get(`/test-case-reviews/detail/${encodeURIComponent(requestId)}`)).data,
@@ -236,13 +154,6 @@ const reviewService = {
       review_notes: reviewNotes || undefined
     })
     window.dispatchEvent(new Event('test-case-review-updated'))
-  },
-  assignApplication: async (requestId: string, applicationId: number) => {
-    const res = await api.put(`/test-case-reviews/detail/${encodeURIComponent(requestId)}/application`, {
-      application_id: applicationId
-    })
-    window.dispatchEvent(new Event('test-case-review-updated'))
-    return res.data
   },
   syncBitbucket: async (requestId: string): Promise<BitbucketSyncInfo> => {
     const res = await api.post(`/test-case-reviews/detail/${encodeURIComponent(requestId)}/bitbucket-sync`)

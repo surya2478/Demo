@@ -17,13 +17,10 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import sys
-from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
-from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
 
@@ -53,81 +50,6 @@ def _kb(app_id: str) -> store.JourneyKB:
 
 
 FLOW_PREFIX = "flow:"
-
-
-def _interactive_mapping(crawl: KbCrawlRun, kb: store.JourneyKB, profile: Dict[str, Any]) -> Dict[str, list]:
-    """Turn a person's headed-browser pick into a scoped, reviewable KB mapping.
-
-    Ordinary crawl rows omit an unmapped journey step because it has no design
-    element descriptor yet. Without this bridge, recapture appears to succeed
-    but the selector never reaches the Journey or Automation KB.
-    """
-    order = (crawl.plan or {}).get("interactive_capture_order")
-    if not order:
-        return {"automation": [], "journey": []}
-    items = (crawl.plan or {}).get("items") or []
-    if not isinstance(order, int) or not 1 <= order <= len(items):
-        raise changesets.ChangeSetError("The selected capture step is not in this journey.")
-    item = items[order - 1]
-    journey = kb.journeys.get(crawl.journey_id)
-    if not journey:
-        raise changesets.ChangeSetError("The approved journey is no longer available.")
-    step = next((s for s in journey.get("steps") or [] if s.get("step_number") == item.get("step_number")), None)
-    if not step:
-        raise changesets.ChangeSetError("The selected journey step is no longer available.")
-    if re.match(r"\s*(enter|fill|type)\b", str(step.get("action") or ""), re.I) and re.search(r",|\band\b", str(step.get("action") or ""), re.I):
-        raise changesets.ChangeSetError("This journey step names multiple fields. Split it into one step per field before capturing a control.")
-    if step.get("screen_id") and step.get("element_id"):
-        return {"automation": [], "journey": []}  # the ordinary crawl proposal heals mapped controls
-    captured = next((s.get("capture") for s in (crawl.result or {}).get("steps") or []
-                     if s.get("order") == order and s.get("status") == "done" and isinstance(s.get("capture"), dict)), None)
-    if not captured or not captured.get("found") or captured.get("ambiguous") or captured.get("count") != 1:
-        raise changesets.ChangeSetError("No uniquely verified control was selected at that step.")
-    selector = str(captured.get("selector") or "")
-    address = urlparse(str(captured.get("url") or ""))
-    base = urlparse(crawl.base_url or "")
-    if not selector or not address.hostname or address.hostname != base.hostname or address.scheme not in ("http", "https"):
-        raise changesets.ChangeSetError("The selected control is outside this application's browser scope.")
-    route = address.path or "/"
-    screen_id = step.get("screen_id") if step.get("screen_id") in kb.screens else next(
-        (sid for sid, screen in kb.screens.items() if (screen.get("route") or "").split("?", 1)[0] == route), None)
-    slug = lambda value: re.sub(r"[^a-z0-9]+", "_", str(value).lower()).strip("_")[:48] or "control"
-    screen_id = screen_id or ("SCR_" + slug((address.hostname or "") + route).upper())
-    label = str(captured.get("app_label") or item.get("text") or "Selected control")[:160]
-    element_id = f"captured_{item['step_number']}_{slug(label)}"
-    screen = deepcopy(kb.screens.get(screen_id) or {"screen_id": screen_id, "name": route, "route": route, "elements": []})
-    screen["route"] = route
-    group = screen_id.lower()
-    ref = f"selectors.{group}.{element_id}"
-    role = str(captured.get("role") or "").lower()
-    tag = str(captured.get("tag") or "").lower()
-    kind = "text_input" if tag in {"input", "textarea"} or role in {"textbox", "searchbox"} else "link" if tag == "a" or role == "link" else "button" if tag == "button" or role == "button" else "text"
-    element = {"element_id": element_id, "label": label, "type": kind,
-               "locator_hint": f'{role} "{label}"' if role else None,
-               "observed_locator": selector, "observed_strategy": "headed-user-pick",
-               "observed_selector": selector, "automation_ref": ref}
-    screen["elements"] = [e for e in screen.get("elements") or [] if e.get("element_id") != element_id] + [element]
-    screens = deepcopy(kb.screens)
-    screens[screen_id] = screen
-    steps = deepcopy(journey.get("steps") or [])
-    for candidate in steps:
-        if candidate.get("step_number") == step.get("step_number"):
-            candidate["screen_id"], candidate["element_id"] = screen_id, element_id
-            break
-    journey_file = changesets._journey_file(kb, crawl.journey_id)
-    selectors = profile.get("selectors") or {}
-    current_group = selectors.get(group) if isinstance(selectors.get(group), dict) else {}
-    return {
-        "automation": [{"file": "app_profile.json", "op": "set", "path": f"selectors.{group}",
-                        "value": {**current_group, element_id: selector}, "note": "Unique control selected in a headed browser."}],
-        "journey": [{"file": "screens.json", "op": "set", "path": "screens", "value": list(screens.values()),
-                     "note": "Add the browser-observed control to its application screen."},
-                    {"file": journey_file, "op": "set", "path": "steps", "value": steps,
-                     "note": f"Map journey step {step['step_number']} to the selected browser control."},
-                    {"file": journey_file, "op": "set", "path": "screens",
-                     "value": list(dict.fromkeys([*(journey.get("screens") or []), screen_id])),
-                     "note": "Include the captured application screen in the journey."}],
-    }
 
 
 def headed_available() -> bool:
@@ -164,8 +86,7 @@ def flows(app_id: str) -> list:
 
 
 def _plan(kb: store.JourneyKB, source_id: str, *, base_url: str, profile_id: Optional[str],
-          stop_before: Optional[int], allow_risky: bool,
-          environment: Optional[str] = None) -> Dict[str, Any]:
+          stop_before: Optional[int], allow_risky: bool) -> Dict[str, Any]:
     profile = _automation_profile(kb)
     if source_id.startswith(FLOW_PREFIX):
         from ..automation import knowledge_base as automation_kb
@@ -184,10 +105,6 @@ def _plan(kb: store.JourneyKB, source_id: str, *, base_url: str, profile_id: Opt
     else:
         plan = journey_crawl.build_plan(kb, source_id, automation_profile=profile, base_url=base_url, profile_id=profile_id)
         plan["source"] = "journey"
-    plan["environment"] = environment
-    approved = profile.get("trusted_auth_origins") or {}
-    plan["trusted_auth_origins"] = (approved.get(environment.upper(), [])
-                                    if environment and isinstance(approved, dict) else [])
     return journey_crawl.apply_stop(plan, stop_before=stop_before, allow_risky=allow_risky)
 
 
@@ -250,12 +167,7 @@ def start(
     # A journey walk starts at this address and nothing else: the application
     # takes it to its first screen, which the walk recognises by what is on
     # it (journey_crawl.entry_address). A flow starts at its own entry point.
-    plan = _plan(kb, journey_id, base_url=base_url, profile_id=profile_id, stop_before=stop_before,
-                 allow_risky=allow_risky, environment=environment)
-    if any(item.get('kind') == 'manual_otp' for item in plan.get('items') or []):
-        if not headed_available():
-            raise ValueError('This login needs a fresh OTP in a visible browser. Run it from a local backend.')
-        headed = True
+    plan = _plan(kb, journey_id, base_url=base_url, profile_id=profile_id, stop_before=stop_before, allow_risky=allow_risky)
     # Paced like the automation module's own runs: every browser action waits
     # AUTOMATION_DEFAULT_SLOW_MO_MS, and the walk pauses 1-2 s between steps.
     low = max(0, int(settings.AUTOMATION_STEP_DELAY_MIN_MS or 0))
@@ -263,23 +175,13 @@ def start(
     slow_mo = max(0, int(settings.AUTOMATION_DEFAULT_SLOW_MO_MS or 0))
     browser = browser or default_browser()
     plan["browser"] = browser
-    code = journey_crawl.build_spec(plan)
-    journey = kb.journeys.get(journey_id) or {}
-    authored = (journey.get('source') or {}).get('live_authoring')
-    if authored and not any(t.get('operation') in ('fill', 'select') for t in authored.get('trace', [])):
-        from ..automation import live_authoring
-        live_authoring.verify_expanded_journey(journey, kb.screens, authored['source_actions'],
-                                              authored.get('expected_result') or '', base_url)
-        if stop_before is not None or plan.get('stop_before'):
-            raise ValueError('This browser-authored replay cannot skip its verified assertions.')
-        code = live_authoring.script(authored, crawl_plan=plan)
     run_key = new_run_key()
     db.add(AutomationRun(
         run_key=run_key, framework="playwright", environment=environment, status="queued",
         # Headed is never faster than a person can follow.
         run_config={"headless": not headed, "slow_mo_ms": max(slow_mo, 700) if headed else slow_mo, "mode": "journey_crawl",
                     "browser": browser},
-        run_metadata={"code": code, "base_url": base_url,
+        run_metadata={"code": journey_crawl.build_spec(plan), "base_url": base_url,
                       "file_name": journey_crawl.SPEC_FILE, "journey_id": journey_id},
         triggered_by=actor,
     ))
@@ -491,23 +393,8 @@ def propose(db: Session, crawl_id: int, *, actor: Optional[str], additions: Opti
 
     if crawl.automation_change_set_id or crawl.journey_change_set_id:
         raise changesets.ChangeSetError("This walk has already proposed its changes.")
-    # Onboarding creates the Journey KB before any browser walk. A newly
-    # registered app has no Automation KB yet; give its first selector proposal
-    # an empty, app-scoped baseline to apply against, never another app's KB.
-    store.ensure_automation_baseline(kb, crawl.base_url or "")
     profile = _automation_profile(kb)
     changes = journey_crawl.proposal(result, profile)
-    manual = _interactive_mapping(crawl, kb, profile)
-    if manual["automation"]:
-        for proposed in manual["automation"]:
-            existing = next((change for change in changes["automation"] if change["path"] == proposed["path"]), None)
-            if existing and isinstance(existing.get("value"), dict):
-                existing["value"] = {**existing["value"], **proposed["value"]}
-            else:
-                changes["automation"].append(proposed)
-        # The full screens update must precede per-element links from this
-        # crawl, so none of its other confirmed controls are dropped.
-        changes["journey"] = manual["journey"] + changes["journey"]
     # Where the walk found each screen, for screens whose address is not recorded or has moved.
     routes = journey_crawl.route_changes(crawl.result or {}, kb, profile)
     changes["automation"].extend(routes["automation"])

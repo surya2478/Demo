@@ -318,7 +318,7 @@ const JourneysStage: React.FC<{
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2.5">
                 <h2 className="m-0 text-[20px] font-bold text-[#1F2937]">{node.title}</h2>
-                <Chip tone={j?.source?.kind === 'agent_prepared' ? 'info' : JOURNEY_STATUS[node.status]?.tone ?? 'idle'}>{j?.source?.kind === 'agent_prepared' ? 'Agent-authored · source document unlinked' : JOURNEY_STATUS[node.status]?.label ?? node.status}</Chip>
+                <Chip tone={JOURNEY_STATUS[node.status]?.tone ?? 'idle'}>{JOURNEY_STATUS[node.status]?.label ?? node.status}</Chip>
                 {(verified.has(node.id) || j?.verified) && <Chip tone="good" title="Verified: the flow matches the journey and a walk confirmed every step">✓ Verified</Chip>}
                 <code className="text-[11.5px] text-[#6B7280]">{node.id}</code>
               </div>
@@ -344,7 +344,7 @@ const JourneysStage: React.FC<{
                     ✎ Edit linked journeys
                   </button>
                 )}
-                <span className="ml-auto">Source: {j.sources?.length ? j.sources.join(', ') : j.source?.kind === 'agent_prepared' ? 'Test Assistant agent capture' : 'No source document linked'}</span>
+                <span className="ml-auto">Source: {j.sources.join(', ')}</span>
               </div>
             )}
             {j && editingPart === 'links' && (
@@ -422,9 +422,7 @@ const JourneysStage: React.FC<{
                           <span className="text-[11.5px] text-[#9CA3AF]">{step.screen_name ?? step.screen_id ?? '—'}{step.element_id ? ` · ${step.element_id}` : ''}</span>
                           {step.link.note && <span className="text-[11.5px] text-[#A3231C]">{step.link.note}: fix it on the Journey Map</span>}
                         </span>
-                        {step.link.status === 'NOT_CRAWLED' && step.link.observed_control
-                          ? <Chip tone="info" title="A browser control was captured, but no approved Automation KB locator is linked. This step is not executable yet.">Captured · not mapped</Chip>
-                          : <StatusChip status={step.link.status} title={step.link.automation_target ?? step.link.note} />}
+                        <StatusChip status={step.link.status} title={step.link.automation_target ?? step.link.note} />
                       </div>
                     ))}
                   </>

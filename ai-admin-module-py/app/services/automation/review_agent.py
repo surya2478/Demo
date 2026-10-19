@@ -349,7 +349,6 @@ def review_test_case(
     *,
     commit: bool = True,
     reference: Optional[dict[str, Any]] = None,
-    strict: bool = False,
 ) -> dict[str, Any]:
     """Execute quality review on an AutomationTestCase using the Review Agent.
 
@@ -395,8 +394,6 @@ def review_test_case(
             temperature=0.1,
         )
     except Exception as exc:
-        if strict:
-            raise
         logger.error("Review Agent failed for %s: %s", case.display_id, exc)
         # --- No model, so no review ------------------------------------------
         #
@@ -415,7 +412,7 @@ def review_test_case(
         coverage_basis = "none"
         steps = case.steps_structured or []
         step_quality = 4.0 if len(steps) >= 3 else 3.0
-        data_readiness = 4.0 if not case.test_data_required or case.test_data_status in ("ready", "kb_provided", "user_provided") else 3.0
+        data_readiness = 4.0 if not case.test_data_required or case.test_data_status == "ready" else 3.0
         clarity = 4.5 if all(s.get("expected_result") for s in steps) else 3.0
         review = TestCaseReviewLLMOutput(
             test_case_id=case.display_id,

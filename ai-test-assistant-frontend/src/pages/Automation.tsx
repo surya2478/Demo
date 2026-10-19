@@ -202,7 +202,7 @@ const Automation: React.FC = () => {
           <div className="px-6 py-5">
             <p className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-[#B71920]">Workspace</p>
             <h1 className="mt-1 text-[27px] font-extrabold leading-tight tracking-[-0.02em] text-[#1F2937]">
-              <span className="text-[#B71920]">AI</span> Automation Test Studio
+              <span className="text-[#B71920]">AI</span> Test Automation Studio
             </h1>
             <p className="mt-2 max-w-[620px] text-[13.5px] leading-[1.6] text-[#4B5563]">
               Generate scripts for manager-approved Automation cases, run them on this host, and review the evidence
@@ -211,20 +211,20 @@ const Automation: React.FC = () => {
           </div>
 
           <div className="relative h-[140px] overflow-hidden border-t border-[#E8EAEE] bg-[radial-gradient(circle_at_50%_42%,#ffffff_0,#ffffff_30%,rgba(253,235,236,0.8)_62%,#fff5f5_100%)] lg:h-auto lg:border-l lg:border-t-0">
-            <div className="assistant-hero-ring assistant-hero-ring-outer absolute left-1/2 top-1/2 h-[170px] w-[170px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#F6D4D5]/70" />
-            <div className="assistant-hero-ring assistant-hero-ring-middle absolute left-1/2 top-1/2 h-[118px] w-[118px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#F6D4D5]" />
-            <div className="assistant-hero-core absolute left-1/2 top-1/2 flex h-[84px] w-[84px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[radial-gradient(circle_at_32%_28%,#ff7b80_0,#e0242a_45%,#9b0f15_100%)] text-[28px] font-extrabold tracking-[-0.04em] text-white shadow-[0_0_0_10px_rgba(183,25,32,0.06),0_12px_26px_rgba(148,18,22,0.28)]">
+            <div className="absolute left-1/2 top-1/2 h-[170px] w-[170px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#F6D4D5]/70" />
+            <div className="absolute left-1/2 top-1/2 h-[118px] w-[118px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#F6D4D5]" />
+            <div className="absolute left-1/2 top-1/2 flex h-[84px] w-[84px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[radial-gradient(circle_at_32%_28%,#ff7b80_0,#e0242a_45%,#9b0f15_100%)] text-[28px] font-extrabold tracking-[-0.04em] text-white shadow-[0_0_0_10px_rgba(183,25,32,0.06),0_12px_26px_rgba(148,18,22,0.28)]">
               ATS
             </div>
-            <div className="assistant-hero-tile assistant-hero-tile-left absolute left-[14%] top-[24%] flex h-10 w-10 rotate-[-14deg] items-center justify-center rounded-[12px] bg-white text-[#B71920] shadow-[0_8px_18px_rgba(183,25,32,0.12)]">
+            <div className="absolute left-[14%] top-[24%] flex h-10 w-10 rotate-[-14deg] items-center justify-center rounded-[12px] bg-white text-[#B71920] shadow-[0_8px_18px_rgba(183,25,32,0.12)]">
               <HeroBrowserGlyph className="h-5 w-5" />
             </div>
-            <div className="assistant-hero-tile assistant-hero-tile-right absolute right-[12%] top-[28%] flex h-10 w-10 rotate-[12deg] items-center justify-center rounded-[12px] bg-white text-[#B71920] shadow-[0_8px_18px_rgba(183,25,32,0.12)]">
+            <div className="absolute right-[12%] top-[28%] flex h-10 w-10 rotate-[12deg] items-center justify-center rounded-[12px] bg-white text-[#B71920] shadow-[0_8px_18px_rgba(183,25,32,0.12)]">
               <HeroCheckGlyph className="h-5 w-5" />
             </div>
-            <div className="assistant-hero-dot assistant-hero-dot-one absolute left-[17%] top-[64%] h-3 w-3 rounded-full bg-[#DC2626] shadow-[0_0_0_6px_rgba(220,38,38,0.1)]" />
-            <div className="assistant-hero-dot assistant-hero-dot-two absolute right-[20%] top-[14%] h-2 w-2 rounded-full bg-[#DC2626]" />
-            <div className="assistant-hero-dot assistant-hero-dot-three absolute right-[27%] top-[70%] h-2.5 w-2.5 rounded-full bg-[#F1A4A6]" />
+            <div className="absolute left-[17%] top-[64%] h-3 w-3 rounded-full bg-[#DC2626] shadow-[0_0_0_6px_rgba(220,38,38,0.1)]" />
+            <div className="absolute right-[20%] top-[14%] h-2 w-2 rounded-full bg-[#DC2626]" />
+            <div className="absolute right-[27%] top-[70%] h-2.5 w-2.5 rounded-full bg-[#F1A4A6]" />
           </div>
         </div>
       </section>

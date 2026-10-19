@@ -589,7 +589,7 @@ const Workbench: React.FC = () => {
         `Every script generated from ${count === 1 ? 'it' : 'them'} is deleted too.`,
         // The tombstone is the surprising half: without saying so, people
         // expect a re-sync from Review & Approval to bring the case back.
-        `${count === 1 ? 'It' : 'They'} will not reappear when the workbench next syncs from Human Evaluation.`,
+        `${count === 1 ? 'It' : 'They'} will not reappear when the workbench next syncs from Review & Approval.`,
         'This cannot be undone.'
       ],
       confirmLabel: count === 1 ? 'Delete test case' : `Delete ${count} test cases`

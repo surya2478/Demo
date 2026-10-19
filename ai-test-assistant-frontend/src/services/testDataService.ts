@@ -154,8 +154,7 @@ export const keyForVariable = (variable: string) => {
 }
 
 /** Whether a variable holds a secret, by its name. */
-export const isSecretVariable = (variable: string) =>
-  /PASSWORD|SECRET|TOKEN|OTP|PASSCODE|VERIFICATION_CODE|(?:^|_)PIN(?:_|$)/i.test(variable)
+export const isSecretVariable = (variable: string) => /PASSWORD|SECRET|TOKEN|PIN/i.test(variable)
 
 /** "TESTDATA_ADMIN_PASSWORD" -> "admin password". */
 export const readableName = (name: string) =>

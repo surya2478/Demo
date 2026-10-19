@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import knowledgeBaseService, { errorText, type ElementStatus, type ReconcileDecision, type ReconcileRow } from '../../services/knowledgeBaseService'
-import { CHIP, Chip, Card, ELEMENT_STATUS, Failed, Loading, Note, StatusChip, TONE, TableHead, useLoad } from './kbUi'
+import { CHIP, Card, ELEMENT_STATUS, Failed, Loading, Note, StatusChip, TONE, TableHead, useLoad } from './kbUi'
 
 // Decisions first, then work to do, then what agrees; selectors only the
 // application has come last -- a large Automation KB would otherwise bury
@@ -100,14 +100,14 @@ const DecisionForm: React.FC<{ appKey: string; row: ReconcileRow; screens: { id:
 
 const ReconcileStage: React.FC<{ appKey: string; onDrafted: () => void }> = ({ appKey, onDrafted }) => {
   const [data, error, reload] = useLoad(appKey, () => knowledgeBaseService.reconcile(appKey))
-  const [status, setStatus] = useState<ElementStatus | 'captured_unmapped' | 'all'>('all')
+  const [status, setStatus] = useState<ElementStatus | 'all'>('all')
   const [journey, setJourney] = useState<string>('all')
   const [selected, setSelected] = useState<string | null>(null)
 
   const journeys = useMemo(() => Array.from(new Set((data?.rows ?? []).flatMap(r => r.journeys))).sort(), [data])
   const rows = useMemo(() => {
     const list = (data?.rows ?? []).filter(r =>
-      (status === 'all' || (status === 'captured_unmapped' ? r.status === 'NOT_CRAWLED' && !!r.observed_control : status === 'NOT_CRAWLED' ? r.status === 'NOT_CRAWLED' && !r.observed_control : r.status === status)) && (journey === 'all' || r.journeys.includes(journey))
+      (status === 'all' || r.status === status) && (journey === 'all' || r.journeys.includes(journey))
     )
     // Decisions first: drift and broken references, then the rest.
     return [...list].sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status))
@@ -123,7 +123,7 @@ const ReconcileStage: React.FC<{ appKey: string; onDrafted: () => void }> = ({ a
     return Array.from(seen, ([id, name]) => ({ id, name }))
   }, [data])
 
-  const filterChip = (id: ElementStatus | 'captured_unmapped' | 'all', label: string, tone: keyof typeof TONE, count: number) => (
+  const filterChip = (id: ElementStatus | 'all', label: string, tone: keyof typeof TONE, count: number) => (
     <button key={id} type="button" aria-pressed={status === id} onClick={() => setStatus(id)}
       className={`${CHIP} h-7 px-[11px] text-[12px] ${status === id ? 'bg-[#1F2937] text-white' : TONE[tone]}`}>
       {label} {count}
@@ -140,7 +140,7 @@ const ReconcileStage: React.FC<{ appKey: string; onDrafted: () => void }> = ({ a
         </select>
         <span className="mx-1 h-6 w-px bg-[#E8EAEE]" />
         {filterChip('all', 'All', 'idle', data?.rows.length ?? 0)}
-        {ORDER.map(s => s === 'NOT_CRAWLED' ? <React.Fragment key={s}>{filterChip('captured_unmapped', 'Captured · not mapped', 'info', data?.rows.filter(r => r.status === s && r.observed_control).length ?? 0)}{filterChip(s, 'Not captured', 'idle', data?.rows.filter(r => r.status === s && !r.observed_control).length ?? 0)}</React.Fragment> : filterChip(s, ELEMENT_STATUS[s].label, ELEMENT_STATUS[s].tone, data?.summary[s] ?? 0))}
+        {ORDER.map(s => filterChip(s, ELEMENT_STATUS[s].label, ELEMENT_STATUS[s].tone, data?.summary[s] ?? 0))}
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -165,7 +165,7 @@ const ReconcileStage: React.FC<{ appKey: string; onDrafted: () => void }> = ({ a
                       App: {r.automation_target ? <code className="text-[11.5px] text-[#1F2937]">{r.automation_target}</code> : '—'}
                     </span>
                   </span>
-                  {r.status === 'NOT_CRAWLED' && r.observed_control ? <Chip tone="info" title="Browser-observed, but not linked to an approved Automation KB locator">Captured · not mapped</Chip> : <StatusChip status={r.status} />}
+                  <StatusChip status={r.status} />
                 </button>
               )
             })}
@@ -176,7 +176,7 @@ const ReconcileStage: React.FC<{ appKey: string; onDrafted: () => void }> = ({ a
         {current && (
           <Card label="Selected difference" className="flex flex-col gap-3.5 self-start p-[18px]">
             <div>
-              <span className={`text-[11px] font-bold tracking-[0.1em] ${ELEMENT_STATUS[current.status].tone === 'warn' ? 'text-[#8A5000]' : 'text-[#6B7280]'}`}>{current.status === 'NOT_CRAWLED' && current.observed_control ? 'CAPTURED · NOT MAPPED' : ELEMENT_STATUS[current.status].label.toUpperCase()}</span>
+              <span className={`text-[11px] font-bold tracking-[0.1em] ${ELEMENT_STATUS[current.status].tone === 'warn' ? 'text-[#8A5000]' : 'text-[#6B7280]'}`}>{ELEMENT_STATUS[current.status].label.toUpperCase()}</span>
               <h2 className="m-0 mt-1 text-[16px] font-bold">{current.screen_name ? `${current.screen_name} · ${current.element_id}` : current.automation_ref}</h2>
             </div>
             <div className="grid grid-cols-2 gap-2.5">

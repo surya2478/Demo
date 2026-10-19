@@ -78,41 +78,6 @@ def automation_profile(kb: "JourneyKB") -> Dict[str, Any]:
     return automation_kb.load_app_profile(kb.automation_app_id) or {}
 
 
-def ensure_automation_baseline(kb: "JourneyKB", base_url: str) -> bool:
-    """Create only the empty Automation KB skeleton for a newly onboarded app.
-
-    Selectors remain absent until the crawl's change set is approved. Existing
-    profiles are never replaced, including on a retry of the same crawl.
-    """
-    from urllib.parse import urlparse
-    from ..automation import knowledge_base as automation_kb
-
-    app_id = kb.automation_app_id
-    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{1,99}", app_id):
-        raise ValueError("The application's Automation KB key is invalid.")
-    directory = automation_kb.get_kb_root() / app_id
-    profile_path = directory / "app_profile.json"
-    if profile_path.exists():
-        return False
-    directory.mkdir(parents=True, exist_ok=True)
-    address = base_url or kb.manifest.get("base_url") or ""
-    profile = {
-        "app_id": app_id, "app_name": kb.app_name, "base_url": address,
-        "domain": urlparse(address).hostname or "", "framework": "Web Application",
-        "default_viewport": {"width": 1366, "height": 768},
-        "endpoints": {}, "selectors": {}, "step_grounding_rules": [],
-        "_provenance": {"registration": "Empty baseline created for the first approved browser crawl.",
-                        "selectors": "None until a crawl change set is reviewed and published."},
-    }
-    try:
-        with profile_path.open("x", encoding="utf-8") as handle:
-            json.dump(profile, handle, indent=2, ensure_ascii=False)
-            handle.write("\n")
-    except FileExistsError:
-        return False
-    return True
-
-
 def _read(path: Path, default: Any) -> Any:
     if not path.exists():
         return default

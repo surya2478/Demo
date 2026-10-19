@@ -27,7 +27,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-import time
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any, Iterator, TypeVar
@@ -332,20 +331,6 @@ def _call_ai_service(
     return "".join(c if isinstance(c, str) else c.decode("utf-8", "replace") for c in chunks)
 
 
-def _short_rate_limit_delay(response) -> float | None:
-    """Only retry explicit short throttles, never daily quotas or large payloads."""
-    if response.status_code != 429:
-        return None
-    message = (response.text or '').lower()
-    if any(word in message for word in ('per-day', 'per day', 'daily', 'per_day')):
-        return None
-    try:
-        delay = float(response.headers.get('Retry-After', ''))
-    except (ValueError, TypeError):
-        return None
-    return max(1, delay) if 0 <= delay <= 60 else None
-
-
 def _call_openrouter(
     *, system_prompt: str, user_input: str, timeout: float, max_tokens: int, temperature: float
 ) -> str:
@@ -380,38 +365,12 @@ def _call_openrouter(
     }
 
     url = settings.OPENROUTER_BASE_URL.rstrip("/") + "/chat/completions"
-    if url.startswith('https://api.groq.com/') and settings.OPENROUTER_MODEL.startswith('openai/gpt-oss-'):
-        # Groq's compatible endpoint uses the top-level OpenAI spelling,
-        # not OpenRouter's reasoning object. Bound reasoning to leave room
-        # for the required structured decision within the output budget.
-        configured=body.pop('reasoning',{})
-        body['reasoning_effort']=configured.get('effort','low') if isinstance(configured,dict) else 'low'
     try:
         response = requests.post(url, headers=headers, json=body, timeout=timeout)
-        for _ in range(2):
-            delay = _short_rate_limit_delay(response)
-            if delay is None:
-                break
-            logger.info('Model provider throttled this request; retrying after %.1fs', delay)
-            time.sleep(delay)
-            response = requests.post(url, headers=headers, json=body, timeout=timeout)
     except requests.Timeout as exc:
         raise LLMUnavailable(f"OpenRouter did not respond within {timeout:.0f}s.") from exc
     except requests.RequestException as exc:
         raise LLMUnavailable(f"OpenRouter could not be reached: {exc}") from exc
-
-    # The OpenRouter free-model router can select a reasoning-only endpoint.
-    # Its 400 is a capability negotiation, not a failed semantic review.
-    # Retry once with reasoning enabled and enough room for an answer; do not
-    # repeat unrelated 4xx errors or silently switch providers/models.
-    if response.status_code == 400 and "reasoning is mandatory" in (response.text or "").lower():
-        body = {**body, "reasoning": {"enabled": True}, "max_tokens": max(max_tokens, 3200)}
-        try:
-            response = requests.post(url, headers=headers, json=body, timeout=max(timeout, 90))
-        except requests.Timeout as exc:
-            raise LLMUnavailable("OpenRouter's reasoning endpoint timed out after 90s.") from exc
-        except requests.RequestException as exc:
-            raise LLMUnavailable(f"OpenRouter's reasoning endpoint could not be reached: {exc}") from exc
 
     if response.status_code >= 400:
         detail = (response.text or "")[:300]

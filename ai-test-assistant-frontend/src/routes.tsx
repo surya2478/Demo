@@ -47,7 +47,6 @@ import KB from './pages/test-assistant/KB'
 import FigmaVlmPrompt from './pages/FigmaVlmPrompt'
 import AnalysisCoveragePrompt from './pages/AnalysisCoveragePrompt'
 import SquadKnowledgeBaseIngestion from './pages/SquadKnowledgeBaseIngestion'
-import { ApplicationGuide, LocalToolsGuide, ProjectDocumentation } from './pages/Guides'
 
 const LayoutShell: React.FC = () => {
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false)
@@ -338,10 +337,6 @@ const AppRoutes: React.FC = () => {
             </ProtectedRoute>
           }
         />
-
-        <Route path="guides/local-tools" element={<ProtectedRoute allowedPermissions={['automation.view']}><LocalToolsGuide /></ProtectedRoute>} />
-        <Route path="guides/application" element={<ProtectedRoute allowedPermissions={['automation.view']}><ApplicationGuide /></ProtectedRoute>} />
-        <Route path="guides/documentation" element={<ProtectedRoute allowedPermissions={['automation.view']}><ProjectDocumentation /></ProtectedRoute>} />
 
         {/* Automation Studio with nested tab routes */}
         <Route
