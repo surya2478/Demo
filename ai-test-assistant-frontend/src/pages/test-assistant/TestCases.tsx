@@ -194,6 +194,8 @@ const TestCases: React.FC = () => {
   // stream actually does -- there is no server-side stage signal to report.
   const [genStagesDone, setGenStagesDone] = useState(0)
   const [genStartedAt, setGenStartedAt] = useState<number | null>(null)
+  // When the stream ended: the progress panel stays, with its time frozen here.
+  const [genFinishedAt, setGenFinishedAt] = useState<number | null>(null)
   const [nowTick, setNowTick] = useState(() => Date.now())
   const [generationError, setGenerationError] = useState('')
   const [generationStopped, setGenerationStopped] = useState(false)
@@ -1435,6 +1437,7 @@ const copyFigmaExtractedText = async () => {
         setGenerationStopped(false)
         setGenStagesDone(0)
         setGenStartedAt(Date.now())
+        setGenFinishedAt(null)
         stopRequestedRef.current = false
         clearAiChecks()
         // setError('');
@@ -1664,6 +1667,7 @@ const copyFigmaExtractedText = async () => {
         } finally {
           setLoading(false);
           setIsGenerationStreaming(false)
+          setGenFinishedAt(Date.now())
           try {
             await logApiEvent({
               user: authUser.user,
@@ -2006,6 +2010,8 @@ const copyFigmaExtractedText = async () => {
       setGenerationError('')
       setGenerationStopped(Boolean(g.stopped))
       setGenStagesDone(6)
+      setGenStartedAt(null)
+      setGenFinishedAt(null)
       setInputsFolded(true)
       setOutputOpen(true)
       setShowFullTable(false)
@@ -2209,6 +2215,8 @@ const copyFigmaExtractedText = async () => {
     setGenerationError('')
     setGenerationStopped(false)
     setGenStagesDone(0)
+    setGenStartedAt(null)
+    setGenFinishedAt(null)
     setShowFullTable(false)
     setInputExpanded(false)
     setInputType('text')
@@ -2986,8 +2994,14 @@ const copyFigmaExtractedText = async () => {
               </div>
             )}
 
-            {isGenerationStreaming && (
-              <ProgressPanel stagesDone={genStagesDone} written={streamParse.cases.length} elapsedMs={genStartedAt ? nowTick - genStartedAt : 0} />
+            {/* While it runs, and after: management wants the stages and the count to stay on screen. */}
+            {(isGenerationStreaming || (outputOpen && !generationError && streamParse.cases.length > 0)) && (
+              <ProgressPanel
+                status={isGenerationStreaming ? 'running' : generationStopped ? 'stopped' : 'done'}
+                stagesDone={genStagesDone}
+                written={streamParse.cases.length}
+                elapsedMs={genStartedAt ? (isGenerationStreaming ? nowTick : genFinishedAt ?? nowTick) - genStartedAt : null}
+              />
             )}
 
             {!generationError && (isGenerationStreaming || outputOpen) && (

@@ -395,41 +395,57 @@ const formatElapsed = (ms: number) => {
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
 }
 
-export const ProgressPanel: React.FC<{ stagesDone: number; written: number; elapsedMs: number }> = ({ stagesDone, written, elapsedMs }) => {
+export const ProgressPanel: React.FC<{
+  stagesDone: number
+  written: number
+  /** null when the timing is not known (a session reopened from history). */
+  elapsedMs: number | null
+  /** Running while the stream is open; afterwards it stays, as done or stopped. */
+  status?: 'running' | 'done' | 'stopped'
+}> = ({ stagesDone, written, elapsedMs, status = 'running' }) => {
   const total = GENERATION_STAGES.length
+  const done = status === 'done' ? total : Math.min(stagesDone, total)
   const circumference = 157
-  const offset = circumference * (1 - Math.min(stagesDone, total) / total)
+  const offset = circumference * (1 - done / total)
+  const finished = status === 'done'
+  const stopped = status === 'stopped'
   return (
-    <div className="mx-[22px] mt-3.5 grid grid-cols-1 items-center gap-[22px] rounded-[16px] border border-[#F6D4D5] bg-[linear-gradient(90deg,#FFF8F8,#FFFFFF_70%)] px-[18px] py-3.5 lg:grid-cols-[250px_minmax(0,1fr)]">
+    <div className={`mx-[22px] mt-3.5 grid grid-cols-1 items-center gap-[22px] rounded-[16px] border px-[18px] py-3.5 lg:grid-cols-[250px_minmax(0,1fr)] ${
+      finished ? 'border-[#CFE9D8] bg-[linear-gradient(90deg,#F3FBF6,#FFFFFF_70%)]' : 'border-[#F6D4D5] bg-[linear-gradient(90deg,#FFF8F8,#FFFFFF_70%)]'
+    }`}>
       <div className="flex items-center gap-3.5">
         <div className="relative h-[60px] w-[60px] flex-shrink-0">
           <svg width="60" height="60" viewBox="0 0 60 60" className="-rotate-90" aria-hidden>
-            <circle cx="30" cy="30" r="25" fill="none" stroke="#F6D4D5" strokeWidth="5" />
+            <circle cx="30" cy="30" r="25" fill="none" stroke={finished ? '#CFE9D8' : '#F6D4D5'} strokeWidth="5" />
             <circle
-              cx="30" cy="30" r="25" fill="none" stroke="#B71920" strokeWidth="5" strokeLinecap="round"
+              cx="30" cy="30" r="25" fill="none" stroke={finished ? '#15803D' : '#B71920'} strokeWidth="5" strokeLinecap="round"
               strokeDasharray={circumference} strokeDashoffset={offset}
               style={{ transition: 'stroke-dashoffset 400ms ease' }}
             />
           </svg>
           <div className="absolute inset-0 flex items-center justify-center text-[13px] font-extrabold text-[#1F2937]">
-            {Math.min(stagesDone, total)}/{total}
+            {done}/{total}
           </div>
         </div>
         <div>
-          <div className="text-[14px] font-bold text-[#1F2937]">Generating test cases</div>
+          <div className="text-[14px] font-bold text-[#1F2937]">
+            {finished ? 'Test cases generated' : stopped ? 'Generation stopped' : 'Generating test cases'}
+          </div>
           <div className="mt-0.5 text-[12px] text-[#6B7280]">
-            <strong className="text-[#1F2937]">{written} written</strong> so far · {formatElapsed(elapsedMs)} elapsed
+            <strong className="text-[#1F2937]">{written} {status === 'running' ? 'written' : `test case${written === 1 ? '' : 's'}`}</strong>
+            {status === 'running' ? ' so far' : stopped ? ' kept' : ''}
+            {elapsedMs !== null ? ` · ${status === 'running' ? `${formatElapsed(elapsedMs)} elapsed` : `took ${formatElapsed(elapsedMs)}`}` : ''}
           </div>
         </div>
       </div>
       <div className="grid grid-cols-1 gap-x-[18px] gap-y-2.5 sm:grid-cols-2 xl:grid-cols-3">
         {GENERATION_STAGES.map((stage, index) => {
-          const state = index < stagesDone ? 'done' : index === stagesDone ? 'now' : 'next'
+          const state = index < done ? 'done' : index === done ? (stopped ? 'stopped' : 'now') : 'next'
           return (
             <div
               key={stage}
               className={`flex items-center gap-2 text-[12.5px] font-semibold ${
-                state === 'done' ? 'text-[#1F2937]' : state === 'now' ? 'text-[#B71920]' : 'text-[#9CA3AF]'
+                state === 'done' ? 'text-[#1F2937]' : state === 'now' ? 'text-[#B71920]' : state === 'stopped' ? 'text-[#8A5000]' : 'text-[#9CA3AF]'
               }`}
             >
               {state === 'done' ? (
@@ -438,6 +454,10 @@ export const ProgressPanel: React.FC<{ stagesDone: number; written: number; elap
                 </span>
               ) : state === 'now' ? (
                 <span className="box-border h-[18px] w-[18px] flex-shrink-0 animate-spin rounded-full border-[2.5px] border-[#F6D4D5] border-t-[#B71920]" />
+              ) : state === 'stopped' ? (
+                <span className="flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-full bg-[#FFF4E5]" title="Stopped here">
+                  <span className="block h-[7px] w-[7px] rounded-[1px] bg-[#D97706]" />
+                </span>
               ) : (
                 <span className="box-border h-[18px] w-[18px] flex-shrink-0 rounded-full border-2 border-[#D6D9DF]" />
               )}
