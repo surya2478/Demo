@@ -197,7 +197,9 @@ For each item emit one object with:
     action_type: EXACTLY one of navigate | click | fill | select | assert | wait - the kind of
       interaction this step performs. Pick the closest one; never invent another value.
     target: the element/control the action addresses (label, button text, or role)
-    test_data_ref: key of test data if parameterized, else null
+    test_data_ref: the snake_case KEY of a value the tester supplies per environment (admin_username, otp), else null.
+      Never the value itself: a product, colour, payment option or price from the Knowledge Base catalog
+      stays in the action text ("Select color: Black"), with test_data_ref null.
     expected_result: concrete observable verification immediately after this step
 - expected_result: overall end-to-end outcome after all steps complete
 - bdd_scenario: Given/When/Then scenario string

@@ -2581,7 +2581,8 @@ def _lab_case_steps(db: Session, case: AutomationTestCase, application_id: Optio
     keys = [str(r["key"]) for r in requirements]
     for step in steps:
         ref = (step["test_data_ref"] or "").strip()
-        if ref and not ref.startswith(_PLACEHOLDER_REF) and ref not in keys:
+        # A "Color: Black" ref is the step's own value, not a Test Data key.
+        if ref and not ref.startswith(_PLACEHOLDER_REF) and compiler.ref_literal(ref) is None and ref not in keys:
             keys.append(ref)
             requirements.append({"key": ref})
 
@@ -2672,7 +2673,7 @@ def save_lab_case_steps(
         raise HTTPException(status_code=400, detail="A test data key is listed twice.")
     for i, step in enumerate(body.steps, start=1):
         ref = (step.test_data_ref or "").strip()
-        if ref and not ref.startswith(_PLACEHOLDER_REF) and ref not in keys:
+        if ref and not ref.startswith(_PLACEHOLDER_REF) and compiler.ref_literal(ref) is None and ref not in keys:
             raise HTTPException(status_code=400, detail=f"Step {i} uses test data '{ref}', which is not in the test data list.")
 
     case.description = body.title.strip()

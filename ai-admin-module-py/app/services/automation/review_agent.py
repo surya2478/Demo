@@ -312,7 +312,7 @@ Output ONLY a JSON object with:
 - title: string
 - objective: string
 - preconditions: list of strings
-- steps: list of {step_number: int, action: str, action_type: navigate|click|fill|select|assert|wait, target: str|null, test_data_ref: str|null, expected_result: str}
+- steps: list of {step_number: int, action: str, action_type: navigate|click|fill|select|assert|wait, target: str|null, test_data_ref: str|null (a snake_case Test Data KEY such as admin_username, never a value like 'Color: Black'), expected_result: str}
   action_type is the kind of interaction the step performs. Keep the action_type
   a step already has unless you changed what the step does; script generation
   reads it and otherwise has to guess.

@@ -149,6 +149,18 @@ export const sameSteps = (a: DraftStep[], b: DraftStep[]) =>
 
 export const isPlaceholder = (ref: string | null | undefined) => Boolean(ref && ref.trim().startsWith('<<'))
 
+/**
+ * A "Label: value" ref ("Color: Black", "Product: Huawei FreeClip 2s, ProductId: …")
+ * is the step's own value from the Knowledge Base catalog, not a Test Data key:
+ * the compiler writes it into the script as is. Same rule as compiler.ref_literal.
+ */
+export const refLiteral = (ref: string | null | undefined): string | null => {
+  const text = (ref ?? '').trim()
+  if (!text || text.startsWith('<<') || /^[A-Za-z][A-Za-z0-9_.-]*$/.test(text) || /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(text)) return null
+  const m = /^\s*[A-Za-z][A-Za-z ]{0,30}?\s*:\s*([^,;:]+?)\s*(?=,|;|$|\s+[A-Za-z][A-Za-z ]{0,30}?\s*:)/.exec(text)
+  return m && m[1].trim() ? m[1].trim() : null
+}
+
 /** A fill step aimed at both the username and the password: one value cannot fill two fields. */
 export const isCombinedLogin = (step: { action_type: string | null; target: string | null; action: string }) =>
   step.action_type === 'fill' && /user|e-?mail|login/i.test(`${step.target} ${step.action}`) && /pass/i.test(`${step.target} ${step.action}`)
@@ -233,6 +245,8 @@ export const elementLight = (s: DraftStep, b: ScriptBlock | null, ctx: Ctx): Lig
 export const dataLight = (s: DraftStep, data: DraftData[], ctx: Ctx, b: ScriptBlock | null = null): Light => {
   const ref = (s.test_data_ref ?? '').trim()
   if (ref && isPlaceholder(ref)) return { lvl: 'bad', label: 'Placeholder', note: `${ref} is a placeholder, not a Test Data key. Name the value in the editor.` }
+  const literal = refLiteral(ref)
+  if (literal) return { lvl: 'ok', label: `Value · ${short(literal, 18)}`, note: `“${ref}” is the step's own value from the Knowledge Base catalog, so the script uses ${literal} as written; Test Data is not asked for it.` }
   if (ref && isCombinedLogin(s)) return { lvl: 'warn', label: '1 value, 2 fields', note: `${ref} is one value, but the step fills a username field and a password field.` }
   if (ref) {
     const d = data.find((x) => x.key === ref)

@@ -17,7 +17,7 @@ import { environmentLabel } from '../../services/testDataService'
 import type { LabCaseSteps, LabCaseStepsSave, LabStepsPreview, ScriptAsset } from '../../types/automation'
 import { BTN, PRIMARY } from './labShared'
 import {
-  GLYPH, caseBlocks, defineFixes, rankElements, scriptInSync, fold, isCombinedLogin, isPlaceholder, sameSteps, scriptBlocks, stepRange, stepsOf, toDraft, viewSteps,
+  GLYPH, caseBlocks, defineFixes, rankElements, refLiteral, scriptInSync, fold, isCombinedLogin, isPlaceholder, sameSteps, scriptBlocks, stepRange, stepsOf, toDraft, viewSteps,
   type Draft, type DraftData, type DraftStep, type Light, type Lvl, type StepView
 } from './labJourney'
 
@@ -206,7 +206,7 @@ const LabTestSteps: React.FC<Props> = ({
       expected_result: d.expected_result,
       steps: d.steps.filter((s) => s.action.trim()).map(({ uid: _u, ...s }) => ({
         ...s,
-        test_data_ref: s.test_data_ref && (keys.includes(s.test_data_ref) || isPlaceholder(s.test_data_ref)) ? s.test_data_ref : null
+        test_data_ref: s.test_data_ref && (keys.includes(s.test_data_ref) || isPlaceholder(s.test_data_ref) || refLiteral(s.test_data_ref)) ? s.test_data_ref : null
       })),
       test_data: d.data.map((x) => ({ key: x.key.trim(), description: x.description.trim() || null, sensitive: x.sensitive, ...(x.value !== undefined && x.value !== '' ? { value: x.value } : {}) }))
     }
@@ -774,7 +774,7 @@ const FullEditor: React.FC<{
               <label className="flex flex-col gap-1"><span className={FIELD_LBL}>Test data</span>
                 <select id={`lab-step-${s.uid}-data`} value={s.test_data_ref ?? ''} onChange={(e) => setStep(s.uid, { test_data_ref: e.target.value || null })} className={INPUT}>
                   <option value="">No test data</option>
-                  {isPlaceholder(s.test_data_ref) && <option value={s.test_data_ref!}>{s.test_data_ref}</option>}
+                  {(isPlaceholder(s.test_data_ref) || refLiteral(s.test_data_ref)) && <option value={s.test_data_ref!}>{s.test_data_ref}</option>}
                   {draft.data.filter((d) => d.key.trim()).map((d) => <option key={d.uid} value={d.key}>{d.key}</option>)}
                 </select>
               </label>

@@ -228,6 +228,49 @@ def _env_key(data_ref: str) -> str:
     return "TESTDATA_" + re.sub(r"[^A-Za-z0-9]+", "_", data_ref).strip("_").upper()
 
 
+# --- Automation Module: a value in test_data_ref is a value, not a key -------
+#
+# test_data_ref names a Test Data key: admin_username, otp. Shop cases refined
+# from the Knowledge Base's product catalog carry the catalog's own values there
+# instead -- "Color: Black", "Payment: One time", "Product: Huawei FreeClip 2s,
+# ProductId: prod1t1786686221657, SkuId: bgskutrans3999231220" -- because the
+# KB hands the generator exactly that "Label: value" string. Every one became a
+# TESTDATA_ variable no one could fill (TESTDATA_COLOR_BLACK), and the dry run
+# was refused for missing test data. A labelled value is the step's literal:
+# the script uses it as written, and Test Data is not asked for it.
+_KEY_REF = re.compile(r"^[A-Za-z][A-Za-z0-9_.\-]*$")
+_LABELLED_VALUE = re.compile(r"([A-Za-z][A-Za-z ]{0,30}?)\s*:\s*([^,;:]+?)\s*(?=,|;|$|\s+[A-Za-z][A-Za-z ]{0,30}?\s*:)")
+
+
+def ref_literal(ref: Any) -> Optional[str]:
+    """The value a "Label: value" test_data_ref carries, or None for a Test Data key.
+
+    With several pairs ("Product: X, ProductId: Y, SkuId: Z") the first is the
+    thing the step acts on; the identifiers are the KB's, read from its catalog.
+    """
+    text = str(ref or "").strip()
+    if not text or text.startswith("<<") or _KEY_REF.match(text) or re.match(r"^[A-Za-z][A-Za-z0-9+.-]*://", text):
+        return None
+    pairs = _LABELLED_VALUE.findall(text)
+    return pairs[0][1].strip() if pairs and pairs[0][1].strip() else None
+
+
+def _split_literal_refs(steps: list[dict]) -> list[dict]:
+    """Steps whose labelled-value refs moved to `_literal`, so no variable is declared for them."""
+    out = []
+    for step in steps:
+        literal = ref_literal(step.get("test_data_ref"))
+        if literal is None:
+            out.append(step)
+            continue
+        step = dict(step)
+        step["_literal"] = literal
+        step["_literal_ref"] = step.get("test_data_ref")
+        step["test_data_ref"] = None
+        out.append(step)
+    return out
+
+
 def _is_navigation_target(target: Any) -> bool:
     """True when a step's target names a destination rather than an element.
 
@@ -1108,6 +1151,7 @@ def compile_playwright(
         steps = ground_case_structured_steps(case, linked_app)
     except Exception:
         steps = list(case.steps_structured or [])
+    steps = _split_literal_refs(steps)
     display_id = case.display_id or "test-case"
     slug = re.sub(r"[^A-Za-z0-9]+", "-", display_id).strip("-").lower() or "spec"
     title = f"{display_id} - {case.objective or case.description or 'automated test'}"
@@ -1594,14 +1638,21 @@ def compile_playwright(
                 else:
                     locator, todo = build_locator(step, intent, catalog=catalog, kb=kb_index)
 
-                data_var = re.sub(r"[^A-Za-z0-9]+", "_", str(data_ref)).lower() if data_ref else None
+                literal = step.get("_literal")
+                data_var = (
+                    _js(literal) if literal
+                    else re.sub(r"[^A-Za-z0-9]+", "_", str(data_ref)).lower() if data_ref else None
+                )
                 # "Select the organization with no users" carrying a Test Data
                 # value: the value IS the thing to pick. Its locator from the
                 # step's prose was a guess; the stored value's text is not.
                 # Shops keep their own select handling below.
                 if todo and data_var and intent in ("click", "select") and not commerce:
                     locator = f"page.getByText({data_var}, {{ exact: true }}).first()"
-                    lines.append(f"  // Picks the item named by {_env_key(str(data_ref))}.")
+                    lines.append(
+                        f"  // Picks the item named {comment_text(literal)}, the value the step carries."
+                        if literal else f"  // Picks the item named by {_env_key(str(data_ref))}."
+                    )
                     todo = None
                     intent = "click"
 
@@ -1652,21 +1703,13 @@ def compile_playwright(
                     lines.append("    await otpBoxes.nth(i).fill(digit);")
                     lines.append("  }")
                 elif intent == "fill":
-                    value = (
-                        re.sub(r"[^A-Za-z0-9]+", "_", str(data_ref)).lower()
-                        if data_ref
-                        else _js(quoted_term or "Test Data")
-                    )
+                    value = data_var or _js(quoted_term or "Test Data")
                     lines.append(f"  await {locator}.fill({value});")
                 elif intent == "select":
                     if any(k in locator.lower() for k in [".plan-card", "button", "tab", "role=", "div", "radio", ":has-text", "hastext", "card"]):
                         lines.append(f"  await {locator}.click();")
                     else:
-                        value = (
-                            re.sub(r"[^A-Za-z0-9]+", "_", str(data_ref)).lower()
-                            if data_ref
-                            else _js(quoted_term or "1")
-                        )
+                        value = data_var or _js(quoted_term or "1")
                         lines.append(f"  await {locator}.selectOption({value});")
                 elif intent == "assert":
                     lines.append(f"  await expect({locator}).toBeVisible({{ timeout: 10000 }});")
@@ -2112,7 +2155,7 @@ def compile_katalon(
     overrides = locator_overrides or {}
     display_id = case.display_id or "test-case"
     slug = re.sub(r"[^A-Za-z0-9]+", "-", display_id).strip("-").lower() or "spec"
-    steps = list(case.steps_structured or [])
+    steps = _split_literal_refs(list(case.steps_structured or []))
     target_url = (base_url or getattr(case, "application_url", None) or "").strip()
 
     issues: list[StaticGateIssue] = []
@@ -2237,13 +2280,15 @@ def compile_katalon(
                 + _groovy(selector) + ", " + _groovy(kind) + ")"
             )
             if intent == "fill":
-                value = _groovy_var(data_ref) if data_ref else _groovy("Test Data")
+                value = (
+                    _groovy(step["_literal"]) if step.get("_literal")
+                    else _groovy_var(data_ref) if data_ref else _groovy("Test Data")
+                )
                 lines.append("WebUI.setText(" + obj + ", " + value + ")")
             elif intent == "select":
-                if data_ref:
-                    lines.append(
-                        "WebUI.selectOptionByLabel(" + obj + ", " + _groovy_var(data_ref) + ", false)"
-                    )
+                if data_ref or step.get("_literal"):
+                    label = _groovy(step["_literal"]) if step.get("_literal") else _groovy_var(data_ref)
+                    lines.append("WebUI.selectOptionByLabel(" + obj + ", " + label + ", false)")
                 else:
                     # A variant tile or a plan card is a click, not a <select>.
                     lines.append("WebUI.click(" + obj + ")")
