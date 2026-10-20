@@ -818,6 +818,26 @@ _EXPECTED_URL_RE = re.compile(
 )
 _EXPECTED_QUOTED_RE = re.compile(r"[\"']([^\"']{2,80})[\"']")
 
+
+def url_pattern(path: str) -> str:
+    """A regex for a URL path a post-condition names, query parameters in any order.
+
+    The query was matched as written: TC-004 expected
+    login.html?rdr=home&locale=en, the B2B Portal redirects to
+    login.html?locale=en&rdr=home -- the same page -- and step 1 failed on every
+    run. Each parameter is now a lookahead, so order does not matter but every
+    named parameter still has to be there. A fragment never proves a page.
+    """
+    path = path.split("#", 1)[0]
+    base, _, query = path.partition("?")
+    pattern = re.escape(base)
+    params = [p for p in query.split("&") if p]
+    if params:
+        pattern += r"\?" + "".join(
+            r"(?=(?:[^#]*&)?" + re.escape(p) + r"(?:&|#|$))" for p in params
+        )
+    return pattern
+
 # --- Automation Module: what else a post-condition can name exactly ---------
 #
 # 14 of 40 steps in one B2B project carried a post-condition and asserted
@@ -901,7 +921,7 @@ def expected_assertion(
             path = path[path.find("/"):]
         if len(path) > 2:
             return (
-                f"await expect(page).toHaveURL(new RegExp({_js(re.escape(path))}, 'i'), "
+                f"await expect(page).toHaveURL(new RegExp({_js(url_pattern(path))}, 'i'), "
                 "{ timeout: 15000 });"
             )
 
@@ -2018,7 +2038,7 @@ def _katalon_url_check(text: Any) -> Optional[str]:
         path = path[path.find("/"):]
     if len(path) <= 2:
         return None
-    return "WebUI.verifyMatch(WebUI.getUrl(), " + _groovy(".*" + re.escape(path) + ".*") + ", true)"
+    return "WebUI.verifyMatch(WebUI.getUrl(), " + _groovy(".*" + url_pattern(path) + ".*") + ", true)"
 
 
 def _katalon_expected(expected: Any, intent: str) -> Optional[str]:

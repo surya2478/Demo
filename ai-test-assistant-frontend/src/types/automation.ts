@@ -967,3 +967,15 @@ export interface LabCaseStepsSave {
   /** value: undefined keeps what Test Data holds. */
   test_data: { key: string; description: string | null; sensitive: boolean; value?: string }[]
 }
+
+export interface LabStepsPreviewIn {
+  framework: string
+  steps: Omit<LabStep, 'step_number'>[]
+}
+
+/** Unsaved steps compiled: nothing is stored, and the locator agent is not asked. */
+export interface LabStepsPreview {
+  code: string
+  file_name: string
+  static_gate_result: StaticGateResult | null
+}

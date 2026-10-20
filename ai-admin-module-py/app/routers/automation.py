@@ -2753,6 +2753,66 @@ def save_lab_case_steps(
     return result
 
 
+class _DraftCase:
+    """A case with unsaved steps: the compiler reads it like the case, and nothing reaches the row."""
+
+    def __init__(self, case: AutomationTestCase, steps: list[dict]):
+        self._case = case
+        self.steps_structured = steps
+        self.steps_raw = "\n".join(f"{s['step_number']}. {s['action']}" for s in steps)
+
+    def __getattr__(self, name: str):
+        return getattr(self._case, name)
+
+
+class LabStepsPreviewIn(BaseModel):
+    framework: str = Field(default="playwright", max_length=30)
+    steps: list[LabStepIn] = Field(min_length=1, max_length=200)
+
+
+@router.post("/lab/cases/{case_id}/steps/preview")
+def preview_lab_case_steps(
+    case_id: int,
+    body: LabStepsPreviewIn,
+    application_id: Optional[int] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+):
+    """Compile unsaved steps, so the Test steps tab shows what a fix does before it is saved.
+
+    The same compiler and catalogue as /scripts/generate, without the locator
+    agent: a preview costs no model call and writes nothing. A step the agent
+    would resolve shows here as not found, which is what it is until then.
+    """
+    if body.framework not in compiler.FRAMEWORKS:
+        raise HTTPException(status_code=400, detail="Unknown automation framework.")
+    case = _load_case(db, case_id)
+    app = _lab_application(db, case, application_id)
+    if app is None:
+        try:
+            app = _resolve_application(db, None)
+        except HTTPException:
+            app = None
+    catalog = _current_catalog(db, app.id) if app is not None else []
+    steps = [
+        {
+            "step_number": i,
+            "action": s.action.strip(),
+            "action_type": s.action_type or None,
+            "target": (s.target or "").strip() or None,
+            "test_data_ref": (s.test_data_ref or "").strip() or None,
+            "expected_result": (s.expected_result or "").strip() or None,
+        }
+        for i, s in enumerate(body.steps, start=1)
+    ]
+    draft = _DraftCase(case, steps)
+    try:
+        compiled = compiler.compile_for(draft, body.framework, base_url=case.application_url, catalog=catalog)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"code": compiled.code, "file_name": compiled.file_name, "static_gate_result": compiled.gate_result()}
+
+
 @router.post("/workbench/delete")
 def delete_workbench_cases(
     body: BulkIdsRequest,

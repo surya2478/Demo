@@ -41,6 +41,8 @@ import type {
   ScriptLabListing,
   LabCaseSteps,
   LabCaseStepsSave,
+  LabStepsPreview,
+  LabStepsPreviewIn,
   DiscoveredElement,
   DiscoveryRun,
   RegisteredApplication,
@@ -449,6 +451,10 @@ const automationService = {
   /** Save edited steps, case fields and test data; the case stays approved. */
   saveLabCaseSteps: (caseId: number, body: LabCaseStepsSave, applicationId?: number | null): Promise<LabCaseSteps> =>
     call<LabCaseSteps>(() => api.put(`${BASE}/lab/cases/${caseId}/steps`, body, { params: applicationId ? { application_id: applicationId } : {} })),
+
+  /** Compile unsaved steps without saving them: what the script would become. */
+  previewLabCaseSteps: (caseId: number, body: LabStepsPreviewIn, applicationId?: number | null): Promise<LabStepsPreview> =>
+    call<LabStepsPreview>(() => api.post(`${BASE}/lab/cases/${caseId}/steps/preview`, body, { params: applicationId ? { application_id: applicationId } : {} })),
 
   generateScripts: (body: {
     case_ids: number[]

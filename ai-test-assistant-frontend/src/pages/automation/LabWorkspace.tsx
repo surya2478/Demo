@@ -22,7 +22,8 @@ import automationService from '../../services/automationService'
 import testDataService, { environmentLabel, readableName, type ScriptDataCheck } from '../../services/testDataService'
 import { startDeviceRunner } from '../../services/localRunner'
 import TestDataFill from '../../components/automation/TestDataFill'
-import LabTestSteps, { stepsNeedingAttention } from '../../components/automation/LabTestSteps'
+import LabTestSteps, { HeroBand, ReadinessSummary, stepsNeedingAttention, type JourneyHero } from '../../components/automation/LabTestSteps'
+import { caseStrip, type Lvl } from '../../components/automation/labJourney'
 import useRunPolling from '../../hooks/useRunPolling'
 import { useAutomationContext } from '../../components/automation/AutomationContext'
 import { useConfirm } from '../../components/ui/ConfirmDialog'
@@ -43,7 +44,7 @@ import {
   type BulkJob, type BulkSkip, type GenJob, type HealSource
 } from '../../components/automation/LabPopups'
 
-type Filter = 'all' | 'failing' | 'running' | 'passed' | 'not_run' | 'test_data' | 'no_script'
+type Filter = 'all' | 'needs_you' | 'failing' | 'running' | 'passed' | 'not_run' | 'test_data' | 'no_script'
 type View = 'steps' | 'script' | 'latest' | 'history'
 type PopupState =
   | { kind: 'run'; runKey: string }
@@ -55,6 +56,7 @@ type PopupState =
 
 const FILTERS: { key: Filter; label: string; on: string; off: string }[] = [
   { key: 'all', label: 'All', on: 'bg-[#1F2937] text-white', off: 'bg-[#F4F5F7] text-[#374151]' },
+  { key: 'needs_you', label: 'Needs you', on: 'bg-[#7A4200] text-white', off: 'bg-[#FFF1DC] text-[#7A4200]' },
   { key: 'failing', label: 'Failing', on: 'bg-[#DC2626] text-white', off: 'bg-[#FEEBEC] text-[#A3231C]' },
   { key: 'running', label: 'Running', on: 'bg-[#2563EB] text-white', off: 'bg-[#EEF4FF] text-[#1D4ED8]' },
   { key: 'passed', label: 'Passed', on: 'bg-[#16A34A] text-white', off: 'bg-[#EAF7EF] text-[#136B34]' },
@@ -63,8 +65,12 @@ const FILTERS: { key: Filter; label: string; on: string; off: string }[] = [
   { key: 'no_script', label: 'No script', on: 'bg-[#6B7280] text-white', off: 'border border-dashed border-[#D6D9DF] bg-white text-[#6B7280]' }
 ]
 
-const matches = (filter: Filter, state: CaseState, testCase: ScriptLabCase) =>
-  filter === 'all' ? true : filter === 'test_data' ? needsData(testCase) : filter === state
+const matches = (filter: Filter, state: CaseState, testCase: ScriptLabCase, strip: Lvl[]) =>
+  filter === 'all' ? true
+    : filter === 'needs_you' ? needsData(testCase) || strip.some(l => l === 'warn' || l === 'bad')
+      : filter === 'test_data' ? needsData(testCase) : filter === state
+
+const STRIP: Record<Lvl, string> = { ok: 'bg-[#15803D]', warn: 'bg-[#E8A33A]', bad: 'bg-[#B71920]', na: 'bg-[#C9CED6]' }
 
 const typing = (target: EventTarget | null) => {
   const el = target as HTMLElement | null
@@ -179,6 +185,9 @@ const LabWorkspace: React.FC = () => {
   // Test steps: the step whose lines the Script view marks, and whether its editor is open.
   const [focusStep, setFocusStep] = useState<number | null>(null)
   const [stepsEditing, setStepsEditing] = useState(false)
+  // The open case's step lights, as the Test steps tab worked them out; the
+  // other cases' strips are read from their scripts alone.
+  const [openLevels, setOpenLevels] = useState<{ id: number; levels: Lvl[] } | null>(null)
   const [viewRunKey, setViewRunKey] = useState<string | null>(params.get('run'))
   const [history, setHistory] = useState<RunSummary[]>([])
   const [historyLoaded, setHistoryLoaded] = useState(false)
@@ -226,8 +235,12 @@ const LabWorkspace: React.FC = () => {
     () => (query ? cases.filter(c => [c.tc_display_id, c.title, c.request_id].some(v => String(v ?? '').toLowerCase().includes(query))) : cases),
     [cases, query]
   )
-  const visible = useMemo(() => searched.filter(c => matches(filter, stateOf(c), c)), [searched, filter, stateOf])
-  const countOf = (f: Filter) => searched.filter(c => matches(f, stateOf(c), c)).length
+  const stripOf = useCallback(
+    (c: ScriptLabCase): Lvl[] => (openLevels?.id === c.id ? openLevels.levels : caseStrip(scriptOf(c, framework)?.code, c.steps)),
+    [openLevels, framework]
+  )
+  const visible = useMemo(() => searched.filter(c => matches(filter, stateOf(c), c, stripOf(c))), [searched, filter, stateOf, stripOf])
+  const countOf = (f: Filter) => searched.filter(c => matches(f, stateOf(c), c, stripOf(c))).length
   const missing = cases.filter(c => !scriptOf(c, framework))
 
   // Follow dry runs and batch jobs until they settle.
@@ -654,16 +667,24 @@ const LabWorkspace: React.FC = () => {
 
   // After the Test steps editor saves: the script follows the edited steps,
   // unless someone edited it by hand -- generation refuses to discard that.
-  const regenerateAfterEdit = async (testCase: ScriptLabCase, script: ScriptAsset | null) => {
+  const regenerateAfterEdit = async (testCase: ScriptLabCase, script: ScriptAsset | null, regenerate = true, applicationId: number | null = null): Promise<ScriptAsset | null> => {
     const ref = baseId(testCase.tc_display_id)
+    const current = async () => {
+      const fresh = await load()
+      const c = fresh.find(x => x.id === testCase.id)
+      return c ? scriptOf(c, framework) : null
+    }
+    if (!regenerate) {
+      setNotice(`${ref} saved; its test data values are in Test Data.`)
+      return current()
+    }
     if (script?.edited_by_user) {
       setNotice(`${ref} saved. Its script was edited by hand, so it was not regenerated.`)
-      await load()
-      return
+      return current()
     }
     try {
       const res = await automationService.generateScripts({
-        case_ids: [testCase.id], framework, application_id: readSelectedApplicationId(), base_url: null, regenerate: Boolean(script)
+        case_ids: [testCase.id], framework, application_id: readSelectedApplicationId() ?? applicationId, base_url: null, regenerate: Boolean(script)
       })
       const made = res.scripts?.[0]
       const skip = res.skipped?.[0]
@@ -673,10 +694,118 @@ const LabWorkspace: React.FC = () => {
     } catch (err: any) {
       setError(`${ref} saved, but the script could not be regenerated: ${err?.message ?? 'unknown error'}`)
     }
-    await load()
+    return current()
   }
   const latestRun = history.find(r => r.run_key === latestKey) ?? null
   const latestFailed = latestRun ? ['failed', 'blocked'].includes(toneOf(latestRun)) : failing
+
+  // The case's header, the same on every tab.
+  const hero: JourneyHero | null = openCase ? {
+    tc: baseId(openCase.tc_display_id),
+    chips: [
+      chip.label,
+      openScript ? `${fwLabel} v${openScript.version}` : null,
+      environment ? `runs on ${environmentLabel(environment)}` : null,
+      openCase.request_id ? `from ${openCase.request_id}` : null,
+      needsData(openCase) ? 'Test data pending' : null
+    ].filter(Boolean) as string[],
+    title: openCase.title,
+    meta: [openScript?.file_name, openCase.created_by ? `created by ${openCase.created_by}` : null, openCase.created_at ? fullStamp(openCase.created_at) : null].filter(Boolean).join(' · ')
+  } : null
+
+  const tabBar = (dark: boolean) => (
+    <div className={`flex items-center rounded-[10px] p-[3px] ${dark ? 'bg-[#2A2C33]' : 'bg-[#F4F5F7]'}`} role="tablist" aria-label="Case view">
+      {([['steps', 'Test steps'], ['script', 'Script'], ['latest', 'Latest run'], ['history', 'History']] as const).map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          role="tab"
+          aria-selected={view === key}
+          onClick={() => switchView(key)}
+          className={`h-[26px] rounded-[8px] px-2.5 text-[11.5px] font-semibold transition ${view === key ? 'bg-white text-[#1F2937] shadow-[0_1px_2px_rgba(16,24,40,0.12)]' : dark ? 'text-[#C9CDD6] hover:text-white' : 'text-[#6B7280] hover:text-[#1F2937]'}`}
+        >
+          {label}
+          {key === 'steps' && attention > 0 && <span className="rounded-full bg-[#FFF4E5] px-1.5 text-[10px] font-bold text-[#8A5000]" title="Steps whose element was guessed or not found">{attention}</span>}
+        </button>
+      ))}
+    </div>
+  )
+
+  const caseList = (
+    <section className={`${CARD} overflow-hidden`}>
+      <div className="flex flex-wrap gap-1 px-3 pb-2.5 pt-3">
+        {FILTERS.map(f => (
+          <button
+            key={f.key}
+            type="button"
+            onClick={() => setFilter(f.key)}
+            aria-pressed={filter === f.key}
+            className={`${CHIP} h-[20px] gap-0.5 px-[7px] text-[10px] transition ${filter === f.key ? f.on : f.off}`}
+          >
+            {f.label} {countOf(f.key)}
+          </button>
+        ))}
+      </div>
+      <label className="flex h-9 cursor-pointer items-center gap-2.5 border-y border-[#E8EAEE] bg-[#FCFCFD] px-3 text-[11.5px] font-bold text-[#1F2937]">
+        <input type="checkbox" aria-label="Select every case shown" checked={allOn} disabled={!visible.length} onChange={() => setSelected(allOn ? new Set() : new Set(visible.map(c => c.id)))} className="h-4 w-4 accent-[#B71920]" />
+        {selected.size ? `${selected.size} selected` : 'Select all'}
+        {selected.size > 0 && (
+          <button type="button" onClick={e => { e.preventDefault(); setSelected(new Set()) }} className="ml-auto text-[11.5px] font-bold text-[#B71920] hover:underline">Clear</button>
+        )}
+      </label>
+      <ul className="app-scroll max-h-[640px] overflow-y-auto">
+        {loading ? (
+          <li className="px-3 py-6 text-[12.5px] text-[#6B7280]">Loading…</li>
+        ) : visible.length === 0 ? (
+          <li className="px-3 py-6 text-[12.5px] text-[#6B7280]">No cases match this filter.</li>
+        ) : visible.map(c => {
+          const script = scriptOf(c, framework)
+          const state = stateOf(c)
+          const open = c.id === openId
+          const time = state === 'running' ? elapsed(script) : script?.dry_run?.duration_seconds != null && (state === 'passed' || state === 'failing') ? shortDuration(script.dry_run.duration_seconds) : '—'
+          return (
+            <li
+              key={c.id}
+              onClick={() => pick(c, view === 'history' ? 'script' : view)}
+              className={`grid cursor-pointer grid-cols-[18px_minmax(0,1fr)_auto_18px] items-center gap-2.5 border-b border-[#F1F2F4] py-2 pl-3 pr-3 transition ${
+                open ? 'bg-[#FFF5F5] shadow-[inset_3px_0_0_#B71920]' : 'hover:bg-[#FAFAFB]'
+              }`}
+              title={[c.created_by && `Created by ${c.created_by}`, c.created_at && `Created ${fullStamp(c.created_at)}`, `${c.steps} step${c.steps === 1 ? '' : 's'}`, c.request_id && `Request ${c.request_id}`].filter(Boolean).join('\n')}
+            >
+              <input
+                type="checkbox"
+                aria-label={`Select ${baseId(c.tc_display_id)}`}
+                checked={selected.has(c.id)}
+                onClick={e => e.stopPropagation()}
+                onChange={() => toggle(c.id)}
+                className="h-4 w-4 accent-[#B71920]"
+              />
+              <span className="min-w-0">
+                <span className="flex items-center gap-1.5">
+                  <span className="text-[11.5px] font-bold text-[#1F2937]">{baseId(c.tc_display_id)}</span>
+                  {script ? <span className="rounded-[4px] bg-[#F4F5F7] px-1 text-[9.5px] font-semibold text-[#374151]">v{script.version}</span> : <span className="rounded-full border border-dashed border-[#D6D9DF] px-1.5 text-[9.5px] text-[#6B7280]">No script</span>}
+                  {needsData(c) && <span className="rounded-[4px] bg-[#FFF4E5] px-1 text-[9.5px] font-semibold text-[#8A5000]">Data</span>}
+                </span>
+                <span className="block truncate text-[11px] text-[#6B7280]">{c.title}</span>
+                <span className="mt-1.5 flex gap-[3px]" aria-label="Step readiness">
+                  {stripOf(c).map((l, i) => <i key={i} className={`block h-1.5 flex-1 rounded-[3px] ${STRIP[l]}`} />)}
+                </span>
+              </span>
+              <span className="text-[11px] tabular-nums text-[#6B7280]">{time}</span>
+              <RowMark state={state} onWatch={() => script?.dry_run_key && setPopup({ kind: 'run', runKey: script.dry_run_key })} />
+            </li>
+          )
+        })}
+      </ul>
+      <div className="flex flex-wrap gap-x-3 gap-y-1.5 px-3.5 py-3 text-[11.5px] text-[#4B5160]">
+        <span className="inline-flex items-center gap-1.5"><i className="inline-block h-1.5 w-3 rounded-[3px] bg-[#15803D]" />Ready</span>
+        <span className="inline-flex items-center gap-1.5"><i className="inline-block h-1.5 w-3 rounded-[3px] bg-[#E8A33A]" />Needs a look</span>
+        <span className="inline-flex items-center gap-1.5"><i className="inline-block h-1.5 w-3 rounded-[3px] bg-[#B71920]" />Blocked</span>
+        <span className="inline-flex items-center gap-1.5"><i className="inline-block h-1.5 w-3 rounded-[3px] bg-[#C9CED6]" />No script</span>
+      </div>
+    </section>
+
+  )
 
   if (!loading && !cases.length) {
     return (
@@ -779,75 +908,36 @@ const LabWorkspace: React.FC = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[290px_minmax(0,1fr)]">
-        {/* Case list */}
-        <section className={`${CARD} overflow-hidden`}>
-          <div className="flex flex-wrap gap-1 px-3 pb-2.5 pt-3">
-            {FILTERS.map(f => (
-              <button
-                key={f.key}
-                type="button"
-                onClick={() => setFilter(f.key)}
-                aria-pressed={filter === f.key}
-                className={`${CHIP} h-[20px] gap-0.5 px-[7px] text-[10px] transition ${filter === f.key ? f.on : f.off}`}
-              >
-                {f.label} {countOf(f.key)}
-              </button>
-            ))}
-          </div>
-          <label className="flex h-9 cursor-pointer items-center gap-2.5 border-y border-[#E8EAEE] bg-[#FCFCFD] px-3 text-[11.5px] font-bold text-[#1F2937]">
-            <input type="checkbox" aria-label="Select every case shown" checked={allOn} disabled={!visible.length} onChange={() => setSelected(allOn ? new Set() : new Set(visible.map(c => c.id)))} className="h-4 w-4 accent-[#B71920]" />
-            {selected.size ? `${selected.size} selected` : 'Select all'}
-            {selected.size > 0 && (
-              <button type="button" onClick={e => { e.preventDefault(); setSelected(new Set()) }} className="ml-auto text-[11.5px] font-bold text-[#B71920] hover:underline">Clear</button>
-            )}
-          </label>
-          <ul className="app-scroll max-h-[640px] overflow-y-auto">
-            {loading ? (
-              <li className="px-3 py-6 text-[12.5px] text-[#6B7280]">Loading…</li>
-            ) : visible.length === 0 ? (
-              <li className="px-3 py-6 text-[12.5px] text-[#6B7280]">No cases match this filter.</li>
-            ) : visible.map(c => {
-              const script = scriptOf(c, framework)
-              const state = stateOf(c)
-              const open = c.id === openId
-              const time = state === 'running' ? elapsed(script) : script?.dry_run?.duration_seconds != null && (state === 'passed' || state === 'failing') ? shortDuration(script.dry_run.duration_seconds) : '—'
-              return (
-                <li
-                  key={c.id}
-                  onClick={() => pick(c, view === 'history' ? 'script' : view)}
-                  className={`grid cursor-pointer grid-cols-[18px_minmax(0,1fr)_auto_18px] items-center gap-2.5 border-b border-[#F1F2F4] py-2 pl-3 pr-3 transition ${
-                    open ? 'bg-[#FFF5F5] shadow-[inset_3px_0_0_#B71920]' : 'hover:bg-[#FAFAFB]'
-                  }`}
-                  title={[c.created_by && `Created by ${c.created_by}`, c.created_at && `Created ${fullStamp(c.created_at)}`, `${c.steps} step${c.steps === 1 ? '' : 's'}`, c.request_id && `Request ${c.request_id}`].filter(Boolean).join('\n')}
-                >
-                  <input
-                    type="checkbox"
-                    aria-label={`Select ${baseId(c.tc_display_id)}`}
-                    checked={selected.has(c.id)}
-                    onClick={e => e.stopPropagation()}
-                    onChange={() => toggle(c.id)}
-                    className="h-4 w-4 accent-[#B71920]"
-                  />
-                  <span className="min-w-0">
-                    <span className="flex items-center gap-1.5">
-                      <span className="text-[11.5px] font-bold text-[#1F2937]">{baseId(c.tc_display_id)}</span>
-                      {script ? <span className="rounded-[4px] bg-[#F4F5F7] px-1 text-[9.5px] font-semibold text-[#374151]">v{script.version}</span> : <span className="rounded-full border border-dashed border-[#D6D9DF] px-1.5 text-[9.5px] text-[#6B7280]">No script</span>}
-                      {needsData(c) && <span className="rounded-[4px] bg-[#FFF4E5] px-1 text-[9.5px] font-semibold text-[#8A5000]">Data</span>}
-                    </span>
-                    <span className="block truncate text-[11px] text-[#6B7280]">{c.title}</span>
-                  </span>
-                  <span className="text-[11px] tabular-nums text-[#6B7280]">{time}</span>
-                  <RowMark state={state} onWatch={() => script?.dry_run_key && setPopup({ kind: 'run', runKey: script.dry_run_key })} />
-                </li>
-              )
-            })}
-          </ul>
-          <div className="flex items-center justify-between px-3 py-2.5 text-[10.5px] text-[#6B7280]">
-            <span>Created by · Created · Steps</span>
-            <span>shown in the detail</span>
-          </div>
-        </section>
+      {view === 'steps' && openCase ? (
+        <LabTestSteps
+          key={openCase.id}
+          caseId={openCase.id}
+          script={openScript}
+          canExecute={canExecute}
+          runnable={runnable}
+          stale={Boolean(openScript && !openScript.edited_by_user && (parseServerTime(openCase.updated_at)?.getTime() ?? 0) > (parseServerTime(openScript.created_at)?.getTime() ?? 0))}
+          busy={busy !== null || openState === 'running'}
+          applicationId={readSelectedApplicationId()}
+          hero={hero!}
+          rail={caseList}
+          tabs={tabBar(false)}
+          onJump={(step) => { switchView('script'); setFocusStep(step) }}
+          onHistory={() => switchView('history')}
+          onGenerate={() => openGenerate([openCase])}
+          onDryRun={(script) => void dryRun(script)}
+          onEditingChange={setStepsEditing}
+          onSaved={(regenerate, appId) => regenerateAfterEdit(openCase, openScript, regenerate, appId)}
+          onLevels={(levels) => setOpenLevels({ id: openCase.id, levels })}
+        />
+      ) : (
+      <div className="flex flex-col gap-4">
+      {hero && openCase && (
+        <HeroBand hero={hero} tabs={tabBar(false)} views={[]}>
+          <ReadinessSummary levels={stripOf(openCase)} hasScript={Boolean(openScript)} onOpen={() => switchView('steps')} />
+        </HeroBand>
+      )}
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[272px_minmax(0,1fr)]">
+        {caseList}
 
         {/* The chosen case */}
         <section className={`${CARD} flex min-w-0 flex-col overflow-hidden`}>
@@ -855,36 +945,6 @@ const LabWorkspace: React.FC = () => {
             <div className="px-6 py-10 text-center text-[13px] text-[#6B7280]">{loading ? 'Loading…' : 'Choose a case on the left.'}</div>
           ) : (
             <>
-              <div className="border-b border-[#E8EAEE] px-4 pb-3 pt-3">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="mr-0.5 text-[11.5px] font-bold text-[#B71920]">{baseId(openCase.tc_display_id)}</span>
-                  <span className={`${CHIP} h-[22px] px-2 text-[10.5px] ${chip.tone}`}>{chip.label}</span>
-                  {openScript && <span className={`${CHIP} h-[22px] border border-[#E8EAEE] bg-white px-2 text-[10.5px] text-[#1F2937]`}>{fwLabel} v{openScript.version}</span>}
-                  <span className={`${CHIP} h-[22px] border border-[#E8EAEE] bg-white px-2 text-[10.5px] text-[#1F2937]`}>{openCase.steps} step{openCase.steps === 1 ? '' : 's'}</span>
-                  {environment && <span className={`${CHIP} h-[22px] border border-[#E8EAEE] bg-white px-2 text-[10.5px] text-[#1F2937]`}>runs on {environmentLabel(environment)}</span>}
-                  {needsData(openCase) && <span className={`${CHIP} h-[22px] bg-[#FFF4E5] px-2 text-[10.5px] text-[#8A5000]`}>Test data pending</span>}
-                  <div className="ml-auto flex items-center rounded-[10px] bg-[#F4F5F7] p-[3px]" role="tablist" aria-label="Case view">
-                    {([['steps', 'Test steps'], ['script', 'Script'], ['latest', 'Latest run'], ['history', 'History']] as const).map(([key, label]) => (
-                      <button
-                        key={key}
-                        type="button"
-                        role="tab"
-                        aria-selected={view === key}
-                        onClick={() => switchView(key)}
-                        className={`h-[26px] rounded-[8px] px-2.5 text-[11.5px] font-semibold transition ${view === key ? 'bg-white text-[#1F2937] shadow-[0_1px_2px_rgba(16,24,40,0.12)]' : 'text-[#6B7280] hover:text-[#1F2937]'}`}
-                      >
-                        {label}
-                        {key === 'steps' && attention > 0 && <span className="rounded-full bg-[#FFF4E5] px-1.5 text-[10px] font-bold text-[#8A5000]" title="Steps whose element was guessed or not found">{attention}</span>}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <h2 className="m-0 mt-2 text-[15px] font-bold leading-[1.35] text-[#1F2937]">{openCase.title}</h2>
-                <div className="mt-0.5 truncate text-[11.5px] text-[#6B7280]">
-                  {[openCase.created_by ? `Created by ${openCase.created_by}` : null, openCase.created_at ? `Created ${fullStamp(openCase.created_at)}` : null, openScript?.file_name].filter(Boolean).join(' · ')}
-                </div>
-              </div>
-
               {/* Script (B) */}
               {view === 'script' && (
                 !openScript ? (
@@ -927,20 +987,6 @@ const LabWorkspace: React.FC = () => {
                     <CodeBlock code={openScript.code || ''} highlight={focusStep ? failedLines(openScript.code || '', focusStep) : openState === 'failing' ? failedLines(openScript.code || '', openScript.dry_run?.failed_step) : new Set()} className="max-h-[460px] min-h-[260px]" />
                   </>
                 )
-              )}
-
-              {/* Test steps: step -> test data -> element -> check, and editing them */}
-              {view === 'steps' && (
-                <LabTestSteps
-                  key={openCase.id}
-                  caseId={openCase.id}
-                  script={openScript}
-                  canExecute={canExecute}
-                  applicationId={readSelectedApplicationId()}
-                  onJump={(step) => { switchView('script'); setFocusStep(step) }}
-                  onEditingChange={setStepsEditing}
-                  onSaved={() => regenerateAfterEdit(openCase, openScript)}
-                />
               )}
 
               {/* Latest run (B2) */}
@@ -1005,7 +1051,7 @@ const LabWorkspace: React.FC = () => {
               {/* Action bar: Edit and Download, where the last dry run got to, then
                   the runs -- on this host or on this device, headless or headed --
                   and the AI fix, as the Script Lab drawer and Runs drawer had them. */}
-              {!(view === 'steps' && stepsEditing) && <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-[#E8EAEE] px-4 py-3">
+              {<div className="mt-auto flex flex-wrap items-center gap-2 border-t border-[#E8EAEE] px-4 py-3">
                 <button type="button" onClick={() => openScript && setPopup({ kind: 'edit', script: openScript })} disabled={!openScript || !canExecute || busy !== null} title="Edit the script" className={BTN}><EditGlyph />Edit</button>
                 <button type="button" onClick={() => openScript && void downloadOne(openScript)} disabled={!openScript || busy !== null} title="Download the script" className={BTN}>
                   <DownGlyph />{busy === 'download' ? 'Downloading…' : 'Download'}
@@ -1085,6 +1131,8 @@ const LabWorkspace: React.FC = () => {
           )}
         </section>
       </div>
+      </div>
+      )}
 
       {/* Popups */}
       {popup?.kind === 'run' && (
