@@ -14,6 +14,8 @@ export interface PageMeta {
   actions?: React.ReactNode
   leading?: React.ReactNode
   eyebrow?: React.ReactNode
+  /** A smaller title, for a page whose top bar also carries its actions. */
+  compactTitle?: boolean
   /*
    * JSX is not part of the republish key (see usePageHeader). A page whose
    * `leading` or `actions` depend on data -- a menu filtered by permissions --
@@ -72,8 +74,10 @@ export const PageHeaderProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  *   re-publishes.
  * - The latest meta (including current actions/handlers) is read from a ref
  *   at the moment a publish actually happens.
+ * - `enabled: false` stands a shell aside so a nested page can publish the
+ *   header itself (the setter holds one meta, and the last publish wins).
  */
-export function usePageHeader(meta: PageMeta) {
+export function usePageHeader(meta: PageMeta, { enabled = true }: { enabled?: boolean } = {}) {
   const setMeta = useContext(MetaSetterContext)
   const metaRef = useRef(meta)
   metaRef.current = meta
@@ -89,14 +93,15 @@ export function usePageHeader(meta: PageMeta) {
     showAssistant: meta.showAssistant ?? null,
     showNotifications: meta.showNotifications ?? null,
     showDateRange: meta.showDateRange ?? null,
-    contentKey: meta.contentKey ?? null
+    contentKey: meta.contentKey ?? null,
+    compactTitle: meta.compactTitle ?? null
   })
 
   // Publish on mount + whenever a primitive field changes.
   useEffect(() => {
-    if (!setMeta) return
+    if (!setMeta || !enabled) return
     setMeta(metaRef.current)
-  }, [setMeta, key])
+  }, [setMeta, key, enabled])
 
   // Clear on unmount so the next page starts with a blank header.
   useEffect(() => {

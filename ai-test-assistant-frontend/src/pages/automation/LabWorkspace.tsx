@@ -26,6 +26,7 @@ import LabTestSteps, { HeroBand, ReadinessSummary, stepsNeedingAttention, type J
 import { caseStrip, type Lvl } from '../../components/automation/labJourney'
 import useRunPolling from '../../hooks/useRunPolling'
 import { useAutomationContext } from '../../components/automation/AutomationContext'
+import { usePageHeader } from '../../components/layout/PageHeaderContext'
 import { useConfirm } from '../../components/ui/ConfirmDialog'
 import { readSelectedApplicationId, isTerminal } from '../../types/automation'
 import type { FrameworkInfo, RegisteredApplication, RunSummary, ScriptAsset, ScriptLabCase } from '../../types/automation'
@@ -109,10 +110,6 @@ const DeviceMode: React.FC<{ headed: boolean; onChange: (headed: boolean) => voi
   </select>
 )
 
-const Kbd: React.FC<{ k: string }> = ({ k }) => (
-  <kbd className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[4px] border border-[#D6D9DF] bg-white px-1 font-sans text-[10.5px] font-bold text-[#1F2937] shadow-[0_1px_0_#D6D9DF]">{k}</kbd>
-)
-
 /** The row's mark: what its last dry run did, or that it has no script. */
 const RowMark: React.FC<{ state: CaseState; onWatch?: () => void }> = ({ state, onWatch }) =>
   state === 'passed' ? <DoneDot size={18} />
@@ -168,7 +165,7 @@ const LabWorkspace: React.FC = () => {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const confirm = useConfirm()
-  const { canExecute, runtime, query } = useAutomationContext()
+  const { canExecute, runtime } = useAutomationContext()
 
   const [all, setAll] = useState<ScriptLabCase[]>([])
   const [frameworks, setFrameworks] = useState<FrameworkInfo[]>([])
@@ -231,10 +228,9 @@ const LabWorkspace: React.FC = () => {
   const runnable = (fwInfo?.runnable ?? framework === 'playwright') && (runtime ? runtime.ready : true)
 
   const stateOf = useCallback((c: ScriptLabCase) => caseState(c, framework), [framework])
-  const searched = useMemo(
-    () => (query ? cases.filter(c => [c.tc_display_id, c.title, c.request_id].some(v => String(v ?? '').toLowerCase().includes(query))) : cases),
-    [cases, query]
-  )
+  // No header search here (the top bar holds the project and its actions);
+  // the status filters narrow the list.
+  const searched = cases
   const stripOf = useCallback(
     (c: ScriptLabCase): Lvl[] => (openLevels?.id === c.id ? openLevels.levels : caseStrip(scriptOf(c, framework)?.code, c.steps)),
     [openLevels, framework]
@@ -807,6 +803,90 @@ const LabWorkspace: React.FC = () => {
 
   )
 
+  // Full page, like /manager-review/:requestId: breadcrumb, title and the
+  // bulk actions live in the top bar (the shell publishes none here).
+  usePageHeader({
+    eyebrow: (
+      <span className="normal-case tracking-normal text-[11px] font-semibold text-[#6B7280]">
+        <Link to="/automation/script-lab" className="text-[#941216] hover:underline">Automation Lab</Link>
+        {` · ${cases.length} case${cases.length === 1 ? '' : 's'}`}{approvedAt ? ` · approved ${dayMonth(approvedAt)}${approvedBy ? ` by ${approvedBy}` : ''}` : ''}
+      </span>
+    ),
+    title: projectTitle,
+    compactTitle: true,
+    showSearch: false,
+    showAssistant: false,
+    showNotifications: false,
+    showDateRange: false,
+    contentKey: `${cases.length}|${approvedAt ?? ''}|${approvedBy ?? ''}|${Array.from(selected).sort().join(',')}|${busy ?? ''}|${canExecute}|${framework}|${frameworks.map(f => f.name).join()}|${missing.length}|${genActive(gen)}|${bulk ? bulkActive(bulk) : 'none'}|${popup?.kind ?? ''}|${dataCheck?.application?.id ?? ''}`,
+    actions: (
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="relative">
+          <select
+            value={framework}
+            onChange={e => setFramework(e.target.value)}
+            aria-label="Framework"
+            className="h-9 appearance-none rounded-[10px] border border-[#E8EAEE] bg-white pl-3.5 pr-8 text-[13px] font-semibold text-[#1F2937] outline-none hover:border-[#F6D4D5]"
+          >
+            {(frameworks.length ? frameworks : [{ name: 'playwright', label: 'Playwright', runnable: true }]).map(fw => <option key={fw.name} value={fw.name}>{fw.label}</option>)}
+          </select>
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#1F2937]"><ChevronGlyph /></span>
+        </span>
+        <button type="button" onClick={() => openGenerate()} disabled={!canExecute} className={BTN}>
+          <StarGlyph />
+          {genActive(gen) ? 'Generating…' : `Generate ${missing.length} missing`}
+        </button>
+        <button
+          type="button"
+          onClick={() => void downloadProject()}
+          disabled={busy !== null}
+          title={selected.size ? `Download the ${selected.size} selected ${fwLabel} script(s) as one zip` : `Download this project's ${fwLabel} scripts as one zip`}
+          aria-label="Download scripts"
+          className={ICON_BTN}
+        >
+          <DownGlyph />
+        </button>
+        <button
+          type="button"
+          onClick={() => void syncBitbucket(Array.from(selected))}
+          disabled={!selected.size || busy !== null}
+          title={!selected.size ? 'Select one or more test cases to sync' : `Sync ${selected.size} selected ${fwLabel} script(s) to their PPM repositories`}
+          aria-label="Sync selected scripts to Bitbucket"
+          className={ICON_BTN}
+        >
+          {busy === 'bitbucket' ? (
+            <span className="box-border block h-3 w-3 animate-spin rounded-full border-2 border-[#B71920] border-t-transparent" />
+          ) : (
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><path d="M7 5h10l-1.2 14H8.2L7 5Z" /><path d="M9.5 8h5l-.5 6h-4l-.5-6ZM5 5h14" /></svg>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => void deleteCases(Array.from(selected))}
+          disabled={!selected.size || !canExecute || busy !== null}
+          title="Delete the selected test cases and their scripts"
+          aria-label="Delete selected test cases"
+          className={`${ICON_BTN} !text-[#B71920]`}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
+        </button>
+        <button
+          type="button"
+          onClick={() => void startBulk(Array.from(selected), cases)}
+          disabled={!selected.size || !canExecute || bulkActive(bulk)}
+          title={!selected.size ? 'Tick the cases to dry run' : bulkActive(bulk) ? 'A bulk dry run is already going' : undefined}
+          className={PRIMARY}
+        >
+          <PlayGlyph />
+          Dry run {selected.size} selected
+        </button>
+        {bulk && popup?.kind !== 'bulk' && (
+          <button type="button" onClick={() => setPopup({ kind: 'bulk' })} className="text-[12px] font-semibold text-[#1D4ED8] hover:underline">{bulkActive(bulk) ? 'Show progress' : 'Last bulk run'}</button>
+        )}
+      </div>
+    )
+  })
+
   if (!loading && !cases.length) {
     return (
       <section className={`${CARD} px-6 py-10 text-center text-[13px] text-[#6B7280]`}>
@@ -818,86 +898,6 @@ const LabWorkspace: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Breadcrumb, shortcuts and bulk actions */}
-      <section className={`${CARD} flex flex-wrap items-center gap-3 px-4 py-3`}>
-        <div className="min-w-0 flex-1">
-          <div className="text-[11px] leading-[1.5] text-[#6B7280]">
-            <Link to="/automation/script-lab" className="font-semibold text-[#B71920] hover:underline">Automation Lab</Link>
-            <span className="text-[#9CA3AF]"> / </span>
-            <span className="font-bold text-[#B71920]">{projectLabel}</span>
-            <span> · {cases.length} case{cases.length === 1 ? '' : 's'}{approvedAt ? ` · approved ${dayMonth(approvedAt)}${approvedBy ? ` by ${approvedBy}` : ''}` : ''}</span>
-          </div>
-          <h1 className="m-0 mt-0.5 truncate text-[17px] font-extrabold text-[#1F2937]">{projectTitle}</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="mr-1 hidden items-center gap-1 text-[11px] text-[#6B7280] lg:flex">
-            <Kbd k="D" /> dry run <Kbd k="H" /> heal <Kbd k="J" /><Kbd k="K" /> next
-          </span>
-          <Link to={dataCheck?.application ? `/test-data?app=${dataCheck.application.id}` : '/test-data'} className={BTN}>Test Data</Link>
-          <span className="relative">
-            <select
-              value={framework}
-              onChange={e => setFramework(e.target.value)}
-              aria-label="Framework"
-              className="h-9 appearance-none rounded-[10px] border border-[#E8EAEE] bg-white pl-3.5 pr-8 text-[13px] font-semibold text-[#1F2937] outline-none hover:border-[#F6D4D5]"
-            >
-              {(frameworks.length ? frameworks : [{ name: 'playwright', label: 'Playwright', runnable: true }]).map(fw => <option key={fw.name} value={fw.name}>{fw.label}</option>)}
-            </select>
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#1F2937]"><ChevronGlyph /></span>
-          </span>
-          <button type="button" onClick={() => openGenerate()} disabled={!canExecute} className={BTN}>
-            <StarGlyph />
-            {genActive(gen) ? 'Generating…' : `Generate ${missing.length} missing`}
-          </button>
-          <button
-            type="button"
-            onClick={() => void downloadProject()}
-            disabled={busy !== null}
-            title={selected.size ? `Download the ${selected.size} selected ${fwLabel} script(s) as one zip` : `Download this project's ${fwLabel} scripts as one zip`}
-            aria-label="Download scripts"
-            className={ICON_BTN}
-          >
-            <DownGlyph />
-          </button>
-          <button
-            type="button"
-            onClick={() => void syncBitbucket(Array.from(selected))}
-            disabled={!selected.size || busy !== null}
-            title={!selected.size ? 'Select one or more test cases to sync' : `Sync ${selected.size} selected ${fwLabel} script(s) to their PPM repositories`}
-            aria-label="Sync selected scripts to Bitbucket"
-            className={ICON_BTN}
-          >
-            {busy === 'bitbucket' ? (
-              <span className="box-border block h-3 w-3 animate-spin rounded-full border-2 border-[#B71920] border-t-transparent" />
-            ) : (
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><path d="M7 5h10l-1.2 14H8.2L7 5Z" /><path d="M9.5 8h5l-.5 6h-4l-.5-6ZM5 5h14" /></svg>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => void deleteCases(Array.from(selected))}
-            disabled={!selected.size || !canExecute || busy !== null}
-            title="Delete the selected test cases and their scripts"
-            aria-label="Delete selected test cases"
-            className={`${ICON_BTN} !text-[#B71920]`}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
-          </button>
-          <button
-            type="button"
-            onClick={() => void startBulk(Array.from(selected), cases)}
-            disabled={!selected.size || !canExecute || bulkActive(bulk)}
-            title={!selected.size ? 'Tick the cases to dry run' : bulkActive(bulk) ? 'A bulk dry run is already going' : undefined}
-            className={PRIMARY}
-          >
-            <PlayGlyph />
-            Dry run {selected.size} selected
-          </button>
-          {bulk && popup?.kind !== 'bulk' && (
-            <button type="button" onClick={() => setPopup({ kind: 'bulk' })} className="text-[12px] font-semibold text-[#1D4ED8] hover:underline">{bulkActive(bulk) ? 'Show progress' : 'Last bulk run'}</button>
-          )}
-        </div>
-      </section>
 
       {(notice || error || (runtime && !runtime.ready) || (fwInfo && !fwInfo.runnable)) && (
         <div className="flex flex-col gap-2">
@@ -1075,6 +1075,7 @@ const LabWorkspace: React.FC = () => {
                   <span className="text-[11.5px] text-[#6B7280]">Actions open in a popup; the list stays where it is.</span>
                 )}
                 <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                  <Link to={dataCheck?.application ? `/test-data?app=${dataCheck.application.id}` : '/test-data'} className={BTN}>Test Data</Link>
                   {!openScript ? (
                     <button type="button" onClick={() => openGenerate([openCase])} disabled={!canExecute} className={PRIMARY}><StarGlyph />Generate</button>
                   ) : view === 'latest' && latestKey ? (

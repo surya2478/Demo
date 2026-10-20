@@ -17,7 +17,7 @@
  * subprocess probes on a host that is also running browsers.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useMatch } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { usePageHeader } from '../components/layout/PageHeaderContext'
 import automationService from '../services/automationService'
@@ -86,6 +86,10 @@ const Automation: React.FC = () => {
   const [runtimeLoading, setRuntimeLoading] = useState(true)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
+  // A project's workspace is full page, like /manager-review/:requestId: it
+  // puts its breadcrumb, title and actions in the top bar itself, so the
+  // shell publishes no header there and shows no Workspace hero.
+  const fullPage = useMatch('/automation/script-lab/:projectId') !== null
 
   const onSearch = useCallback((q: string) => setQuery(q.trim().toLowerCase()), [])
 
@@ -98,7 +102,7 @@ const Automation: React.FC = () => {
     showDateRange: false,
     leading: <RuntimeChip runtime={runtime} loading={runtimeLoading} error={runtimeError} />,
     contentKey: `${runtimeLoading}|${runtime?.ready}|${(runtime?.runnable_frameworks ?? []).join()}|${(runtime?.generate_only_frameworks ?? []).join()}`
-  })
+  }, { enabled: !fullPage })
 
   const loadRuntime = useCallback(async () => {
     setRuntimeLoading(true)
@@ -133,6 +137,7 @@ const Automation: React.FC = () => {
   return (
     <div className="relative flex flex-col gap-3">
       {/* Hero */}
+      {!fullPage && (
       <section className="overflow-hidden rounded-[20px] border border-[#E8EAEE] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.72fr)]">
           <div className="px-6 py-5">
@@ -164,6 +169,7 @@ const Automation: React.FC = () => {
           </div>
         </div>
       </section>
+      )}
 
       <Outlet context={context} />
     </div>

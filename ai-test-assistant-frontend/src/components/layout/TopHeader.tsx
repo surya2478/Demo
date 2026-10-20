@@ -23,6 +23,8 @@ export interface TopHeaderProps {
   leading?: React.ReactNode
   /** A line above the title: a section name, or a breadcrumb. */
   eyebrow?: React.ReactNode
+  /** A smaller title, for a page whose top bar also carries its actions. */
+  compactTitle?: boolean
   onMobileMenuOpen?: () => void
 }
 
@@ -44,6 +46,7 @@ const TopHeader: React.FC<TopHeaderProps> = ({
   actions,
   leading,
   eyebrow,
+  compactTitle = false,
   onMobileMenuOpen
 }) => {
   const { user } = useAuth()
@@ -106,7 +109,7 @@ const TopHeader: React.FC<TopHeaderProps> = ({
               </div>
             )}
             {title && (
-              <h1 className={`truncate font-bold leading-tight tracking-tight text-app-primary ${eyebrow ? 'text-[18px] sm:text-[20px]' : 'text-[22px] sm:text-[26px]'}`}>
+              <h1 className={`truncate font-bold leading-tight tracking-tight text-app-primary ${compactTitle ? 'text-[15px]' : eyebrow ? 'text-[18px] sm:text-[20px]' : 'text-[22px] sm:text-[26px]'}`}>
                 {title}
               </h1>
             )}

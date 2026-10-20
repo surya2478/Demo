@@ -62,6 +62,7 @@ const LayoutShell: React.FC = () => {
           actions={meta.actions}
           leading={meta.leading}
           eyebrow={meta.eyebrow}
+          compactTitle={meta.compactTitle}
           onSearch={meta.onSearch}
           searchPlaceholder={meta.searchPlaceholder}
           showSearch={meta.showSearch}
