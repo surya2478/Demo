@@ -1,0 +1,677 @@
+{
+  "_about": "Board demo pack: 20 automatable cases for the e& Accessories page and the Tablets journey on https://devnew.eand.ae, built on the 2026-10-20 crawl. Every target is a selector verified on the live dev site. Loaded into the app by scripts/load_demo_cases.py (project 'Board Demo - e& Tablets', application eand_ae).",
+  "application_url": "https://devnew.eand.ae/en/c/devices/accessories.html",
+  "environment": "UAT",
+  "common": {
+    "landing": [
+      [
+        "Navigate to the e& Accessories page",
+        "navigate",
+        "/en/c/devices/accessories.html",
+        "The Accessories page loads"
+      ],
+      [
+        "Accept the cookie consent banner",
+        "click",
+        "#usercentrics-root",
+        "The cookie banner is dismissed"
+      ]
+    ],
+    "listing": [
+      [
+        "Navigate to the Tablets listing page",
+        "navigate",
+        "/eshop/devices/listing/tablets?category=mobileDevices&subCategory=cat1100019&catName=Tablets&listVal=MegaMenu&locale=EN",
+        "The Tablets listing page loads"
+      ],
+      [
+        "Accept the cookie consent banner",
+        "click",
+        "#usercentrics-root",
+        "The cookie banner is dismissed"
+      ],
+      [
+        "Verify the Tablets listing shows product cards",
+        "assert",
+        "(//app-d-device-card//a[contains(@class,'device-card')])[1]",
+        "Product cards are displayed"
+      ]
+    ],
+    "pdp11": [
+      [
+        "Navigate to the iPad Pro M4, 11-inch configuration page",
+        "navigate",
+        "/eshop/devices/configuration?productId=prod2450055&skuId=bgSku3820208453&catName=Tablets&listVal=MegaMenu&showDefault=true",
+        "The configuration page loads"
+      ],
+      [
+        "Accept the cookie consent banner",
+        "click",
+        "#usercentrics-root",
+        "The cookie banner is dismissed"
+      ],
+      [
+        "Verify the product title 'Apple iPad Pro M4, 11-inch'",
+        "assert",
+        "//h2[normalize-space(.)='Apple iPad Pro M4, 11-inch']",
+        "The product title is displayed"
+      ]
+    ]
+  },
+  "cases": [
+    {
+      "display_id": "TAB-001",
+      "category": "Accessories landing",
+      "priority": "High",
+      "test_type": "Positive",
+      "objective": "Verify the Accessories page shows its four accessory sections",
+      "expected_result": "Smartphone, Music, Tablets and Laptops Accessories sections are displayed",
+      "steps": [
+        "@landing",
+        [
+          "Verify the 'Accessories For' section heading",
+          "assert",
+          "//h2[normalize-space(.)='Accessories For']",
+          "'Accessories For' is displayed"
+        ],
+        [
+          "Verify the 'Smartphone Accessories' section heading",
+          "assert",
+          "//h2[normalize-space(.)='Smartphone Accessories']",
+          "The section is displayed"
+        ],
+        [
+          "Verify the 'Music Accessories' section heading",
+          "assert",
+          "//h2[normalize-space(.)='Music Accessories']",
+          "The section is displayed"
+        ],
+        [
+          "Verify the 'Tablets Accessories' section heading",
+          "assert",
+          "//h2[normalize-space(.)='Tablets Accessories']",
+          "The section is displayed"
+        ],
+        [
+          "Verify the 'Laptops Accessories' section heading",
+          "assert",
+          "//h2[normalize-space(.)='Laptops Accessories']",
+          "The section is displayed"
+        ]
+      ]
+    },
+    {
+      "display_id": "TAB-002",
+      "category": "Accessories landing",
+      "priority": "Medium",
+      "test_type": "Positive",
+      "objective": "Verify the 'Accessories For' categories are listed",
+      "expected_result": "Smartphones, Music, Powerbanks, Tablets and Laptops categories are displayed",
+      "steps": [
+        "@landing",
+        [
+          "Verify the 'Smartphones' category",
+          "assert",
+          "//h4[normalize-space(.)='Smartphones']",
+          "Displayed"
+        ],
+        [
+          "Verify the 'Music' category",
+          "assert",
+          "//h4[normalize-space(.)='Music']",
+          "Displayed"
+        ],
+        [
+          "Verify the 'Powerbanks' category",
+          "assert",
+          "//h4[normalize-space(.)='Powerbanks']",
+          "Displayed"
+        ],
+        [
+          "Verify the 'Tablets' category",
+          "assert",
+          "//h4[normalize-space(.)='Tablets']",
+          "Displayed"
+        ],
+        [
+          "Verify the 'Laptops' category",
+          "assert",
+          "//h4[normalize-space(.)='Laptops']",
+          "Displayed"
+        ]
+      ]
+    },
+    {
+      "display_id": "TAB-003",
+      "category": "Product configuration",
+      "priority": "High",
+      "test_type": "Positive",
+      "objective": "Verify the iPad Pro M4, 13-inch configuration page shows its title and payment plan prices",
+      "expected_result": "One time AED 5,149.00 and 24 months AED 370.00 are displayed",
+      "steps": [
+        [
+          "Navigate to the iPad Pro M4, 13-inch configuration page",
+          "navigate",
+          "/eshop/devices/configuration?productId=prod2450056&skuId=bgSku3820208632&catName=Tablets&listVal=MegaMenu&showDefault=true",
+          "The configuration page loads"
+        ],
+        [
+          "Accept the cookie consent banner",
+          "click",
+          "#usercentrics-root",
+          "The cookie banner is dismissed"
+        ],
+        [
+          "Verify the product title 'Apple iPad Pro M4, 13-inch'",
+          "assert",
+          "//h2[normalize-space(.)='Apple iPad Pro M4, 13-inch']",
+          "The product title is displayed"
+        ],
+        [
+          "Verify the 'One time' plan shows 'AED 5,149.00'",
+          "assert",
+          "//button[contains(@class,'segment-tab')][contains(normalize-space(.),'One time')][contains(normalize-space(.),'5,149.00')]",
+          "One time price is displayed"
+        ],
+        [
+          "Verify the '24 months' plan shows 'AED 370.00'",
+          "assert",
+          "//button[contains(@class,'segment-tab')][contains(normalize-space(.),'24 months')][contains(normalize-space(.),'370.00')]",
+          "24 month price is displayed"
+        ]
+      ]
+    },
+    {
+      "display_id": "TAB-004",
+      "category": "Accessories landing",
+      "priority": "Medium",
+      "test_type": "Positive",
+      "objective": "Verify the language switch opens the Arabic Accessories page",
+      "expected_result": "The Arabic Accessories page is displayed",
+      "steps": [
+        "@landing",
+        [
+          "Click the Arabic language switch",
+          "click",
+          "//a[contains(@class,'toggle-lang')]",
+          "The page reloads at /ar/c/devices/accessories.html"
+        ]
+      ]
+    },
+    {
+      "display_id": "TAB-005",
+      "category": "Navigation",
+      "priority": "High",
+      "test_type": "Positive",
+      "objective": "Verify Devices > Tablets in the main menu opens the Tablets listing",
+      "expected_result": "The Tablets listing opens with product cards",
+      "steps": [
+        "@landing",
+        [
+          "Click 'Devices' in the main menu",
+          "click",
+          "//a[contains(@class,'py-16')][normalize-space(.)='Devices']",
+          "The Devices mega menu opens"
+        ],
+        [
+          "Click 'Tablets' in the Devices menu",
+          "click",
+          "//a[contains(@class,'w-100 align-items-center')][normalize-space(.)='Tablets']",
+          "The listing opens at /eshop/devices/listing/tablets"
+        ],
+        [
+          "Verify the Tablets listing shows product cards",
+          "assert",
+          "(//app-d-device-card//a[contains(@class,'device-card')])[1]",
+          "Product cards are displayed"
+        ]
+      ]
+    },
+    {
+      "display_id": "TAB-006",
+      "category": "Tablets listing",
+      "priority": "High",
+      "test_type": "Positive",
+      "objective": "Verify the Tablets listing shows the iPad Pro M4 11-inch and 13-inch products",
+      "expected_result": "Both iPad Pro M4 product cards are listed with prices",
+      "steps": [
+        "@listing",
+        [
+          "Verify the 'iPad Pro M4, 11-inch' product card",
+          "assert",
+          "//app-d-device-card//a[contains(@href,'productId=prod2450055')]",
+          "The 11-inch card is displayed"
+        ],
+        [
+          "Verify the 'iPad Pro M4, 13-inch' product card",
+          "assert",
+          "//app-d-device-card//a[contains(@href,'productId=prod2450056')]",
+          "The 13-inch card is displayed"
+        ],
+        [
+          "Verify the 13-inch card shows 'Full Price AED 5,149.00'",
+          "assert",
+          "//app-d-device-card//a[contains(@href,'productId=prod2450056')]//span[normalize-space(.)='AED 5,149.00']",
+          "The full price is displayed"
+        ]
+      ]
+    },
+    {
+      "display_id": "TAB-007",
+      "category": "Tablets listing",
+      "priority": "Medium",
+      "test_type": "Positive",
+      "objective": "Verify sorting the Tablets listing by Price (Low to High)",
+      "expected_result": "The listing is sorted by Price (Low to High)",
+      "steps": [
+        "@listing",
+        [
+          "Open the 'Sort by' menu",
+          "click",
+          "//div[contains(@class,'device-sort')][contains(.,'Sort by')]",
+          "Sort options are shown"
+        ],
+        [
+          "Click 'Price (Low to High)'",
+          "click",
+          "//ul[contains(@class,'device-sort__menu')]//button[normalize-space(.)='Price (Low to High)']",
+          "The listing reloads"
+        ],
+        [
+          "Verify the sort label reads 'Price (Low to High)'",
+          "assert",
+          "//div[contains(@class,'device-sort')]//span[normalize-space(.)='Price (Low to High)']",
+          "The active sort is Price (Low to High)"
+        ]
+      ]
+    },
+    {
+      "display_id": "TAB-008",
+      "category": "Tablets listing",
+      "priority": "Medium",
+      "test_type": "Positive",
+      "objective": "Verify searching the Tablets listing for '11-inch'",
+      "expected_result": "The iPad Pro M4, 11-inch card is listed in the results",
+      "steps": [
+        "@listing",
+        [
+          "Type '11-inch' in the listing Search box",
+          "fill",
+          "//app-device-search-and-sort//div[contains(@class,'d-lg-flex')]//input[@placeholder='Search']",
+          "The search term is entered"
+        ],
+        [
+          "Press Enter in the listing Search box",
+          "click",
+          "//app-device-search-and-sort//div[contains(@class,'d-lg-flex')]//input[@placeholder='Search']",
+          "The results update"
+        ],
+        [
+          "Verify the 'iPad Pro M4, 11-inch' product card is in the results",
+          "assert",
+          "//app-d-device-card//a[contains(@href,'productId=prod2450055')]",
+          "The 11-inch card is listed"
+        ]
+      ]
+    },
+    {
+      "display_id": "TAB-009",
+      "category": "Tablets listing",
+      "priority": "Medium",
+      "test_type": "Positive",
+      "objective": "Verify filtering the Tablets listing by 256gb device storage",
+      "expected_result": "The listing is filtered by device storage",
+      "steps": [
+        "@listing",
+        [
+          "Expand the 'Device Storage' filter",
+          "click",
+          "//app-device-filters//mat-expansion-panel-header[contains(normalize-space(.),'Device Storage')]",
+          "Storage options are listed"
+        ],
+        [
+          "Verify the '256gb' storage option is listed",
+          "assert",
+          "//app-device-filters//span[normalize-space(.)='256gb']",
+          "The option is displayed"
+        ],
+        [
+          "Tick the '256gb' storage filter",
+          "click",
+          "//app-device-filters//span[normalize-space(.)='256gb']/preceding-sibling::mat-checkbox",
+          "The URL carries filtersParam device_storage"
+        ],
+        [
+          "Verify the listing still shows product cards",
+          "assert",
+          "(//app-d-device-card//a[contains(@class,'device-card')])[1]",
+          "Filtered product cards are displayed"
+        ]
+      ]
+    },
+    {
+      "display_id": "TAB-010",
+      "category": "Tablets listing",
+      "priority": "Low",
+      "test_type": "Positive",
+      "objective": "Verify Load more appends more tablets to the listing",
+      "expected_result": "More than 12 product cards are displayed",
+      "steps": [
+        "@listing",
+        [
+          "Click 'Load more'",
+          "click",
+          "//button[normalize-space(.)='Load more']",
+          "More product cards are appended"
+        ],
+        [
+          "Verify a 13th product card is displayed",
+          "assert",
+          "(//app-d-device-card)[13]",
+          "At least 13 cards are listed"
+        ]
+      ]
+    },
+    {
+      "display_id": "TAB-011",
+      "category": "Tablets listing",
+      "priority": "High",
+      "test_type": "Positive",
+      "objective": "Verify opening the iPad Pro M4, 11-inch card from the listing",
+      "expected_result": "The iPad Pro M4, 11-inch configuration page opens",
+      "steps": [
+        "@listing",
+        [
+          "Open the 'iPad Pro M4, 11-inch' product card",
+          "click",
+          "//app-d-device-card//a[contains(@href,'productId=prod2450055')]",
+          "The configuration page opens at /eshop/devices/configuration"
+        ],
+        [
+          "Verify the product title 'Apple iPad Pro M4, 11-inch'",
+          "assert",
+          "//h2[normalize-space(.)='Apple iPad Pro M4, 11-inch']",
+          "The product title is displayed"
+        ]
+      ]
+    },
+    {
+      "display_id": "TAB-012",
+      "category": "Product configuration",
+      "priority": "High",
+      "test_type": "Positive",
+      "objective": "Verify the iPad Pro configuration page shows all configuration sections",
+      "expected_result": "Storage, Connectivity, Display glass and payment sections are displayed",
+      "steps": [
+        "@pdp11",
+        [
+          "Verify the storage option '256GB'",
+          "assert",
+          "//a[contains(@class,'device-configurations__pill')][normalize-space(.)='256GB']",
+          "Storage options are shown"
+        ],
+        [
+          "Verify the connectivity option 'Wi-Fi + Cellular'",
+          "assert",
+          "//a[contains(@class,'device-configurations__pill')][normalize-space(.)='Wi-Fi + Cellular']",
+          "Connectivity options are shown"
+        ],
+        [
+          "Verify the display glass option 'Nano-Texture Glass'",
+          "assert",
+          "//a[contains(@class,'device-configurations__pill')][normalize-space(.)='Nano-Texture Glass']",
+          "Display glass options are shown"
+        ],
+        [
+          "Verify the 'One time' payment plan",
+          "assert",
+          "//button[contains(@class,'segment-tab')][contains(normalize-space(.),'One time')]",
+          "Payment section is shown"
+        ]
+      ]
+    },
+    {
+      "display_id": "TAB-013",
+      "category": "Product configuration",
+      "priority": "Medium",
+      "test_type": "Positive",
+      "objective": "Verify selecting 512GB storage on the iPad Pro M4, 11-inch",
+      "expected_result": "512GB is the active storage option",
+      "steps": [
+        "@pdp11",
+        [
+          "Click storage option '512GB'",
+          "click",
+          "//a[contains(@class,'device-configurations__pill')][normalize-space(.)='512GB']",
+          "512GB is selected"
+        ],
+        [
+          "Verify '512GB' is the active storage option",
+          "assert",
+          "//a[contains(@class,'device-configurations__pill--active')][normalize-space(.)='512GB']",
+          "512GB is highlighted as active"
+        ]
+      ]
+    },
+    {
+      "display_id": "TAB-014",
+      "category": "Product configuration",
+      "priority": "Medium",
+      "test_type": "Positive",
+      "objective": "Verify selecting Wi-Fi connectivity and Standard glass on the iPad Pro M4, 11-inch",
+      "expected_result": "Wi-Fi and Standard glass are the active options",
+      "steps": [
+        "@pdp11",
+        [
+          "Click connectivity option 'Wi-Fi'",
+          "click",
+          "//a[contains(@class,'device-configurations__pill')][normalize-space(.)='Wi-Fi']",
+          "Wi-Fi is selected"
+        ],
+        [
+          "Verify 'Wi-Fi' is the active connectivity option",
+          "assert",
+          "//a[contains(@class,'device-configurations__pill--active')][normalize-space(.)='Wi-Fi']",
+          "Wi-Fi is highlighted as active"
+        ],
+        [
+          "Click display glass option 'Standard glass'",
+          "click",
+          "//a[contains(@class,'device-configurations__pill')][normalize-space(.)='Standard glass']",
+          "Standard glass is selected"
+        ],
+        [
+          "Verify 'Standard glass' is the active display glass option",
+          "assert",
+          "//a[contains(@class,'device-configurations__pill--active')][normalize-space(.)='Standard glass']",
+          "Standard glass is highlighted as active"
+        ]
+      ]
+    },
+    {
+      "display_id": "TAB-015",
+      "category": "Product configuration",
+      "priority": "Medium",
+      "test_type": "Positive",
+      "objective": "Verify switching the iPad Pro M4, 11-inch colour to Space Black",
+      "expected_result": "The selected colour reads Space Black",
+      "steps": [
+        "@pdp11",
+        [
+          "Click the 'Space Black' colour swatch",
+          "click",
+          "//input[@id='color-Space Black']/following-sibling::label",
+          "Space Black is selected"
+        ],
+        [
+          "Verify the selected colour reads 'Space Black'",
+          "assert",
+          "//app-devices-configuration-page//*[normalize-space(text())='Space Black']",
+          "Space Black is shown as the selected colour"
+        ]
+      ]
+    },
+    {
+      "display_id": "TAB-016",
+      "category": "Product configuration",
+      "priority": "High",
+      "test_type": "Positive",
+      "objective": "Verify the iPad Pro M4, 11-inch payment plans and prices",
+      "expected_result": "One time AED 3,949.00 and 24, 18 and 12 month plans are displayed",
+      "steps": [
+        "@pdp11",
+        [
+          "Verify the 'One time' plan shows 'AED 3,949.00'",
+          "assert",
+          "//button[contains(@class,'segment-tab')][contains(normalize-space(.),'One time')][contains(normalize-space(.),'3,949.00')]",
+          "One time price is displayed"
+        ],
+        [
+          "Verify the '24 months' plan shows 'AED 348.00'",
+          "assert",
+          "//button[contains(@class,'segment-tab')][contains(normalize-space(.),'24 months')][contains(normalize-space(.),'348.00')]",
+          "24 month price is displayed"
+        ],
+        [
+          "Verify the '18 months' plan shows 'AED 461.00'",
+          "assert",
+          "//button[contains(@class,'segment-tab')][contains(normalize-space(.),'18 months')][contains(normalize-space(.),'461.00')]",
+          "18 month price is displayed"
+        ],
+        [
+          "Verify the '12 months' plan shows 'AED 685.00'",
+          "assert",
+          "//button[contains(@class,'segment-tab')][contains(normalize-space(.),'12 months')][contains(normalize-space(.),'685.00')]",
+          "12 month price is displayed"
+        ]
+      ]
+    },
+    {
+      "display_id": "TAB-017",
+      "category": "Product configuration",
+      "priority": "Medium",
+      "test_type": "Positive",
+      "objective": "Verify the Specs tab shows the iPad Pro specifications",
+      "expected_result": "Display, Processor/Chip, Battery and Warranty specifications are displayed",
+      "steps": [
+        "@pdp11",
+        [
+          "Click the 'Specs' tab",
+          "click",
+          "//a[contains(@class,'product-details__tab')][normalize-space(.)='Specs']",
+          "Specifications are shown"
+        ],
+        [
+          "Verify the 'Processor/Chip' specification",
+          "assert",
+          "//app-devices-configuration-page//*[normalize-space(text())='Processor/Chip']",
+          "Processor/Chip is displayed"
+        ],
+        [
+          "Verify the 'Battery' specification",
+          "assert",
+          "//app-devices-configuration-page//*[normalize-space(text())='Battery']",
+          "Battery is displayed"
+        ],
+        [
+          "Verify the 'Warranty' specification",
+          "assert",
+          "//app-devices-configuration-page//*[normalize-space(text())='Warranty']",
+          "Warranty is displayed"
+        ]
+      ]
+    },
+    {
+      "display_id": "TAB-018",
+      "category": "Product configuration",
+      "priority": "High",
+      "test_type": "Negative",
+      "objective": "Verify an out-of-stock iPad Pro cannot be added to the cart",
+      "expected_result": "Out of stock is shown and Add to cart and Checkout Now are disabled",
+      "steps": [
+        "@pdp11",
+        [
+          "Verify the 'Out of stock' status is displayed",
+          "assert",
+          "//div[contains(@class,'availability-status')][normalize-space(.)='Out of stock']",
+          "The stock status reads Out of stock"
+        ],
+        [
+          "Verify the 'Add to cart' button is disabled",
+          "assert",
+          "//div[contains(@class,'pay-now-section')]//button[normalize-space(.)='Add to cart']",
+          "Add to cart is disabled"
+        ],
+        [
+          "Verify the 'Checkout Now' button is disabled",
+          "assert",
+          "//div[contains(@class,'pay-now-section')]//button[normalize-space(.)='Checkout Now']",
+          "Checkout Now is disabled"
+        ]
+      ]
+    },
+    {
+      "display_id": "TAB-019",
+      "category": "Product configuration",
+      "priority": "Medium",
+      "test_type": "Positive",
+      "objective": "Verify the Tablets breadcrumb returns from a product opened from the listing back to the Tablets listing",
+      "expected_result": "The Tablets listing is displayed",
+      "steps": [
+        "@listing",
+        [
+          "Open the 'iPad Pro M4, 11-inch' product card",
+          "click",
+          "//app-d-device-card//a[contains(@href,'productId=prod2450055')]",
+          "The configuration page opens at /eshop/devices/configuration"
+        ],
+        [
+          "Verify the product title 'Apple iPad Pro M4, 11-inch'",
+          "assert",
+          "//h2[normalize-space(.)='Apple iPad Pro M4, 11-inch']",
+          "The product title is displayed"
+        ],
+        [
+          "Click the 'Tablets' breadcrumb",
+          "click",
+          "//app-breadcrumbs//a[normalize-space(.)='Tablets']",
+          "The listing opens at /eshop/devices/listing/tablets"
+        ],
+        [
+          "Verify the Tablets listing shows product cards",
+          "assert",
+          "(//app-d-device-card//a[contains(@class,'device-card')])[1]",
+          "Product cards are displayed"
+        ]
+      ]
+    },
+    {
+      "display_id": "TAB-020",
+      "category": "Cart",
+      "priority": "Medium",
+      "test_type": "Positive",
+      "objective": "Verify the empty shopping cart for a guest",
+      "expected_result": "The cart says there are no items and offers START SHOPPING",
+      "steps": [
+        [
+          "Navigate to the shopping cart page",
+          "navigate",
+          "/eshop/checkout/cart",
+          "The cart page loads"
+        ],
+        [
+          "Accept the cookie consent banner",
+          "click",
+          "#usercentrics-root",
+          "The cookie banner is dismissed"
+        ],
+        [
+          "Verify the empty cart message 'You don't have any items in your cart'",
+          "assert",
+          "//*[normalize-space(text())=\"You don't have any items in your cart\"]",
+          "The empty cart message is displayed"
+        ]
+      ]
+    }
+  ]
+}

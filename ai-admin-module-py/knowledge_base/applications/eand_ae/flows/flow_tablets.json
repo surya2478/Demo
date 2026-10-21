@@ -1,193 +1,321 @@
 {
-  "flow_id": "flow_tablets_purchase",
-  "flow_name": "Tablets & iPads Purchase Flow",
+  "flow_id": "flow_tablets_browse",
+  "flow_name": "Tablets: Devices menu -> Tablets listing -> iPad Pro product configuration",
   "category": "Tablets",
+  "subcategory": "iPad Pro M4",
+  "_provenance": {
+    "source": "crawl",
+    "crawled_at": "2026-10-20",
+    "host": "https://devnew.eand.ae",
+    "note": "Every canonical step target below was clicked or asserted on the live dev site with installed Chrome at 1500 ms pacing, and resolved to one visible element. Replaces the 2026-09 flow written against devnew-sas.etisalat.ae, whose /eshop routes now return 404."
+  },
   "target_match_keywords": [
     "tablet",
     "tablets",
     "ipad",
     "ipad pro",
-    "ipad air",
-    "ipad mini",
-    "galaxy tab",
-    "tab s10",
-    "tab s9",
-    "tab a9",
-    "honor pad",
-    "lenovo tab",
-    "surface pro",
-    "cellular tablet",
-    "wifi tablet"
+    "ipad pro m4",
+    "11-inch",
+    "13-inch",
+    "tablets listing",
+    "load more",
+    "sort by",
+    "device storage",
+    "display glass",
+    "connectivity",
+    "out of stock"
   ],
-  "catalog_entrypoint": "/eshop/devices/listing/tablet?category=mobileDevices&subCategory=cat1100019",
+  "catalog_entrypoint": "/eshop/devices/listing/tablets?category=mobileDevices&subCategory=cat1100019&catName=Tablets&listVal=MegaMenu&locale=EN",
   "cart_endpoint": "/eshop/checkout/cart",
   "automation_boundary": {
-    "automated_scope": "Tablets Catalog -> Product Configuration (Storage, Color, Wi-Fi/5G, Smart Pay Plan) -> ADD TO CART -> Shopping Cart Verification",
-    "external_boundary": "Live Payment Gateway (Credit Card / OTP) and UAE PASS authentication are external boundaries."
+    "automated_scope": "Accessories page -> Devices mega menu -> Tablets listing (cards, Search, Sort by, Device Storage filter, Load more) -> iPad Pro M4 configuration (storage, connectivity, display glass, colour, payment plans, Specs, stock state, breadcrumb) -> Cart page.",
+    "external_boundary": "Live Payment Gateway (Credit Card / OTP). Add to cart cannot succeed on dev (2026-10-20): the cart service returns 417 for in-stock SKUs (DEV-CART-01) and every iPad Pro M4 SKU is out of stock."
   },
   "graph_edges": [
     {
-      "from": "homepage",
-      "to": "tablets_catalog",
-      "action": "navigate_catalog"
+      "from": "accessories_landing",
+      "to": "devices_mega_menu",
+      "action": "click_devices"
     },
     {
-      "from": "tablets_catalog",
-      "to": "device_configuration",
-      "action": "select_product_sku"
+      "from": "devices_mega_menu",
+      "to": "tablets_listing",
+      "action": "click_tablets"
     },
     {
-      "from": "device_configuration",
-      "to": "variant_selected",
-      "action": "select_storage_and_color"
+      "from": "tablets_listing",
+      "to": "tablets_listing",
+      "action": "search_sort_filter_load_more"
     },
     {
-      "from": "variant_selected",
-      "to": "payment_plan_selected",
-      "action": "select_payment_plan"
+      "from": "tablets_listing",
+      "to": "product_configuration",
+      "action": "open_product_card"
     },
     {
-      "from": "payment_plan_selected",
-      "to": "cart_checkout",
-      "action": "click_add_to_cart"
+      "from": "product_configuration",
+      "to": "product_configuration",
+      "action": "select_variant_or_plan_or_specs"
+    },
+    {
+      "from": "product_configuration",
+      "to": "tablets_listing",
+      "action": "breadcrumb_tablets_or_back"
+    },
+    {
+      "from": "any",
+      "to": "cart",
+      "action": "open_cart"
     }
   ],
   "canonical_steps": [
     {
       "step_number": 1,
-      "action": "Navigate to e& UAE portal homepage",
-      "target": "/en/index.html",
-      "expected_result": "e& UAE portal homepage loads successfully"
+      "action": "Navigate to the e& Accessories page",
+      "target": "/en/c/devices/accessories.html",
+      "expected_result": "The Accessories page loads with the 'Accessories For' section"
     },
     {
       "step_number": 2,
-      "action": "Dismiss cookie and privacy overlay banner",
+      "action": "Accept the cookie consent banner",
       "target": "#usercentrics-root",
-      "expected_result": "Cookie overlay is dismissed cleanly"
+      "expected_result": "The cookie banner is dismissed"
     },
     {
       "step_number": 3,
-      "action": "Navigate to Devices -> Tablets & Laptops catalog",
-      "target": "/eshop/devices/listing/tablet?category=mobileDevices&subCategory=cat1100019",
-      "expected_result": "Tablets catalog displays available iPad and Galaxy Tab models with active pricing"
+      "action": "Click 'Devices' in the main menu",
+      "target": "//a[contains(@class,'py-16')][normalize-space(.)='Devices']",
+      "expected_result": "The Devices mega menu opens"
     },
     {
       "step_number": 4,
-      "action": "Open product configuration for {{product_name}}",
-      "target": "/eshop/devices/configuration?productId={{product_id}}&skuId={{sku_id}}&catName=Tablets&listVal=Tablets&showDefault=true",
-      "expected_result": "Product configuration page loads with storage, color swatches, and payment plan selectors"
+      "action": "Click 'Tablets' in the Devices menu",
+      "target": "//a[contains(@class,'w-100 align-items-center')][normalize-space(.)='Tablets']",
+      "href": "/eshop/devices/listing/tablets",
+      "expected_result": "The Tablets listing page opens at /eshop/devices/listing/tablets"
     },
     {
       "step_number": 5,
-      "action": "Select storage capacity, color variant, and connectivity (Wi-Fi / 5G Cellular)",
-      "target": ".device-variant-options, [role='radio'], button.variant-btn, .storage-btn, label:has-text('GB'), label:has-text('Cellular'), label:has-text('Wi-Fi')",
-      "expected_result": "Selected tablet options are highlighted and pricing updates dynamically"
+      "action": "Verify the Tablets listing shows product cards",
+      "target": "(//app-d-device-card//a[contains(@class,'device-card')])[1]",
+      "expected_result": "Product cards with name and price are displayed"
     },
     {
       "step_number": 6,
-      "action": "Select payment option (One Time or Smart Pay monthly installment)",
-      "target": ".segment-tab, [role='radio'], button:has-text('One time'), button:has-text('Smart Pay')",
-      "expected_result": "Payment plan is selected"
+      "action": "Type '11-inch' in the listing Search box and press Enter",
+      "target": "//app-device-search-and-sort//div[contains(@class,'d-lg-flex')]//input[@placeholder='Search']",
+      "expected_result": "Only 11-inch iPad Pro cards are listed"
     },
     {
       "step_number": 7,
-      "action": "Detect stock state and Click 'ADD TO CART' / 'Checkout Now' button",
-      "target": "button:has-text('Checkout Now'), button:has-text('ADD TO CART')",
-      "expected_result": "If in-stock item is added to cart; if out-of-stock button is disabled"
+      "action": "Open the 'Sort by' menu",
+      "target": "//div[contains(@class,'device-sort')][contains(.,'Sort by')]",
+      "expected_result": "Sort options Popular, New, Price (Low to High), Price (High to Low) are shown"
     },
     {
       "step_number": 8,
-      "action": "Verify Shopping Cart & Secure Checkout review screen",
+      "action": "Click 'Price (Low to High)'",
+      "target": "//ul[contains(@class,'device-sort__menu')]//button[normalize-space(.)='Price (Low to High)']",
+      "expected_result": "The sort label reads 'Price (Low to High)'"
+    },
+    {
+      "step_number": 9,
+      "action": "Expand the 'Device Storage' filter",
+      "target": "//app-device-filters//mat-expansion-panel-header[contains(normalize-space(.),'Device Storage')]",
+      "expected_result": "Storage options All, 32gb, 64gb, 128gb, 256gb, 512gb are listed"
+    },
+    {
+      "step_number": 10,
+      "action": "Tick the '256gb' storage filter",
+      "target": "//app-device-filters//span[normalize-space(.)='256gb']/preceding-sibling::mat-checkbox//input",
+      "expected_result": "The listing reloads filtered by storage (URL carries device_storage)"
+    },
+    {
+      "step_number": 11,
+      "action": "Click 'Load more'",
+      "target": "//button[normalize-space(.)='Load more']",
+      "expected_result": "12 more product cards are appended (24 in total)"
+    },
+    {
+      "step_number": 12,
+      "action": "Open the 'iPad Pro M4, 11-inch' product card",
+      "target": "//app-d-device-card//a[contains(@href,'productId=prod2450055')]",
+      "expected_result": "The iPad Pro M4, 11-inch configuration page opens"
+    },
+    {
+      "step_number": 13,
+      "action": "Verify the product title 'Apple iPad Pro M4, 11-inch'",
+      "target": "//h2[normalize-space(.)='Apple iPad Pro M4, 11-inch']",
+      "expected_result": "The product title is displayed"
+    },
+    {
+      "step_number": 14,
+      "action": "Click storage option '512GB'",
+      "target": "//a[contains(@class,'device-configurations__pill')][normalize-space(.)='512GB']",
+      "expected_result": "'512GB' becomes the active storage option"
+    },
+    {
+      "step_number": 15,
+      "action": "Click connectivity option 'Wi-Fi'",
+      "target": "//a[contains(@class,'device-configurations__pill')][normalize-space(.)='Wi-Fi']",
+      "expected_result": "'Wi-Fi' becomes the active connectivity option"
+    },
+    {
+      "step_number": 16,
+      "action": "Click display glass option 'Standard glass'",
+      "target": "//a[contains(@class,'device-configurations__pill')][normalize-space(.)='Standard glass']",
+      "expected_result": "'Standard glass' becomes the active display glass option"
+    },
+    {
+      "step_number": 17,
+      "action": "Click the 'Space Black' colour swatch",
+      "target": "//input[@id='color-Space Black']/following-sibling::label",
+      "expected_result": "The selected colour reads 'Space Black'"
+    },
+    {
+      "step_number": 18,
+      "action": "Verify the '24 months' payment plan is shown with its monthly price",
+      "target": "//button[contains(@class,'segment-tab')][contains(normalize-space(.),'24 months')]",
+      "expected_result": "Plans One time, 24 months, 18 months and 12 months are displayed with AED prices"
+    },
+    {
+      "step_number": 19,
+      "action": "Click the 'Specs' tab",
+      "target": "//a[contains(@class,'product-details__tab')][normalize-space(.)='Specs']",
+      "expected_result": "Specifications (Display, Processor/Chip, Battery, Warranty) are displayed"
+    },
+    {
+      "step_number": 20,
+      "action": "Verify the 'Add to cart' button is disabled for the out-of-stock SKU",
+      "target": "//div[contains(@class,'pay-now-section')]//button[normalize-space(.)='Add to cart']",
+      "expected_result": "'Out of stock' is shown and 'Add to cart' is disabled"
+    },
+    {
+      "step_number": 21,
+      "action": "Verify the 'Add to cart' button is enabled for an in-stock SKU",
+      "target": "//div[contains(@class,'pay-now-section')]//button[normalize-space(.)='Add to cart']",
+      "expected_result": "'In stock' is shown and 'Add to cart' is enabled"
+    },
+    {
+      "step_number": 22,
+      "action": "Click the 'Tablets' breadcrumb",
+      "target": "//app-breadcrumbs//a[normalize-space(.)='Tablets']",
+      "expected_result": "The Tablets listing page opens",
+      "_note": "Only after reaching the product from the Tablets listing; on a deep-linked product page the breadcrumb goes to the Smartphones listing (DEV-TAB-03)."
+    },
+    {
+      "step_number": 23,
+      "action": "Navigate to the shopping cart page",
       "target": "/eshop/checkout/cart",
-      "expected_result": "Shopping cart displays order review, selected tablet variant, payment breakdown, and checkout CTA"
+      "expected_result": "The cart page shows 'You don't have any items in your cart'"
     }
   ],
   "known_products": {
-    "Apple iPad Pro 13-inch (M4)": {
+    "iPad Pro M4, 11-inch": {
+      "productId": "prod2450055",
+      "skuId": "bgSku3820208453",
+      "default_price": "AED 3,949.00",
+      "was_price": "AED 4,199.00",
+      "default_variant": "Silver / 1TB / Wi-Fi + Cellular / Nano-Texture Glass",
+      "available_storage": [
+        "256GB",
+        "512GB",
+        "1TB",
+        "2TB"
+      ],
+      "available_colors": [
+        "Silver",
+        "Space Black"
+      ],
+      "available_connectivity": [
+        "Wi-Fi",
+        "Wi-Fi + Cellular"
+      ],
+      "available_display_glass": [
+        "Standard glass",
+        "Nano-Texture Glass"
+      ],
+      "payment_plans": [
+        "One time AED 3,949.00",
+        "24 months AED 348.00 /month",
+        "18 months AED 461.00 /month",
+        "12 months AED 685.00 /month"
+      ],
+      "stock": "All 24 SKUs out of stock on dev (2026-10-20)"
+    },
+    "iPad Pro M4, 13-inch": {
       "productId": "prod2450056",
       "skuId": "bgSku3820208632",
-      "default_price": "AED 5,499.00",
+      "default_price": "AED 5,149.00",
+      "was_price": "AED 5,499.00",
+      "default_variant": "Space Black / 1TB / Wi-Fi / Standard glass",
       "available_storage": [
-        "256 GB",
-        "512 GB",
-        "1 TB",
-        "2 TB"
+        "256GB",
+        "512GB",
+        "1TB",
+        "2TB"
       ],
       "available_colors": [
         "Space Black",
         "Silver"
       ],
-      "connectivity": [
+      "available_connectivity": [
         "Wi-Fi",
         "Wi-Fi + Cellular"
       ],
-      "payment_plans": [
-        "One time AED 5,199.00",
-        "24 months AED 232/mo",
-        "18 months",
-        "12 months"
-      ]
-    },
-    "Apple iPad Air 11-inch (M2)": {
-      "productId": "prod1T1715691024102",
-      "skuId": "bgskuTrans3999228701",
-      "default_price": "AED 2,499.00",
-      "available_storage": [
-        "128 GB",
-        "256 GB",
-        "512 GB",
-        "1 TB"
-      ],
-      "available_colors": [
-        "Space Grey",
-        "Starlight",
-        "Blue",
-        "Purple"
+      "available_display_glass": [
+        "Standard glass",
+        "Nano-Texture Glass"
       ],
       "payment_plans": [
-        "One time AED 2,499.00",
-        "24 months AED 111/mo",
-        "18 months",
-        "12 months"
-      ]
+        "One time AED 5,149.00",
+        "24 months AED 370.00 /month",
+        "18 months AED 490.00 /month",
+        "12 months AED 729.00 /month"
+      ],
+      "stock": "All 24 SKUs out of stock on dev (2026-10-20)"
     },
-    "Samsung Galaxy Tab S10 Ultra 5G": {
-      "productId": "prod1T1727441029199",
-      "skuId": "bgskuTrans3999230501",
-      "default_price": "AED 4,899.00",
+    "11\" New iPad Pro, Wi-Fi": {
+      "productId": "prod830189",
+      "skuId": "bgSku3820203914",
+      "default_price": "AED 3,012.45",
+      "default_variant": "Silver / 64GB / 4GB RAM",
       "available_storage": [
-        "256 GB",
-        "512 GB"
+        "64GB",
+        "256GB",
+        "512GB",
+        "1TB"
       ],
       "available_colors": [
-        "Moonstone Gray",
-        "Platinum Silver"
-      ],
-      "payment_plans": [
-        "One time AED 4,899.00",
-        "24 months AED 218/mo",
-        "18 months",
-        "12 months"
-      ]
-    },
-    "Samsung Galaxy Tab A9+ 5G": {
-      "productId": "prod1T1701239910294",
-      "skuId": "bgskuTrans3999225101",
-      "default_price": "AED 949.00",
-      "available_storage": [
-        "64 GB",
-        "128 GB"
-      ],
-      "available_colors": [
-        "Graphite",
         "Silver",
-        "Navy"
+        "Space Gray"
       ],
       "payment_plans": [
-        "One time AED 949.00",
-        "24 months AED 42/mo",
-        "12 months"
-      ]
+        "One time AED 3,012.45",
+        "24 months AED 139.65 /month",
+        "18 months AED 183.75 /month",
+        "12 months AED 271.95 /month"
+      ],
+      "stock": "In stock on 2026-10-20, OUT OF STOCK again on 2026-10-21: dev stock changes daily, so no case depends on it."
+    },
+    "12.9\" New iPad Pro": {
+      "productId": "prod830194",
+      "skuId": "bgSku3820203575",
+      "default_price": "AED 3,768.45",
+      "stock": "In stock on 2026-10-20, OUT OF STOCK again on 2026-10-21: dev stock changes daily, so no case depends on it."
+    }
+  },
+  "unverified_from_brd": {
+    "_status": "Described by the purchase journey and not confirmed in the application: no stock on dev",
+    "note": "Nothing here is from a BRD. Listed so the classifier and compiler treat these as not confirmed in the application.",
+    "add_to_cart_success": {
+      "match": [
+        "item is added to the cart",
+        "added to cart successfully",
+        "cart shows the ipad",
+        "cart contains the ipad"
+      ],
+      "detail": "Add to cart fails on dev (2026-10-20): POST /b2c/eshop/addToShoppingCartOneByOne returns 417 'Internal server error' even for in-stock SKUs (DEV-CART-01), and every iPad Pro M4 SKU is out of stock."
     }
   }
 }

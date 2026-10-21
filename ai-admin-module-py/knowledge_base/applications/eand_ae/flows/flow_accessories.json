@@ -1,117 +1,88 @@
 {
-  "flow_id": "flow_accessories_purchase",
-  "flow_name": "Accessories & Audio Earbuds Purchase Flow",
+  "flow_id": "flow_accessories_landing",
+  "flow_name": "Accessories landing page (/en/c/devices/accessories.html)",
   "category": "Accessories",
+  "_provenance": {
+    "source": "crawl",
+    "crawled_at": "2026-10-20",
+    "host": "https://devnew.eand.ae",
+    "note": "Verified on the live dev site with installed Chrome at 1500 ms pacing. Replaces the 2026-08 Earbuds purchase flow: the Accessories sub-category listings (Music, Earbuds, Powerbanks, ForTablets ...) fail on dev with getProductsByCategory 400, and their products return browsable:false, so no accessory product journey can run until that is fixed (known defect DEV-ACC-02)."
+  },
   "target_match_keywords": [
-    "earbuds",
-    "earbud",
-    "headphones",
-    "headphone",
-    "freeclip",
-    "airpods",
-    "speaker",
-    "speakers",
-    "audio",
     "accessories",
     "accessory",
-    "buds",
-    "soundtec",
-    "headset"
+    "accessories page",
+    "accessories for",
+    "smartphone accessories",
+    "music accessories",
+    "tablets accessories",
+    "laptops accessories",
+    "hero banner",
+    "carousel",
+    "next slide",
+    "view all",
+    "arabic",
+    "language"
   ],
-  "catalog_entrypoint": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
-  "cart_endpoint": "/eshop/checkout/cart",
+  "catalog_entrypoint": "/en/c/devices/accessories.html",
   "automation_boundary": {
-    "automated_scope": "Accessories Catalog -> Product Configuration -> Plan Selection -> ADD TO CART -> Shopping Cart Verification",
-    "external_boundary": "Live Payment Gateway (Credit Card / OTP) is an external boundary."
+    "automated_scope": "Accessories landing page: section headings, 'Accessories For' categories, hero carousel, 'View All' link targets, language switch.",
+    "external_boundary": "Accessory product listings and product pages fail on dev (DEV-ACC-02). Several 'View All' links lead to production www.etisalat.ae (DEV-ACC-01): assert their href, never follow them."
   },
+  "graph_edges": [
+    { "from": "accessories_landing", "to": "accessories_landing", "action": "carousel_next" },
+    { "from": "accessories_landing", "to": "accessories_landing_ar", "action": "switch_to_arabic" },
+    { "from": "accessories_landing", "to": "devices_mega_menu", "action": "click_devices" }
+  ],
   "canonical_steps": [
     {
       "step_number": 1,
-      "action": "Navigate to e& UAE portal homepage",
-      "target": "/en/index.html",
-      "expected_result": "e& UAE portal homepage loads with active navigation header"
+      "action": "Navigate to the e& Accessories page",
+      "target": "/en/c/devices/accessories.html",
+      "expected_result": "The Accessories page loads"
     },
     {
       "step_number": 2,
-      "action": "Dismiss cookie and privacy overlay banner",
+      "action": "Accept the cookie consent banner",
       "target": "#usercentrics-root",
-      "expected_result": "Privacy overlay is dismissed cleanly"
+      "expected_result": "The cookie banner is dismissed"
     },
     {
       "step_number": 3,
-      "action": "Navigate to Accessories -> Earbuds catalog",
-      "target": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
-      "expected_result": "Earbuds catalog displays available products and pricing"
+      "action": "Verify the 'Accessories For' section heading",
+      "target": "//h2[normalize-space(.)='Accessories For']",
+      "expected_result": "'Accessories For' is displayed"
     },
     {
       "step_number": 4,
-      "action": "Open product configuration for {{product_name}}",
-      "target": "/eshop/devices/configuration?productId={{product_id}}&skuId={{sku_id}}&catName=Earbuds&listVal=Smartphones&showDefault=true",
-      "expected_result": "Product configuration page loads with technical specs and pricing"
+      "action": "Verify the 'Tablets' category in 'Accessories For'",
+      "target": "//h4[normalize-space(.)='Tablets']",
+      "expected_result": "Categories Smartphones, Music, Powerbanks, Tablets and Laptops are displayed"
     },
     {
       "step_number": 5,
-      "action": "Select One Time payment option",
-      "target": ".segment-tab:has-text('One time'), label:has-text('One Time'), button:has-text('One time')",
-      "expected_result": "One time payment option is activated"
+      "action": "Verify the 'Smartphone Accessories' section heading",
+      "target": "//h2[normalize-space(.)='Smartphone Accessories']",
+      "expected_result": "Sections Smartphone, Music, Tablets and Laptops Accessories are displayed"
     },
     {
       "step_number": 6,
-      "action": "Detect stock state and Click 'ADD TO CART' / 'Checkout Now' button",
-      "target": "button:has-text('Checkout Now'), button:has-text('ADD TO CART')",
-      "expected_result": "If in stock, item is added to cart successfully; if out-of-stock, button is disabled"
+      "action": "Click the hero carousel 'Next slide' arrow",
+      "target": "//section[contains(concat(' ',normalize-space(@class),' '),' eand-hero-banner-updated ')]//div[@aria-label='Next slide']",
+      "expected_result": "The next hero slide becomes active"
     },
     {
       "step_number": 7,
-      "action": "Verify Shopping Cart & Secure Checkout review screen",
-      "target": "/eshop/checkout/cart",
-      "expected_result": "Order summary is displayed with proceed to checkout options"
+      "action": "Verify the Tablets 'View All' link stays on the dev host",
+      "target": "//h4[normalize-space(.)='Tablets']/following::a[normalize-space(.)='View All'][1]",
+      "expected_result": "The link points to /eshop/devices/listing?...subCategory=cat1100049"
+    },
+    {
+      "step_number": 8,
+      "action": "Click the Arabic language switch",
+      "target": "//a[contains(@class,'toggle-lang')]",
+      "expected_result": "The page reloads at /ar/c/devices/accessories.html"
     }
   ],
-  "known_products": {
-    "Huawei FreeClip 2s": {
-      "productId": "prod1T1786686221657",
-      "skuId": "bgskuTrans3999231220",
-      "default_price": "AED 749.00",
-      "available_colors": [
-        "Black",
-        "Purple",
-        "White"
-      ],
-      "payment_plans": [
-        "One time AED 749.00",
-        "24 months AED 33/mo",
-        "18 months",
-        "12 months"
-      ]
-    },
-    "Apple AirPods Max 2": {
-      "productId": "prod1T1775032063511",
-      "skuId": "bgskuTrans3999229481",
-      "default_price": "AED 2,099.00",
-      "available_colors": [
-        "Midnight",
-        "Starlight",
-        "Blue",
-        "Purple",
-        "Orange"
-      ],
-      "payment_plans": [
-        "One time AED 2,099.00",
-        "24 months AED 96/mo"
-      ]
-    },
-    "Honor Earbuds 4": {
-      "productId": "prod1T1777616962903",
-      "skuId": "bgskuTrans3999229892",
-      "default_price": "AED 169.00",
-      "available_colors": [
-        "White",
-        "Cyan"
-      ],
-      "payment_plans": [
-        "One time AED 169.00"
-      ]
-    }
-  }
+  "known_products": {}
 }

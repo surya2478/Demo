@@ -1,9 +1,18 @@
 {
   "app_id": "eand_ae",
   "app_name": "e& UAE Web Portal",
-  "base_url": "https://devnew-sas.etisalat.ae/en/index.html",
-  "domain": "devnew-sas.etisalat.ae",
-  "framework": "Angular SPA",
+  "base_url": "https://devnew.eand.ae/en/index.html",
+  "domain": "devnew.eand.ae",
+  "framework": "AEM content pages (/en/c/...) + Angular eShop micro-frontend (/eshop/devices/...)",
+  "_provenance": {
+    "source": "crawl",
+    "crawled_at": "2026-10-20",
+    "crawled_by": "claude (paced Playwright crawl, installed Google Chrome, 1500 ms between actions)",
+    "entry_url": "https://devnew.eand.ae/en/c/devices/accessories.html",
+    "method": "Every selector in `selectors`, `step_grounding_rules` and the flows' canonical_steps was clicked or asserted on the live dev site and resolved to exactly one visible element, using the app's own sweepPage/uniqueXPath. Nothing here comes from a BRD.",
+    "build_seen": "eShop 2.3.0-UAT2/QA (listing), cart 1.13.1-UAT2/QA",
+    "previous_host": "devnew-sas.etisalat.ae -- returns 404 for /eshop since 2026-10-20; every route here is on devnew.eand.ae"
+  },
   "security_profile": {
     "waf_provider": "Akamai",
     "rate_limit_policy": {
@@ -13,7 +22,10 @@
     "cookie_overlay": {
       "type": "shadow_dom",
       "host_selector": "#usercentrics-root",
-      "dismissal_code": "document.querySelector('#usercentrics-root')?.remove(); document.body.style.overflow = 'auto';"
+      "accept_button": "[data-testid='uc-accept-all-button']",
+      "manage_button": "[data-testid='uc-more-button']",
+      "dismissal_code": "document.querySelector('#usercentrics-root')?.remove(); document.body.style.overflow = 'auto';",
+      "_note": "Usercentrics renders inside an open shadow root on every first visit: buttons 'Accept All' and 'Manage my preferences'. Playwright CSS pierces it; XPath does not."
     }
   },
   "default_viewport": {
@@ -21,114 +33,200 @@
     "height": 900
   },
   "search_mechanism": {
-    "trigger_selector": ".search-wrap-dekstop, button[aria-label*='search' i], .search-btn",
-    "popup_container": "#searchPopup",
-    "input_selector": "input[type='search'], input[placeholder*='Search' i], #search-input"
+    "trigger_selector": "",
+    "popup_container": "",
+    "input_selector": "//app-device-search-and-sort//div[contains(@class,'d-lg-flex')]//input[@placeholder='Search']",
+    "_note": "The AEM header has no search box, and the eShop header's search (app-header-search, placeholder 'What are you looking for?') stays hidden at 1440px. The listing page's own Search box is the verified search."
   },
   "endpoints": {
-    "cart": "/eshop/checkout/cart"
+    "cart": "/eshop/checkout/cart",
+    "accessories_landing": "/en/c/devices/accessories.html",
+    "tablets_listing": "/eshop/devices/listing/tablets?category=mobileDevices&subCategory=cat1100019&catName=Tablets&listVal=MegaMenu&locale=EN"
   },
   "url_templates": {
-    "product_configuration": "/eshop/devices/configuration?productId={product_id}&skuId={sku_id}&catName=&listVal=&showDefault=true",
+    "product_configuration": "/eshop/devices/configuration?productId={product_id}&skuId={sku_id}&catName=Tablets&listVal=MegaMenu&showDefault=true",
     "catalog_link_locator": "a[href*='{category_slug}']"
   },
   "selectors": {
-    "navigation_header": "header, .header-container, nav.main-nav",
+    "accessories_landing": {
+      "heading_accessories_for": "//h2[normalize-space(.)='Accessories For']",
+      "heading_smartphone_accessories": "//h2[normalize-space(.)='Smartphone Accessories']",
+      "heading_music_accessories": "//h2[normalize-space(.)='Music Accessories']",
+      "heading_tablets_accessories": "//h2[normalize-space(.)='Tablets Accessories']",
+      "heading_laptops_accessories": "//h2[normalize-space(.)='Laptops Accessories']",
+      "category_smartphones": "//h4[normalize-space(.)='Smartphones']",
+      "category_music": "//h4[normalize-space(.)='Music']",
+      "category_powerbanks": "//h4[normalize-space(.)='Powerbanks']",
+      "category_tablets": "//h4[normalize-space(.)='Tablets']",
+      "category_laptops": "//h4[normalize-space(.)='Laptops']",
+      "tablets_accessories_view_all": "//h4[normalize-space(.)='Tablets']/following::a[normalize-space(.)='View All'][1]",
+      "hero_next_slide": "//section[contains(concat(' ',normalize-space(@class),' '),' eand-hero-banner-updated ')]//div[@aria-label='Next slide']",
+      "hero_previous_slide": "//section[contains(concat(' ',normalize-space(@class),' '),' eand-hero-banner-updated ')]//div[@aria-label='Previous slide']",
+      "hero_active_slide": "//section[contains(concat(' ',normalize-space(@class),' '),' eand-hero-banner-updated ')]//div[contains(@class,'swiper-slide-active')]",
+      "language_arabic": "//a[contains(@class,'toggle-lang')]"
+    },
+    "mega_menu": {
+      "devices": "//a[contains(@class,'py-16')][normalize-space(.)='Devices']",
+      "tablets": "//a[contains(@class,'w-100 align-items-center')][normalize-space(.)='Tablets']",
+      "accessories": "//a[contains(@class,'w-100 align-items-center')][normalize-space(.)='Accessories']"
+    },
     "catalog": {
-      "product_cards": ".device-card, .product-tile, .eshop-product-card",
-      "filter_tabs": ".filter-container, .brand-filter, .category-filter",
-      "sort_dropdown": "select[name='sort'], .sort-by"
+      "product_cards": "//app-d-device-card",
+      "first_product_card": "(//app-d-device-card//a[contains(@class,'device-card')])[1]",
+      "thirteenth_product_card": "(//app-d-device-card)[13]",
+      "card_ipad_pro_11": "//app-d-device-card//a[contains(@href,'productId=prod2450055')]",
+      "card_ipad_pro_13": "//app-d-device-card//a[contains(@href,'productId=prod2450056')]",
+      "breadcrumb_tablets": "//app-breadcrumbs//a[normalize-space(.)='Tablets']",
+      "search_input": "//app-device-search-and-sort//div[contains(@class,'d-lg-flex')]//input[@placeholder='Search']",
+      "sort_trigger": "//div[contains(@class,'device-sort')][contains(.,'Sort by')]",
+      "sort_price_low_high": "//ul[contains(@class,'device-sort__menu')]//button[normalize-space(.)='Price (Low to High)']",
+      "sort_price_high_low": "//ul[contains(@class,'device-sort__menu')]//button[normalize-space(.)='Price (High to Low)']",
+      "sort_label_price_low_high": "//div[contains(@class,'device-sort')]//span[normalize-space(.)='Price (Low to High)']",
+      "filter_device_storage": "//app-device-filters//mat-expansion-panel-header[contains(normalize-space(.),'Device Storage')]",
+      "filter_storage_256gb": "//app-device-filters//span[normalize-space(.)='256gb']/preceding-sibling::mat-checkbox//input",
+      "load_more": "//button[normalize-space(.)='Load more']"
     },
     "product_configuration": {
-      "storage_selector": ".device-variant-options, .storage-btn, label:has-text('GB'), [role='radio']:has-text('GB')",
-      "color_selector": ".color-swatch, .color-btn, [role='radio']:has-text('Titanium'), [role='radio']:has-text('Black')",
-      "payment_plan_tabs": ".segment-tab, [role='radio']:has-text('One time'), button:has-text('One time'), button:has-text('Smart Pay')",
-      "add_to_cart_cta": "button:has-text('ADD TO CART'), button:has-text('Checkout Now')",
-      "price_display": ".price-container, .total-price, .device-price"
+      "title_ipad_pro_11": "//h2[normalize-space(.)='Apple iPad Pro M4, 11-inch']",
+      "title_ipad_pro_13": "//h2[normalize-space(.)='Apple iPad Pro M4, 13-inch']",
+      "storage_pill_512gb": "//a[contains(@class,'device-configurations__pill')][normalize-space(.)='512GB']",
+      "storage_pill_512gb_active": "//a[contains(@class,'device-configurations__pill--active')][normalize-space(.)='512GB']",
+      "connectivity_wifi": "//a[contains(@class,'device-configurations__pill')][normalize-space(.)='Wi-Fi']",
+      "connectivity_wifi_active": "//a[contains(@class,'device-configurations__pill--active')][normalize-space(.)='Wi-Fi']",
+      "glass_standard": "//a[contains(@class,'device-configurations__pill')][normalize-space(.)='Standard glass']",
+      "glass_standard_active": "//a[contains(@class,'device-configurations__pill--active')][normalize-space(.)='Standard glass']",
+      "colour_space_black": "//input[@id='color-Space Black']/following-sibling::label",
+      "plan_one_time": "//button[contains(@class,'segment-tab')][contains(normalize-space(.),'One time')]",
+      "plan_24_months": "//button[contains(@class,'segment-tab')][contains(normalize-space(.),'24 months')]",
+      "plan_18_months": "//button[contains(@class,'segment-tab')][contains(normalize-space(.),'18 months')]",
+      "plan_12_months": "//button[contains(@class,'segment-tab')][contains(normalize-space(.),'12 months')]",
+      "tab_specs": "//a[contains(@class,'product-details__tab')][normalize-space(.)='Specs']",
+      "tab_overview": "//a[contains(@class,'product-details__tab')][normalize-space(.)='Overview']",
+      "out_of_stock_badge": "//div[contains(@class,'availability-status')][normalize-space(.)='Out of stock']",
+      "add_to_cart_cta": "//div[contains(@class,'pay-now-section')]//button[normalize-space(.)='Add to cart']",
+      "checkout_now_cta": "//div[contains(@class,'pay-now-section')]//button[normalize-space(.)='Checkout Now']",
+      "back_link": "//app-link-w-arrow//a[normalize-space(.)='Back']",
+      "breadcrumb_tablets": "//app-breadcrumbs//a[normalize-space(.)='Tablets']"
     },
     "cart": {
-      "cart_summary": ".cart-summary, .order-review-container",
-      "item_title": ".cart-item-title, .product-name",
-      "payment_breakdown": ".cart-payment-type, .installment-term",
-      "proceed_to_checkout_cta": "button:has-text('Checkout Now'), button:has-text('Proceed to Checkout')"
+      "empty_cart_message": "//*[normalize-space(text())=\"You don't have any items in your cart\"]",
+      "start_shopping": "//*[normalize-space(.)='START SHOPPING' or normalize-space(.)='Start shopping'][self::a or self::button]"
     }
   },
-  "default_flow_id": "flow_smartphones_purchase",
+  "default_flow_id": "flow_tablets_browse",
   "default_payment_plan": "One time",
   "default_automation_boundary": {
-    "automated_scope": "Catalog -> Product Configuration -> Plan Selection -> Add to Cart -> Cart Verification",
-    "external_boundary": "Live Payment Gateway (Credit Card / OTP) is an external boundary."
+    "automated_scope": "Accessories landing -> Devices mega menu -> Tablets listing (search, sort, filter, Load more) -> iPad Pro product configuration (variants, payment plans, specs, stock state) -> Cart page.",
+    "external_boundary": "Live Payment Gateway (Credit Card / OTP). Add to cart fails server-side on dev (DEV-CART-01, 2026-10-20), so no case may expect an item in the cart."
   },
   "product_name_stopwords": [
     "apple",
     "samsung",
     "huawei",
     "marshall",
-    "honor"
+    "honor",
+    "ipad",
+    "pro"
   ],
   "step_grounding_rules": [
     {
-      "id": "portal_homepage",
+      "id": "accessories_landing",
       "first_step_only": true,
       "keywords": [
-        "homepage",
-        "index.html",
-        "portal"
+        "accessories page",
+        "accessories landing",
+        "accessories.html",
+        "devices accessories"
       ],
-      "target": "{base_route}"
+      "target": "/en/c/devices/accessories.html"
     },
     {
       "id": "cookie_overlay",
       "keywords": [
         "cookie",
         "privacy",
-        "overlay",
-        "banner",
-        "usercentrics"
+        "consent",
+        "usercentrics",
+        "accept all"
       ],
       "target": "{cookie_host_selector}"
+    },
+    {
+      "id": "mega_menu_devices",
+      "keywords": [
+        "devices menu",
+        "'devices'",
+        "devices in the main menu",
+        "devices mega menu"
+      ],
+      "target": "//a[contains(@class,'py-16')][normalize-space(.)='Devices']"
+    },
+    {
+      "id": "mega_menu_tablets",
+      "keywords": [
+        "tablets in the devices menu",
+        "'tablets' menu",
+        "tablets menu item",
+        "tablets link"
+      ],
+      "target": "//a[contains(@class,'w-100 align-items-center')][normalize-space(.)='Tablets']"
+    },
+    {
+      "id": "tablets_listing",
+      "keywords": [
+        "tablets listing",
+        "tablets catalog",
+        "tablets catalogue",
+        "tablet listing",
+        "browse tablets"
+      ],
+      "target": "{catalog_route}"
+    },
+    {
+      "id": "listing_search",
+      "keywords": [
+        "search box",
+        "search field",
+        "listing search",
+        "search for"
+      ],
+      "target": "//app-device-search-and-sort//div[contains(@class,'d-lg-flex')]//input[@placeholder='Search']"
+    },
+    {
+      "id": "sort_by",
+      "keywords": [
+        "sort by",
+        "sort menu",
+        "sort options"
+      ],
+      "target": "//div[contains(@class,'device-sort')][contains(.,'Sort by')]"
+    },
+    {
+      "id": "load_more",
+      "keywords": [
+        "load more"
+      ],
+      "target": "//button[normalize-space(.)='Load more']"
     },
     {
       "id": "product_configuration",
       "keywords": [
         "product configuration",
-        "configure",
-        "open product",
-        "select product",
-        "select the",
-        "choose the",
-        "item configuration",
-        "view details"
+        "product page",
+        "product details page",
+        "configuration page"
       ],
       "match_known_products": true,
       "target": "{product_configuration_route}"
     },
     {
-      "id": "catalog_listing",
+      "id": "specs_tab",
       "keywords": [
-        "catalog",
-        "listing",
-        "devices ->",
-        "accessories ->",
-        "browse devices",
-        "browse catalog",
-        "category page"
+        "specs tab",
+        "specifications tab",
+        "'specs'"
       ],
-      "target": "{catalog_route}"
-    },
-    {
-      "id": "variant_and_payment",
-      "keywords": [
-        "one time",
-        "full price",
-        "payment option",
-        "variant",
-        "storage",
-        "color",
-        "smart pay",
-        "installment"
-      ],
-      "target": ".segment-tab:has-text('One time'), label:has-text('One Time')"
+      "target": "//a[contains(@class,'product-details__tab')][normalize-space(.)='Specs']"
     },
     {
       "id": "add_to_cart",
@@ -136,45 +234,83 @@
         "add to cart",
         "add to basket"
       ],
-      "target": "button:has-text('ADD TO CART'), button:has-text('Checkout Now')"
+      "target": "//div[contains(@class,'pay-now-section')]//button[normalize-space(.)='Add to cart']"
+    },
+    {
+      "id": "checkout_now",
+      "keywords": [
+        "checkout now"
+      ],
+      "target": "//div[contains(@class,'pay-now-section')]//button[normalize-space(.)='Checkout Now']"
     },
     {
       "id": "cart_review",
       "keywords": [
         "shopping cart",
-        "cart review",
-        "cart screen",
-        "checkout review",
         "cart page",
+        "cart screen",
         "verify cart",
-        "verify shopping cart",
-        "secure checkout"
+        "empty cart"
       ],
       "target": "{cart_route}"
-    },
-    {
-      "id": "proceed_to_checkout",
-      "keywords": [
-        "checkout",
-        "proceed to checkout",
-        "proceed to"
-      ],
-      "target": "button:has-text('Checkout Now'), button:has-text('Proceed to Checkout')"
     }
   ],
   "generation_directives": [
-    "1. PRECONDITIONS: Must state that the user is on '{app_name}' ({base_url}) with the cookie banner dismissed.",
-    "2. TEST STEPS: Every generated test case MUST include the real URLs directly in the step actions:",
-    "   - Include navigation to the portal ({base_url}) and the catalog route ({catalog_entrypoint}).",
-    "   - When opening the product configuration, ALWAYS include the exact Direct Configuration URL of the form {product_configuration_url_template}.",
-    "   - Include variant selection, stock detection, Add to Cart, and cart verification ({cart_endpoint}).",
-    "3. TEST DATA: Must explicitly include the 'ProductId: <id>' and 'SkuId: <id>' parameters along with the chosen Storage, Color, and Payment option from the Knowledge Base so downstream automated execution can parse them."
+    "1. PRECONDITIONS: The user is on '{app_name}' (dev host https://devnew.eand.ae) with the Usercentrics cookie banner accepted. Never use devnew-sas.etisalat.ae or www.etisalat.ae.",
+    "2. TARGETS: Use the Target Selector given in the canonical steps verbatim as the step target; they were verified on the live dev site. Quote on-screen labels exactly as written in the selectors (e.g. 'Add to cart', 'Out of stock', 'Price (Low to High)', '512GB').",
+    "3. STOCK AND CART: Dev stock changes day to day (2026-10-20 older iPad Pro models were In stock; 2026-10-21 every Tablets SKU checked was Out of stock), and clicking 'Add to cart' fails server-side (DEV-CART-01). Never write a case that depends on a product being in stock or expects an item in the cart.",
+    "4. PRODUCT URLS: Open a product with the Direct Configuration URL of the form {product_configuration_url_template} using the ProductId and SkuId from the Knowledge Base, or click its listing card by productId.",
+    "5. LINKS: Several 'View All' accessory links on the Accessories page point to production (www.etisalat.ae). A case may assert such a link's href but must never follow it."
   ],
   "test_case_matrix": [
-    "Positive path: Happy-path purchase with One Time payment.",
-    "Installment path: Purchase with Smart Pay installment plan.",
-    "Variant validations: Storage and color selection combinations.",
-    "Out-of-stock scenario: Disabled 'ADD TO CART' button behavior.",
-    "Mandatory selection validation: Attempting Add to Cart without choosing mandatory variants."
+    "Navigation: Accessories page -> Devices mega menu -> Tablets listing.",
+    "Listing: product cards, Search, Sort by Price, Device Storage filter, Load more.",
+    "Product configuration: storage / connectivity / display glass / colour selection, payment plans, Specs tab, breadcrumb and Back.",
+    "Negative: out-of-stock SKU shows 'Out of stock' and disables 'Add to cart' and 'Checkout Now'.",
+    "Cart: empty cart message and START SHOPPING."
+  ],
+  "known_defects": [
+    {
+      "id": "DEV-ACC-01",
+      "where": "/en/c/devices/accessories.html",
+      "what": "15 of the 21 'View All' sub-category links on the dev Accessories page point to production https://www.etisalat.ae/eshop/... instead of the dev host.",
+      "seen": "2026-10-20"
+    },
+    {
+      "id": "DEV-ACC-02",
+      "where": "/eshop/devices/listing (Accessories sub-categories: Music, Earbuds, Powerbanks, ForTablets ...)",
+      "what": "Listing shows 'Unable to load devices, please try again'; POST /b2c/eshop/getProductsByCategory returns 400 'Filter cannot be empty'. Accessory products (e.g. Huawei FreeClip 2) return browsable:false.",
+      "seen": "2026-10-20"
+    },
+    {
+      "id": "DEV-TAB-01",
+      "where": "/eshop/devices/listing/tablets",
+      "what": "Most Tablets cards are bare SKU entries showing 'Or null Smiles Points' with no price; they open a configuration page with no payment plans. Only the iPad Pro M4 11-inch (prod2450055) and 13-inch (prod2450056) product cards are complete.",
+      "seen": "2026-10-20"
+    },
+    {
+      "id": "DEV-TAB-02",
+      "where": "/eshop/devices/configuration (iPad Pro M4)",
+      "what": "All 48 iPad Pro M4 SKUs report inStock:false; Add to cart, Checkout Now and payment-plan tabs are disabled.",
+      "seen": "2026-10-20"
+    },
+    {
+      "id": "DEV-CART-01",
+      "where": "/eshop/devices/configuration -> Add to cart",
+      "what": "POST /b2c/eshop/addToShoppingCartOneByOne returns 417 after ~10 s and the page shows 'Internal server error' (seen for 11\" New iPad Pro Wi-Fi prod830189 and 12.9\" New iPad Pro prod830194, both In stock). No case can reach a filled cart on dev until this is fixed.",
+      "seen": "2026-10-20"
+    },
+    {
+      "id": "DEV-TAB-03",
+      "where": "/eshop/devices/configuration opened directly (deep link, no listing visit first)",
+      "what": "The 'Tablets' breadcrumb leads to /eshop/devices/listing/smartphones?category=mobileDevices&subCategory=cat550037 instead of the Tablets listing. Reached from the Tablets listing, it returns to /eshop/devices/listing/tablets correctly.",
+      "seen": "2026-10-20"
+    },
+    {
+      "id": "DEV-WAF-01",
+      "where": "devnew.eand.ae, any page",
+      "what": "The site's firewall occasionally answers a fresh browser session with 'The requested URL was rejected. Please consult with your administrator.' (seen on the Tablets listing after several back-to-back runs). Generated scripts retry such a navigation once after 8 s.",
+      "seen": "2026-10-21"
+    }
   ]
 }

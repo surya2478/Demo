@@ -139,6 +139,16 @@ async function navigateTo(page, route, hrefHint) {
     ? target
     : (BASE_URL ? new URL(target, BASE_URL).toString() : target);
   await page.goto(destination, { waitUntil: 'domcontentloaded', timeout: 45000 });
+  // The e& dev site's firewall now and then answers a fresh session with
+  // "The requested URL was rejected" instead of the page. That is the
+  // environment refusing one request, not the application failing the
+  // step: wait, ask once more, and let a second refusal fail as usual.
+  const rejected = await page.getByText('The requested URL was rejected').count().catch(() => 0);
+  if (rejected) {
+    console.log(`Firewall rejected ${destination}; retrying once after 8s`);
+    await page.waitForTimeout(8000);
+    await page.goto(destination, { waitUntil: 'domcontentloaded', timeout: 45000 });
+  }
   await dismissOverlays(page);
   return 'goto';
 }
@@ -1405,13 +1415,28 @@ def compile_playwright(
 
             action_lower = action.lower()
             target_lower = (target or "").lower()
-            is_cookie_dismissal = any(k in action_lower or k in target_lower for k in ["cookie", "privacy", "usercentrics", "consent", "overlay", "banner"])
+            # A step that already carries an XPath -- the Knowledge Base's
+            # verified selector, put there by grounding or by the case's author
+            # -- is compiled as written. The shop branches below guess an
+            # element from the action's wording ("storage", "click on",
+            # "search") inside try/catch: on the e& shop "Click '512GB' in
+            # Storage" clicked the first [role=radio] on the page and a missing
+            # element was swallowed, so the step was green whatever happened.
+            # They exist for steps that name no element; this one names it.
+            verified_target = str(target or "").strip().startswith(("//", "(//"))
+            shop_guess = commerce and not verified_target
+            is_cookie_dismissal = not verified_target and any(k in action_lower or k in target_lower for k in ["cookie", "privacy", "usercentrics", "consent", "overlay", "banner"])
 
             # Extract quoted term if present in action or target
             quote_match = re.search(r'["\']([^"\']+)["\']', f"{action} {target or ''}")
             quoted_term = quote_match.group(1).strip() if quote_match else ""
 
             is_verify_step = any(k in action_lower for k in ["verify", "assert", "review", "summary", "shopping cart", "screen is displayed", "page is displayed", "email verification"]) or (number == last_case_number and ("verify" in action_lower or "assert" in action_lower or "screen" in action_lower or "page" in action_lower))
+            # A step the refiner declared a navigation goes somewhere. "Navigate
+            # to the shopping cart page" matched "shopping cart" above and
+            # compiled to a URL check on about:blank instead of the goto.
+            if (step.get("action_type") or "").strip().lower() == "navigate" and _is_navigation_target(target):
+                is_verify_step = False
             # Set once this step has asserted its expected result, so the generic
             # post-condition below does not assert it a second time.
             expected_done = False
@@ -1466,7 +1491,18 @@ def compile_playwright(
                 elif target and (target.startswith((".", "#", "[", "button", "a[", "a:", "a.", "//", "(//")) or ":has-text" in target):
                     verify_locator, _ = _phrase_locator(target, "assert")
                     lines.append(f"  const verifyEl = {verify_locator};")
-                    lines.append("  await expect(verifyEl).toBeVisible({ timeout: 10000 });")
+                    # 20s, not 10s: the e& Tablets listing fetches its cards
+                    # after page load and took over 12s on dev, failing a step
+                    # whose element was on its way. A present element still
+                    # passes the moment it renders.
+                    lines.append("  await expect(verifyEl).toBeVisible({ timeout: 20000 });")
+                    # "ADD TO CART is disabled" is a state, not just presence:
+                    # an out-of-stock product shows the button, greyed out.
+                    state_text = f"{action} {expected or ''}".lower()
+                    if re.search(r"\b(disabled|not clickable|greyed out|grayed out)\b", state_text):
+                        lines.append("  await expect(verifyEl).toBeDisabled({ timeout: 10000 });")
+                    elif re.search(r"\benabled\b", state_text):
+                        lines.append("  await expect(verifyEl).toBeEnabled({ timeout: 10000 });")
                 elif commerce:
                     lines.append("  const cartOrCheckoutEl = page.locator('.cart-item, .cart-summary, .checkout-summary, button:has-text(\"Checkout\"), button:has-text(\"Proceed\"), :text(\"Cart\"), :text(\"Order Summary\"), :text(\"Checkout\")').first();")
                     lines.append("  const onTargetPage = /.*(devices|configuration|cart|checkout|summary|order|ordering|b2bportal).*/i.test(page.url());")
@@ -1490,7 +1526,7 @@ def compile_playwright(
                         issues.append(StaticGateIssue("warning", message))
                         lines.append(f"  throw new Error({_js(message)});")
                         expected_done = True
-            elif commerce and ("search for" in action_lower or "search" in action_lower and ("input" not in action_lower)):
+            elif shop_guess and ("search for" in action_lower or "search" in action_lower and ("input" not in action_lower)):
                 search_query = quoted_term or re.sub(r"^.*?search\s+(for\s+)?", "", action, flags=re.IGNORECASE).split("and")[0].strip()
                 lines.append(f"  // Search for {_js(search_query)}")
                 lines.append("  try {")
@@ -1501,7 +1537,7 @@ def compile_playwright(
                 lines.append("      await page.waitForTimeout(2000);")
                 lines.append("    }")
                 lines.append("  } catch (e) {}")
-            elif commerce and any(k in action_lower for k in ["click on", "select the", "select product", "choose product"]) and ("cart" not in action_lower and "checkout" not in action_lower and "payment" not in action_lower and "plan" not in action_lower):
+            elif shop_guess and any(k in action_lower for k in ["click on", "select the", "select product", "choose product"]) and ("cart" not in action_lower and "checkout" not in action_lower and "payment" not in action_lower and "plan" not in action_lower):
                 item_term = quoted_term or re.sub(r"^.*?(click\s+(on\s+)?(the\s+)?|select\s+(the\s+)?|choose\s+(the\s+)?)", "", action, flags=re.IGNORECASE).replace("item", "").replace("product", "").strip()
                 lines.append(f"  // Select/Click item {_js(item_term)}")
                 lines.append("  try {")
@@ -1512,7 +1548,7 @@ def compile_playwright(
                 lines.append("      await page.waitForTimeout(1500);")
                 lines.append("    }")
                 lines.append("  } catch (e) {}")
-            elif commerce and (any(k in action_lower for k in ["color", "storage", "variant", "payment plan", "memory", "terms", "one time", "full price", "bundle items"]) or "variant" in target_lower):
+            elif shop_guess and (any(k in action_lower for k in ["color", "storage", "variant", "payment plan", "memory", "terms", "one time", "full price", "bundle items"]) or "variant" in target_lower):
                 lines.append("  // Select/verify variant options and price update")
                 lines.append("  try {")
                 lines.append("    const opt = page.locator('.device-variant-options, [role=\"radio\"], button.variant-btn, .color-swatch, .storage-btn, label:has-text(\"One Time\"), label:has-text(\"GB\")').first();")
@@ -1521,7 +1557,7 @@ def compile_playwright(
                 lines.append("      await page.waitForTimeout(500);")
                 lines.append("    }")
                 lines.append("  } catch (e) {}")
-            elif commerce and ("add to cart" in action_lower or "add to basket" in action_lower or "add to cart" in target_lower):
+            elif shop_guess and ("add to cart" in action_lower or "add to basket" in action_lower or "add to cart" in target_lower):
                 lines.append("  // Scroll down slightly to ensure sticky footer and dynamic CTA are rendered")
                 lines.append("  await page.evaluate(() => window.scrollBy(0, 450)).catch(() => {});")
                 lines.append("  await page.waitForTimeout(1000);")
@@ -1553,7 +1589,7 @@ def compile_playwright(
                 lines.append("      await page.waitForTimeout(2000);")
                 lines.append("    }")
                 lines.append("  }")
-            elif commerce and (any(k in action_lower for k in ["checkout", "proceed to", "buy now"]) or any(k in target_lower for k in ["checkout", "buy now"])):
+            elif shop_guess and (any(k in action_lower for k in ["checkout", "proceed to", "buy now"]) or any(k in target_lower for k in ["checkout", "buy now"])):
                 # --- A click step has to be able to fail -------------------
                 # This block used to be `if (await appears(btn)) { click }`
                 # wrapped in `try {} catch (e) {}`: an absent button skipped the
@@ -1588,7 +1624,7 @@ def compile_playwright(
                 lines.append("  await expect(checkoutActionBtn).toBeVisible({ timeout: 15000 });")
                 lines.append("  await checkoutActionBtn.click();")
                 lines.append("  await page.waitForLoadState('domcontentloaded', { timeout: 30000 }).catch(() => {});")
-            elif commerce and any(k in action_lower for k in ["shipping address", "payment method", "enter address", "credit card", "fill form"]):
+            elif shop_guess and any(k in action_lower for k in ["shipping address", "payment method", "enter address", "credit card", "fill form"]):
                 lines.append("  // Fill address/checkout details if form presented")
                 lines.append("  try {")
                 lines.append("    const addressInput = page.locator('input[name*=\"address\" i], input[placeholder*=\"address\" i], textarea, input[name*=\"name\" i], input[type=\"text\"]').first();")

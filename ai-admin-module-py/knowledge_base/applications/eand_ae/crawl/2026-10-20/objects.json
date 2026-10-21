@@ -1,0 +1,3732 @@
+{
+ "crawled_at": "2026-10-20T12:16:36.475Z",
+ "host": "https://devnew.eand.ae",
+ "browser": "Google Chrome (installed), headless, real UA",
+ "pace_ms": 1500,
+ "how": "Pass 1 swept every visible interactive element and heading per screen with the app's sweepPage()/uniqueXPath (each xpath matched exactly one element when captured). Pass 2 performed each candidate test interaction (verified_interactions). Pass 3 checked stock for every Tablets product through the site's own APIs.",
+ "screens": [
+  {
+   "screen": "accessories_landing",
+   "url": "/en/c/devices/accessories.html",
+   "title": "etisalat UAE | Buy Apple AirPods starting AED 35 per month",
+   "objects": [
+    {
+     "role": "link",
+     "name": "Consumer",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' active ')]//a[normalize-space(.)='Consumer']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Business",
+     "tag": "a",
+     "xpath": "//div[contains(concat(' ',normalize-space(@class),' '),' eand-list ')]//a[normalize-space(.)='Business']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Carrier & Wholesale",
+     "tag": "a",
+     "xpath": "//div[contains(concat(' ',normalize-space(@class),' '),' eand-list ')]//a[normalize-space(.)='Carrier & Wholesale']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "etisalat group",
+     "tag": "a",
+     "xpath": "//div[contains(concat(' ',normalize-space(@class),' '),' eand-list ')]//a[normalize-space(.)='etisalat group']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Find Us",
+     "tag": "a",
+     "xpath": "//div[contains(concat(' ',normalize-space(@class),' '),' eand-list ')]//a[normalize-space(.)='Find Us']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Accessibility",
+     "tag": "a",
+     "xpath": "//div[contains(concat(' ',normalize-space(@class),' '),' eand-list ')]//a[normalize-space(.)='Accessibility']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Quick Pay/Recharge",
+     "tag": "a",
+     "xpath": "//div[contains(concat(' ',normalize-space(@class),' '),' eand-list ')]//a[normalize-space(.)='Quick Pay/Recharge']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "العربية",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' pe-0 ')]//a[normalize-space(.)='العربية']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Mobile Plans",
+     "tag": "a",
+     "xpath": "//ul[contains(concat(' ',normalize-space(@class),' '),' nav-bar ')]//a[normalize-space(.)='Mobile Plans']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Home Plans",
+     "tag": "a",
+     "xpath": "//ul[contains(concat(' ',normalize-space(@class),' '),' nav-bar ')]//a[normalize-space(.)='Home Plans']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Devices",
+     "tag": "a",
+     "xpath": "//ul[contains(concat(' ',normalize-space(@class),' '),' nav-bar ')]//a[normalize-space(.)='Devices']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Digital Products",
+     "tag": "a",
+     "xpath": "//ul[contains(concat(' ',normalize-space(@class),' '),' nav-bar ')]//a[normalize-space(.)='Digital Products']",
+     "site_wide": true
+    },
+    {
+     "role": "textbox",
+     "name": "Search?",
+     "tag": "input",
+     "xpath": "//input[@id='searchInput']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Support",
+     "tag": "a",
+     "xpath": "//ul[contains(concat(' ',normalize-space(@class),' '),' nav-bar ')]//a[normalize-space(.)='Support']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "My Account",
+     "tag": "a",
+     "xpath": "//ul[contains(concat(' ',normalize-space(@class),' '),' nav-bar ')]//a[normalize-space(.)='My Account']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "My Account",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='My Account']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Mobile Plans",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='Mobile Plans']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Home Plans",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='Home Plans']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Devices",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='Devices']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Digital Products",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='Digital Products']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Support",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='Support']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Find Us",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='Find Us']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Accessibility",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='Accessibility']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Quick Pay/Recharge",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='Quick Pay/Recharge']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Consumer",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='Consumer']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Business",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='Business']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Carrier & Wholesale",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='Carrier & Wholesale']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "etisalat group",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='etisalat group']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Language",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Language']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "العربية",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='العربية']",
+     "site_wide": true
+    },
+    {
+     "role": "h3",
+     "name": "The most accurate heart rate sensing in a wearable.",
+     "tag": "h3",
+     "xpath": "//h3[normalize-space(.)='The most accurate heart rate sensing in a wearable.']",
+     "site_wide": false
+    },
+    {
+     "role": "h3",
+     "name": "A sound improvement.",
+     "tag": "h3",
+     "xpath": "//h3[normalize-space(.)='A sound improvement.']",
+     "site_wide": false
+    },
+    {
+     "role": "h3",
+     "name": "Bundle Galaxy Z Series with Galaxy Watch Ultra2 or Watch9",
+     "tag": "h3",
+     "xpath": "//h3[normalize-space(.)='Bundle Galaxy Z Series with Galaxy Watch Ultra2 or Watch9']",
+     "site_wide": false
+    },
+    {
+     "role": "h3",
+     "name": "Get the new Huawei FreeClip 2",
+     "tag": "h3",
+     "xpath": "//h3[normalize-space(.)='Get the new Huawei FreeClip 2']",
+     "site_wide": false
+    },
+    {
+     "role": "h3",
+     "name": "Get Huawei Watch Ultimate 2",
+     "tag": "h3",
+     "xpath": "//h3[normalize-space(.)='Get Huawei Watch Ultimate 2']",
+     "site_wide": false
+    },
+    {
+     "role": "h3",
+     "name": "Get the Huawei Watch 5 from AED 62/month",
+     "tag": "h3",
+     "xpath": "//h3[normalize-space(.)='Get the Huawei Watch 5 from AED 62/month']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Go to slide 1",
+     "tag": "span",
+     "xpath": "//span[@aria-label='Go to slide 1']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Go to slide 2",
+     "tag": "span",
+     "xpath": "//span[@aria-label='Go to slide 2']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Go to slide 3",
+     "tag": "span",
+     "xpath": "//span[@aria-label='Go to slide 3']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Go to slide 4",
+     "tag": "span",
+     "xpath": "//span[@aria-label='Go to slide 4']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Go to slide 5",
+     "tag": "span",
+     "xpath": "//span[@aria-label='Go to slide 5']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Go to slide 6",
+     "tag": "span",
+     "xpath": "//span[@aria-label='Go to slide 6']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Go to slide 7",
+     "tag": "span",
+     "xpath": "//span[@aria-label='Go to slide 7']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Next slide",
+     "tag": "div",
+     "xpath": "//section[contains(concat(' ',normalize-space(@class),' '),' eand-hero-banner-updated ')]//div[@aria-label='Next slide']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Previous slide",
+     "tag": "div",
+     "xpath": "//section[contains(concat(' ',normalize-space(@class),' '),' eand-hero-banner-updated ')]//div[@aria-label='Previous slide']",
+     "site_wide": false
+    },
+    {
+     "role": "h2",
+     "name": "Accessories For",
+     "tag": "h2",
+     "xpath": "//h2[normalize-space(.)='Accessories For']",
+     "site_wide": false
+    },
+    {
+     "role": "h4",
+     "name": "Smartphones",
+     "tag": "h4",
+     "xpath": "//h4[normalize-space(.)='Smartphones']",
+     "site_wide": false
+    },
+    {
+     "role": "h4",
+     "name": "Music",
+     "tag": "h4",
+     "xpath": "//h4[normalize-space(.)='Music']",
+     "site_wide": false
+    },
+    {
+     "role": "h4",
+     "name": "Powerbanks",
+     "tag": "h4",
+     "xpath": "//h4[normalize-space(.)='Powerbanks']",
+     "site_wide": false
+    },
+    {
+     "role": "h4",
+     "name": "Tablets",
+     "tag": "h4",
+     "xpath": "//h4[normalize-space(.)='Tablets']",
+     "site_wide": false
+    },
+    {
+     "role": "h4",
+     "name": "Laptops",
+     "tag": "h4",
+     "xpath": "//h4[normalize-space(.)='Laptops']",
+     "site_wide": false
+    },
+    {
+     "role": "link",
+     "name": "View all",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='View all']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Next slide",
+     "tag": "div",
+     "xpath": "//section[contains(concat(' ',normalize-space(@class),' '),' eand-category-big-card ')]//div[@aria-label='Next slide']",
+     "site_wide": false
+    },
+    {
+     "role": "h2",
+     "name": "Smartphone Accessories",
+     "tag": "h2",
+     "xpath": "//h2[normalize-space(.)='Smartphone Accessories']",
+     "site_wide": false
+    },
+    {
+     "role": "h5",
+     "name": "Screen Protection",
+     "tag": "h5",
+     "xpath": "//h5[normalize-space(.)='Screen Protection']",
+     "site_wide": false
+    },
+    {
+     "role": "h5",
+     "name": "Wireless Chargers",
+     "tag": "h5",
+     "xpath": "//h5[normalize-space(.)='Wireless Chargers']",
+     "site_wide": false
+    },
+    {
+     "role": "h5",
+     "name": "Holder",
+     "tag": "h5",
+     "xpath": "//h5[normalize-space(.)='Holder']",
+     "site_wide": false
+    },
+    {
+     "role": "h5",
+     "name": "Stabilizer Sticks",
+     "tag": "h5",
+     "xpath": "//h5[normalize-space(.)='Stabilizer Sticks']",
+     "site_wide": false
+    },
+    {
+     "role": "h2",
+     "name": "Music Accessories",
+     "tag": "h2",
+     "xpath": "//h2[normalize-space(.)='Music Accessories']",
+     "site_wide": false
+    },
+    {
+     "role": "h5",
+     "name": "Earbuds",
+     "tag": "h5",
+     "xpath": "//h5[normalize-space(.)='Earbuds']",
+     "site_wide": false
+    },
+    {
+     "role": "h5",
+     "name": "Headphones",
+     "tag": "h5",
+     "xpath": "//h5[normalize-space(.)='Headphones']",
+     "site_wide": false
+    },
+    {
+     "role": "h5",
+     "name": "Speakers",
+     "tag": "h5",
+     "xpath": "//h5[normalize-space(.)='Speakers']",
+     "site_wide": false
+    },
+    {
+     "role": "h2",
+     "name": "Tablets Accessories",
+     "tag": "h2",
+     "xpath": "//h2[normalize-space(.)='Tablets Accessories']",
+     "site_wide": false
+    },
+    {
+     "role": "h5",
+     "name": "Screen protection",
+     "tag": "h5",
+     "xpath": "//h5[normalize-space(.)='Screen protection']",
+     "site_wide": false
+    },
+    {
+     "role": "h5",
+     "name": "Chargers",
+     "tag": "h5",
+     "xpath": "//h5[normalize-space(.)='Chargers']",
+     "site_wide": false
+    },
+    {
+     "role": "h2",
+     "name": "Laptops Accessories",
+     "tag": "h2",
+     "xpath": "//h2[normalize-space(.)='Laptops Accessories']",
+     "site_wide": false
+    },
+    {
+     "role": "h5",
+     "name": "Adapters",
+     "tag": "h5",
+     "xpath": "//h5[normalize-space(.)='Adapters']",
+     "site_wide": false
+    },
+    {
+     "role": "h5",
+     "name": "Cases & Covers",
+     "tag": "h5",
+     "xpath": "//h5[normalize-space(.)='Cases & Covers']",
+     "site_wide": false
+    },
+    {
+     "role": "h5",
+     "name": "Storage",
+     "tag": "h5",
+     "xpath": "//h5[normalize-space(.)='Storage']",
+     "site_wide": false
+    },
+    {
+     "role": "h2",
+     "name": "Unlock exclusive deals on accessories on etisalat UAE App.",
+     "tag": "h2",
+     "xpath": "//h2[normalize-space(.)='Unlock exclusive deals on accessories on etisalat UAE App.']",
+     "site_wide": false
+    },
+    {
+     "role": "link",
+     "name": "Quick Pay",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Quick Pay']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Switch from Prepaid to Postpaid",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' links-item ')]//a[normalize-space(.)='Switch from Prepaid to Postpaid']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Autopay",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Autopay']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Mobile Registration Renewal",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Mobile Registration Renewal']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "4-digit PIN",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='4-digit PIN']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Emirati Freedom Postpaid",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Emirati Freedom Postpaid']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Postpaid Plans",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' links-item ')]//a[normalize-space(.)='Postpaid Plans']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Prepaid/Wasel Flexi",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Prepaid/Wasel Flexi']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "eLife Plans",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='eLife Plans']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Absher Plan",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Absher Plan']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Switch to etisalat",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' links-item ')]//a[normalize-space(.)='Switch to etisalat']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "#Tag",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='#Tag']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Data and Credit Transfer",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Data and Credit Transfer']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Device Trade-In",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Device Trade-In']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Talking Bill",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Talking Bill']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "People of Determination",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='People of Determination']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Deals for you",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Deals for you']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "MMS",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='MMS']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Senior Citizens Offer",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Senior Citizens Offer']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "5G",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='5G']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "UAE Wifi",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='UAE Wifi']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Home Zone Internet",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Home Zone Internet']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Internet Speed Test",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Internet Speed Test']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "New to etisalat",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='New to etisalat']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "etisalat UAE Apps",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='etisalat UAE Apps']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Connect with etisalat",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Connect with etisalat']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Privacy & Scam Reporting",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Privacy & Scam Reporting']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Block Promotional SMS",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Block Promotional SMS']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Do Not Call Registry",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Do Not Call Registry']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "CNAP/Caller ID “Kashif”",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='CNAP/Caller ID “Kashif”']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Value Added Tax",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Value Added Tax']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "etisalat Mail",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='etisalat Mail']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Customer Quotation – CQ",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Customer Quotation – CQ']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "UAE Online directory",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='UAE Online directory']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Clearance Letter",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' links-item ')]//a[normalize-space(.)='Clearance Letter']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Authorised Channel Partners",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Authorised Channel Partners']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "etisalat",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='etisalat']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "etisalat capital",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='etisalat capital']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Telecoms",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Telecoms']",
+     "site_wide": true
+    },
+    {
+     "role": "h5",
+     "name": "Download etisalat UAE App",
+     "tag": "h5",
+     "xpath": "//h5[normalize-space(.)='Download etisalat UAE App']",
+     "site_wide": true
+    },
+    {
+     "role": "h5",
+     "name": "Follow Us",
+     "tag": "h5",
+     "xpath": "//h5[normalize-space(.)='Follow Us']",
+     "site_wide": true
+    },
+    {
+     "role": "h5",
+     "name": "Payment Accepted",
+     "tag": "h5",
+     "xpath": "//h5[normalize-space(.)='Payment Accepted']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "About Us",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='About Us']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Code of Conduct",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Code of Conduct']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Privacy Policy",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Privacy Policy']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Terms and Conditions",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Terms and Conditions']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "etisalat Tenders",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='etisalat Tenders']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Careers",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Careers']",
+     "site_wide": true
+    }
+   ],
+   "landing_links": [
+    {
+     "text": "Buy now",
+     "context": "The most accurate heart rate sensing in a wearable.",
+     "href": "/en/c/devices/new-device-launch/apple/watch-series-12.html",
+     "cls": "btn btn-solid-eand-white ripple-effect"
+    },
+    {
+     "text": "Buy now",
+     "context": "A sound improvement.",
+     "href": "/en/c/devices/new-device-launch/apple/airpods-5.html",
+     "cls": "btn btn-solid-eand-white ripple-effect"
+    },
+    {
+     "text": "Buy now",
+     "context": "Bundle Galaxy Z Series with Galaxy Watch Ultra2 or Watch9",
+     "href": "/en/c/devices/new-device-launch/samsung/z-fold-flip-8-series.html",
+     "cls": "btn btn-solid-eand-white ripple-effect"
+    },
+    {
+     "text": "Buy now",
+     "context": "Get the new Huawei FreeClip 2",
+     "href": "/eshop/devices/configuration/key-prod1t1766565755181?productId=prod1T1766565755181&skuId=bgskuTrans3999228881&catName=Music&listVal=Accessories&showDefault=true",
+     "cls": "btn btn-solid-eand-white ripple-effect"
+    },
+    {
+     "text": "Buy now",
+     "context": "Get Huawei Watch Ultimate 2",
+     "href": "/eshop/devices/configuration/key-prod1t1762932784832?productId=prod1T1762932784832&catName=Accessories&listVal=TopBrands_Huawei&locale=en",
+     "cls": "btn btn-solid-eand-white ripple-effect"
+    },
+    {
+     "text": "View All",
+     "context": "Smartphones",
+     "href": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100048&catName=ForSmartphone&listVal=Accessories&locale=EN",
+     "cls": "link-eand-primary-100 underline"
+    },
+    {
+     "text": "View All",
+     "context": "Music",
+     "href": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100051&catName=Music&listVal=Accessories&locale=EN",
+     "cls": "link-eand-primary-100 underline"
+    },
+    {
+     "text": "View All",
+     "context": "Powerbanks",
+     "href": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100052&catName=PowerBank&listVal=Accessories&locale=EN",
+     "cls": "link-eand-primary-100 underline"
+    },
+    {
+     "text": "View All",
+     "context": "Tablets",
+     "href": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100049&catName=ForTablets&listVal=Accessories&locale=EN",
+     "cls": "link-eand-primary-100 underline"
+    },
+    {
+     "text": "View All",
+     "context": "Laptops",
+     "href": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100050&catName=ForLaptop&listVal=Accessories&locale=EN",
+     "cls": "link-eand-primary-100 underline"
+    },
+    {
+     "text": "View all",
+     "context": "Smartphones",
+     "href": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100075&catName=ForSmartphone&listVal=Accessories&locale=EN",
+     "cls": "btn btn-outline-eand-primary-100"
+    },
+    {
+     "text": "View All",
+     "context": "Covers",
+     "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100054&catName=CoversMobile&listVal=Accessories&locale=EN",
+     "cls": "link-eand-primary-100 underline"
+    },
+    {
+     "text": "View All",
+     "context": "Screen Protection",
+     "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100055&catName=Screenprotection&listVal=Accessories&locale=EN",
+     "cls": "link-eand-primary-100 underline"
+    },
+    {
+     "text": "View All",
+     "context": "Cables & Adapters",
+     "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100058&catName=SmartphoneCablesAdapters&listVal=Accessories&locale=EN",
+     "cls": "link-eand-primary-100 underline"
+    },
+    {
+     "text": "View All",
+     "context": "Wireless Chargers",
+     "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100053&catName=WirelessChargers&listVal=Accessories&locale=EN",
+     "cls": "link-eand-primary-100 underline"
+    },
+    {
+     "text": "View All",
+     "context": "Holder",
+     "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100056&catName=Holder&listVal=Smartphones&locale=EN",
+     "cls": "link-eand-primary-100 underline"
+    },
+    {
+     "text": "View All",
+     "context": "Stabilizer Sticks",
+     "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100057&catName=StabilizerSticks&listVal=Smartphones&locale=EN",
+     "cls": "link-eand-primary-100 underline"
+    },
+    {
+     "text": "View All",
+     "context": "Earbuds",
+     "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN",
+     "cls": "link-eand-primary-100 underline"
+    },
+    {
+     "text": "View All",
+     "context": "Headphones",
+     "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100068&catName=Headphones&listVal=Smartphones&locale=EN",
+     "cls": "link-eand-primary-100 underline"
+    },
+    {
+     "text": "View All",
+     "context": "Speakers",
+     "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=catmenu-speakers&catName=Speakers&listVal=MegaMenu&locale=EN",
+     "cls": "link-eand-primary-100 underline"
+    },
+    {
+     "text": "View All",
+     "context": "Covers",
+     "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100061&catName=CoversTablets&listVal=Smartphones&locale=EN",
+     "cls": "link-eand-primary-100 underline"
+    },
+    {
+     "text": "View All",
+     "context": "Screen protection",
+     "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100062&catName=Screenprotection&listVal=Smartphones&locale=EN",
+     "cls": "link-eand-primary-100 underline"
+    },
+    {
+     "text": "View All",
+     "context": "Cables & Adapters",
+     "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100060&catName=CablesAdapters&listVal=Smartphones&locale=EN",
+     "cls": "link-eand-primary-100 underline"
+    },
+    {
+     "text": "View All",
+     "context": "Chargers",
+     "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100063&catName=Chargers&listVal=Smartphones&locale=EN",
+     "cls": "link-eand-primary-100 underline"
+    },
+    {
+     "text": "View All",
+     "context": "Adapters",
+     "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100064&catName=Adapters&listVal=Smartphones&locale=EN",
+     "cls": "link-eand-primary-100 underline"
+    },
+    {
+     "text": "View All",
+     "context": "Cases & Covers",
+     "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100065&catName=CoversMobile&listVal=Smartphones&locale=EN",
+     "cls": "link-eand-primary-100 underline"
+    },
+    {
+     "text": "View All",
+     "context": "Storage",
+     "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100066&catName=Storage&listVal=Smartphones&locale=EN",
+     "cls": "link-eand-primary-100 underline"
+    }
+   ],
+   "headings": [
+    {
+     "tag": "h3",
+     "text": "The most accurate heart rate sensing in a wearable."
+    },
+    {
+     "tag": "h3",
+     "text": "A sound improvement."
+    },
+    {
+     "tag": "h3",
+     "text": "Bundle Galaxy Z Series with Galaxy Watch Ultra2 or Watch9"
+    },
+    {
+     "tag": "h3",
+     "text": "Get the new Huawei FreeClip 2"
+    },
+    {
+     "tag": "h3",
+     "text": "Get Huawei Watch Ultimate 2"
+    },
+    {
+     "tag": "h3",
+     "text": "Get the Huawei Watch 5 from AED 62/month"
+    },
+    {
+     "tag": "h3",
+     "text": "Stay connected and protected with our wide range of power banks, phone covers and more. Or"
+    },
+    {
+     "tag": "h2",
+     "text": "Accessories For"
+    },
+    {
+     "tag": "h4",
+     "text": "Smartphones"
+    },
+    {
+     "tag": "h4",
+     "text": "Music"
+    },
+    {
+     "tag": "h4",
+     "text": "Powerbanks"
+    },
+    {
+     "tag": "h4",
+     "text": "Tablets"
+    },
+    {
+     "tag": "h4",
+     "text": "Laptops"
+    },
+    {
+     "tag": "h2",
+     "text": "Smartphone Accessories"
+    },
+    {
+     "tag": "h2",
+     "text": "Music Accessories"
+    },
+    {
+     "tag": "h2",
+     "text": "Tablets Accessories"
+    },
+    {
+     "tag": "h2",
+     "text": "Laptops Accessories"
+    },
+    {
+     "tag": "h2",
+     "text": "Unlock exclusive deals on accessories on etisalat UAE App."
+    }
+   ]
+  },
+  {
+   "screen": "tablets_listing",
+   "url": "/eshop/devices/listing/tablets?category=mobileDevices&subCategory=cat1100019&catName=Tablets&listVal=MegaMenu&locale=EN",
+   "title": "Get your favorite Smartphones with smart payment plans by etisalat.",
+   "objects": [
+    {
+     "role": "link",
+     "name": "Find Us",
+     "tag": "a",
+     "xpath": "//a[@aria-label='Find Us']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Accessibility",
+     "tag": "a",
+     "xpath": "//a[@aria-label='Accessibility']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Quick Pay/Recharge",
+     "tag": "a",
+     "xpath": "//a[@aria-label='Quick Pay/Recharge']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "العربية",
+     "tag": "a",
+     "xpath": "//a[@aria-label='العربية']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Mobile Plans",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='Mobile Plans']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Home Plans",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='Home Plans']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Devices",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='Devices']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Digital Products",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='Digital Products']",
+     "site_wide": true
+    },
+    {
+     "role": "textbox",
+     "name": "Search?",
+     "tag": "input",
+     "xpath": "//input[@placeholder='Search?']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "My Account",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='My Account']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "0",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='0']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Devices",
+     "tag": "a",
+     "xpath": "//ol[contains(concat(' ',normalize-space(@class),' '),' list-unstyled ')]//a[normalize-space(.)='Devices']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Compare",
+     "tag": "button",
+     "xpath": "//button[normalize-space(.)='Compare']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Price",
+     "tag": "mat-expansion-panel-header",
+     "xpath": "//mat-expansion-panel-header[@id='mat-expansion-panel-header-10']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "is Auto Renewal",
+     "tag": "mat-expansion-panel-header",
+     "xpath": "//mat-expansion-panel-header[@id='mat-expansion-panel-header-11']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "AI Enabled",
+     "tag": "mat-expansion-panel-header",
+     "xpath": "//mat-expansion-panel-header[@id='mat-expansion-panel-header-12']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Processor",
+     "tag": "mat-expansion-panel-header",
+     "xpath": "//mat-expansion-panel-header[@id='mat-expansion-panel-header-13']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Resolution",
+     "tag": "mat-expansion-panel-header",
+     "xpath": "//mat-expansion-panel-header[@id='mat-expansion-panel-header-14']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Warranty",
+     "tag": "mat-expansion-panel-header",
+     "xpath": "//mat-expansion-panel-header[@id='mat-expansion-panel-header-15']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "compatibility",
+     "tag": "mat-expansion-panel-header",
+     "xpath": "//mat-expansion-panel-header[@id='mat-expansion-panel-header-16']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Display",
+     "tag": "mat-expansion-panel-header",
+     "xpath": "//mat-expansion-panel-header[@id='mat-expansion-panel-header-17']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Device Storage",
+     "tag": "mat-expansion-panel-header",
+     "xpath": "//mat-expansion-panel-header[@id='mat-expansion-panel-header-18']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "color",
+     "tag": "mat-expansion-panel-header",
+     "xpath": "//mat-expansion-panel-header[@id='mat-expansion-panel-header-19']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "brand",
+     "tag": "mat-expansion-panel-header",
+     "xpath": "//mat-expansion-panel-header[@id='mat-expansion-panel-header-20']",
+     "site_wide": true
+    },
+    {
+     "role": "textbox",
+     "name": "Search",
+     "tag": "input",
+     "xpath": "//input[@id='mat-input-1']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Load more",
+     "tag": "button",
+     "xpath": "//button[normalize-space(.)='Load more']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "AI Advisor",
+     "tag": "button",
+     "xpath": "//button[normalize-space(.)='AI Advisor']",
+     "site_wide": false
+    }
+   ],
+   "cards": [
+    {
+     "index": 1,
+     "text": "Apple iPad Pro M4, 13-inch 6 % off From AED 370.00 /month Full Price AED 5,149.00 5,499.00 Or 605,765 Smiles Points 5% VAT included",
+     "href": "/eshop/devices/configuration?productId=prod2450056&skuId=bgSku3820208632&catName=Tablets&listVal=MegaMenu&showDefault=true"
+    },
+    {
+     "index": 2,
+     "text": "Apple iPad Pro M4, 13-inch Or null Smiles Points 5% VAT included",
+     "href": "/eshop/devices/configuration?productId=bgSku3820208604&skuId=bgSku3820208604&catName=Tablets&listVal=MegaMenu&showDefault=true"
+    },
+    {
+     "index": 3,
+     "text": "Apple iPad Pro M4, 13-inch Or null Smiles Points 5% VAT included",
+     "href": "/eshop/devices/configuration?productId=bgSku3820208491&skuId=bgSku3820208491&catName=Tablets&listVal=MegaMenu&showDefault=true"
+    },
+    {
+     "index": 4,
+     "text": "Apple iPad Pro M4, 13-inch Or null Smiles Points 5% VAT included",
+     "href": "/eshop/devices/configuration?productId=bgSku3820208591&skuId=bgSku3820208591&catName=Tablets&listVal=MegaMenu&showDefault=true"
+    },
+    {
+     "index": 5,
+     "text": "Apple iPad Pro M4, 13-inch Or null Smiles Points 5% VAT included",
+     "href": "/eshop/devices/configuration?productId=bgSku3820208533&skuId=bgSku3820208533&catName=Tablets&listVal=MegaMenu&showDefault=true"
+    },
+    {
+     "index": 6,
+     "text": "Apple iPad Pro M4, 13-inch Or null Smiles Points 5% VAT included",
+     "href": "/eshop/devices/configuration?productId=bgSku3820208651&skuId=bgSku3820208651&catName=Tablets&listVal=MegaMenu&showDefault=true"
+    },
+    {
+     "index": 7,
+     "text": "Apple iPad Pro M4, 13-inch Or null Smiles Points 5% VAT included",
+     "href": "/eshop/devices/configuration?productId=bgSku3820208464&skuId=bgSku3820208464&catName=Tablets&listVal=MegaMenu&showDefault=true"
+    },
+    {
+     "index": 8,
+     "text": "Apple iPad Pro M4, 11-inch Or null Smiles Points 5% VAT included",
+     "href": "/eshop/devices/configuration?productId=bgSku3820208551&skuId=bgSku3820208551&catName=Tablets&listVal=MegaMenu&showDefault=true"
+    },
+    {
+     "index": 9,
+     "text": "AI Productivity Apple iPad Pro M4, 11-inch 5 % off From AED 348.00 /month Full Price AED 3,949.00 4,199.00 Or 464,588 Smiles Points 5% VAT included",
+     "href": "/eshop/devices/configuration?productId=prod2450055&skuId=bgSku3820208453&catName=Tablets&listVal=MegaMenu&showDefault=true"
+    },
+    {
+     "index": 10,
+     "text": "Apple iPad Pro M4, 13-inch Or null Smiles Points 5% VAT included",
+     "href": "/eshop/devices/configuration?productId=bgSku3820208581&skuId=bgSku3820208581&catName=Tablets&listVal=MegaMenu&showDefault=true"
+    },
+    {
+     "index": 11,
+     "text": "Apple iPad Pro M4, 13-inch Or null Smiles Points 5% VAT included",
+     "href": "/eshop/devices/configuration?productId=bgSku3820208525&skuId=bgSku3820208525&catName=Tablets&listVal=MegaMenu&showDefault=true"
+    },
+    {
+     "index": 12,
+     "text": "Apple iPad Pro M4, 11-inch Or null Smiles Points 5% VAT included",
+     "href": "/eshop/devices/configuration?productId=bgSku3820208622&skuId=bgSku3820208622&catName=Tablets&listVal=MegaMenu&showDefault=true"
+    }
+   ],
+   "filters": [
+    {
+     "header": "Price",
+     "options": [
+      "0",
+      "9993"
+     ]
+    },
+    {
+     "header": "is Auto Renewal",
+     "options": []
+    },
+    {
+     "header": "AI Enabled",
+     "options": [
+      "on"
+     ]
+    },
+    {
+     "header": "Processor",
+     "options": [
+      "on",
+      "on",
+      "on",
+      "on",
+      "on",
+      "on"
+     ]
+    },
+    {
+     "header": "Resolution",
+     "options": [
+      "on",
+      "on"
+     ]
+    },
+    {
+     "header": "Warranty",
+     "options": [
+      "on"
+     ]
+    },
+    {
+     "header": "compatibility",
+     "options": [
+      "on"
+     ]
+    },
+    {
+     "header": "Display",
+     "options": [
+      "on",
+      "on",
+      "on",
+      "on",
+      "on",
+      "on"
+     ]
+    },
+    {
+     "header": "Device Storage",
+     "options": [
+      "on",
+      "on",
+      "on",
+      "on",
+      "on",
+      "on"
+     ]
+    },
+    {
+     "header": "color",
+     "options": [
+      "on",
+      "on",
+      "on",
+      "on",
+      "on",
+      "on"
+     ]
+    },
+    {
+     "header": "brand",
+     "options": [
+      "on",
+      "on",
+      "on",
+      "on",
+      "on",
+      "on"
+     ]
+    }
+   ],
+   "search_and_sort": {
+    "text": "Sort by: Popular",
+    "html_controls": [
+     {
+      "tag": "button",
+      "ph": null,
+      "aria": null,
+      "text": "Filter"
+     },
+     {
+      "tag": "button",
+      "ph": null,
+      "aria": null,
+      "text": "Sort By"
+     },
+     {
+      "tag": "input",
+      "ph": "Search",
+      "aria": null,
+      "text": ""
+     },
+     {
+      "tag": "input",
+      "ph": "Search",
+      "aria": null,
+      "text": ""
+     },
+     {
+      "tag": "button",
+      "ph": null,
+      "aria": null,
+      "text": "Popular"
+     },
+     {
+      "tag": "button",
+      "ph": null,
+      "aria": null,
+      "text": "New"
+     },
+     {
+      "tag": "button",
+      "ph": null,
+      "aria": null,
+      "text": "Price (Low to High)"
+     },
+     {
+      "tag": "button",
+      "ph": null,
+      "aria": null,
+      "text": "Price (High to Low)"
+     }
+    ]
+   }
+  },
+  {
+   "screen": "tablets_listing_filters_open",
+   "url": "/eshop/devices/listing/tablets?category=mobileDevices&subCategory=cat1100019&catName=Tablets&listVal=MegaMenu&locale=EN",
+   "title": "Get your favorite Smartphones with smart payment plans by etisalat.",
+   "objects": [
+    {
+     "role": "link",
+     "name": "Find Us",
+     "tag": "a",
+     "xpath": "//a[@aria-label='Find Us']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Accessibility",
+     "tag": "a",
+     "xpath": "//a[@aria-label='Accessibility']",
+     "site_wide": true
+    },
+    {
+     "role": "link",
+     "name": "Quick Pay/Recharge",
+     "tag": "a",
+     "xpath": "//a[@aria-label='Quick Pay/Recharge']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "العربية",
+     "tag": "a",
+     "xpath": "//a[@aria-label='العربية']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Mobile Plans",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='Mobile Plans']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Home Plans",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='Home Plans']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Devices",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='Devices']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Digital Products",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='Digital Products']",
+     "site_wide": true
+    },
+    {
+     "role": "textbox",
+     "name": "Search?",
+     "tag": "input",
+     "xpath": "//input[@placeholder='Search?']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "My Account",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='My Account']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "0",
+     "tag": "a",
+     "xpath": "//li[contains(concat(' ',normalize-space(@class),' '),' nav-item ')]//a[normalize-space(.)='0']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Devices",
+     "tag": "a",
+     "xpath": "//ol[contains(concat(' ',normalize-space(@class),' '),' list-unstyled ')]//a[normalize-space(.)='Devices']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Compare",
+     "tag": "button",
+     "xpath": "//button[normalize-space(.)='Compare']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Price",
+     "tag": "mat-expansion-panel-header",
+     "xpath": "//mat-expansion-panel-header[@id='mat-expansion-panel-header-10']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "is Auto Renewal",
+     "tag": "mat-expansion-panel-header",
+     "xpath": "//mat-expansion-panel-header[@id='mat-expansion-panel-header-11']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "AI Enabled",
+     "tag": "mat-expansion-panel-header",
+     "xpath": "//mat-expansion-panel-header[@id='mat-expansion-panel-header-12']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Processor",
+     "tag": "mat-expansion-panel-header",
+     "xpath": "//mat-expansion-panel-header[@id='mat-expansion-panel-header-13']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Resolution",
+     "tag": "mat-expansion-panel-header",
+     "xpath": "//mat-expansion-panel-header[@id='mat-expansion-panel-header-14']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Warranty",
+     "tag": "mat-expansion-panel-header",
+     "xpath": "//mat-expansion-panel-header[@id='mat-expansion-panel-header-15']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "compatibility",
+     "tag": "mat-expansion-panel-header",
+     "xpath": "//mat-expansion-panel-header[@id='mat-expansion-panel-header-16']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Display",
+     "tag": "mat-expansion-panel-header",
+     "xpath": "//mat-expansion-panel-header[@id='mat-expansion-panel-header-17']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Device Storage",
+     "tag": "mat-expansion-panel-header",
+     "xpath": "//mat-expansion-panel-header[@id='mat-expansion-panel-header-18']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "color",
+     "tag": "mat-expansion-panel-header",
+     "xpath": "//mat-expansion-panel-header[@id='mat-expansion-panel-header-19']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "brand",
+     "tag": "mat-expansion-panel-header",
+     "xpath": "//mat-expansion-panel-header[@id='mat-expansion-panel-header-20']",
+     "site_wide": true
+    },
+    {
+     "role": "textbox",
+     "name": "Search a brand",
+     "tag": "input",
+     "xpath": "//input[@placeholder='Search a brand']",
+     "site_wide": false
+    },
+    {
+     "role": "checkbox",
+     "name": "checkbox",
+     "tag": "input",
+     "xpath": "//input[@id='mat-mdc-checkbox-30-input']",
+     "site_wide": false
+    },
+    {
+     "role": "checkbox",
+     "name": "checkbox",
+     "tag": "input",
+     "xpath": "//input[@id='mat-mdc-checkbox-31-input']",
+     "site_wide": false
+    },
+    {
+     "role": "checkbox",
+     "name": "checkbox",
+     "tag": "input",
+     "xpath": "//input[@id='mat-mdc-checkbox-32-input']",
+     "site_wide": false
+    },
+    {
+     "role": "checkbox",
+     "name": "checkbox",
+     "tag": "input",
+     "xpath": "//input[@id='mat-mdc-checkbox-33-input']",
+     "site_wide": false
+    },
+    {
+     "role": "checkbox",
+     "name": "checkbox",
+     "tag": "input",
+     "xpath": "//input[@id='mat-mdc-checkbox-34-input']",
+     "site_wide": false
+    },
+    {
+     "role": "checkbox",
+     "name": "checkbox",
+     "tag": "input",
+     "xpath": "//input[@id='mat-mdc-checkbox-35-input']",
+     "site_wide": false
+    },
+    {
+     "role": "textbox",
+     "name": "Search",
+     "tag": "input",
+     "xpath": "//input[@id='mat-input-1']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Load more",
+     "tag": "button",
+     "xpath": "//button[normalize-space(.)='Load more']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "AI Advisor",
+     "tag": "button",
+     "xpath": "//button[normalize-space(.)='AI Advisor']",
+     "site_wide": false
+    }
+   ],
+   "filter_options": [
+    {
+     "header": "Price",
+     "options": []
+    },
+    {
+     "header": "is Auto Renewal",
+     "options": []
+    },
+    {
+     "header": "AI Enabled",
+     "options": [
+      "checkbox"
+     ]
+    },
+    {
+     "header": "Processor",
+     "options": [
+      "checkbox",
+      "checkbox",
+      "checkbox",
+      "checkbox",
+      "checkbox",
+      "checkbox"
+     ]
+    },
+    {
+     "header": "Resolution",
+     "options": [
+      "checkbox",
+      "checkbox"
+     ]
+    },
+    {
+     "header": "Warranty",
+     "options": [
+      "checkbox"
+     ]
+    },
+    {
+     "header": "compatibility",
+     "options": [
+      "checkbox"
+     ]
+    },
+    {
+     "header": "Display",
+     "options": [
+      "checkbox",
+      "checkbox",
+      "checkbox",
+      "checkbox",
+      "checkbox",
+      "checkbox"
+     ]
+    },
+    {
+     "header": "Device Storage",
+     "options": [
+      "checkbox",
+      "checkbox",
+      "checkbox",
+      "checkbox",
+      "checkbox",
+      "checkbox"
+     ]
+    },
+    {
+     "header": "color",
+     "options": [
+      "checkbox",
+      "checkbox",
+      "checkbox",
+      "checkbox",
+      "checkbox",
+      "checkbox"
+     ]
+    },
+    {
+     "header": "brand",
+     "options": [
+      "checkbox",
+      "checkbox",
+      "checkbox",
+      "checkbox",
+      "checkbox",
+      "checkbox"
+     ]
+    }
+   ]
+  },
+  {
+   "screen": "pdp_ipad_pro_m4_13",
+   "url": "/eshop/devices/configuration/key-prod2450056?productId=prod2450056&skuId=bgSku3820208632&catName=Tablets&listVal=MegaMenu&showDefault=true",
+   "title": "iPad Pro M4, 13-inch Get it now through SmartPay offers from etisalat",
+   "objects": [
+    {
+     "role": "link",
+     "name": "Cart",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Cart']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "SIGN IN",
+     "tag": "button",
+     "xpath": "//button[normalize-space(.)='SIGN IN']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "العربية",
+     "tag": "button",
+     "xpath": "//button[normalize-space(.)='العربية']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Back",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Back']",
+     "site_wide": true
+    },
+    {
+     "role": "h4",
+     "name": "iPad Pro M4, 13-inch",
+     "tag": "h4",
+     "xpath": "//h4[normalize-space(.)='iPad Pro M4, 13-inch']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Devices",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Devices']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Tablets",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Tablets']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Overview",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Overview']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Specs",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Specs']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Chat Now",
+     "tag": "button",
+     "xpath": "//button[@aria-label='Chat Now with AI Assistant']",
+     "site_wide": true
+    },
+    {
+     "role": "h2",
+     "name": "Apple iPad Pro M4, 13-inch",
+     "tag": "h2",
+     "xpath": "//h2[normalize-space(.)='Apple iPad Pro M4, 13-inch']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "1TB",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='1TB']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "512GB",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='512GB']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "2TB",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='2TB']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "256GB",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='256GB']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Wi-Fi",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Wi-Fi']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Wi-Fi + Cellular",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Wi-Fi + Cellular']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Nano-Texture Glass",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Nano-Texture Glass']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Standard glass",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Standard glass']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "One time AED 5,499.00 5,149.00",
+     "tag": "button",
+     "xpath": "//button[normalize-space(.)='One time AED 5,499.00 5,149.00']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "24 months AED 370.00 /month",
+     "tag": "button",
+     "xpath": "//button[normalize-space(.)='24 months AED 370.00 /month']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "18 months AED 490.00 /month",
+     "tag": "button",
+     "xpath": "//button[normalize-space(.)='18 months AED 490.00 /month']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "12 months AED 729.00 /month",
+     "tag": "button",
+     "xpath": "//button[normalize-space(.)='12 months AED 729.00 /month']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "ADD TO CART",
+     "tag": "button",
+     "xpath": "//button[normalize-space(.)='Add to cart']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Checkout Now",
+     "tag": "button",
+     "xpath": "//button[normalize-space(.)='Checkout Now']",
+     "site_wide": false
+    }
+   ],
+   "pdp": {
+    "text": "Cart | SIGN IN | العربية | Back | iPad Pro M4, 13-inch | Devices | Tablets | iPad Pro M4, 13-inch | OUT OF STOCK | Overview | Specs | Speak to our AI-powered Assistant | Chat Now | Apple iPad Pro M4, 13-inch | From | AED 370.00 /month | Space Black | Storage: | 1TB | 512GB | 2TB | 256GB | Connectivity: | Wi-Fi | Wi-Fi + Cellular | Display glass: | Nano-Texture Glass | Standard glass | OUT OF STOCK | How would you like to pay? | (5% VAT included) | One time | AED 5,499.00 5,149.00 | 24 months | AED 370.00 /month | 18 months | AED 490.00 /month | 12 months | AED 729.00 /month | Specifications | Display | Ultra Retina Tandem OLED, 120Hz, HDR10, Dolby Vision, 1000 nits (HBM), 1600 nits (peak) | Display size | 13.0 inches, 527.3 cm2 (~86.9% screen-to-body ratio) | Resolution | 2752-by-2064-pixel resolution at 264 ppi | Protection | Scratch-resistant glass, oleophobic coating,Nano-texture display glass option on 1TB and 2TB models | OS | iPadOS 17.4 | Processor/Chip | Apple M4 | CPU | 9-core (3 performance cores, 6 efficiency cores) - 256/512GB models /10-core (4 performance cores, 6 efficiency cores) - 1/2TB models | GPU | Apple GPU (10-core graphics) | Camera | 12 MP, f/1.8, (wide), dual pixel PDAF | WLAN | Wi-Fi 802.11 a/b/g/n/ac/6e, dual-band, hotspot | Bluetooth | 5.3, A2DP, LE, EDR | Positioning | GPS, GLONASS, GALILEO, QZSS (Wi‑Fi + Cellular model only) | USB | USB Type-C 4 (Thunderbolt 3), DisplayPort, magnetic connector | Battery | Li-Po (38.99 Wh), non-removable | Warrant",
+    "groups": 1,
+    "pills": [
+     {
+      "text": "1TB",
+      "cls": "device-configurations__pill fs-14 fw-semibold mt-2 device-configurations__pill--active device-configurations__pill--disabled device-configurations__pill--out-of-stock ng-star-inserted"
+     },
+     {
+      "text": "512GB",
+      "cls": "device-configurations__pill fs-14 fw-semibold mt-2 device-configurations__pill--out-of-stock ng-star-inserted"
+     },
+     {
+      "text": "2TB",
+      "cls": "device-configurations__pill fs-14 fw-semibold mt-2 device-configurations__pill--out-of-stock ng-star-inserted"
+     },
+     {
+      "text": "256GB",
+      "cls": "device-configurations__pill fs-14 fw-semibold mt-2 device-configurations__pill--out-of-stock ng-star-inserted"
+     },
+     {
+      "text": "Wi-Fi",
+      "cls": "device-configurations__pill fs-14 fw-semibold mt-2 device-configurations__pill--active device-configurations__pill--disabled device-configurations__pill--out-of-stock ng-star-inserted"
+     },
+     {
+      "text": "Wi-Fi + Cellular",
+      "cls": "device-configurations__pill fs-14 fw-semibold mt-2 device-configurations__pill--out-of-stock ng-star-inserted"
+     },
+     {
+      "text": "Nano-Texture Glass",
+      "cls": "device-configurations__pill fs-14 fw-semibold mt-2 device-configurations__pill--active device-configurations__pill--disabled device-configurations__pill--out-of-stock ng-star-inserted"
+     },
+     {
+      "text": "Standard glass",
+      "cls": "device-configurations__pill fs-14 fw-semibold mt-2 device-configurations__pill--out-of-stock ng-star-inserted"
+     }
+    ],
+    "colors": [
+     {
+      "tag": "input",
+      "aria": null,
+      "tip": null,
+      "value": null
+     },
+     {
+      "tag": "label",
+      "aria": null,
+      "tip": null,
+      "value": null
+     },
+     {
+      "tag": "input",
+      "aria": null,
+      "tip": null,
+      "value": null
+     },
+     {
+      "tag": "label",
+      "aria": null,
+      "tip": null,
+      "value": null
+     }
+    ],
+    "plans": [
+     {
+      "text": "One time AED 5,499.00 5,149.00",
+      "cls": "segment-tab w-100 h-100 rounded-12 bg-eand-white fw-medium fs-lg-16 fs-14 active text-center disabled"
+     },
+     {
+      "text": "24 months AED 370.00 /month",
+      "cls": "segment-tab w-100 h-100 rounded-12 bg-eand-white fw-medium fs-lg-16 fs-14 text-center disabled"
+     },
+     {
+      "text": "18 months AED 490.00 /month",
+      "cls": "segment-tab w-100 h-100 rounded-12 bg-eand-white fw-medium fs-lg-16 fs-14 text-center disabled"
+     },
+     {
+      "text": "12 months AED 729.00 /month",
+      "cls": "segment-tab w-100 h-100 rounded-12 bg-eand-white fw-medium fs-lg-16 fs-14 text-center disabled"
+     }
+    ],
+    "out_of_stock": true,
+    "cta": [
+     {
+      "text": "ADD TO CART",
+      "disabled": true
+     },
+     {
+      "text": "Checkout Now",
+      "disabled": true
+     }
+    ]
+   }
+  },
+  {
+   "screen": "pdp_ipad_pro_m4_11",
+   "url": "/eshop/devices/configuration/key-prod2450055?productId=prod2450055&skuId=bgSku3820208453&catName=Tablets&listVal=MegaMenu&showDefault=true",
+   "title": "iPad Pro M4, 11-inch Get it now through SmartPay offers from etisalat",
+   "objects": [
+    {
+     "role": "link",
+     "name": "Cart",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Cart']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "SIGN IN",
+     "tag": "button",
+     "xpath": "//button[normalize-space(.)='SIGN IN']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "العربية",
+     "tag": "button",
+     "xpath": "//button[normalize-space(.)='العربية']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Back",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Back']",
+     "site_wide": true
+    },
+    {
+     "role": "h4",
+     "name": "iPad Pro M4, 11-inch",
+     "tag": "h4",
+     "xpath": "//h4[normalize-space(.)='iPad Pro M4, 11-inch']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Devices",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Devices']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Tablets",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Tablets']",
+     "site_wide": true
+    },
+    {
+     "role": "button",
+     "name": "Overview",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Overview']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Specs",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Specs']",
+     "site_wide": false
+    },
+    {
+     "role": "h2",
+     "name": "Apple iPad Pro M4, 11-inch",
+     "tag": "h2",
+     "xpath": "//h2[normalize-space(.)='Apple iPad Pro M4, 11-inch']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "1TB",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='1TB']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "256GB",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='256GB']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "2TB",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='2TB']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "512GB",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='512GB']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Wi-Fi",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Wi-Fi']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Wi-Fi + Cellular",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Wi-Fi + Cellular']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Nano-Texture Glass",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Nano-Texture Glass']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Standard glass",
+     "tag": "a",
+     "xpath": "//a[normalize-space(.)='Standard glass']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "One time AED 4,199.00 3,949.00",
+     "tag": "button",
+     "xpath": "//button[normalize-space(.)='One time AED 4,199.00 3,949.00']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "24 months AED 348.00 /month",
+     "tag": "button",
+     "xpath": "//button[normalize-space(.)='24 months AED 348.00 /month']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "18 months AED 461.00 /month",
+     "tag": "button",
+     "xpath": "//button[normalize-space(.)='18 months AED 461.00 /month']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "12 months AED 685.00 /month",
+     "tag": "button",
+     "xpath": "//button[normalize-space(.)='12 months AED 685.00 /month']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "ADD TO CART",
+     "tag": "button",
+     "xpath": "//button[normalize-space(.)='Add to cart']",
+     "site_wide": false
+    },
+    {
+     "role": "button",
+     "name": "Checkout Now",
+     "tag": "button",
+     "xpath": "//button[normalize-space(.)='Checkout Now']",
+     "site_wide": false
+    }
+   ],
+   "pdp": {
+    "text": "Cart | SIGN IN | العربية | Back | iPad Pro M4, 11-inch | Devices | Tablets | iPad Pro M4, 11-inch | OUT OF STOCK | Overview | Specs | Apple iPad Pro M4, 11-inch | From | AED 348.00 /month | Silver | Storage: | 1TB | 256GB | 2TB | 512GB | Connectivity: | Wi-Fi | Wi-Fi + Cellular | Display glass: | Nano-Texture Glass | Standard glass | OUT OF STOCK | How would you like to pay? | (5% VAT included) | One time | AED 4,199.00 3,949.00 | 24 months | AED 348.00 /month | 18 months | AED 461.00 /month | 12 months | AED 685.00 /month | Specifications | Display | Ultra Retina Tandem OLED, 120Hz, HDR10, Dolby Vision, 1000 nits (HBM), 1600 nits (peak) | Display size | 11.0 inches, 373.1 cm2 (~84.2% screen-to-body ratio) | Resolution | 2420-by-1668-pixel resolution at 264 ppi | Protection | Scratch-resistant glass, oleophobic coating,Nano-texture display glass option on 1TB and 2TB models | OS | iPadOS 17.4 | Processor/Chip | Apple M4 | CPU | 9-core (3 performance cores, 6 efficiency cores) - 256/512GB models /10-core (4 performance cores, 6 efficiency cores) - 1/2TB models | GPU | Apple GPU (10-core graphics) | Camera | 12 MP, f/1.8, (wide), dual pixel PDAF | WLAN | Wi-Fi 802.11 a/b/g/n/ac/6e, dual-band, hotspot | Bluetooth | 5.3, A2DP, LE, EDR | Positioning | GPS, GLONASS, GALILEO, QZSS (Wi‑Fi + Cellular model only) | USB | USB Type-C 4 (Thunderbolt 3), DisplayPort, magnetic connector | Battery | Li-Po (31.29 Wh), non-removable | Warranty | 1 year | Colour | Silver | Storage | 1TB | Conne",
+    "groups": 1,
+    "pills": [
+     {
+      "text": "1TB",
+      "cls": "device-configurations__pill fs-14 fw-semibold mt-2 device-configurations__pill--active device-configurations__pill--disabled device-configurations__pill--out-of-stock ng-star-inserted"
+     },
+     {
+      "text": "256GB",
+      "cls": "device-configurations__pill fs-14 fw-semibold mt-2 device-configurations__pill--out-of-stock ng-star-inserted"
+     },
+     {
+      "text": "2TB",
+      "cls": "device-configurations__pill fs-14 fw-semibold mt-2 device-configurations__pill--out-of-stock ng-star-inserted"
+     },
+     {
+      "text": "512GB",
+      "cls": "device-configurations__pill fs-14 fw-semibold mt-2 device-configurations__pill--out-of-stock ng-star-inserted"
+     },
+     {
+      "text": "Wi-Fi",
+      "cls": "device-configurations__pill fs-14 fw-semibold mt-2 device-configurations__pill--out-of-stock ng-star-inserted"
+     },
+     {
+      "text": "Wi-Fi + Cellular",
+      "cls": "device-configurations__pill fs-14 fw-semibold mt-2 device-configurations__pill--active device-configurations__pill--disabled device-configurations__pill--out-of-stock ng-star-inserted"
+     },
+     {
+      "text": "Nano-Texture Glass",
+      "cls": "device-configurations__pill fs-14 fw-semibold mt-2 device-configurations__pill--active device-configurations__pill--disabled device-configurations__pill--out-of-stock ng-star-inserted"
+     },
+     {
+      "text": "Standard glass",
+      "cls": "device-configurations__pill fs-14 fw-semibold mt-2 device-configurations__pill--out-of-stock ng-star-inserted"
+     }
+    ],
+    "colors": [
+     {
+      "tag": "input",
+      "aria": null,
+      "tip": null,
+      "value": null
+     },
+     {
+      "tag": "label",
+      "aria": null,
+      "tip": null,
+      "value": null
+     },
+     {
+      "tag": "input",
+      "aria": null,
+      "tip": null,
+      "value": null
+     },
+     {
+      "tag": "label",
+      "aria": null,
+      "tip": null,
+      "value": null
+     }
+    ],
+    "plans": [
+     {
+      "text": "One time AED 4,199.00 3,949.00",
+      "cls": "segment-tab w-100 h-100 rounded-12 bg-eand-white fw-medium fs-lg-16 fs-14 active text-center disabled"
+     },
+     {
+      "text": "24 months AED 348.00 /month",
+      "cls": "segment-tab w-100 h-100 rounded-12 bg-eand-white fw-medium fs-lg-16 fs-14 text-center disabled"
+     },
+     {
+      "text": "18 months AED 461.00 /month",
+      "cls": "segment-tab w-100 h-100 rounded-12 bg-eand-white fw-medium fs-lg-16 fs-14 text-center disabled"
+     },
+     {
+      "text": "12 months AED 685.00 /month",
+      "cls": "segment-tab w-100 h-100 rounded-12 bg-eand-white fw-medium fs-lg-16 fs-14 text-center disabled"
+     }
+    ],
+    "out_of_stock": true,
+    "cta": [
+     {
+      "text": "ADD TO CART",
+      "disabled": true
+     },
+     {
+      "text": "Checkout Now",
+      "disabled": true
+     }
+    ]
+   }
+  }
+ ],
+ "verified_interactions": [
+  {
+   "id": "L1_landing_loads",
+   "ok": true,
+   "error": null,
+   "steps": [
+    {
+     "what": "title",
+     "ok": true,
+     "evidence": "etisalat UAE | Buy Apple AirPods starting AED 35 per month"
+    },
+    {
+     "what": "heading Accessories For",
+     "ok": true,
+     "evidence": "//h2[normalize-space(.)='Accessories For']"
+    },
+    {
+     "what": "heading Smartphone Accessories",
+     "ok": true,
+     "evidence": "//h2[normalize-space(.)='Smartphone Accessories']"
+    },
+    {
+     "what": "heading Music Accessories",
+     "ok": true,
+     "evidence": "//h2[normalize-space(.)='Music Accessories']"
+    },
+    {
+     "what": "heading Tablets Accessories",
+     "ok": true,
+     "evidence": "//h2[normalize-space(.)='Tablets Accessories']"
+    },
+    {
+     "what": "heading Laptops Accessories",
+     "ok": true,
+     "evidence": "//h2[normalize-space(.)='Laptops Accessories']"
+    },
+    {
+     "what": "category Smartphones",
+     "ok": true,
+     "evidence": "//h4[normalize-space(.)='Smartphones']"
+    },
+    {
+     "what": "category Music",
+     "ok": true,
+     "evidence": "//h4[normalize-space(.)='Music']"
+    },
+    {
+     "what": "category Powerbanks",
+     "ok": true,
+     "evidence": "//h4[normalize-space(.)='Powerbanks']"
+    },
+    {
+     "what": "category Tablets",
+     "ok": true,
+     "evidence": "//h4[normalize-space(.)='Tablets']"
+    },
+    {
+     "what": "category Laptops",
+     "ok": true,
+     "evidence": "//h4[normalize-space(.)='Laptops']"
+    }
+   ]
+  },
+  {
+   "id": "L2_cookie_banner_buttons",
+   "ok": true,
+   "error": null,
+   "steps": [
+    {
+     "what": "banner present with Accept All + Manage",
+     "ok": true,
+     "evidence": [
+      {
+       "t": "",
+       "id": "uc-privacy-button",
+       "vis": true
+      },
+      {
+       "t": "",
+       "id": "uc-language-button",
+       "vis": true
+      },
+      {
+       "t": "Manage my preferences",
+       "id": "uc-more-button",
+       "vis": true
+      },
+      {
+       "t": "Accept All",
+       "id": "uc-accept-all-button",
+       "vis": true
+      }
+     ]
+    },
+    {
+     "what": "accept-all reachable via css pierce",
+     "ok": true,
+     "evidence": "[data-testid='uc-accept-all-button']"
+    },
+    {
+     "what": "banner closes after Accept All",
+     "ok": true,
+     "evidence": null
+    }
+   ]
+  },
+  {
+   "id": "L3_hero_carousel_next",
+   "ok": true,
+   "error": null,
+   "steps": [
+    {
+     "what": "click Next slide",
+     "ok": true,
+     "evidence": {
+      "xpath": "//section[contains(concat(' ',normalize-space(@class),' '),' eand-hero-banner-updated ')]//div[@aria-label='Next slide']",
+      "visible_matches": 1,
+      "url": "https://devnew.eand.ae/en/c/devices/accessories.html"
+     }
+    },
+    {
+     "what": "active slide changed",
+     "ok": true,
+     "evidence": {
+      "before": "A sound improvement.",
+      "after": "Bundle Galaxy Z Series with Galaxy Watch Ultra2 or Watch9"
+     }
+    },
+    {
+     "what": "dot 1",
+     "ok": true,
+     "evidence": null
+    },
+    {
+     "what": "dot 2",
+     "ok": true,
+     "evidence": null
+    },
+    {
+     "what": "dot 3",
+     "ok": true,
+     "evidence": null
+    }
+   ]
+  },
+  {
+   "id": "L4_view_all_hrefs",
+   "ok": true,
+   "error": null,
+   "steps": [
+    {
+     "what": "links",
+     "ok": true,
+     "evidence": [
+      {
+       "lab": "Smartphones",
+       "href": "https://devnew.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100048&catName=ForSmartphone&listVal=Accessories&locale=EN"
+      },
+      {
+       "lab": "Music",
+       "href": "https://devnew.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100051&catName=Music&listVal=Accessories&locale=EN"
+      },
+      {
+       "lab": "Powerbanks",
+       "href": "https://devnew.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100052&catName=PowerBank&listVal=Accessories&locale=EN"
+      },
+      {
+       "lab": "Tablets",
+       "href": "https://devnew.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100049&catName=ForTablets&listVal=Accessories&locale=EN"
+      },
+      {
+       "lab": "Laptops",
+       "href": "https://devnew.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100050&catName=ForLaptop&listVal=Accessories&locale=EN"
+      },
+      {
+       "lab": "Smartphones",
+       "href": "https://devnew.eand.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100075&catName=ForSmartphone&listVal=Accessories&locale=EN"
+      },
+      {
+       "lab": "Covers",
+       "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100054&catName=CoversMobile&listVal=Accessories&locale=EN"
+      },
+      {
+       "lab": "Screen Protection",
+       "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100055&catName=Screenprotection&listVal=Accessories&locale=EN"
+      },
+      {
+       "lab": "Cables & Adapters",
+       "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100058&catName=SmartphoneCablesAdapters&listVal=Accessories&locale=EN"
+      },
+      {
+       "lab": "Wireless Chargers",
+       "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100053&catName=WirelessChargers&listVal=Accessories&locale=EN"
+      },
+      {
+       "lab": "Holder",
+       "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100056&catName=Holder&listVal=Smartphones&locale=EN"
+      },
+      {
+       "lab": "Stabilizer Sticks",
+       "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100057&catName=StabilizerSticks&listVal=Smartphones&locale=EN"
+      },
+      {
+       "lab": "Earbuds",
+       "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100067&catName=Earbuds&listVal=Smartphones&locale=EN"
+      },
+      {
+       "lab": "Headphones",
+       "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100068&catName=Headphones&listVal=Smartphones&locale=EN"
+      },
+      {
+       "lab": "Speakers",
+       "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=catmenu-speakers&catName=Speakers&listVal=MegaMenu&locale=EN"
+      },
+      {
+       "lab": "Covers",
+       "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100061&catName=CoversTablets&listVal=Smartphones&locale=EN"
+      },
+      {
+       "lab": "Screen protection",
+       "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100062&catName=Screenprotection&listVal=Smartphones&locale=EN"
+      },
+      {
+       "lab": "Cables & Adapters",
+       "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100060&catName=CablesAdapters&listVal=Smartphones&locale=EN"
+      },
+      {
+       "lab": "Chargers",
+       "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100063&catName=Chargers&listVal=Smartphones&locale=EN"
+      },
+      {
+       "lab": "Adapters",
+       "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100064&catName=Adapters&listVal=Smartphones&locale=EN"
+      },
+      {
+       "lab": "Cases & Covers",
+       "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100065&catName=CoversMobile&listVal=Smartphones&locale=EN"
+      },
+      {
+       "lab": "Storage",
+       "href": "https://www.etisalat.ae/eshop/devices/listing?category=mobileDevices&subCategory=cat1100066&catName=Storage&listVal=Smartphones&locale=EN"
+      }
+     ]
+    },
+    {
+     "what": "Tablets View All xpath",
+     "ok": true,
+     "evidence": {
+      "xp": "//h4[normalize-space(.)='Tablets']/following::a[normalize-space(.)='View All'][1]",
+      "href": "/eshop/devices/listing?category=mobileDevices&subCategory=cat1100049&catName=ForTablets&listVal=Accessories&locale=EN"
+     }
+    }
+   ]
+  },
+  {
+   "id": "L5_megamenu_devices_tablets",
+   "ok": true,
+   "error": null,
+   "steps": [
+    {
+     "what": "Devices nav count",
+     "ok": true,
+     "evidence": {
+      "all": 0,
+      "visible": 0
+     }
+    },
+    {
+     "what": "Devices alt count",
+     "ok": true,
+     "evidence": {
+      "all": 1,
+      "visible": 1
+     }
+    },
+    {
+     "what": "click Devices",
+     "ok": true,
+     "evidence": {
+      "xpath": "//a[contains(@class,'py-16')][normalize-space(.)='Devices']",
+      "visible_matches": 1,
+      "url": "https://devnew.eand.ae/en/c/devices/accessories.html#"
+     }
+    },
+    {
+     "what": "Tablets menu item visible",
+     "ok": true,
+     "evidence": {
+      "xp": "//a[contains(@class,'w-100 align-items-center')][normalize-space(.)='Tablets']",
+      "visible": 1
+     }
+    },
+    {
+     "what": "click Tablets",
+     "ok": true,
+     "evidence": {
+      "xpath": "//a[contains(@class,'w-100 align-items-center')][normalize-space(.)='Tablets']",
+      "visible_matches": 1,
+      "url": "https://devnew.eand.ae/eshop/devices/listing/tablets?category=mobileDevices&subCategory=cat1100019&catName=Tablets&listVal=MegaMenu&locale=EN"
+     }
+    },
+    {
+     "what": "listing has cards",
+     "ok": true,
+     "evidence": {
+      "url": "https://devnew.eand.ae/eshop/devices/listing/tablets?category=mobileDevices&subCategory=cat1100019&catName=Tablets&listVal=MegaMenu&locale=EN",
+      "cards": 12
+     }
+    }
+   ]
+  },
+  {
+   "id": "L6_header_search_iphone",
+   "ok": false,
+   "error": null,
+   "steps": [
+    {
+     "what": "search candidates",
+     "ok": false,
+     "evidence": []
+    }
+   ]
+  },
+  {
+   "id": "L7_language_toggle",
+   "ok": true,
+   "error": null,
+   "steps": [
+    {
+     "what": "toggle count",
+     "ok": true,
+     "evidence": {
+      "all": 2,
+      "visible": 2
+     }
+    },
+    {
+     "what": "click العربية",
+     "ok": true,
+     "evidence": {
+      "xpath": "//a[contains(@class,'toggle-lang')]",
+      "visible_matches": 2,
+      "url": "https://devnew.eand.ae/ar/c/devices/accessories.html"
+     }
+    },
+    {
+     "what": "arabic url",
+     "ok": true,
+     "evidence": "https://devnew.eand.ae/ar/c/devices/accessories.html"
+    },
+    {
+     "what": "html dir/lang",
+     "ok": true,
+     "evidence": {
+      "dir": "",
+      "lang": "ar"
+     }
+    }
+   ]
+  },
+  {
+   "id": "T1_listing_cards",
+   "ok": true,
+   "error": null,
+   "steps": [
+    {
+     "what": "cards",
+     "ok": true,
+     "evidence": {
+      "n": 12,
+      "names": [
+       "Apple iPad Pro M4, 13-inch 6 % off From AED 370.00 /month Full Price AED 5,149.00 5,499.00 Or 605,765 Smiles Points 5% V",
+       "Apple iPad Pro M4, 13-inch Or null Smiles Points 5% VAT included",
+       "Apple iPad Pro M4, 13-inch Or null Smiles Points 5% VAT included",
+       "Apple iPad Pro M4, 13-inch Or null Smiles Points 5% VAT included",
+       "Apple iPad Pro M4, 13-inch Or null Smiles Points 5% VAT included",
+       "Apple iPad Pro M4, 13-inch Or null Smiles Points 5% VAT included",
+       "Apple iPad Pro M4, 13-inch Or null Smiles Points 5% VAT included",
+       "Apple iPad Pro M4, 11-inch Or null Smiles Points 5% VAT included",
+       "AI Productivity Apple iPad Pro M4, 11-inch 5 % off From AED 348.00 /month Full Price AED 3,949.00 4,199.00 Or 464,588 Sm",
+       "Apple iPad Pro M4, 13-inch Or null Smiles Points 5% VAT included",
+       "Apple iPad Pro M4, 13-inch Or null Smiles Points 5% VAT included",
+       "Apple iPad Pro M4, 11-inch Or null Smiles Points 5% VAT included"
+      ]
+     }
+    },
+    {
+     "what": "11-inch title count",
+     "ok": true,
+     "evidence": {
+      "xp": "//app-d-device-card//span[normalize-space(.)='iPad Pro M4, 11-inch']",
+      "n": 3
+     }
+    },
+    {
+     "what": "13-inch title count",
+     "ok": true,
+     "evidence": {
+      "xp": "//app-d-device-card//span[normalize-space(.)='iPad Pro M4, 13-inch']",
+      "n": 9
+     }
+    },
+    {
+     "what": "Load more",
+     "ok": true,
+     "evidence": {
+      "n": 1
+     }
+    },
+    {
+     "what": "title",
+     "ok": true,
+     "evidence": "Get your favorite Smartphones with smart payment plans by etisalat."
+    },
+    {
+     "what": "breadcrumb/heading",
+     "ok": true,
+     "evidence": [
+      "Devices Tablets"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "T2_sort_price_low_high",
+   "ok": true,
+   "error": null,
+   "steps": [
+    {
+     "what": "sort trigger",
+     "ok": true,
+     "evidence": {
+      "all": 1,
+      "visible": 1
+     }
+    },
+    {
+     "what": "option",
+     "ok": true,
+     "evidence": {
+      "all": 1,
+      "visible": 1
+     }
+    },
+    {
+     "what": "click Price (Low to High)",
+     "ok": true,
+     "evidence": {
+      "xpath": "//ul[contains(@class,'device-sort__menu')]//button[normalize-space(.)='Price (Low to High)']",
+      "visible_matches": 1,
+      "url": "https://devnew.eand.ae/eshop/devices/listing/tablets?category=mobileDevices&subCategory=cat1100019&catName=Tablets&listVal=MegaMenu&locale=EN"
+     }
+    },
+    {
+     "what": "sort label",
+     "ok": true,
+     "evidence": "Sort by:\nPrice (Low to High)"
+    },
+    {
+     "what": "prices",
+     "ok": true,
+     "evidence": {
+      "before": [
+       5149,
+       null,
+       null,
+       null,
+       null,
+       null,
+       null,
+       null,
+       3949,
+       null,
+       null,
+       null
+      ],
+      "after": [
+       null,
+       null,
+       null,
+       null,
+       null,
+       1264.2,
+       null,
+       null,
+       null,
+       null,
+       1299,
+       null
+      ],
+      "url": "https://devnew.eand.ae/eshop/devices/listing/tablets?category=mobileDevices&subCategory=cat1100019&catName=Tablets&listVal=MegaMenu&locale=EN"
+     }
+    }
+   ]
+  },
+  {
+   "id": "T3_listing_search",
+   "ok": true,
+   "error": null,
+   "steps": [
+    {
+     "what": "search input",
+     "ok": true,
+     "evidence": {
+      "all": 1,
+      "visible": 1
+     }
+    },
+    {
+     "what": "results",
+     "ok": true,
+     "evidence": {
+      "n": 3,
+      "names": [
+       "AI Productivity Apple iPad Pro M4, 11-inch 5 % off From AED 348.00 /month Full Price AED 3,949.00 4,199.00 Or 464,588 Sm",
+       "Apple 11\" New iPad Pro, Wi-Fi From AED 139.65 /month Full Price AED 3,012.45 Or 354,406 Smiles Points 5% VAT included",
+       "Apple 11\" New iPad Pro,Wi-Fi+Cellulars From AED 164.85 /month Full Price AED 3,589.95 Or 422,347 Smiles Points 5% VAT in"
+      ],
+      "url": "https://devnew.eand.ae/eshop/devices/listing/tablets?category=mobileDevices&subCategory=cat1100019&catName=Tablets&listVal=MegaMenu&locale=EN"
+     }
+    }
+   ]
+  },
+  {
+   "id": "T4_filter_storage",
+   "ok": true,
+   "error": null,
+   "steps": [
+    {
+     "what": "panel",
+     "ok": true,
+     "evidence": "//app-device-filters//mat-expansion-panel-header[contains(normalize-space(.),'Device Storage')]"
+    },
+    {
+     "what": "click Device Storage",
+     "ok": true,
+     "evidence": {
+      "xpath": "//app-device-filters//mat-expansion-panel-header[contains(normalize-space(.),'Device Storage')]",
+      "visible_matches": 1,
+      "url": "https://devnew.eand.ae/eshop/devices/listing/tablets?category=mobileDevices&subCategory=cat1100019&catName=Tablets&listVal=MegaMenu&locale=EN"
+     }
+    },
+    {
+     "what": "options",
+     "ok": true,
+     "evidence": [
+      "All",
+      "32gb",
+      "64gb",
+      "128gb",
+      "256gb",
+      "512gb"
+     ]
+    },
+    {
+     "what": "option xpath",
+     "ok": true,
+     "evidence": "//app-device-filters//span[normalize-space(.)='256gb']/preceding-sibling::mat-checkbox//input"
+    },
+    {
+     "what": "after filter",
+     "ok": true,
+     "evidence": {
+      "before": 12,
+      "after": 12,
+      "names": [
+       "Apple iPad Pro M4, 13-inch 6 % off From AED 370.00 /month Full Price AED 5,149.00 5,499.00 Or 605,765 Smiles Points 5% V",
+       "AI Productivity Apple iPad Pro M4, 11-inch 5 % off From AED 348.00 /month Full Price AED 3,949.00 4,199.00 Or 464,588 Sm",
+       "Apple 12.9\" New iPad Pro,Wi-Fi+Cellular From AED 225.75 /month Full Price AED 4,891.95 Or 575,524 Smiles Points 5% VAT i",
+       "Apple 12.9\" New iPad Pro From AED 199.50 /month Full Price AED 4,335.45 Or 510,053 Smiles Points 5% VAT included",
+       "Apple 11\" New iPad Pro,Wi-Fi+Cellulars From AED 191.10 /month Full Price AED 4,130.70 Or 485,965 Smiles Points 5% VAT in",
+       "Apple iPad Pro M4, 13-inch Or null Smiles Points 5% VAT included",
+       "Apple iPad Pro M4, 13-inch Or null Smiles Points 5% VAT included",
+       "Apple 11\" New iPad Pro, Wi-Fi From AED 164.85 /month Full Price AED 3,584.70 Or 421,729 Smiles Points 5% VAT included",
+       "Apple iPad Pro M4, 13-inch Or null Smiles Points 5% VAT included",
+       "Apple iPad Pro M4, 13-inch Or null Smiles Points 5% VAT included",
+       "Apple 12.9\" iPad Pros From AED 4,198.95 Or 493,994 Smiles Points 5% VAT included",
+       "12.9-inch New iPad Pro, Wi-Fi + Cellular Or null Smiles Points 5% VAT included"
+      ],
+      "url": "https://devnew.eand.ae/eshop/devices/listing/tablets?category=mobileDevices&subCategory=cat1100019&catName=Tablets&listVal=MegaMenu&locale=EN&filtersParam=N%3Ddevice_storage:23"
+     }
+    }
+   ]
+  },
+  {
+   "id": "T5_load_more",
+   "ok": true,
+   "error": null,
+   "steps": [
+    {
+     "what": "click Load more",
+     "ok": true,
+     "evidence": {
+      "xpath": "//button[normalize-space(.)='Load more']",
+      "visible_matches": 1,
+      "url": "https://devnew.eand.ae/eshop/devices/listing/tablets?category=mobileDevices&subCategory=cat1100019&catName=Tablets&listVal=MegaMenu&locale=EN"
+     }
+    },
+    {
+     "what": "more cards",
+     "ok": true,
+     "evidence": {
+      "before": 12,
+      "after": 24
+     }
+    }
+   ]
+  },
+  {
+   "id": "T6_open_card_to_pdp",
+   "ok": true,
+   "error": null,
+   "steps": [
+    {
+     "what": "click iPad Pro M4, 11-inch card",
+     "ok": true,
+     "evidence": {
+      "xpath": "(//app-d-device-card//span[normalize-space(.)='iPad Pro M4, 11-inch'])[1]",
+      "visible_matches": 1,
+      "url": "https://devnew.eand.ae/eshop/devices/configuration/key-bgsku3820208551?productId=bgSku3820208551&skuId=bgSku3820208551&catName=Tablets&listVal=MegaMenu&showDefault=true"
+     }
+    },
+    {
+     "what": "on PDP",
+     "ok": true,
+     "evidence": "https://devnew.eand.ae/eshop/devices/configuration/key-bgsku3820208551?productId=bgSku3820208551&skuId=bgSku3820208551&catName=Tablets&listVal=MegaMenu&showDefault=true"
+    }
+   ]
+  },
+  {
+   "id": "P1_pdp_content",
+   "ok": true,
+   "error": null,
+   "steps": [
+    {
+     "what": "text iPad Pro M4, 11-inch",
+     "ok": true,
+     "evidence": null
+    },
+    {
+     "what": "text Storage:",
+     "ok": true,
+     "evidence": null
+    },
+    {
+     "what": "text Connectivity:",
+     "ok": true,
+     "evidence": null
+    },
+    {
+     "what": "text Display glass:",
+     "ok": true,
+     "evidence": null
+    },
+    {
+     "what": "text How would you like to pay?",
+     "ok": true,
+     "evidence": null
+    },
+    {
+     "what": "text Specifications",
+     "ok": true,
+     "evidence": null
+    },
+    {
+     "what": "text OUT OF STOCK",
+     "ok": true,
+     "evidence": null
+    },
+    {
+     "what": "headings",
+     "ok": true,
+     "evidence": [
+      "H2:Apple iPad Pro M4, 11-inch"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "P2_select_storage_512",
+   "ok": true,
+   "error": null,
+   "steps": [
+    {
+     "what": "pill count",
+     "ok": true,
+     "evidence": "//a[contains(@class,'device-configurations__pill')][normalize-space(.)='512GB']"
+    },
+    {
+     "what": "click 512GB",
+     "ok": true,
+     "evidence": {
+      "xpath": "//a[contains(@class,'device-configurations__pill')][normalize-space(.)='512GB']",
+      "visible_matches": 1,
+      "url": "https://devnew.eand.ae/eshop/devices/configuration/key-prod2450055?productId=prod2450055&skuId=bgSku3820208453&catName=Tablets&listVal=MegaMenu&showDefault=true"
+     }
+    },
+    {
+     "what": "state",
+     "ok": true,
+     "evidence": {
+      "before": "https://devnew.eand.ae/eshop/devices/configuration/key-prod2450055?productId=prod2450055&skuId=bgSku3820208453&catName=Tablets&listVal=MegaMenu&showDefault=true",
+      "after": "https://devnew.eand.ae/eshop/devices/configuration/key-prod2450055?productId=prod2450055&skuId=bgSku3820208453&catName=Tablets&listVal=MegaMenu&showDefault=true",
+      "cls": "device-configurations__pill fs-14 fw-semibold mt-2 device-configurations__pill--active device-configurations__pill--disabled device-configurations__pill--out-of-stock ng-star-inserted",
+      "summary": [
+       "Storage\n512GB"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "P3_select_connectivity_and_glass",
+   "ok": true,
+   "error": null,
+   "steps": [
+    {
+     "what": "pill Wi-Fi",
+     "ok": true,
+     "evidence": "//a[contains(@class,'device-configurations__pill')][normalize-space(.)='Wi-Fi']"
+    },
+    {
+     "what": "click Wi-Fi",
+     "ok": true,
+     "evidence": {
+      "xpath": "//a[contains(@class,'device-configurations__pill')][normalize-space(.)='Wi-Fi']",
+      "visible_matches": 1,
+      "url": "https://devnew.eand.ae/eshop/devices/configuration/key-prod2450055?productId=prod2450055&skuId=bgSku3820208453&catName=Tablets&listVal=MegaMenu&showDefault=true"
+     }
+    },
+    {
+     "what": "class after Wi-Fi",
+     "ok": true,
+     "evidence": "device-configurations__pill fs-14 fw-semibold mt-2 device-configurations__pill--active device-configurations__pill--disabled device-configurations__pill--out-of-stock ng-star-inserted"
+    },
+    {
+     "what": "pill Standard glass",
+     "ok": true,
+     "evidence": "//a[contains(@class,'device-configurations__pill')][normalize-space(.)='Standard glass']"
+    },
+    {
+     "what": "click Standard glass",
+     "ok": true,
+     "evidence": {
+      "xpath": "//a[contains(@class,'device-configurations__pill')][normalize-space(.)='Standard glass']",
+      "visible_matches": 1,
+      "url": "https://devnew.eand.ae/eshop/devices/configuration/key-prod2450055?productId=prod2450055&skuId=bgSku3820208453&catName=Tablets&listVal=MegaMenu&showDefault=true"
+     }
+    },
+    {
+     "what": "class after Standard glass",
+     "ok": true,
+     "evidence": "device-configurations__pill fs-14 fw-semibold mt-2 device-configurations__pill--active device-configurations__pill--disabled device-configurations__pill--out-of-stock ng-star-inserted"
+    },
+    {
+     "what": "url",
+     "ok": true,
+     "evidence": "https://devnew.eand.ae/eshop/devices/configuration/key-prod2450055?productId=prod2450055&skuId=bgSku3820208453&catName=Tablets&listVal=MegaMenu&showDefault=true"
+    }
+   ]
+  },
+  {
+   "id": "P4_color",
+   "ok": true,
+   "error": null,
+   "steps": [
+    {
+     "what": "swatches html",
+     "ok": true,
+     "evidence": [
+      "<app-dc-color-selection-radio  _nghost-ng-c1959211310=\"\" class=\"ng-star-inserted\"><div  class=\"d-flex color-selection-radio color-selection-radio--disabled color-selection-radio--out-of-stock\"><input  type=\"radio\" name=\"radio-group\" class=\"color-selection-radio__input\" id=\"color-Silver\"><label  mattooltipposition=\"below\" mattooltipclass=\"color-selection-radio__tooltip\" class=\"mat-mdc-tooltip-trigger color-selection-radio__label\" for=\"color-Silver\" aria-describedby=\"cdk-describedby-message-ng-1-2\" cdk-describedby-host=\"ng-1\" style=\"background: rgb(229, 230, 232);\"></label><!----></div><!----></app-dc-color-selection-radio>",
+      "<app-dc-color-selection-radio  _nghost-ng-c1959211310=\"\" class=\"ng-star-inserted\"><div  class=\"d-flex color-selection-radio\"><input  type=\"radio\" name=\"radio-group\" class=\"color-selection-radio__input\" id=\"color-Space Black\"><label  mattooltipposition=\"below\" mattooltipclass=\"color-selection-radio__tooltip\" class=\"mat-mdc-tooltip-trigger color-selection-radio__label\" for=\"color-Space Black\" aria-describedby=\"cdk-describedby-message-ng-1-3\" cdk-describedby-host=\"ng-1\" style=\"background: rgb(61, 59, 62);\"></label><!----></div><!----></app-dc-color-selection-radio>"
+     ]
+    },
+    {
+     "what": "click second colour",
+     "ok": true,
+     "evidence": {
+      "xpath": "(//app-dc-color-selection-radio//label)[2]",
+      "visible_matches": 1,
+      "url": "https://devnew.eand.ae/eshop/devices/configuration/key-prod2450055?productId=prod2450055&skuId=bgSku3820208453&catName=Tablets&listVal=MegaMenu&showDefault=true"
+     }
+    },
+    {
+     "what": "colour label",
+     "ok": true,
+     "evidence": {
+      "before": "Silver",
+      "after": "Space Black",
+      "url": "https://devnew.eand.ae/eshop/devices/configuration/key-prod2450055?productId=prod2450055&skuId=bgSku3820208453&catName=Tablets&listVal=MegaMenu&showDefault=true"
+     }
+    }
+   ]
+  },
+  {
+   "id": "P5_payment_plans",
+   "ok": true,
+   "error": null,
+   "steps": [
+    {
+     "what": "plan One time",
+     "ok": true,
+     "evidence": {
+      "xp": "//button[contains(@class,'segment-tab')][contains(normalize-space(.),'One time')]",
+      "text": "One time\nAED 4,199.00 3,949.00",
+      "disabled": true,
+      "cls": "segment-tab w-100 h-100 rounded-12 bg-eand-white fw-medium fs-lg-16 fs-14 active text-center disabled"
+     }
+    },
+    {
+     "what": "plan 24 months",
+     "ok": true,
+     "evidence": {
+      "xp": "//button[contains(@class,'segment-tab')][contains(normalize-space(.),'24 months')]",
+      "text": "24 months\nAED 348.00 /month",
+      "disabled": true,
+      "cls": "segment-tab w-100 h-100 rounded-12 bg-eand-white fw-medium fs-lg-16 fs-14 text-center disabled"
+     }
+    },
+    {
+     "what": "plan 18 months",
+     "ok": true,
+     "evidence": {
+      "xp": "//button[contains(@class,'segment-tab')][contains(normalize-space(.),'18 months')]",
+      "text": "18 months\nAED 461.00 /month",
+      "disabled": true,
+      "cls": "segment-tab w-100 h-100 rounded-12 bg-eand-white fw-medium fs-lg-16 fs-14 text-center disabled"
+     }
+    },
+    {
+     "what": "plan 12 months",
+     "ok": true,
+     "evidence": {
+      "xp": "//button[contains(@class,'segment-tab')][contains(normalize-space(.),'12 months')]",
+      "text": "12 months\nAED 685.00 /month",
+      "disabled": true,
+      "cls": "segment-tab w-100 h-100 rounded-12 bg-eand-white fw-medium fs-lg-16 fs-14 text-center disabled"
+     }
+    }
+   ]
+  },
+  {
+   "id": "P6_specs_tab",
+   "ok": true,
+   "error": null,
+   "steps": [
+    {
+     "what": "click Specs",
+     "ok": true,
+     "evidence": {
+      "xpath": "//a[contains(@class,'product-details__tab')][normalize-space(.)='Specs']",
+      "visible_matches": 1,
+      "url": "https://devnew.eand.ae/eshop/devices/configuration/key-prod2450055?productId=prod2450055&skuId=bgSku3820208453&catName=Tablets&listVal=MegaMenu&showDefault=true"
+     }
+    },
+    {
+     "what": "spec Display",
+     "ok": true,
+     "evidence": null
+    },
+    {
+     "what": "spec Processor/Chip",
+     "ok": true,
+     "evidence": null
+    },
+    {
+     "what": "spec Battery",
+     "ok": true,
+     "evidence": null
+    },
+    {
+     "what": "spec Warranty",
+     "ok": true,
+     "evidence": null
+    },
+    {
+     "what": "click Overview",
+     "ok": true,
+     "evidence": {
+      "xpath": "//a[contains(@class,'product-details__tab')][normalize-space(.)='Overview']",
+      "visible_matches": 1,
+      "url": "https://devnew.eand.ae/eshop/devices/configuration/key-prod2450055?productId=prod2450055&skuId=bgSku3820208453&catName=Tablets&listVal=MegaMenu&showDefault=true"
+     }
+    }
+   ]
+  },
+  {
+   "id": "P7_out_of_stock_ctas",
+   "ok": false,
+   "error": "TimeoutError: locator.isDisabled: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('//button[normalize-space(.)=\\'ADD TO CART\\']')\u001b[22m\n",
+   "steps": [
+    {
+     "what": "ADD TO CART unique",
+     "ok": false,
+     "evidence": "//button[normalize-space(.)='ADD TO CART']"
+    }
+   ]
+  },
+  {
+   "id": "P8_breadcrumb_and_back",
+   "ok": false,
+   "error": "TimeoutError: page.waitForSelector: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button.segment-tab') to be visible\u001b[22m\n",
+   "steps": [
+    {
+     "what": "breadcrumb",
+     "ok": true,
+     "evidence": "//app-breadcrumbs//a[normalize-space(.)='Tablets']"
+    },
+    {
+     "what": "click Tablets breadcrumb",
+     "ok": true,
+     "evidence": {
+      "xpath": "//app-breadcrumbs//a[normalize-space(.)='Tablets']",
+      "visible_matches": 1,
+      "url": "https://devnew.eand.ae/eshop/devices/listing/tablets?category=mobileDevices&subCategory=cat1100019&filtersParam=N%3Ddevice_storage:23"
+     }
+    },
+    {
+     "what": "listing after breadcrumb",
+     "ok": true,
+     "evidence": "https://devnew.eand.ae/eshop/devices/listing/tablets?category=mobileDevices&subCategory=cat1100019&filtersParam=N%3Ddevice_storage:23"
+    },
+    {
+     "what": "click card",
+     "ok": true,
+     "evidence": {
+      "xpath": "(//app-d-device-card//span[normalize-space(.)='iPad Pro M4, 11-inch'])[1]",
+      "visible_matches": 1,
+      "url": "https://devnew.eand.ae/eshop/devices/configuration/key-bgsku3820208551?productId=bgSku3820208551&skuId=bgSku3820208551&catName=Tablets&listVal=MegaMenu&showDefault=true"
+     }
+    }
+   ]
+  },
+  {
+   "id": "P9_pdp_13_inch",
+   "ok": true,
+   "error": null,
+   "steps": [
+    {
+     "what": "text",
+     "ok": true,
+     "evidence": "Cart | SIGN IN | العربية | Back | iPad Pro M4, 13-inch | Devices | Tablets | iPad Pro M4, 13-inch | OUT OF STOCK | Overview | Specs | Speak to our AI-powered Assistant | Chat Now | Apple iPad Pro M4, 13-inch | From | AED 370.00 /month | Space Black | Storage: | 1TB | 512GB | 2TB | 256GB | Connectivity: | Wi-Fi | Wi-Fi + Cellular | Display glass: | Nano-Texture Glass | Standard glass | OUT OF STOCK | How would you like to pay? | (5% VAT included) | One time | AED 5,499.00 5,149.00 | 24 months | AED 370.00 /month | 18 months | AED 490.00 /month | 12 months | AED 729.00 /month | Specifications | "
+    }
+   ]
+  },
+  {
+   "id": "H1_cart_empty",
+   "ok": true,
+   "error": null,
+   "steps": [
+    {
+     "what": "header links",
+     "ok": true,
+     "evidence": [
+      {
+       "t": "Find Us",
+       "href": "/en/storelocator.html",
+       "cls": "me-24",
+       "aria": "Find Us"
+      },
+      {
+       "t": "Accessibility",
+       "href": "#",
+       "cls": "me-24",
+       "aria": "Accessibility"
+      },
+      {
+       "t": "Quick Pay/Recharge",
+       "href": "/ecare/quick-pay",
+       "cls": "me-24 ng-star-inserted",
+       "aria": "Quick Pay/Recharge"
+      },
+      {
+       "t": "العربية",
+       "href": "#",
+       "cls": "",
+       "aria": "العربية"
+      },
+      {
+       "t": "",
+       "href": "/en/index.html",
+       "cls": "navbar-brand d-flex justify-content-center",
+       "aria": null
+      },
+      {
+       "t": "Mobile Plans",
+       "href": "#",
+       "cls": "nav-link",
+       "aria": null
+      },
+      {
+       "t": "Home Plans",
+       "href": "#",
+       "cls": "nav-link",
+       "aria": null
+      },
+      {
+       "t": "Devices",
+       "href": "#",
+       "cls": "nav-link",
+       "aria": null
+      },
+      {
+       "t": "Smart Home",
+       "href": "#",
+       "cls": "nav-link",
+       "aria": null
+      },
+      {
+       "t": "Digital Products",
+       "href": "#",
+       "cls": "nav-link",
+       "aria": null
+      },
+      {
+       "t": "Support",
+       "href": "#",
+       "cls": "nav-link",
+       "aria": null
+      },
+      {
+       "t": "My Account",
+       "href": "#",
+       "cls": "nav-link",
+       "aria": null
+      },
+      {
+       "t": "0",
+       "href": "#",
+       "cls": "nav-link",
+       "aria": null
+      }
+     ]
+    },
+    {
+     "what": "cart page",
+     "ok": true,
+     "evidence": {
+      "url": "https://devnew.eand.ae/eshop/checkout/cart",
+      "title": "Etisalat eShop",
+      "text": "SIGN IN | العربية | You don't have any items in your cart | START SHOPPING | Cart | © 2026 etisalat. All Rights Reserved. - 1.13.1-UAT2/QA - Last build date: 2026-10-19T11:04:43.254Z | 11:04:43 AM | 19/10/2026 | 1792407883308"
+     }
+    }
+   ]
+  },
+  {
+   "id": "H2_eshop_header_search",
+   "ok": false,
+   "error": "TimeoutError: locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('//app-header-search//input[contains(@class,\\'search-input\\')]').filter({ visible: true }).first()\u001b[22m\n",
+   "steps": [
+    {
+     "what": "input",
+     "ok": true,
+     "evidence": {
+      "all": 1,
+      "visible": 0
+     }
+    }
+   ]
+  }
+ ],
+ "pdp_cta_states": [
+  {
+   "label": "top",
+   "buttons": [
+    {
+     "text": "ADD TO CART",
+     "disabled": true,
+     "h": 44,
+     "parent": "d-flex align-items-center justify-content-lg-end justify-content-between",
+     "tag": "sticky-price-wrapper pay-now-section"
+    },
+    {
+     "text": "Checkout Now",
+     "disabled": true,
+     "h": 44,
+     "parent": "d-flex align-items-center justify-content-lg-end justify-content-between",
+     "tag": "sticky-price-wrapper pay-now-section"
+    }
+   ]
+  },
+  {
+   "label": "after scroll",
+   "buttons": [
+    {
+     "text": "ADD TO CART",
+     "disabled": true,
+     "h": 44,
+     "parent": "d-none d-md-block ng-tns-c2851655418-1 ng-trigger ng-trigger-fadeInOut ng-star-i",
+     "tag": "eand-secondary-btn fs-12 fs-md-14 text-uppercase sticky-add-to-cart-btn mdc-butt"
+    },
+    {
+     "text": "ADD TO CART",
+     "disabled": true,
+     "h": 44,
+     "parent": "d-flex align-items-center justify-content-lg-end justify-content-between",
+     "tag": "sticky-price-wrapper pay-now-section"
+    },
+    {
+     "text": "Checkout Now",
+     "disabled": true,
+     "h": 44,
+     "parent": "d-flex align-items-center justify-content-lg-end justify-content-between",
+     "tag": "sticky-price-wrapper pay-now-section"
+    }
+   ]
+  },
+  {
+   "label": "bottom",
+   "buttons": [
+    {
+     "text": "ADD TO CART",
+     "disabled": true,
+     "h": 44,
+     "parent": "d-none d-md-block ng-tns-c2851655418-1 ng-trigger ng-trigger-fadeInOut ng-star-i",
+     "tag": "eand-secondary-btn fs-12 fs-md-14 text-uppercase sticky-add-to-cart-btn mdc-butt"
+    },
+    {
+     "text": "ADD TO CART",
+     "disabled": true,
+     "h": 44,
+     "parent": "d-flex align-items-center justify-content-lg-end justify-content-between",
+     "tag": "sticky-price-wrapper pay-now-section"
+    },
+    {
+     "text": "Checkout Now",
+     "disabled": true,
+     "h": 44,
+     "parent": "d-flex align-items-center justify-content-lg-end justify-content-between",
+     "tag": "sticky-price-wrapper pay-now-section"
+    }
+   ]
+  }
+ ],
+ "tablets_stock": {
+  "total_listed": 150,
+  "products": [
+   {
+    "productId": "prod2450056",
+    "name": "iPad Pro M4, 13-inch",
+    "price": "5149.0",
+    "sellable": true,
+    "pSellable": true,
+    "firstSku": "bgSku3820208632",
+    "inStock": false
+   },
+   {
+    "productId": "prod2450055",
+    "name": "iPad Pro M4, 11-inch",
+    "price": "3949.0",
+    "sellable": true,
+    "pSellable": true,
+    "firstSku": "bgSku3820208453",
+    "inStock": false
+   },
+   {
+    "productId": "prod830193",
+    "name": "12.9\" New iPad Pro,Wi-Fi+Cellular",
+    "price": "4324.95",
+    "sellable": true,
+    "pSellable": true,
+    "firstSku": "bgSku3820203686",
+    "inStock": true
+   },
+   {
+    "productId": "prod830194",
+    "name": "12.9\" New iPad Pro",
+    "price": "3768.45",
+    "sellable": true,
+    "pSellable": true,
+    "firstSku": "bgSku3820203575",
+    "inStock": true
+   },
+   {
+    "productId": "prod830188",
+    "name": "11\" New iPad Pro,Wi-Fi+Cellulars",
+    "price": "3589.95",
+    "sellable": true,
+    "pSellable": true,
+    "firstSku": "bgSku3820203132",
+    "inStock": true
+   },
+   {
+    "productId": "prod830189",
+    "name": "11\" New iPad Pro, Wi-Fi",
+    "price": "3012.45",
+    "sellable": true,
+    "pSellable": true,
+    "firstSku": "bgSku3820203914",
+    "inStock": true
+   },
+   {
+    "productId": "prod830190",
+    "name": "12.9\" iPad Pros",
+    "price": "3673.95",
+    "sellable": true,
+    "pSellable": true,
+    "firstSku": "bgSku3820202944",
+    "inStock": true
+   },
+   {
+    "productId": "prod830192",
+    "name": "12.9\" iPad Pro,Wi-Fi+Cellular",
+    "price": "4093.95",
+    "sellable": true,
+    "pSellable": true,
+    "firstSku": "bgSku3820223223",
+    "inStock": true
+   },
+   {
+    "productId": "prod870030",
+    "name": "Microsoft Surface Pro 6",
+    "price": "4399.5",
+    "sellable": true,
+    "pSellable": true,
+    "firstSku": "bgSku3802789035",
+    "inStock": true
+   },
+   {
+    "productId": "prod880043",
+    "name": "Mi Air - The Xiaomi 13.3in Notebook",
+    "price": "4199.0",
+    "sellable": true,
+    "pSellable": true,
+    "firstSku": "bgSku4171013020",
+    "inStock": true
+   },
+   {
+    "productId": "prod830191",
+    "name": "12.9\" iPad Pro, Wi-Fi",
+    "price": "3148.95",
+    "sellable": true,
+    "pSellable": true,
+    "firstSku": "bgSku3820217295",
+    "inStock": true
+   },
+   {
+    "productId": "prod870031",
+    "name": "Microsoft Surface Go Y",
+    "price": "3349.5",
+    "sellable": true,
+    "pSellable": true,
+    "firstSku": "bgSku3802701538",
+    "inStock": false
+   },
+   {
+    "productId": "prod830199",
+    "name": "iPad Air, Wi-Fi + Cellular",
+    "price": "2529.0",
+    "sellable": true,
+    "pSellable": true,
+    "firstSku": "bgSku3820203160",
+    "inStock": false
+   },
+   {
+    "productId": "prod830201",
+    "name": "iPad Mini, Wi-Fi + Cellular",
+    "price": "2129.0",
+    "sellable": true,
+    "pSellable": true,
+    "firstSku": "bgSku3820203197",
+    "inStock": false
+   },
+   {
+    "productId": "prod830200",
+    "name": "iPad Air, Wi-Fi",
+    "price": "1999.0",
+    "sellable": true,
+    "pSellable": true,
+    "firstSku": "bgSku3820203933",
+    "inStock": false
+   },
+   {
+    "productId": "prod1890025",
+    "name": "iPad (10th Generation)",
+    "price": "1299.0",
+    "sellable": true,
+    "pSellable": true,
+    "firstSku": "bgSku3820206678",
+    "inStock": true
+   },
+   {
+    "productId": "prod830185",
+    "name": " 9.7\" iPad (2017)",
+    "price": "1888.95",
+    "sellable": true,
+    "pSellable": true,
+    "firstSku": "bgSku3820201261",
+    "inStock": true
+   },
+   {
+    "productId": "prod830202",
+    "name": "iPad Mini, Wi-Fi",
+    "price": "1599.0",
+    "sellable": true,
+    "pSellable": true,
+    "firstSku": "bgSku3820203173",
+    "inStock": false
+   },
+   {
+    "productId": "prod830186",
+    "name": "9.7\" iPad,Wi-Fi+Cellular",
+    "price": "1768.2",
+    "sellable": true,
+    "pSellable": true,
+    "firstSku": "bgSku3820202896",
+    "inStock": true
+   },
+   {
+    "productId": "prod830187",
+    "name": "9.7\" iPad, Wi-Fi",
+    "price": "1264.2",
+    "sellable": true,
+    "pSellable": true,
+    "firstSku": "bgSku3820202809",
+    "inStock": true
+   },
+   {
+    "productId": "prod880045",
+    "name": "Mi Pad",
+    "price": "349.65",
+    "sellable": true,
+    "pSellable": true,
+    "firstSku": "bgSku3821121059",
+    "inStock": true
+   }
+  ]
+ },
+ "api_errors_seen": [
+  {
+   "status": 401,
+   "url": "/b2c/getAllAccountServices.service"
+  },
+  {
+   "status": 400,
+   "url": "/b2c/getUserInfo.service"
+  },
+  {
+   "status": 401,
+   "url": "/b2c/getAllAccountServices.service"
+  },
+  {
+   "status": 400,
+   "url": "/b2c/getUserInfo.service?authGuard=true"
+  },
+  {
+   "status": 401,
+   "url": "/b2c/getAllAccountServices.service"
+  },
+  {
+   "status": 400,
+   "url": "/b2c/getUserInfo.service"
+  },
+  {
+   "status": 401,
+   "url": "/b2c/getAllAccountServices.service"
+  },
+  {
+   "status": 401,
+   "url": "/b2c/getAllAccountServices.service"
+  },
+  {
+   "status": 401,
+   "url": "/b2c/getAllAccountServices.service"
+  },
+  {
+   "status": 400,
+   "url": "/b2c/getUserInfo.service"
+  }
+ ]
+}
