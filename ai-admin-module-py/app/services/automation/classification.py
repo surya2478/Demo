@@ -66,6 +66,12 @@ SEVERITY_BLOCKER = "blocker"
 SEVERITY_FIXABLE = "fixable"
 SEVERITY_NOTE = "note"
 
+# Fixables that are a rewrite of the case or of the deployment, never "a small
+# change": no steps at all, steps run together, an unknown channel, nothing
+# known about the application.
+CHANGES_UNBOUNDED = 99
+_WHOLE_CASE_FIXABLES = frozenset({"steps.none", "steps.not_separated", "channel.unknown", "kb.none"})
+
 STATUS_PASS = "pass"
 STATUS_ATTENTION = "attention"
 STATUS_BLOCKED = "blocked"
@@ -87,6 +93,10 @@ class Finding:
     step_number: Optional[int] = None
     remedy: Optional[str] = None
     evidence: Optional[str] = None
+    # How many edits a fixable costs: one per step it names. A finding about
+    # the whole case (no steps, nothing known about the application) is not a
+    # small change at any size, so it carries CHANGES_UNBOUNDED.
+    changes: int = 1
 
     def to_dict(self) -> dict:
         return {
@@ -97,6 +107,7 @@ class Finding:
             "step_number": self.step_number,
             "remedy": self.remedy,
             "evidence": self.evidence,
+            "changes": self.changes,
         }
 
 
@@ -856,6 +867,8 @@ def check_knowledge_base(
                 Finding(
                     code="kb.unresolved_in_profile",
                     severity=SEVERITY_FIXABLE,
+                    changes=len(unresolved_numbers),
+                    evidence=f"steps {', '.join(str(n) for n in unresolved_numbers)}",
                     scope="knowledge_base",
                     message=(
                         f"{len(unresolved_numbers)} step(s) name a control the Knowledge Base "
@@ -914,6 +927,7 @@ def check_knowledge_base(
             Finding(
                 code="kb.unresolved",
                 severity=SEVERITY_FIXABLE,
+                changes=len(unresolved),
                 scope="knowledge_base",
                 message=(
                     f"{len(unresolved)} step(s) name a control the catalogue does not "
@@ -1083,6 +1097,9 @@ def assess(case: Any, context: Optional[ClassificationContext] = None) -> dict:
     blockers = [f for f in findings if f.severity == SEVERITY_BLOCKER]
     fixables = [f for f in findings if f.severity == SEVERITY_FIXABLE]
     notes = [f for f in findings if f.severity == SEVERITY_NOTE]
+    for finding in fixables:
+        if finding.code in _WHOLE_CASE_FIXABLES:
+            finding.changes = CHANGES_UNBOUNDED
 
     classification, reason = _verdict(steps, blockers, fixables, checks)
 
@@ -1097,6 +1114,9 @@ def assess(case: Any, context: Optional[ClassificationContext] = None) -> dict:
             "steps": len(steps),
             "blockers": len(blockers),
             "fixables": len(fixables),
+            # Edits the fixables add up to; AI Checks automates a Partial case
+            # whose count is small (ai_checks.AUTOMATE_MAX_CHANGES).
+            "changes": sum(max(1, f.changes) for f in fixables),
         },
         "checked_at": datetime.utcnow().isoformat(),
         "engine": "rules/2",

@@ -561,13 +561,35 @@ def _mark_stopped(db: Session, check_id: int) -> None:
     db.commit()
 
 
+# A Partial case this close to automatable is automated: one or two steps whose
+# control the Knowledge Base lacks (their locators are resolved or guessed when
+# the script is built), or one or two step rewrites. A blocker -- a feature the
+# KB marks unconfirmed, a step needing a person -- is never counted here.
+AUTOMATE_MAX_CHANGES = 2
+
+
+def _small_changes(case: AutomationTestCase) -> Optional[int]:
+    """The edits a Partial case needs, when they are few enough to automate it anyway."""
+    report = case.classification_report or {}
+    changes = (report.get("counts") or {}).get("changes")
+    if report.get("blockers") or not isinstance(changes, int):
+        return None
+    return changes if 0 < changes <= AUTOMATE_MAX_CHANGES else None
+
+
 def _classify(db: Session, check: AutomationAICheck, case: AutomationTestCase) -> None:
-    """Classify by rule; Partial and Undecided are kept as Manual."""
+    """Classify by rule; Partial needing at most two edits is Automation, other Partial and Undecided are Manual."""
     _set_step(db, check, "classify", "running")
     wb.rescore(case)
     wb.apply_classification(case)
     check.classification_detail = case.classification
-    if case.classification != wb.CLASSIFICATION_AUTOMATION:
+    if case.classification == wb.CLASSIFICATION_PARTIAL and (changes := _small_changes(case)):
+        case.classification = wb.CLASSIFICATION_AUTOMATION
+        case.classification_reason = (
+            f"Automated with {changes} small change{'s' if changes > 1 else ''} to review in the script: "
+            + (case.classification_reason or "")
+        )
+    elif case.classification != wb.CLASSIFICATION_AUTOMATION:
         if case.classification == wb.CLASSIFICATION_PARTIAL:
             case.classification_reason = "Needs minor changes to automate. " + (case.classification_reason or "")
         case.classification = wb.CLASSIFICATION_MANUAL
