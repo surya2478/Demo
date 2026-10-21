@@ -868,13 +868,20 @@ def prerequisite_steps(flow: Optional[Dict[str, Any]], app_id: Optional[str] = N
                            flow.get("flow_id"), spec.get("flow_id"), app)
             continue
         through = spec.get("through_step")
+        # from_step: a flow can start partway into another -- the Trade Licence
+        # flow runs its own 'open Manage' after the OTP sign-in, so a case that
+        # starts at "Locate the Trade License card" begins on the page that has it.
+        start = spec.get("from_step")
         data = {str(k): v for k, v in (spec.get("test_data") or {}).items()}
         for canonical in source.get("canonical_steps") or []:
             number = canonical.get("step_number")
+            if start and number and int(number) < int(start):
+                continue
             if through and number and int(number) > int(through):
                 break
             steps.append({
                 "action": canonical.get("action"),
+                "action_type": canonical.get("action_type"),
                 "target": canonical.get("target"),
                 "expected_result": canonical.get("expected_result") or None,
                 "test_data_ref": data.get(str(number)),
@@ -892,6 +899,8 @@ _XPATH_LABEL_RE = re.compile(
     r"(?:text\(\)|normalize-space\(\.?\)|@aria-label|@placeholder|@title|@value)\s*=\s*['\"]\s*([^'\"]+?)\s*['\"]"
     r"|contains\(\s*(?:\.|text\(\))\s*,\s*['\"]\s*([^'\"]+?)\s*['\"]\s*\)"
     r"|has-text\(\s*['\"]([^'\"]+)['\"]\s*\)"
+    # starts-with(normalize-space(.),'Expiry :') -> Expiry : (a label followed by a value)
+    r"|starts-with\(\s*(?:normalize-space\(\.?\)|\.|text\(\))\s*,\s*['\"]\s*([^'\"]+?)\s*['\"]\s*\)"
 )
 
 

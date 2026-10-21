@@ -3,7 +3,7 @@
 Against the repository's real Knowledge Base (B2B Portal and e& UAE Portal):
 
   1. A case built on what a flow lists under unverified_from_brd -- the Manage
-     Users "Trade Licence" column, the details modal -- is Manual, naming the
+     Users "Trade Licence" column, a TL number link in Users -- is Manual, naming the
      feature. A case on the confirmed route (Manage -> view & update details)
      is not.
   2. With no discovery crawl, steps are grounded the way the compiler grounds
@@ -105,7 +105,9 @@ verified = case(
 hits04 = {h["feature"] for h in kb.unconfirmed_features(tc04.objective + " " + tc04.steps_raw, B2B)}
 check("TC-04 depends on the unconfirmed Trade Licence column", "trade license column" in hits04, str(hits04))
 hits05 = {h["feature"] for h in kb.unconfirmed_features(tc05.objective + " " + tc05.steps_raw, B2B)}
-check("TC-05 depends on the unconfirmed details modal", "details modal" in hits05, str(hits05))
+# The Trade License Details modal is confirmed in RC (Organization Details -> view & update details,
+# 2026-10-21); what stays unconfirmed is opening it from a TL number in Manage Users.
+check("TC-05 depends on the unconfirmed TL number link in Manage Users", "tl number link in users" in hits05, str(hits05))
 hits_ok = kb.unconfirmed_features(verified.objective + " " + verified.steps_raw, B2B)
 check("the confirmed Organizational Details route depends on nothing unconfirmed", hits_ok == [], str(hits_ok))
 check("another application's case is never matched against B2B flows",
@@ -135,7 +137,7 @@ check("signs in first through the OTP flow", "flow_b2b_login_otp" in code and "u
 check("signs in with the Journey KB's Test Data names",
       "TESTDATA_DEFAULT_ORG_EMAIL" in code and "TESTDATA_OTP" in code)
 check("types the OTP one digit per box", "otpBoxes.nth(i).fill(digit)" in code)
-check("'Click 'Manage'' uses the flow's own selector", "//a[text()='Manage']" in code)
+check("'Click 'Manage'' uses the flow's own selector", "//div[@id='navbarCollapse']//a[normalize-space(.)='Manage']" in code)
 check("the case's own step numbers are kept after the sign-in steps", '"1. Click' in code and '"S1.' in code)
 check("the scope comes from the flow, not the shop", "ADD TO CART" not in code and "Organizational Details" in code)
 check("no cart/URL stand-in for a verification", "cartOrCheckoutEl" not in code and "onTargetPage" not in code)

@@ -848,6 +848,27 @@ def check_knowledge_base(
             logger.debug("KB step grounding failed for %s", app_id, exc_info=True)
             grounded = []
         own_targets = {step["step_number"]: step["target"] for step in steps}
+        # What the script compiler will do with a prose target, asked the same
+        # way it asks: the KB's verified selectors (kb_elements/_match_kb), and
+        # the flow's own verified sign-in in place of "Log in with
+        # credentials" (_sign_in_from_kb). A step either of them resolves is
+        # not a guess, and counting it as one sent every signed-in B2B case
+        # to Manual for its login step.
+        resolved_by_compiler: set = set()
+        try:
+            from . import compiler
+
+            kb_index = compiler.kb_elements(profile, kb.list_flows(app_id))
+            flow = kb.match_flow_blueprint(case_text, app_id)
+            prerequisite = kb.prerequisite_steps(flow, app_id) if flow else []
+            signed, _prelude, _replaced = compiler._sign_in_from_kb(grounded, prerequisite, [], kb_index)
+            resolved_by_compiler |= {s.get("step_number") for s in signed if s.get("_signed_in_by")}
+            for step in grounded:
+                intent = compiler._intent(str(step.get("action") or ""), step.get("action_type"))
+                if intent in ("click", "fill", "select", "assert") and compiler._match_kb(step, intent, kb_index):
+                    resolved_by_compiler.add(step.get("step_number"))
+        except Exception:  # pragma: no cover - the KB is optional infrastructure
+            logger.debug("Compiler-side KB resolution failed for %s", app_id, exc_info=True)
         unresolved_numbers = []
         for index, step in enumerate(grounded):
             number = step.get("step_number") or (index + 1)
@@ -857,6 +878,8 @@ def check_knowledge_base(
             ):
                 continue
             target = step.get("target")
+            if number in resolved_by_compiler:
+                continue
             # The case's own target counts only when it is a real selector or
             # route -- the classifier reads prose into `target` when there is none.
             if not target or (target == own_targets.get(number) and not _looks_like_selector(target)):
@@ -1093,6 +1116,32 @@ def assess(case: Any, context: Optional[ClassificationContext] = None) -> dict:
         )
     for check in checks.values():
         findings.extend(check.pop("_findings"))
+
+    # What the script compiler cannot check. A verification it can build no
+    # assertion for compiles to `throw new Error("Step N: nothing checkable")`:
+    # a case with one of those was classified "every control found" and then
+    # failed by construction. Asked of the compiler itself, so the two agree.
+    if steps and context.use_kb:
+        try:
+            from . import compiler
+
+            code = compiler.compile_playwright(case).code
+            for number in sorted({int(n) for n in re.findall(r"Step (\d+): nothing checkable", code)}):
+                findings.append(
+                    Finding(
+                        code="script.uncheckable",
+                        severity=SEVERITY_FIXABLE,
+                        scope="steps",
+                        step_number=number,
+                        message=(
+                            f"Step {number} has nothing the script can check -- it names no label or "
+                            "element the application shows."
+                        ),
+                        remedy="Quote the exact on-screen text the step should see, or point it at a known element.",
+                    )
+                )
+        except Exception:  # pragma: no cover - classification must not fail on a compile error
+            logger.debug("Compiler check skipped for classification", exc_info=True)
 
     blockers = [f for f in findings if f.severity == SEVERITY_BLOCKER]
     fixables = [f for f in findings if f.severity == SEVERITY_FIXABLE]

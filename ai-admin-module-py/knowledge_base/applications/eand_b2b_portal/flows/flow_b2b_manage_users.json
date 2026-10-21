@@ -1,0 +1,129 @@
+{
+  "flow_id": "flow_b2b_manage_users",
+  "flow_name": "Manage - Users (company users list, search, user details)",
+  "category": "Manage Users",
+  "subcategory": "Users tab",
+  "_provenance": {
+    "source": "capture",
+    "captured_at": "2026-10-21",
+    "note": "Captured in RC signed in as an Organization Administrator; every target resolved to one visible element. Read-only: ADD USER was not opened."
+  },
+  "target_match_keywords": [
+    "manage users",
+    "manage user",
+    "users tab",
+    "user management",
+    "company users",
+    "search users",
+    "user details",
+    "view user details",
+    "users table",
+    "employees"
+  ],
+  "catalog_entrypoint": "/b2bportal/user-manage/user-management",
+  "prerequisite_flows": [
+    {
+      "flow_id": "flow_b2b_login_otp",
+      "through_step": 4,
+      "test_data": {
+        "2": "default_org_email",
+        "4": "otp"
+      },
+      "_why": "This flow starts signed in. The compiler runs these sign-in steps first when a case does not sign in itself; the Test Data names match the Journey KB role profile (TESTDATA_DEFAULT_ORG_EMAIL, TESTDATA_OTP)."
+    }
+  ],
+  "automation_boundary": {
+    "automated_scope": "Authenticated B2B Portal -> Manage -> Users tab -> users table (Full Name, ROLE, Contact, status, Manage), Search Users, row menu -> View user details -> Back.",
+    "external_boundary": "User records come from the B2B backend; assert what the portal renders."
+  },
+  "graph_edges": [
+    {
+      "from": "organization_details",
+      "to": "manage_users",
+      "action": "click_users_tab"
+    },
+    {
+      "from": "manage_users",
+      "to": "user_detail",
+      "action": "row_menu_view_user_details"
+    },
+    {
+      "from": "user_detail",
+      "to": "manage_users",
+      "action": "back"
+    }
+  ],
+  "canonical_steps": [
+    {
+      "step_number": 1,
+      "action": "Sign in to the B2B Portal as an Organization Administrator",
+      "target": "/b2bportal/login.html?rdr=home&locale=en",
+      "expected_result": "The authenticated B2B Portal home page is displayed"
+    },
+    {
+      "step_number": 2,
+      "action": "Open the Manage section from the main navigation",
+      "target": "//div[@id='navbarCollapse']//a[normalize-space(.)='Manage']",
+      "expected_result": "The Manage page opens on the Organization Details tab"
+    },
+    {
+      "step_number": 3,
+      "action": "Click the 'Users' tab",
+      "target": "//button[normalize-space(.)='Users']",
+      "href": "/b2bportal/user-manage/user-management",
+      "expected_result": "The Users list opens at /b2bportal/user-manage/user-management"
+    },
+    {
+      "step_number": 4,
+      "action": "Verify the users table column headers",
+      "target": null,
+      "expected_result": "Columns Full Name, ROLE, Contact, status and Manage are displayed"
+    },
+    {
+      "step_number": 5,
+      "action": "Verify the 'status' column header",
+      "target": null,
+      "expected_result": "Each user shows PENDING, ACTIVE or INACTIVE"
+    },
+    {
+      "step_number": 6,
+      "action": "Type a user's name in the 'Search Users' box",
+      "target": "//input[@placeholder='Search Users']",
+      "expected_result": "Only matching users are listed"
+    },
+    {
+      "step_number": 7,
+      "action": "Open the row menu of the first user",
+      "target": "((//table//tbody/tr)[1]//button[contains(@class,'dropdown-toggle')])[1]",
+      "expected_result": "The menu shows 'View user details'"
+    },
+    {
+      "step_number": 8,
+      "action": "Click 'View user details'",
+      "target": "((//table//tbody/tr)[1]//a[normalize-space(.)='View user details'])[1]",
+      "expected_result": "The user detail page shows the user's name, status, role, Email and Phone"
+    },
+    {
+      "step_number": 9,
+      "action": "Click 'Back' on the user detail page",
+      "target": "//a[normalize-space(.)='Back']",
+      "expected_result": "The Users list is shown again"
+    }
+  ],
+  "known_records": {
+    "_note": "RC, organisation Travel Agency 505272625, 2026-10-21. Rows change as users are added.",
+    "company_users": 7,
+    "roles_seen": [
+      "Accountant",
+      "IT Manager"
+    ],
+    "statuses_seen": [
+      "PENDING",
+      "ACTIVE",
+      "INACTIVE"
+    ],
+    "first_user": "Preethi Tiwari"
+  },
+  "known_products": {},
+  "_canonical_steps_note": "Verify steps carry no target on purpose: the step matcher lends a verify canonical step's selector to any verify step of a matched case. Assertions come from the label the case quotes; the verified field XPaths are in app_profile.json selectors.trade_license_modal / manage_users."
+}

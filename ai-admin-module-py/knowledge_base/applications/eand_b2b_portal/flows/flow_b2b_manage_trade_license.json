@@ -7,8 +7,6 @@
     "trade license",
     "trade licence",
     "trade license number",
-    "manage users",
-    "manage user",
     "organizational details",
     "organisational details",
     "view & update details",
@@ -20,27 +18,70 @@
     "issuing authority",
     "license document",
     "document preview",
-    "tl number"
+    "tl number",
+    "trade license details",
+    "trade licence details",
+    "document no",
+    "expiry date",
+    "issue date",
+    "organization details",
+    "organisation details",
+    "trade license card",
+    "trade licence card",
+    "cost centers table",
+    "cost centers (party ids)",
+    "cost center id",
+    "cost center name",
+    "manage > organization details"
   ],
   "catalog_entrypoint": "/b2bportal/login.html?rdr=home&locale=en",
   "prerequisite_flows": [
     {
       "flow_id": "flow_b2b_login_otp",
       "through_step": 4,
-      "test_data": {"2": "default_org_email", "4": "otp"},
+      "test_data": {
+        "2": "default_org_email",
+        "4": "otp"
+      },
       "_why": "This flow starts signed in. The compiler runs these sign-in steps first when a case does not sign in itself; the Test Data names match the Journey KB role profile (TESTDATA_DEFAULT_ORG_EMAIL, TESTDATA_OTP)."
+    },
+    {
+      "flow_id": "flow_b2b_manage_trade_license",
+      "from_step": 2,
+      "through_step": 2,
+      "_why": "After the OTP sign-in the portal lands on the Dashboard; the Trade License card and 'view & update details' are on Manage > Organization Details. Opening Manage first lets a case start at the card. Clicking Manage again later is harmless."
     }
   ],
   "automation_boundary": {
-    "automated_scope": "Authenticated B2B Portal home -> Manage -> 'view & update details' -> Organizational Details -> open and close the Trade Licence document -> sign out through the profile menu.",
+    "automated_scope": "Authenticated B2B Portal -> Manage (Organization Details tab) -> Trade License card -> 'view & update details' -> Trade License Details modal (number, company/trade name, sector, emirate, issue and expiry dates, issuing authority, document preview, Download) -> Close -> sign out.",
     "external_boundary": "Netcracker (Trade Licence metadata) and EDMS (binary documents) are upstream systems reached only through the B2B Microservice. Assert what the portal renders; never call them directly."
   },
   "graph_edges": [
-    { "from": "portal_home", "to": "manage_menu", "action": "click_manage" },
-    { "from": "manage_menu", "to": "organizational_details", "action": "click_view_and_update_details" },
-    { "from": "organizational_details", "to": "trade_license_document", "action": "open_trade_license" },
-    { "from": "trade_license_document", "to": "organizational_details", "action": "close_document_viewer" },
-    { "from": "organizational_details", "to": "signed_out", "action": "profile_menu_sign_out" }
+    {
+      "from": "portal_home",
+      "to": "organization_details",
+      "action": "click_manage"
+    },
+    {
+      "from": "organization_details",
+      "to": "trade_license_details_modal",
+      "action": "click_view_and_update_details"
+    },
+    {
+      "from": "trade_license_details_modal",
+      "to": "organization_details",
+      "action": "close_modal"
+    },
+    {
+      "from": "organization_details",
+      "to": "manage_users",
+      "action": "click_users_tab"
+    },
+    {
+      "from": "organization_details",
+      "to": "signed_out",
+      "action": "profile_menu_sign_out"
+    }
   ],
   "canonical_steps": [
     {
@@ -52,55 +93,198 @@
     },
     {
       "step_number": 2,
-      "action": "Open the Manage section from the main navigation",
-      "target": "//a[text()='Manage']",
-      "expected_result": "The Manage section opens with the organization's management options listed"
+      "action": "Click 'Manage' in the main navigation",
+      "target": "//div[@id='navbarCollapse']//a[normalize-space(.)='Manage']",
+      "expected_result": "The Manage page opens on the Organization Details tab",
+      "action_type": "click"
     },
     {
       "step_number": 3,
       "action": "Open Organizational Details via the 'view & update details' link",
       "target": "//a[text()=' view & update details ']",
-      "expected_result": "The Organizational Details page loads showing the company's registered information"
+      "expected_result": "A Loading indicator shows, then the Trade License Details modal opens"
     },
     {
       "step_number": 4,
-      "action": "Open the Trade Licence document from the Organizational Details page",
+      "action": "Verify the Trade License details shown: Trade License number, column, company name, issue date, expiry date, issuing authority and document preview",
       "target": null,
-      "expected_result": "The Trade Licence document viewer opens and renders the licence (PDF, PNG or JPEG up to 5 MB)"
+      "expected_result": "The 'Trade License Details' modal shows Trade License Number, Company/ Trade Name, Sector, Emirate, Issue Date, Expiry Date, Issuing Authority and the document preview"
     },
     {
       "step_number": 5,
-      "action": "Verify the Trade Licence metadata shown alongside the document",
-      "target": null,
-      "expected_result": "Trade Licence number, company name, issue date, expiry date and issuing authority match the licence on record"
+      "action": "Close the Trade Licence document viewer",
+      "target": "//div[@id='tradeLicenseModal']//button[@aria-label='Close']",
+      "expected_result": "The modal closes and the Organization Details tab is shown again"
     },
     {
       "step_number": 6,
-      "action": "Close the Trade Licence document viewer",
-      "target": "//button[@aria-label='Close']",
-      "expected_result": "The viewer closes and the Organizational Details page is shown again with focus restored"
-    },
-    {
-      "step_number": 7,
       "action": "Open the company profile menu in the header",
       "target": "//a[@class='company-info font-light']",
       "expected_result": "The profile menu expands and offers Sign Out"
     },
     {
-      "step_number": 8,
+      "step_number": 7,
       "action": "Sign out of the B2B Portal",
       "target": "//a[text()='Sign Out' and not (contains(@class,'px-10 py-0'))]",
       "expected_result": "The session ends and the login page is displayed; a protected route cannot be reached without signing in again"
     }
   ],
   "unverified_from_brd": {
-    "_status": "Described by BRD_B2B_Portal_Trade_License_Automation_v2 and NOT confirmed in the application. Kept out of canonical_steps on purpose: a step here would be grounded as fact and would fail at execution. Promote an entry only once someone has seen it work.",
-    "manage_users_table_route": "/b2bportal/manage/users",
-    "trade_license_column": "A 'Trade Licence' column in the Manage Users table, sortable, with a per-user link (TLXXXXXX) or a '-' placeholder for unlicensed users.",
-    "details_modal": "A modal opened from that link, showing a loading spinner, five metadata fields, and an embedded PDF or Base64 image preview.",
-    "api_contract": "GET /api/v1/b2b-admin/trade-license/{tradeLicenseNumber}/details, 30,000 ms timeout, headers Authorization: Bearer <JWT> and X-Organization-Id.",
-    "error_states": "Missing document, corrupt Base64 payload, 30-second downstream timeout.",
-    "note": "The verified journey reaches the same licence through Manage -> 'view & update details'. Generate cases for the modal route only when the requirement asks for it, and say in Preconditions that the route is unconfirmed."
+    "_status": "Described by the Trade License BRDs (v2 automation spec, v1.3 Manage Users) and NOT in RC as of 2026-10-21. The Trade License Details modal itself IS in RC, reached from Organization Details -> 'view & update details' (canonical steps 4-13).",
+    "trade_license_column": {
+      "match": [
+        "trade license column",
+        "trade licence column",
+        "tl column",
+        "trade license number column",
+        "trade license number for each user",
+        "trade license number is displayed for",
+        "tl number for applicable users",
+        "column header labeled 'trade license'",
+        "trade license' column",
+        "trade license number in the manage users",
+        "trade licence number in the manage users",
+        "trade license number in the users table",
+        "trade licence number in the users table",
+        "trade license number cell",
+        "trade licence number cell",
+        "trade license cell",
+        "trade license number styling",
+        "trade license value in the",
+        "tl number in the manage users",
+        "tl number in the users table",
+        "user's trade license",
+        "users' trade license",
+        "trade license associated with each user",
+        "trade license assigned to the user",
+        "assigned trade license"
+      ],
+      "detail": "The Manage Users table has Full Name, ROLE, Contact, status, Manage -- no Trade License column (checked 2026-10-21)."
+    },
+    "api_contract": {
+      "match": [
+        "/api/v1/b2b-admin",
+        "b2b microservice",
+        "calls netcracker",
+        "calls edms",
+        "direct portal-to",
+        "does not directly call",
+        "consolidated response",
+        "no caching",
+        "not cached"
+      ],
+      "detail": "Backend orchestration and caching are not observable in the browser; verify at API/integration level."
+    },
+    "error_states": {
+      "match": [
+        "document unavailable",
+        "document is unavailable",
+        "broken document",
+        "corrupt",
+        "invalid document",
+        "placeholder indicating",
+        "30 second",
+        "30-second",
+        "timeout",
+        "netcracker unavailable",
+        "edms unavailable",
+        "netcracker is down",
+        "edms is down",
+        "not-found message",
+        "not found message"
+      ],
+      "detail": "Missing/broken document, downstream outage and the 30 s timeout need a backend fault RC cannot be asked for; test manually or with service virtualisation."
+    },
+    "note": "The verified journey reaches the same licence through Manage -> 'view & update details'. Generate cases for the modal route only when the requirement asks for it, and say in Preconditions that the route is unconfirmed.",
+    "fictional_route": {
+      "match": [
+        "/b2bportal/manage/users"
+      ],
+      "detail": "The real Users route is /b2bportal/user-manage/user-management (Manage -> Users tab)."
+    },
+    "tl_number_link_in_users": {
+      "match": [
+        "click the trade license number",
+        "click the trade licence number",
+        "click the tl number",
+        "clickable trade license",
+        "clickable tl",
+        "trade license number link",
+        "tl number link",
+        "return to manage users",
+        "returns to manage users",
+        "back to manage users",
+        "manage users page is displayed",
+        "manage users page is shown",
+        "from manage users",
+        "in manage users"
+      ],
+      "detail": "No TL number in the users table to click; the modal opens only from Organization Details."
+    },
+    "tl_column_sort_filter": {
+      "match": [
+        "sort by trade license",
+        "sort the trade license",
+        "filter by trade license",
+        "sorting of the trade license",
+        "sorting and filtering"
+      ],
+      "detail": "No TL column, and no column of the users table is sortable today."
+    },
+    "organization_without_trade_license": {
+      "match": [
+        "no trade license on record",
+        "no trade licence on record",
+        "has no trade license",
+        "without a trade license",
+        "without a trade licence",
+        "organization with no trade license"
+      ],
+      "detail": "Test data: the RC administrator account's organisation has Trade License 900033; no organisation without a Trade License is available, so the '-'/'N/A' card state cannot be produced. Automate once such an organisation exists in Test Data."
+    },
+    "modal_fields_not_in_rc": {
+      "match": [
+        "license type",
+        "trade license status",
+        "trade licence status",
+        "license status field"
+      ],
+      "detail": "The Trade License Details modal in RC shows Trade License Number, Company/ Trade Name, Sector, Emirate, Issue Date, Expiry Date and Issuing Authority -- no License Type or Status field (2026-10-21)."
+    },
+    "unauthorized_user": {
+      "match": [
+        "unauthorized user",
+        "without the required authorization",
+        "without admin privileges",
+        "non-admin user",
+        "standard user without admin",
+        "user without authorization"
+      ],
+      "detail": "Test data: Test Data has an Organization Administrator account only; no signed-in user without Trade License access exists to test the negative path."
+    },
+    "browser_context_menu": {
+      "match": [
+        "context menu",
+        "right-click",
+        "right click",
+        "save image as"
+      ],
+      "detail": "The browser's own right-click menu is outside the page and cannot be read by the automation; and the RC modal offers a Download link."
+    }
   },
-  "known_products": {}
+  "known_products": {},
+  "known_records": {
+    "_note": "What RC shows for the organisation the QA account administers (2026-10-21). Expected values only; the account's email and OTP stay in Test Data.",
+    "organization": "Travel Agency 505272625",
+    "trade_license_number": "900033",
+    "company_trade_name": "Travel Agency 505272625",
+    "sector": "N/A",
+    "emirate": "Dubai",
+    "issue_date": "2012-04-24",
+    "expiry_date": "2028-04-23",
+    "card_expiry": "23/04/2028",
+    "issuing_authority": "DXB - Department of Economic Development (DED)",
+    "document_pages": 8
+  },
+  "_canonical_steps_note": "Verify steps carry no target on purpose: the step matcher lends a verify canonical step's selector to any verify step of a matched case. Assertions come from the label the case quotes; the verified field XPaths are in app_profile.json selectors.trade_license_modal / manage_users."
 }

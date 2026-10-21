@@ -566,6 +566,7 @@ def _mark_stopped(db: Session, check_id: int) -> None:
 # the script is built), or one or two step rewrites. A blocker -- a feature the
 # KB marks unconfirmed, a step needing a person -- is never counted here.
 AUTOMATE_MAX_CHANGES = 2
+_LOCATOR_FIXABLES = frozenset({"kb.unresolved_in_profile", "kb.unresolved"})
 
 
 def _small_changes(case: AutomationTestCase) -> Optional[int]:
@@ -573,6 +574,12 @@ def _small_changes(case: AutomationTestCase) -> Optional[int]:
     report = case.classification_report or {}
     changes = (report.get("counts") or {}).get("changes")
     if report.get("blockers") or not isinstance(changes, int):
+        return None
+    # Only a control the KB lacks is a change the script can absorb (its
+    # locator is resolved or guessed at build time). A vague, compound or
+    # uncheckable step is the case itself needing a rewrite: TC-30's "the
+    # context menu does not contain 'Save image as'" was promoted on that.
+    if any(f.get("code") not in _LOCATOR_FIXABLES for f in report.get("fixables") or []):
         return None
     return changes if 0 < changes <= AUTOMATE_MAX_CHANGES else None
 
@@ -583,7 +590,15 @@ def _classify(db: Session, check: AutomationAICheck, case: AutomationTestCase) -
     wb.rescore(case)
     wb.apply_classification(case)
     check.classification_detail = case.classification
-    if case.classification == wb.CLASSIFICATION_PARTIAL and (changes := _small_changes(case)):
+    # A <<TODO>> the improver could not fill is a gap in the case itself (the
+    # label of the control that opens the modal, say), not a locator to review.
+    if (
+        case.classification == wb.CLASSIFICATION_PARTIAL
+        and not _TODO.search(_case_text(case) + " " + " ".join(
+            str(step.get("target") or "") for step in (case.steps_structured or []) if isinstance(step, dict)
+        ))
+        and (changes := _small_changes(case))
+    ):
         case.classification = wb.CLASSIFICATION_AUTOMATION
         case.classification_reason = (
             f"Automated with {changes} small change{'s' if changes > 1 else ''} to review in the script: "

@@ -12,7 +12,8 @@
   "_provenance": {
     "verified_architecture": "Derived from official B2B Solution Architecture & User Journey specifications (B2B Knowledge Base Explore Topics, Registering on B2B Portal, Sign-in using OTP, Sign-in using Password, Sign-in using UAE Pass). Verified against Angular SPA DOM structures, supporting Multi-Channel Authentication (OTP, Password, UAE Pass), UAE Pass Self-Registration, Multi-Org Selection, and Dashboard 360.",
     "verified_selectors": "Supplied as dual CSS and XPath expressions matching both legacy dev/QA deployments and modern production UI components. Includes authentication tabs, 6-digit OTP fields (name='opt-field'), UAE Pass integration hooks, Trade License OCR upload elements, and Face ID biometric capture flows.",
-    "route_confidence": "Confirmed entry points: /b2bportal/login.html?rdr=home&locale=en, /b2bportal/home.html?locale=en, and self-registration workflow at /BSS_B2B_Portal/Frameless/Registering_on_B2B_Portal.htm."
+    "route_confidence": "Confirmed entry points: /b2bportal/login.html?rdr=home&locale=en, /b2bportal/home.html?locale=en, and self-registration workflow at /BSS_B2B_Portal/Frameless/Registering_on_B2B_Portal.htm.",
+    "manage_capture_2026_10_21": "Manage (Organization Details, Users, user detail) and the Trade License Details modal captured in RC (devnew-sas.etisalat.ae), signed in as an Organization Administrator of 'Travel Agency 505272625'. Every XPath resolved to exactly one visible element; the modal was opened from 'view & update details' and closed with its Close button. Nothing was edited."
   },
   "endpoints": {
     "login": "/b2bportal/login.html?rdr=home&locale=en",
@@ -95,7 +96,7 @@
     },
     "dashboard_360": {
       "nav_dashboard": "//a[text()='Dashboard']",
-      "nav_manage": "//a[text()='Manage']",
+      "nav_manage": "//div[@id='navbarCollapse']//a[normalize-space(.)='Manage']",
       "nav_pay": "//a[text()='Pay']",
       "nav_order": "//a[text()='Order']",
       "nav_services": "//a[text()='Services']",
@@ -127,6 +128,57 @@
     "scr_login": {
       "register": "//button[normalize-space(.)='Register NOW']",
       "uaepass_signin": "//span[normalize-space(.)='Sign in with UAE PASS']"
+    },
+    "manage_tabs": {
+      "manage_menu": "//div[@id='navbarCollapse']//a[normalize-space(.)='Manage']",
+      "tab_organization_details": "//button[normalize-space(.)='Organization Details']",
+      "tab_delivery_addresses": "//button[normalize-space(.)='Delivery Addresses']",
+      "tab_users": "//button[normalize-space(.)='Users']",
+      "organization_name_banner": "//h5[contains(normalize-space(.),'Travel Agency')]"
+    },
+    "organization_details": {
+      "trade_license_card_title": "//p[normalize-space(.)='Trade License']",
+      "view_and_update_details": "//a[text()=' view & update details ']",
+      "cost_centers_title": "//p[normalize-space(.)='Cost Centers (Party IDs)']",
+      "cost_centers_search": "//input[@placeholder='Search by ID, Name']",
+      "cost_center_id_header": "//th[normalize-space(.)='Cost Center ID']",
+      "cost_center_name_header": "//th[normalize-space(.)='Cost Center Name']",
+      "cost_center_first_view": "(//a[normalize-space(.)='VIEW'])[1]",
+      "trade_license_document_no": "//span[starts-with(normalize-space(.),'Document no.')]",
+      "trade_license_expiry": "//p[starts-with(normalize-space(.),'Expiry :')]"
+    },
+    "trade_license_modal": {
+      "modal": "//div[@id='tradeLicenseModal']",
+      "title": "//div[@id='tradeLicenseModal']//h4[normalize-space(.)='Trade License Details']",
+      "close_button": "//div[@id='tradeLicenseModal']//button[@aria-label='Close']",
+      "document_preview_image": "(//div[@id='tradeLicenseModal']//img[@alt='Document Image'])[1]",
+      "update_link": "//div[@id='tradeLicenseModal']//a[normalize-space(.)='Update']",
+      "download_link": "//div[@id='tradeLicenseModal']//a[normalize-space(.)='Download']",
+      "trade_license_number": "//div[@id='tradeLicenseModal']//input[@formcontrolname='licenseNumber']",
+      "company_trade_name": "//div[@id='tradeLicenseModal']//input[@formcontrolname='companyName']",
+      "sector": "//div[@id='tradeLicenseModal']//input[@formcontrolname='sector']",
+      "emirate": "//div[@id='tradeLicenseModal']//input[@formcontrolname='emiratesId']",
+      "issue_date": "//div[@id='tradeLicenseModal']//input[@formcontrolname='issueDate']",
+      "expiry_date": "//div[@id='tradeLicenseModal']//input[@formcontrolname='expiryDate']",
+      "issuing_authority": "//span[@id='select2-issueAuthorityDropdown-container']"
+    },
+    "manage_users": {
+      "users_heading": "//h6[normalize-space(.)='Users']",
+      "tab_company_users": "//button[normalize-space(.)='Company users']",
+      "tab_employees": "//button[normalize-space(.)='Employees']",
+      "add_user_button": "//a[normalize-space(.)='ADD USER']",
+      "search_users": "//input[@placeholder='Search Users']",
+      "header_full_name": "//th[normalize-space(.)='Full Name']",
+      "header_role": "//th[normalize-space(.)='ROLE']",
+      "header_contact": "//th[normalize-space(.)='Contact']",
+      "header_status": "//th[normalize-space(.)='status']",
+      "header_manage": "//th[normalize-space(.)='Manage']",
+      "first_user_row": "(//table//tbody/tr)[1]",
+      "first_row_menu": "((//table//tbody/tr)[1]//button[contains(@class,'dropdown-toggle')])[1]",
+      "view_user_details": "((//table//tbody/tr)[1]//a[normalize-space(.)='View user details'])[1]",
+      "user_detail_back": "//a[normalize-space(.)='Back']",
+      "user_detail_email_label": "//*[normalize-space(text())='Email']",
+      "user_detail_phone_label": "//*[normalize-space(text())='Phone']"
     }
   },
   "product_name_stopwords": [
@@ -483,7 +535,8 @@
         "click manage",
         "navigate to manage"
       ],
-      "target": "//a[text()='Manage']"
+      "target": "//div[@id='navbarCollapse']//a[normalize-space(.)='Manage']",
+      "_note": "Was //a[text()='Manage'], which also matched a hidden duplicate (2 matches, 1 visible) on 2026-10-21."
     },
     {
       "id": "organizational_details",
@@ -492,7 +545,14 @@
         "organizational details",
         "view & update details",
         "view and update details",
-        "company details"
+        "company details",
+        "open the trade license details modal",
+        "open the trade licence details modal",
+        "open trade license details",
+        "trade license details link",
+        "'trade license details' link",
+        "view & update details link",
+        "view and update details link"
       ],
       "target": "//a[text()=' view & update details ']"
     },
@@ -506,7 +566,7 @@
         "close the image",
         "close the modal"
       ],
-      "target": "//button[@aria-label='Close']"
+      "target": "//div[@id='tradeLicenseModal']//button[@aria-label='Close']"
     },
     {
       "id": "profile_menu",
@@ -524,9 +584,129 @@
       "keywords": [
         "sign out",
         "log out",
-        "logout"
+        "logout",
+        "logout button",
+        "log out button",
+        "logout link"
       ],
-      "target": "//a[text()='Sign Out' and not(contains(@class,'px-10 py-0'))]"
+      "target": "//a[text()='Sign Out' and not(contains(@class,'px-10 py-0'))]",
+      "click_first": "//a[@class='company-info font-light']"
+    },
+    {
+      "id": "manage_tab_users",
+      "keywords": [
+        "manage users",
+        "user management",
+        "'users' tab",
+        "users tab in manage",
+        "manage -> users",
+        "manage > users"
+      ],
+      "target": "//button[normalize-space(.)='Users']",
+      "href": "/b2bportal/user-manage/user-management"
+    },
+    {
+      "id": "manage_tab_organization_details",
+      "keywords": [
+        "organization details tab",
+        "organisation details tab",
+        "click on 'organization details'",
+        "click 'organization details'",
+        "open organization details"
+      ],
+      "target": "//button[normalize-space(.)='Organization Details']"
+    },
+    {
+      "id": "search_users",
+      "keywords": [
+        "search users",
+        "search for a user",
+        "user search"
+      ],
+      "target": "//input[@placeholder='Search Users']"
+    },
+    {
+      "id": "user_row_menu",
+      "keywords": [
+        "row menu",
+        "kebab",
+        "three dots",
+        "user actions menu"
+      ],
+      "target": "((//table//tbody/tr)[1]//button[contains(@class,'dropdown-toggle')])[1]"
+    },
+    {
+      "id": "view_user_details",
+      "keywords": [
+        "view user details",
+        "user details page",
+        "open user details"
+      ],
+      "target": "((//table//tbody/tr)[1]//a[normalize-space(.)='View user details'])[1]"
+    },
+    {
+      "id": "user_detail_back",
+      "keywords": [
+        "back to users",
+        "back to the users list",
+        "click 'back'"
+      ],
+      "target": "//a[normalize-space(.)='Back']"
+    },
+    {
+      "id": "trade_license_download",
+      "keywords": [
+        "download the trade license",
+        "download the trade licence",
+        "download the document"
+      ],
+      "target": "//div[@id='tradeLicenseModal']//a[normalize-space(.)='Download']"
+    },
+    {
+      "id": "trade_license_card",
+      "keywords": [
+        "trade license card",
+        "trade licence card"
+      ],
+      "target": "//p[normalize-space(.)='Trade License']",
+      "_note": "The card's title on Manage > Organization Details (verified unique, 2026-10-21). Document No. and Expiry inside the card are not yet captured as separate selectors."
+    },
+    {
+      "id": "trade_license_card_document_no",
+      "keywords": [
+        "document no",
+        "document number",
+        "document no."
+      ],
+      "target": "//span[starts-with(normalize-space(.),'Document no.')]",
+      "_note": "Card text 'Document no. 900033' (shown capitalised by CSS); verified unique 2026-10-21.",
+      "accessible_name": "Document No."
+    },
+    {
+      "id": "trade_license_card_expiry",
+      "keywords": [
+        "expiry date displayed on the trade license card",
+        "expiry date on the trade license card",
+        "expiry date field on trade license card",
+        "card expiry",
+        "expiry on the card",
+        "expiry date displayed"
+      ],
+      "target": "//p[starts-with(normalize-space(.),'Expiry :')]",
+      "_note": "Card text 'Expiry : 23/04/2028'; the modal's 'Expiry Date' input is selectors.trade_license_modal.expiry_date.",
+      "accessible_name": "Expiry date"
+    },
+    {
+      "id": "cost_centers_search",
+      "keywords": [
+        "search field for the cost centers",
+        "search field for cost centers",
+        "cost centers search",
+        "cost center search",
+        "search by id, name",
+        "search the cost centers"
+      ],
+      "target": "//input[@placeholder='Search by ID, Name']"
     }
   ],
   "generation_directives": [
@@ -551,5 +731,13 @@
     "Multi-Org path: sign in with multi-org user, view organization cards, expand 'COST CENTERS (PARTY IDS)' drawer, verify Party IDs, and select target organization.",
     "Dashboard 360 exploration: navigate through Quick Access, view active accounts donut chart, inspect Total Due zero state, and review Popular Solutions carousel.",
     "Session isolation: verify that clicking 'Sign Out' from profile menu terminates session and revokes access to protected routes."
+  ],
+  "known_defects": [
+    {
+      "id": "DEV-B2B-01",
+      "where": "https://devnew-sas.etisalat.ae/b2bportal (no trailing slash)",
+      "what": "Redirects (302) to http://dev-sas-cloud.etisalat.corp.ae/b2bportal/, an internal host that does not resolve outside the data centre; /b2bportal/ and /b2bportal/login.html redirect correctly. Generated scripts retry a slashless path once with the slash.",
+      "seen": "2026-10-21"
+    }
   ]
 }

@@ -138,7 +138,20 @@ async function navigateTo(page, route, hrefHint) {
   const destination = isAbsolute
     ? target
     : (BASE_URL ? new URL(target, BASE_URL).toString() : target);
-  await page.goto(destination, { waitUntil: 'domcontentloaded', timeout: 45000 });
+  try {
+    await page.goto(destination, { waitUntil: 'domcontentloaded', timeout: 45000 });
+  } catch (e) {
+    // devnew-sas.etisalat.ae/b2bportal (no slash) redirects to an internal
+    // host (dev-sas-cloud.etisalat.corp.ae) that does not resolve outside the
+    // data centre, while /b2bportal/ redirects to the login page. A path
+    // without its slash gets one more try with it; anything else fails here.
+    const url = new URL(destination);
+    const lastSegment = url.pathname.split('/').pop() || '';
+    if (!String(e).includes('ERR_NAME_NOT_RESOLVED') || url.pathname.endsWith('/') || lastSegment.includes('.')) throw e;
+    url.pathname += '/';
+    console.log(`${destination} redirected to a host that does not resolve; retrying ${url.toString()}`);
+    await page.goto(url.toString(), { waitUntil: 'domcontentloaded', timeout: 45000 });
+  }
   // The e& dev site's firewall now and then answers a fresh session with
   // "The requested URL was rejected" instead of the page. That is the
   // environment refusing one request, not the application failing the
@@ -684,12 +697,15 @@ def kb_elements(profile: Optional[dict], flows: Optional[list[dict]] = None) -> 
     out: list[dict] = []
     seen: set[str] = set()
 
-    def _add(selector: Any, name: str, meaning: str, keywords: Optional[list] = None) -> None:
+    def _add(selector: Any, name: str, meaning: str, keywords: Optional[list] = None,
+             accessible_name: Optional[str] = None, click_first: Optional[str] = None) -> None:
         selector = str(selector or "").strip()
         if not selector.startswith(("//", "(//")) or "{" in selector or selector in seen:
             return
         seen.add(selector)
-        labels = selector_labels(selector)
+        # A rule may name its element when the on-screen text is only part of
+        # it: the card shows "Expiry : 23/04/2028", steps call it "Expiry date".
+        labels = [accessible_name] if accessible_name else selector_labels(selector)
         out.append({
             "element_name": name,
             "role": _selector_role(selector),
@@ -701,13 +717,16 @@ def kb_elements(profile: Optional[dict], flows: Optional[list[dict]] = None) -> 
             "page": None,
             "keywords": [str(k).lower() for k in (keywords or []) if str(k).strip()],
             "source": "knowledge_base",
+            # An element inside a menu: what has to be clicked open first
+            # (the B2B Portal's Sign Out sits in the profile menu).
+            "click_first": str(click_first).strip() if click_first else None,
         })
 
     profile = profile or {}
     # Rules first: they carry the keywords a step is phrased in.
     for rule in profile.get("step_grounding_rules") or []:
         _add(rule.get("target"), str(rule.get("id") or ""), " ".join(rule.get("keywords") or []),
-             rule.get("keywords"))
+             rule.get("keywords"), rule.get("accessible_name"), rule.get("click_first"))
     for group, entries in (profile.get("selectors") or {}).items():
         if isinstance(entries, dict):
             for key, selector in entries.items():
@@ -765,6 +784,16 @@ def _match_kb(step: dict, intent: str, elements: list[dict]) -> Optional[dict]:
     if len(by_keyword) == 1:
         return next(iter(by_keyword.values()))
     if len(by_keyword) > 1:
+        # "Click the 'view & update details' link on the Trade License card"
+        # hits the link's rule and the card's: the card is where the link
+        # is, not what is clicked. The element the step's own target names
+        # wins; still none or several, and it stays unanswered.
+        named = [
+            e for e in by_keyword.values()
+            if (words := grounding._target_words(e.get("accessible_name"))) and words <= target_words
+        ]
+        if len(named) == 1:
+            return named[0]
         return None
 
     entry, _reason = grounding.match_step(step, pool)
@@ -1013,6 +1042,11 @@ def expected_assertion(
         )
 
     title = _named_title(text)
+    # "Click 'Organization Details'" then "The Organization Details page is
+    # displayed": the name is the control the step clicked (a tab, on the B2B
+    # Portal), not a heading, so asserting a heading fails a page that opened.
+    if title and acted and title.lower() in acted:
+        title = None
     if title:
         name = _js(re.escape(title).replace(r"\ ", " "))
         return (
@@ -1080,7 +1114,7 @@ def _case_signs_in(steps: list[dict]) -> bool:
 # (prerequisite_flows -- verified selectors, named Test Data), that sign-in
 # replaces such steps. Not for a case that is ABOUT signing in: a negative word
 # anywhere in the case's sign-in steps keeps them as written.
-_CREDENTIAL_RE = re.compile(r"\b(credentials?|password|log[\s-]?in|sign[\s-]?in|login)\b", re.I)
+_CREDENTIAL_RE = re.compile(r"\b(credentials?|password|user[\s-]?name|log[\s-]?in|sign[\s-]?in|login)\b", re.I)
 _NEGATIVE_SIGN_IN_RE = re.compile(
     r"\b(invalid|incorrect|wrong|locked|lockout|expired|empty|blank|without|forgot\w*|reset"
     r"|unregistered|error|fails?|failed|attempts?)\b",
@@ -1104,7 +1138,11 @@ def _sign_in_from_kb(
         if not _CREDENTIAL_RE.search(text):
             continue
         intent = _intent(str(step.get("action") or ""), step.get("action_type"))
-        if intent in ("goto", "assert") or _is_navigation_target(step.get("target")):
+        # Only a real address makes a sign-in step a navigation. The refiner
+        # labelled "Log in as an authorized organization administrator" ->
+        # "Login form" as navigate; skipping it on the label left the B2B
+        # script with no sign-in at all, just a second goto('/b2bportal').
+        if intent == "assert" or _is_navigation_target(step.get("target")):
             continue
         indexes.append(index)
     if not indexes:
@@ -1124,7 +1162,13 @@ def _sign_in_from_kb(
         _locator, todo = build_locator(step, intent, catalog=catalog, kb=kb_index)
         return todo is not None
 
-    if not any(_ungroundable(s) for s in chosen):
+    # A flow that declares how it signs in (prerequisite_flows) is the verified
+    # way in. Credential steps the KB can only half-ground -- the B2B Portal's
+    # username/password selectors come from a BRD, while RC signs in with an
+    # email OTP -- typed into fields that are not there. So any positive
+    # sign-in step is replaced, not only one nothing grounds; _ungroundable
+    # stays as the reason recorded for the steps that were also unresolvable.
+    if not chosen:
         return steps, [], []
 
     prelude = [
@@ -1437,6 +1481,14 @@ def compile_playwright(
             # compiled to a URL check on about:blank instead of the goto.
             if (step.get("action_type") or "").strip().lower() == "navigate" and _is_navigation_target(target):
                 is_verify_step = False
+            # The last-step rule ("...page" on the final step is a check) is a
+            # guess for steps nobody typed. A step the refiner declared an
+            # action, and that does not itself say verify/assert, is that action.
+            if (
+                (step.get("action_type") or "").strip().lower() in ("click", "fill", "select")
+                and not re.match(r"\s*(verify|assert|check|confirm|validate|ensure)\b", action_lower)
+            ):
+                is_verify_step = False
             # Set once this step has asserted its expected result, so the generic
             # post-condition below does not assert it a second time.
             expected_done = False
@@ -1632,7 +1684,11 @@ def compile_playwright(
                 lines.append("      await addressInput.fill(\"Dubai, UAE\");")
                 lines.append("    }")
                 lines.append("  } catch (e) {}")
-            elif intent == "goto":
+            elif intent == "goto" and not verified_target:
+                # A goto whose target is an XPath is a click on that element
+                # ("Open the Manage section" -> the Manage link): compiled as
+                # a navigation it reloaded /b2bportal right after sign-in and
+                # lost the session.
                 action_url_m = re.search(r"https?://[^\s'\"\)\>]+", action)
                 if _is_navigation_target(target):
                     destination = target
@@ -1752,6 +1808,14 @@ def compile_playwright(
                 elif intent == "wait":
                     lines.append("  await page.waitForLoadState('networkidle');")
                 else:
+                    opener = next(
+                        (e.get("click_first") for e in kb_index
+                         if e.get("click_first") and e.get("recommended_locator") == locator),
+                        None,
+                    )
+                    if opener:
+                        lines.append(f"  // Opens the menu this control sits in first.")
+                        lines.append(f"  await page.locator({_js(opener)}).first().click();")
                     lines.append(f"  await {locator}.click();")
 
             if expected and intent != "assert" and not expected_done:
