@@ -135,6 +135,8 @@ def catalogue_text(lib: Library) -> str:
             lines.append(f"- {name}: free text. {spec.get('_note', '')}")
         else:
             lines.append(f"- {name}: {json.dumps(spec.get('values') or [], ensure_ascii=False)}")
+            for product, offered in (spec.get("values_by_product") or {}).items():
+                lines.append(f"    on {product} only: {json.dumps(offered, ensure_ascii=False)}")
     lines += ["", "PRODUCTS IN THE KB:"]
     for name, record in lib.products.items():
         if not record.get("title"):
@@ -233,7 +235,8 @@ def _page_ok(current: str, required: str) -> bool:
     return current == required
 
 
-def build_case(lib: Library, requirement: str, case: ComposedCase) -> BuiltCase:
+def build_case(lib: Library, requirement: str, case: ComposedCase, *, per_product: bool = True) -> BuiltCase:
+    """`per_product` False skips values_by_product: the verification crawl re-tests every value."""
     built = BuiltCase(requirement=requirement, case=case)
     page = "none"
     current_product: Optional[dict] = None
@@ -276,6 +279,13 @@ def build_case(lib: Library, requirement: str, case: ComposedCase) -> BuiltCase:
                 selected.clear()
                 selected.update(_default_selection(lib, record))
             else:
+                offered = (spec.get("values_by_product") or {}).get((current_product or {}).get("name", ""))
+                if per_product and offered is not None and raw not in offered:
+                    built.errors.append(
+                        f"Step {index}: {current_product['name']} does not offer {name} '{raw}' "
+                        f"(it offers {', '.join(offered) or 'none'})."
+                    )
+                    continue
                 values[name] = raw
         for key, allowed in (comp.get("requires_selected") or {}).items():
             if key in selected and selected[key] not in allowed:

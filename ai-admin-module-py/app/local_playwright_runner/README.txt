@@ -27,8 +27,12 @@ The runner listens only on 127.0.0.1:8765. Keep it open while using
 "Run on this device" in Automation Studio. Each job also requires a one-time,
 15-minute token created by an authenticated Studio user.
 
-The same runner handles Knowledge Base device walks and "Rerun on device"
-from Automation Studio run history. It accepts one run at a time.
+The same runner handles, in the Knowledge Base: device walks and dry runs,
+"Record on this device", the page-by-page crawl, Change & Heal crawls and
+recaptures; in Automation Studio: "Rerun on device" from run history and
+Guided Discovery on this device in the Workbench.
+It accepts one run at a time. Runner 1.4.0 or later is needed for the
+page-by-page crawl, recording on the device and device Guided Discovery.
 
 If Playwright is installed in another project (rather than globally), set:
   Windows: set AUTOMATION_PLAYWRIGHT_PROJECT=C:\path\to\playwright-project

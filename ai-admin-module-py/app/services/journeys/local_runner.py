@@ -125,6 +125,57 @@ def start(db: Session, *, app_id: str, journey_id: str, application_id: int,
     return crawl, token
 
 
+def _recording(crawl: KbCrawlRun) -> bool:
+    from . import journey_record
+
+    return (crawl.plan or {}).get("source") == journey_record.SOURCE
+
+
+def start_recording(db: Session, *, app_id: str, journey_id: str, application_id: int,
+                    environment: Optional[str], actor: Optional[str]) -> Tuple[KbCrawlRun, str]:
+    """Record it myself, with the browser opened by Playwright on this device.
+
+    The same recorder spec as a server recording; Finish is passed to the
+    runner as a stop request on its next progress call, since the device's
+    working folder is out of the server's reach.
+    """
+    from . import journey_record
+
+    plan, base_url, environment, application = journey_record.prepare(
+        db, app_id=app_id, journey_id=journey_id, application_id=application_id, environment=environment)
+    token = secrets.token_urlsafe(32)
+    now = datetime.utcnow()
+    run_key = f"device-{secrets.token_hex(12)}"
+    plan["execution_target"] = SOURCE
+    plan["local_agent"] = {
+        "token_hash": _hash(token), "created_at": now.isoformat(),
+        # The code has to outlive the recording itself, not just its start.
+        "expires_at": (now + timedelta(minutes=SESSION_MINUTES + int(plan["max_minutes"]))).isoformat(),
+        "state": "waiting", "message": "Waiting for the local Playwright runner.",
+        "progress": {},
+    }
+    run = AutomationRun(
+        run_key=run_key, application_id=application.id, framework="playwright", environment=environment,
+        status="queued", run_config={"headless": False, "slow_mo_ms": 0, "mode": "local_journey_record", "auto_heal": False},
+        run_metadata={"code": journey_record.build_spec(plan), "base_url": base_url, "file_name": journey_record.SPEC_FILE,
+                      "journey_id": journey_id, "execution_target": "device"}, triggered_by=actor,
+    )
+    crawl = KbCrawlRun(
+        app_id=app_id, journey_id=journey_id, application_id=application.id, environment=environment,
+        profile_id=None, base_url=base_url, run_key=run_key, status="running", plan=plan, created_by=actor,
+    )
+    db.add_all([run, crawl]); db.commit(); db.refresh(crawl)
+    return crawl, token
+
+
+def request_stop(db: Session, crawl: KbCrawlRun) -> None:
+    """Finish a device recording: the runner sees this on its next progress call."""
+    agent = _agent(crawl)
+    crawl.plan = {**(crawl.plan or {}), "local_agent": {**agent, "stop_requested": True,
+                                                        "message": "Finishing: saving what was recorded."}}
+    db.commit()
+
+
 def config(db: Session, crawl_id: int, token: str) -> Dict[str, Any]:
     crawl, agent = _authorise(db.get(KbCrawlRun, crawl_id), token)
     run = db.query(AutomationRun).filter(AutomationRun.run_key == crawl.run_key).first()
@@ -143,6 +194,21 @@ def config(db: Session, crawl_id: int, token: str) -> Dict[str, Any]:
         "message": "Local runner connected and is preparing Playwright.",
     }}
     db.commit()
+    if _recording(crawl):
+        from . import journey_record
+
+        return {
+            "crawl_id": crawl.id, "run_key": crawl.run_key, "code": code,
+            "file_name": journey_record.SPEC_FILE, "base_url": crawl.base_url,
+            "environment": crawl.environment, "env": data["values"],
+            "package_json": ws.PLAYWRIGHT_PACKAGE_JSON,
+            "playwright_config": ws._render_playwright_config(crawl.base_url, ".", slow_mo_ms=0, headless=False),
+            "progress_reporter": ws.PROGRESS_REPORTER_CJS,
+            "output_file": journey_record.OUTPUT_FILE, "progress_file": journey_crawl.PROGRESS_FILE,
+            "frame_file": journey_crawl.FRAME_FILE, "stream_frame": False,
+            # Written by the runner when Studio answers a progress call with stop.
+            "stop_file": journey_record.STOP_FILE, "heartbeat_seconds": 3,
+        }
     return {
         "crawl_id": crawl.id, "run_key": crawl.run_key, "code": code,
         "file_name": journey_crawl.SPEC_FILE, "base_url": crawl.base_url,
@@ -182,7 +248,7 @@ def progress(db: Session, crawl_id: int, token: str, value: Dict[str, Any]) -> D
         "progress": snapshot, "last_progress_at": datetime.utcnow().isoformat(),
     }}
     db.commit()
-    return {"accepted": True, "cancelled": False}
+    return {"accepted": True, "cancelled": False, "stop": bool(agent.get("stop_requested"))}
 
 
 def finish(db: Session, crawl_id: int, token: str, output: Dict[str, Any], artifacts: Dict[str, str]) -> KbCrawlRun:
@@ -191,7 +257,13 @@ def finish(db: Session, crawl_id: int, token: str, output: Dict[str, Any], artif
     if run is None:
         raise LocalRunnerError("The device run record is missing.")
     workspace = ws.reset_workspace(crawl.run_key)
-    (workspace / journey_crawl.OUTPUT_FILE).write_text(json.dumps(output), encoding="utf-8")
+    recording = _recording(crawl)
+    if recording:
+        from . import journey_record
+
+        (workspace / journey_record.OUTPUT_FILE).write_text(json.dumps(output), encoding="utf-8")
+    else:
+        (workspace / journey_crawl.OUTPUT_FILE).write_text(json.dumps(output), encoding="utf-8")
     total = 0
     for name, encoded in (artifacts or {}).items():
         clean = Path(name).name
@@ -205,6 +277,15 @@ def finish(db: Session, crawl_id: int, token: str, output: Dict[str, Any], artif
         if total > MAX_ARTIFACT_BYTES:
             raise LocalRunnerError("The local evidence upload is larger than 25 MB.")
         (workspace / clean).write_bytes(data)
+    if recording:
+        crawl.plan = {**(crawl.plan or {}), "local_agent": {
+            **agent, "token_hash": None, "state": "completed", "finished": True,
+            "message": "The recording on this device ended and was uploaded.",
+        }}
+        run.status = "completed"; run.outcome = "passed"; run.workspace_path = str(workspace); run.completed_at = datetime.utcnow()
+        db.commit()
+        # The recording's events become steps exactly as a server recording's do.
+        return journey_record.absorb(db, crawl)
     result = journey_crawl.evaluate(crawl.plan or {}, output)
     crawl.result = result; crawl.status = "completed"; crawl.error = None; crawl.finished_at = datetime.utcnow()
     crawl.plan = {**(crawl.plan or {}), "local_agent": {

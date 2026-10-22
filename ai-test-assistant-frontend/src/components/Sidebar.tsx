@@ -57,6 +57,8 @@ const aiTestGenerationItems: MenuItem[] = [
 const aiTestAutomationtems: MenuItem[] = [
     { path: '/automation', label: 'Automation Studio', permission: 'automation.view' },
     { path: '/automation/knowledge-base', label: 'Knowledge Base', permission: 'automation.view', beta: true },
+    // The QA team's Katalon exports -> KB draft, test cases and matching scripts.
+    { path: '/automation/katalon-import', label: 'Katalon Import', permission: 'automation.view', beta: true },
     // The one source of test data for automation cases; the KB refers to it.
     { path: '/test-data', label: 'Test Data', permission: 'automation.view', beta: true },
     // BRD + design + KB + script mapped per approved automation case. Hidden

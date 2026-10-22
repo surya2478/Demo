@@ -45,6 +45,7 @@ import StatusBadge from '../../components/ui/StatusBadge'
 import CodeViewer from '../../components/automation/CodeViewer'
 import { StatTile, JobProgress } from '../../components/automation/workbenchPresentation'
 import { GroundingBadge } from '../../components/automation/groundingPresentation'
+import { startDeviceRunner } from '../../services/localRunner'
 import { isDiscoverySettled, SELECTED_APP_STORAGE_KEY } from '../../types/automation'
 import type {
   DiscoveredElement,
@@ -363,6 +364,59 @@ export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, 
       void poll()
     } catch (err: any) {
       setError(err?.message ?? 'Discovery crawl could not be started.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  // The same crawl on this device: for servers that cannot reach the
+  // application or launch a browser (enterprise endpoint protection).
+  const [deviceHeaded, setDeviceHeaded] = useState(false)
+  const [deviceNote, setDeviceNote] = useState<string | null>(null)
+  const handleDiscoverOnDevice = async () => {
+    if (!selectedAppId) return
+    setBusy('device')
+    setError(null)
+    setDeviceNote(null)
+    setGrounding(null)
+    let runKey: string | null = null
+    try {
+      const started = await automationService.startDeviceDiscovery({
+        application_id: selectedAppId,
+        application_url: url.trim() || appModel?.application_info?.target_address || null,
+        application_environment: environment.trim() || appModel?.environments?.selected || null,
+        max_pages: maxPages,
+        headless: !deviceHeaded
+      })
+      runKey = started.run_key
+      setDiscovery(started.discovery)
+      try {
+        await startDeviceRunner(started.pairing)
+      } catch {
+        await automationService.cancelRun(started.run_key).catch(() => undefined)
+        runKey = null
+        throw new Error('The local Playwright runner is not available. Download it once, start it on this device, then click Run on this device again.')
+      }
+      setDeviceNote('Playwright is crawling on this device. The catalogue appears here when the runner uploads it.')
+      void poll()
+    } catch (err: any) {
+      setError(err?.message ?? 'The device crawl could not be started.')
+      if (!runKey) await loadCrawlState()
+    } finally {
+      setBusy(null)
+    }
+  }
+  const handleDownloadRunner = async () => {
+    setBusy('download')
+    setError(null)
+    try {
+      const href = await knowledgeBaseService.downloadLocalRunner()
+      const a = document.createElement('a')
+      a.href = href; a.download = 'automation-studio-local-runner.zip'; a.click()
+      window.setTimeout(() => URL.revokeObjectURL(href), 10000)
+      setDeviceNote('Local runner downloaded. Extract it and start the Windows or Linux launcher once on each device.')
+    } catch (err: any) {
+      setError(err?.message ?? 'The device runner could not be downloaded.')
     } finally {
       setBusy(null)
     }
@@ -1161,6 +1215,35 @@ export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, 
                   <HiOutlineGlobeAlt className="h-4 w-4" />
                   {running ? 'Crawling...' : 'Crawl Application'}
                 </button>
+                <select
+                  value={deviceHeaded ? 'headed' : 'headless'}
+                  onChange={e => setDeviceHeaded(e.target.value === 'headed')}
+                  disabled={busy !== null || running}
+                  className="app-input w-auto"
+                  aria-label="Device browser mode"
+                >
+                  <option value="headless">Device · headless</option>
+                  <option value="headed">Device · headed</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => void handleDiscoverOnDevice()}
+                  disabled={!canExecute || !selectedAppId || busy !== null || running}
+                  title={`Crawls with Playwright installed on this device in ${deviceHeaded ? 'headed' : 'headless'} mode; no browser runs on the backend server`}
+                  className="app-btn app-btn-secondary inline-flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <HiOutlineDeviceMobile className="h-4 w-4" />
+                  {busy === 'device' ? 'Connecting…' : 'Run on this device'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDownloadRunner()}
+                  disabled={busy !== null}
+                  className="app-btn app-btn-secondary inline-flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <HiOutlineDownload className="h-4 w-4" />
+                  {busy === 'download' ? 'Downloading…' : 'Download device runner'}
+                </button>
                 <button
                   type="button"
                   onClick={async () => {
@@ -1225,7 +1308,7 @@ export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, 
             {runtime && !runtime.ready && (
               <div className="mb-3 flex items-start gap-2 rounded-app border border-orange-200 bg-app-warning-bg px-3 py-2.5 text-[12px] text-app-warning">
                 <HiOutlineExclamationCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                <span>The browser runtime is unavailable, so a live crawl would be refused.</span>
+                <span>The server's browser runtime is unavailable, so a server crawl would be refused. Use Run on this device instead.</span>
               </div>
             )}
 
@@ -1243,6 +1326,10 @@ export const DiscoveryBody: React.FC<DiscoveryBodyProps> = ({ embedded = false, 
                 <HiOutlineExclamationCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
                 <span>{error}</span>
               </div>
+            )}
+
+            {deviceNote && !error && (
+              <div className="mb-3 rounded-app border border-blue-200 bg-blue-50/50 px-3 py-2.5 text-[12px] text-blue-900">{deviceNote}</div>
             )}
 
             {draft && (

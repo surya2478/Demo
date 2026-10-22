@@ -38,7 +38,7 @@
   "graph_edges": [],
   "_draft": {
     "generated_by": "Application Discovery crawl v1",
-    "generated_at": "2026-10-14T07:52:54.622293Z",
+    "generated_at": "2026-10-21T12:42:53.465809Z",
     "status": "DRAFT -- the steps are pages the crawler reached, in the order it reached them, not a journey anybody designed. Rename, reorder, delete what is noise, and add known_products before using it."
   }
 }

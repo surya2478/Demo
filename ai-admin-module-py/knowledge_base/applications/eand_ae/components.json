@@ -63,25 +63,44 @@
         "512GB",
         "1TB",
         "2TB"
-      ]
+      ],
+      "values_by_product": {
+        "11\" New iPad Pro, Wi-Fi": [
+          "256GB",
+          "512GB",
+          "1TB"
+        ]
+      }
     },
     "connectivity": {
       "values": [
         "Wi-Fi",
         "Wi-Fi + Cellular"
-      ]
+      ],
+      "values_by_product": {
+        "11\" New iPad Pro, Wi-Fi": []
+      }
     },
     "display_glass": {
       "values": [
         "Standard glass",
         "Nano-Texture Glass"
-      ]
+      ],
+      "values_by_product": {
+        "iPad Pro M4, 13-inch": [],
+        "11\" New iPad Pro, Wi-Fi": []
+      }
     },
     "colour": {
       "values": [
         "Silver",
         "Space Black"
-      ]
+      ],
+      "values_by_product": {
+        "11\" New iPad Pro, Wi-Fi": [
+          "Silver"
+        ]
+      }
     },
     "plan": {
       "values": [
@@ -97,7 +116,13 @@
         "Battery",
         "Warranty",
         "Display"
-      ]
+      ],
+      "values_by_product": {
+        "11\" New iPad Pro, Wi-Fi": [
+          "Battery",
+          "Display"
+        ]
+      }
     },
     "search_term": {
       "type": "text",

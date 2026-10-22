@@ -62,7 +62,7 @@ from ..services.automation import intake
 from ..services.automation import workbench as wb
 from ..services.automation import healer
 from ..services.automation import test_data
-from ..services.automation import device_runner
+from ..services.automation import device_runner, guided_discovery_device
 from ..services.automation import knowledge_base as kb
 from ..services.journeys import browser_collector as journey_browser_collector
 from ..services.journeys import local_runner as journey_local_runner
@@ -353,6 +353,8 @@ class DeviceProgressRequest(BaseModel):
 class DeviceFinishRequest(BaseModel):
     report: dict[str, Any]
     artifacts: dict[str, str] = Field(default_factory=dict)
+    # Files the spec wrote that the run asked for by name (a discovery catalogue).
+    outputs: dict[str, str] = Field(default_factory=dict)
     log: str = Field(default="", max_length=10_000_000)
     exit_code: int
     duration_seconds: float = Field(default=0, ge=0)
@@ -580,6 +582,7 @@ def finish_device_run(run_key: str, body: DeviceFinishRequest, authorization: Op
         run = device_runner.finish(
             db, run_key, _device_token(authorization), report=body.report, artifacts=body.artifacts,
             log=body.log, exit_code=body.exit_code, duration_seconds=body.duration_seconds,
+            outputs=body.outputs,
         )
         return _run_summary(run)
     except device_runner.DeviceRunnerError as exc:
@@ -4304,6 +4307,7 @@ def _absorb_discovery_result(db: Session, run: AutomationDiscoveryRun) -> Automa
     execution = db.query(AutomationRun).filter(AutomationRun.run_key == run.run_key).first()
     if not execution:
         return run
+    device_runner.expire_if_stale(db, execution)
 
     if execution.status in ("queued", "running"):
         run.status = "running"
@@ -4330,9 +4334,12 @@ def _absorb_discovery_result(db: Session, run: AutomationDiscoveryRun) -> Automa
 
     if output_path is None:
         run.status = "failed"
+        on_device = (execution.run_config or {}).get("execution_target") == "device"
         run.error = (
             execution.error_message
-            or "The crawl produced no catalogue. Its log explains what stopped it."
+            or ("The device runner uploaded no catalogue. Download the device runner again "
+                "(an older one does not send discovery output), restart it, and crawl again."
+                if on_device else "The crawl produced no catalogue. Its log explains what stopped it.")
         )
         db.commit()
         return run
@@ -4356,6 +4363,38 @@ def _absorb_discovery_result(db: Session, run: AutomationDiscoveryRun) -> Automa
     run.explored_pages = parsed["pages"]
     run.blockers = parsed["blockers"]
     run.error = None
+    db.commit()
+    db.refresh(run)
+    return run
+
+
+def _open_discovery_run(db: Session, application, target_url: str, environment: Optional[str],
+                        username: Optional[str]) -> AutomationDiscoveryRun:
+    # Versioned, not overwritten: a case grounded against the previous
+    # catalogue keeps pointing at the run it was actually matched against.
+    # Both the numbering and the retirement are scoped to this application --
+    # crawling one must leave every other application's catalogue current.
+    previous = _current_discovery(db, application.id)
+    next_version = (previous.version + 1) if previous else 1
+    if previous:
+        previous.is_current = False
+
+    run = AutomationDiscoveryRun(
+        application_id=application.id,
+        version=next_version,
+        is_current=True,
+        status="queued",
+        application_url=target_url,
+        application_environment=environment,
+        auth_mode="none",
+        auth_status="not_required",
+        auth_detail=(
+            "Crawled as an anonymous visitor. Authenticated discovery needs credential "
+            "storage, which this deployment does not carry yet."
+        ),
+        created_by=username,
+    )
+    db.add(run)
     db.commit()
     db.refresh(run)
     return run
@@ -4405,34 +4444,8 @@ def start_discovery(
             ),
         )
     environment = (body.application_environment or application.environment or "").strip() or None
-
-    # Versioned, not overwritten: a case grounded against the previous
-    # catalogue keeps pointing at the run it was actually matched against.
-    # Both the numbering and the retirement are scoped to this application --
-    # crawling one must leave every other application's catalogue current.
-    previous = _current_discovery(db, application.id)
-    next_version = (previous.version + 1) if previous else 1
-    if previous:
-        previous.is_current = False
-
-    run = AutomationDiscoveryRun(
-        application_id=application.id,
-        version=next_version,
-        is_current=True,
-        status="queued",
-        application_url=target_url,
-        application_environment=environment,
-        auth_mode="none",
-        auth_status="not_required",
-        auth_detail=(
-            "Crawled as an anonymous visitor. Authenticated discovery needs credential "
-            "storage, which this deployment does not carry yet."
-        ),
-        created_by=username,
-    )
-    db.add(run)
-    db.commit()
-    db.refresh(run)
+    run = _open_discovery_run(db, application, target_url, environment, username)
+    next_version = run.version
 
     run_key = new_run_key()
     execution = AutomationRun(
@@ -4487,6 +4500,78 @@ def start_discovery(
 
     db.refresh(run)
     return _discovery_detail(run, element_count=0)
+
+
+class DeviceDiscoveryRequest(DiscoveryRequest):
+    headless: bool = True
+
+
+@router.post("/discovery/run-local", status_code=201)
+def start_device_discovery(
+    body: DeviceDiscoveryRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """The same page-by-page crawl, run by Playwright on the user's own device.
+
+    For deployments whose server cannot reach the application or launch a
+    browser: the server only creates the crawl and a short-lived code; the
+    loopback runner fetches the spec, runs it and uploads the catalogue.
+    """
+    if not settings.AUTOMATION_ENABLED:
+        raise HTTPException(status_code=503, detail="The Automation Module is disabled on this deployment.")
+    username = (current_user or {}).get("username")
+    application = _resolve_application(db, body.application_id)
+    target_url = (body.application_url or application.base_url or "").strip()
+    if not target_url:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{application.name} has no base URL registered and none was given. Set one on the application before crawling.",
+        )
+    environment = (body.application_environment or application.environment or "").strip() or None
+    code = discovery.build_discovery_spec(
+        target_url,
+        max_pages=body.max_pages,
+        budget_ms=discovery.crawl_budget_ms(
+            body.max_pages, run_timeout_seconds=int(settings.AUTOMATION_RUN_TIMEOUT_SECONDS or 600),
+        ),
+    )
+    try:
+        execution, token = device_runner.start(
+            db, code=code, environment=environment, base_url=target_url, file_name="discovery.spec.ts",
+            test_case_id=None, slow_mo_ms=1000, actor=username, mode="discovery", headless=body.headless,
+            outputs=[discovery.DISCOVERY_OUTPUT_FILE], application_id=application.id,
+        )
+    except device_runner.DeviceRunnerError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    run = _open_discovery_run(db, application, target_url, environment, username)
+    run.run_key = execution.run_key
+    run.status = "running"
+    db.commit()
+    audit_log(
+        actor=username or "unknown",
+        actor_role=(current_user or {}).get("role"),
+        module="Automation Studio",
+        action="discover",
+        resource_type="automation_discovery_run",
+        resource_id=str(run.id),
+        resource_name=target_url,
+        status="success",
+        details={
+            "description": f"{username} started discovery of {application.name} at {target_url} on their device",
+            "application_id": application.id,
+            "application": application.name,
+            "version": run.version,
+            "execution_target": "device",
+        },
+    )
+    db.refresh(run)
+    return {
+        "discovery": _discovery_detail(run, element_count=0),
+        "run_key": execution.run_key,
+        "runner_token": token,
+        "expires_in_minutes": device_runner.SESSION_MINUTES,
+    }
 
 
 @router.get("/discovery")
@@ -5045,6 +5130,96 @@ def get_guided_discovery_status(
         "objects_count": len(live_objects),
         "captured_objects": live_objects,
     }
+
+
+class DeviceGuidedRequest(BaseModel):
+    headed: bool = True
+
+
+@router.post("/workbench/test-cases/{case_id}/guided-discovery/device", status_code=201)
+def start_device_guided_discovery(
+    case_id: int,
+    body: DeviceGuidedRequest = DeviceGuidedRequest(),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Guided discovery in a browser the loopback runner opens on this device."""
+    case = _load_case(db, case_id)
+    try:
+        run, token = guided_discovery_device.start(db, case, actor=(current_user or {}).get("username"), headed=body.headed)
+    except guided_discovery_device.GuidedDeviceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "case_id": case.id, "display_id": case.display_id, "target_url": case.application_url,
+        "run_key": run.run_key, "runner_token": token, "status": "starting",
+        "expires_in_minutes": guided_discovery_device.CONNECT_MINUTES,
+    }
+
+
+@router.get("/workbench/guided-discovery/device/{run_key}")
+def device_guided_discovery_status(
+    run_key: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_VIEW)),
+):
+    try:
+        return guided_discovery_device.status(db, run_key)
+    except guided_discovery_device.GuidedDeviceError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/workbench/guided-discovery/device/{run_key}/stop")
+def stop_device_guided_discovery(
+    run_key: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission(PERM_EXECUTE)),
+):
+    """Finish: the device runner hears it on its next call and saves what was captured."""
+    try:
+        guided_discovery_device.request_stop(db, run_key)
+        return guided_discovery_device.status(db, run_key)
+    except guided_discovery_device.GuidedDeviceError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+# These accept only the run code the device runner was paired with.
+class DeviceGuidedFinishRequest(BaseModel):
+    output: dict[str, Any] = Field(default_factory=dict)
+    artifacts: dict[str, str] = Field(default_factory=dict)
+
+
+@router.get("/local-runner/guided/{run_key}")
+def device_guided_config(run_key: str, authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)):
+    try:
+        return guided_discovery_device.config(db, run_key, _device_token(authorization))
+    except guided_discovery_device.GuidedDeviceError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+
+@router.post("/local-runner/guided/{run_key}/progress")
+def device_guided_progress(run_key: str, body: dict[str, Any], authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)):
+    try:
+        return guided_discovery_device.progress(db, run_key, _device_token(authorization), body)
+    except guided_discovery_device.GuidedDeviceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/local-runner/guided/{run_key}/finish")
+def device_guided_finish(run_key: str, body: DeviceGuidedFinishRequest, authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)):
+    try:
+        guided_discovery_device.finish(db, run_key, _device_token(authorization), body.output)
+        return guided_discovery_device.status(db, run_key)
+    except guided_discovery_device.GuidedDeviceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/local-runner/guided/{run_key}/fail")
+def device_guided_fail(run_key: str, body: DeviceFailRequest, authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)):
+    try:
+        guided_discovery_device.fail(db, run_key, _device_token(authorization), body.message)
+        return guided_discovery_device.status(db, run_key)
+    except guided_discovery_device.GuidedDeviceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/workbench/test-cases/{case_id}/guided-discovery/objects")

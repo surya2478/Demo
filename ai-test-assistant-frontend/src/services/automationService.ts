@@ -323,6 +323,41 @@ const automationService = {
     started_at: string
   }> => call(() => api.post(`${BASE}/workbench/test-cases/${caseId}/guided-discovery/start`)),
 
+  /** Guided discovery in a browser opened by the loopback Playwright runner on this device. */
+  startDeviceGuidedDiscovery: async (caseId: number, headed = true): Promise<{
+    case_id: number
+    display_id: string
+    target_url: string
+    run_key: string
+    status: string
+    pairing: string
+  }> => {
+    const response = await call<{ case_id: number; display_id: string; target_url: string; run_key: string; status: string; runner_token: string }>(
+      () => api.post(`${BASE}/workbench/test-cases/${caseId}/guided-discovery/device`, { headed })
+    )
+    return {
+      ...response,
+      pairing: makeLocalPairing({
+        id: response.run_key, token: response.runner_token,
+        endpoint: `${BASE}/local-runner/guided/${encodeURIComponent(response.run_key)}`
+      })
+    }
+  },
+
+  getDeviceGuidedDiscovery: (runKey: string): Promise<{
+    case_id: number
+    display_id: string | null
+    run_key: string
+    status: string
+    message: string | null
+    error: string | null
+    objects_count: number
+    captured_objects: RecordedFlowObject[]
+  }> => call(() => api.get(`${BASE}/workbench/guided-discovery/device/${encodeURIComponent(runKey)}`)),
+
+  stopDeviceGuidedDiscovery: (runKey: string): Promise<{ status: string; objects_count: number }> =>
+    call(() => api.post(`${BASE}/workbench/guided-discovery/device/${encodeURIComponent(runKey)}/stop`)),
+
   stopGuidedDiscovery: (caseId: number): Promise<{
     case_id: number
     status: string
@@ -566,6 +601,26 @@ const automationService = {
     browser?: 'chrome' | 'chromium'
   }): Promise<DiscoveryRun> =>
     call<DiscoveryRun>(() => api.post(`${BASE}/discovery/run`, body, LONG)),
+
+  /** The same crawl, run by Playwright on this device through the loopback runner. */
+  startDeviceDiscovery: async (body: {
+    application_id: number
+    application_url?: string | null
+    application_environment?: string | null
+    max_pages?: number
+    headless?: boolean
+  }): Promise<{ discovery: DiscoveryRun; run_key: string; pairing: string; expires_in_minutes: number }> => {
+    const response = await call<{ discovery: DiscoveryRun; run_key: string; runner_token: string; expires_in_minutes: number }>(
+      () => api.post(`${BASE}/discovery/run-local`, body)
+    )
+    return {
+      discovery: response.discovery, run_key: response.run_key, expires_in_minutes: response.expires_in_minutes,
+      pairing: makeLocalPairing({
+        id: response.run_key, token: response.runner_token,
+        endpoint: `${BASE}/local-runner/runs/${encodeURIComponent(response.run_key)}`
+      })
+    }
+  },
 
   /** One application's catalogue state. Folds in a finished crawl on the way. */
   getDiscovery: (applicationId?: number | null): Promise<DiscoveryState> =>

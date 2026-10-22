@@ -304,6 +304,14 @@ app.include_router(ado_api.router, prefix="/ado-api", tags=["ADO API"])
 # --- Automation Module: the module's single mount point -----------------------
 app.include_router(test_data_router.router, prefix="/automation/test-data", tags=["Automation Studio: Test data"])
 app.include_router(knowledge_base_page.router, prefix="/automation/knowledge-base", tags=["Automation Studio: Knowledge Base"])
+# Katalon Import: the QA team's Katalon exports -> KB draft, test cases, scripts. Loaded like
+# the R&D Lab: a failure to load it never stops the app.
+try:
+    from .routers import katalon_import
+    app.include_router(katalon_import.router, prefix="/automation/katalon-import", tags=["Automation Studio: Katalon Import"])
+except Exception:  # noqa: BLE001
+    import logging as _logging
+    _logging.getLogger(__name__).exception("Katalon Import did not load; the rest of the app is unaffected.")
 app.include_router(automation.router, prefix="/automation", tags=["Automation Studio"])
 # --- AI R&D Lab: independent; a failure to load it never stops the app --------
 try:

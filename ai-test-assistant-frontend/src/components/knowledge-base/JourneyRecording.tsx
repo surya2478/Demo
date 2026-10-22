@@ -46,15 +46,19 @@ export const RecordingLive: React.FC<{ crawl: JourneyCrawl; canStop: boolean; on
     setError(null)
     try { await knowledgeBaseService.finishRecording(crawl.id) } catch (err) { setError(errorText(err)); setEnding(null) }
   }
+  const onDevice = crawl.execution_target === 'local'
   const discard = async () => {
     if (!crawl.run_key) return
     setEnding('discard')
-    try { await automationService.cancelRun(crawl.run_key) } catch { /* it ends on its own */ }
+    try {
+      if (onDevice) await knowledgeBaseService.cancelLocalCrawl(crawl.id)
+      else await automationService.cancelRun(crawl.run_key)
+    } catch { /* it ends on its own */ }
   }
   return (
     <div className="flex flex-col gap-3 px-5 pb-5">
       <Note>
-        A browser window has opened on the machine the backend runs on, at {crawl.base_url}. Do the journey there yourself,
+        A browser window has opened {onDevice ? 'on this device, through the device runner' : 'on the machine the backend runs on'}, at {crawl.base_url}. Do the journey there yourself,
         signing in, entering the OTP and getting past anything that needs a person, then press <b>Finish recording</b>. Each action
         appears on the right as you go. Values you type are never recorded, only which kind of field they went into.
       </Note>
@@ -74,7 +78,7 @@ export const RecordingLive: React.FC<{ crawl: JourneyCrawl; canStop: boolean; on
             )}
           </div>
           <div className="flex aspect-[16/9] items-center justify-center overflow-hidden rounded-[12px] border border-[#E8EAEE] bg-[#F4F5F7]">
-            {frame ? <img src={frame} alt="The page being recorded" className="h-full w-full object-contain" /> : <span className="text-[12.5px] text-[#6B7280]">Waiting for the browser…</span>}
+            {frame ? <img src={frame} alt="The page being recorded" className="h-full w-full object-contain" /> : <span className="px-4 text-center text-[12.5px] text-[#6B7280]">{onDevice ? 'The browser is on this device; its screen is not streamed. Actions appear on the right as you go.' : 'Waiting for the browser…'}</span>}
           </div>
         </div>
         <ol className="m-0 flex max-h-[420px] list-none flex-col overflow-auto rounded-[12px] border border-[#E8EAEE] p-0">

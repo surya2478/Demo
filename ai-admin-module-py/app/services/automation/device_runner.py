@@ -20,6 +20,10 @@ from .local_playwright import LocalPlaywrightRunner
 SESSION_MINUTES = 15
 MAX_ARTIFACT_BYTES = 100 * 1024 * 1024
 ALLOWED_ARTIFACT_SUFFIXES = {".png", ".webm", ".zip"}
+MAX_OUTPUT_BYTES = 20 * 1024 * 1024
+# Modes a device run may carry; discovery is the Knowledge Base's page-by-page
+# crawl, whose catalogue the spec writes next to itself (see `outputs`).
+DEVICE_MODES = {"dry_run", "rerun", "discovery"}
 
 
 class DeviceRunnerError(ValueError):
@@ -58,8 +62,10 @@ def start(
     db: Session, *, code: str, environment: Optional[str], base_url: Optional[str],
     file_name: Optional[str], test_case_id: Optional[int], slow_mo_ms: Optional[int],
     actor: Optional[str], script_id: Optional[int] = None, mode: str = "rerun",
-    headless: bool = True,
+    headless: bool = True, outputs: Optional[list[str]] = None, application_id: Optional[int] = None,
 ) -> Tuple[AutomationRun, str]:
+    """`outputs` names files the spec writes in its working folder that the
+    device must upload with its report (a discovery crawl's catalogue)."""
     case = db.get(AutomationTestCase, test_case_id) if test_case_id else None
     data = test_data.for_code(
         db, code, environment=environment,
@@ -73,15 +79,17 @@ def start(
     token = token_secrets.token_urlsafe(32)
     now = datetime.utcnow()
     run = AutomationRun(
-        run_key=new_run_key(), test_case_id=test_case_id, script_id=script_id, framework="playwright",
+        run_key=new_run_key(), test_case_id=test_case_id, script_id=script_id, application_id=application_id,
+        framework="playwright",
         environment=data["environment"], status="queued",
         run_config={
             "headless": bool(headless), "slow_mo_ms": int(slow_mo_ms if slow_mo_ms is not None else 1000),
-            "mode": mode if mode in {"dry_run", "rerun"} else "rerun", "execution_target": "device",
+            "mode": mode if mode in DEVICE_MODES else "rerun", "execution_target": "device",
         },
         run_metadata={
             "code": code, "base_url": target_url, "file_name": file_name,
             "target_url": data.get("address"), "test_data": test_data.public(data),
+            "device_outputs": [PurePosixPath(name).name for name in (outputs or []) if name],
             "execution_phase": "Waiting for device Playwright runner", "phase_step": 1,
             "device_agent": {
                 "token_hash": _hash(token), "created_at": now.isoformat(),
@@ -140,6 +148,7 @@ def config(db: Session, run_key: str, token: str) -> dict[str, Any]:
         "progress_reporter": ws.PROGRESS_REPORTER_CJS,
         "progress_file": ws.PROGRESS_FILE_NAME, "output_file": "results.json", "step_total": total,
         "synthetic_test_step": synthetic_test_step,
+        "output_files": list(metadata.get("device_outputs") or []),
     }
 
 
@@ -177,7 +186,7 @@ def _artifact_name(raw: str) -> Optional[PurePosixPath]:
 
 def finish(
     db: Session, run_key: str, token: str, *, report: dict[str, Any], artifacts: dict[str, str],
-    log: str, exit_code: int, duration_seconds: float,
+    log: str, exit_code: int, duration_seconds: float, outputs: Optional[dict[str, str]] = None,
 ) -> AutomationRun:
     run, agent = _authorise(db.query(AutomationRun).filter(AutomationRun.run_key == run_key).first(), token)
     workspace = ws.reset_workspace(run.run_key)
@@ -196,6 +205,19 @@ def finish(
         target = workspace.joinpath(*rel.parts)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)
+    expected = set((run.run_metadata or {}).get("device_outputs") or [])
+    output_bytes = 0
+    for name, encoded in (outputs or {}).items():
+        if name not in expected:
+            continue
+        try:
+            content = base64.b64decode(encoded, validate=True)
+        except (TypeError, ValueError):
+            continue
+        output_bytes += len(content)
+        if output_bytes > MAX_OUTPUT_BYTES:
+            raise DeviceRunnerError("The device run's output files are larger than 20 MB.")
+        (workspace / name).write_bytes(content)
     report_bytes = json.dumps(report).encode("utf-8")
     (workspace / "results.json").write_bytes(report_bytes)
     log_path = workspace / "run.log"
@@ -286,3 +308,30 @@ def cancel(db: Session, run: AutomationRun) -> AutomationRun:
     }}
     db.commit(); db.refresh(run)
     return run
+
+
+def expire_if_stale(db: Session, run: AutomationRun) -> bool:
+    """Fail a device run whose code expired before the runner finished it.
+
+    Without this a run the device never picked up stays queued for ever, and
+    whatever waits on it (a discovery crawl) never ends either.
+    """
+    if (run.run_config or {}).get("execution_target") != "device" or run.status not in ("queued", "running"):
+        return False
+    agent = (run.run_metadata or {}).get("device_agent") or {}
+    try:
+        expired = datetime.utcnow() >= datetime.fromisoformat(str(agent.get("expires_at")))
+    except (TypeError, ValueError):
+        expired = True
+    if not expired:
+        return False
+    message = ("The device runner did not pick up this run before its code expired. "
+               "Start the local runner on this device, then try again.") if run.status == "queued" else (
+               "The device runner stopped reporting before its run code expired.")
+    run.status = "failed"; run.outcome = "blocked"; run.error_message = message
+    run.completed_at = datetime.utcnow()
+    run.run_metadata = {**(run.run_metadata or {}), "device_agent": {
+        **agent, "token_hash": None, "state": "failed", "finished": True, "message": message,
+    }}
+    db.commit(); db.refresh(run)
+    return True

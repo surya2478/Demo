@@ -1011,6 +1011,15 @@ const knowledgeBaseService = {
     Promise<JourneyEditResult & { journey_id: string }> => (await api.post(`${BASE}/captures/${id}/journey`, body)).data,
   startRecording: async (app: string, body: { journey_id: string; application_id: number; environment?: string | null }): Promise<JourneyCrawl> =>
     (await api.post(`${BASE}/${enc(app)}/journey-record`, body)).data,
+  /** Record it myself in a browser opened by the loopback Playwright runner on this device. */
+  startLocalRecording: async (app: string, body: { journey_id: string; application_id: number; environment?: string | null }):
+    Promise<{ crawl: JourneyCrawl; pairing: string; expires_in_minutes: number }> => {
+    const response = (await api.post(`${BASE}/${enc(app)}/local-journey-record`, body)).data as {
+      crawl: JourneyCrawl; runner_token: string; expires_in_minutes: number
+    }
+    const pairing = makeLocalPairing({ id: response.crawl.id, token: response.runner_token })
+    return { crawl: response.crawl, pairing, expires_in_minutes: response.expires_in_minutes }
+  },
   finishRecording: async (id: number): Promise<void> => { await api.post(`${BASE}/journey-crawls/${id}/finish`) },
   /** The reviewed recording as the journey's steps, with its flow regenerated. */
   saveRecording: async (id: number, body: { steps: RecordedStep[]; link_flow?: string | null; publish: boolean }): Promise<JourneyMapSaveResult> =>

@@ -179,8 +179,11 @@ def start(
     db.add(AutomationRun(
         run_key=run_key, framework="playwright", environment=environment, status="queued",
         # Headed is never faster than a person can follow.
+        # No self-healing: a step the crawl cannot complete is a finding about
+        # the journey, not a script defect. Healing would send the generated
+        # crawler to the model and could replace the crawl's result with a rerun.
         run_config={"headless": not headed, "slow_mo_ms": max(slow_mo, 700) if headed else slow_mo, "mode": "journey_crawl",
-                    "browser": browser},
+                    "browser": browser, "auto_heal": False},
         run_metadata={"code": journey_crawl.build_spec(plan), "base_url": base_url,
                       "file_name": journey_crawl.SPEC_FILE, "journey_id": journey_id},
         triggered_by=actor,

@@ -147,25 +147,13 @@ def with_check(steps: List[Dict[str, Any]], final_url: Optional[str], screenshot
                      "recorded": {k: v for k, v in {"kind": "verify", "route": end, "url": end, "screenshot": screenshot}.items() if v}}]
 
 
-def start(db: Session, *, app_id: str, journey_id: str, application_id: int, environment: Optional[str] = None,
-          actor: Optional[str] = None) -> KbCrawlRun:
-    """Open a browser at the environment's address for someone to do the journey in."""
-    from ..automation.job_manager import job_manager, new_run_key
-    from ..automation.preflight import is_ready, runtime_status
+def prepare(db: Session, *, app_id: str, journey_id: str, application_id: int, environment: Optional[str] = None):
+    """The recording's plan and address, wherever its browser runs: (plan, base_url, environment, application)."""
     from ..automation.registry import address_for_crawl
-    from .crawl_runs import Unavailable, _kb, blocked_environments, headed_available
+    from .crawl_runs import Unavailable, _kb, blocked_environments
 
     if not settings.AUTOMATION_ENABLED:
         raise Unavailable("The Automation Module is disabled on this deployment (AUTOMATION_ENABLED=false).", 503)
-    if not headed_available():
-        raise RecordError("Recording needs a browser window someone can use, and this server cannot show one. "
-                          "Record from a backend running on your own machine.")
-    if not is_ready():
-        detail = "; ".join(f"{n}: {s.detail}" for n, s in runtime_status().items() if not s.available)
-        raise Unavailable(f"The browser runtime is not available. {detail}", 503)
-    permitted, reason = job_manager.capacity()
-    if not permitted:
-        raise Unavailable(reason, 429)
     application = db.get(AutomationApplication, application_id)
     if application is None:
         raise LookupError("No such registered application.")
@@ -186,12 +174,33 @@ def start(db: Session, *, app_id: str, journey_id: str, application_id: int, env
     plan = {"source": SOURCE, "app_id": kb.app_id, "journey_id": journey_id, "journey_name": journey.get("name") or journey_id,
             "entry": journey_crawl.entry_address(base_url), "base_url": base_url, "max_minutes": minutes,
             "app_name": application.name, "items": [], "scope": [journey_id], "variables": []}
+    return plan, base_url, environment, application
+
+
+def start(db: Session, *, app_id: str, journey_id: str, application_id: int, environment: Optional[str] = None,
+          actor: Optional[str] = None) -> KbCrawlRun:
+    """Open a browser at the environment's address for someone to do the journey in."""
+    from ..automation.job_manager import job_manager, new_run_key
+    from ..automation.preflight import is_ready, runtime_status
+    from .crawl_runs import Unavailable, headed_available
+
+    if not headed_available():
+        raise RecordError("Recording needs a browser window someone can use, and this server cannot show one. "
+                          "Use Record on this device instead.")
+    if not is_ready():
+        detail = "; ".join(f"{n}: {s.detail}" for n, s in runtime_status().items() if not s.available)
+        raise Unavailable(f"The browser runtime is not available. {detail}", 503)
+    permitted, reason = job_manager.capacity()
+    if not permitted:
+        raise Unavailable(reason, 429)
+    plan, base_url, environment, application = prepare(
+        db, app_id=app_id, journey_id=journey_id, application_id=application_id, environment=environment)
     run_key = new_run_key()
     db.add(AutomationRun(
         run_key=run_key, framework="playwright", environment=environment, status="queued",
         # A person drives it: no slowMo, no self-healing, and as long as the recording may last.
         run_config={"headless": False, "slow_mo_ms": 0, "mode": "journey_record", "auto_heal": False,
-                    "timeout_seconds": minutes * 60 + 120},
+                    "timeout_seconds": plan["max_minutes"] * 60 + 120},
         run_metadata={"code": build_spec(plan), "base_url": base_url, "file_name": SPEC_FILE, "journey_id": journey_id},
         triggered_by=actor,
     ))
@@ -218,6 +227,11 @@ def finish(db: Session, crawl: KbCrawlRun) -> None:
     """Ask a running recording to end; it saves what it has and closes the browser."""
     if (crawl.plan or {}).get("source") != SOURCE:
         raise RecordError("This is a walk, not a recording.")
+    if (crawl.plan or {}).get("execution_target") == "local":
+        from . import local_runner
+
+        local_runner.request_stop(db, crawl)
+        return
     run, folder = _workspace(db, crawl)
     if run is None or folder is None or not folder.exists():
         raise RecordError("The recording has not started yet.")

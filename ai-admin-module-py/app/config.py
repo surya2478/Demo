@@ -165,6 +165,12 @@ class Settings(BaseSettings):
     #                           keep-alive bytes never trips -- so the stage
     #                           needs a deadline of its own, or a stalled
     #                           provider parks the run at "running" forever.
+    # AUTOMATION_HEAL_CONTEXT_TOKENS
+    #                           context window (prompt + reply) of the model
+    #                           the healer calls. A heal that cannot fit -- the
+    #                           reply is the whole script again -- skips the
+    #                           model and uses the fallback repair. 8192 is the
+    #                           enterprise AI service's model; 0 means no limit.
     # AUTOMATION_MAX_CONCURRENT_RUNS
     #                           browser runs are memory-hungry and this backend
     #                           is a single process; 1 is the safe default and
@@ -185,6 +191,7 @@ class Settings(BaseSettings):
     # and they can no longer be read.
     AUTOMATION_SECRETS_KEY: str = Field(default="")
     AUTOMATION_HEAL_TIMEOUT_SECONDS: int = Field(default=120)
+    AUTOMATION_HEAL_CONTEXT_TOKENS: int = Field(default=8192)
     AUTOMATION_MAX_CONCURRENT_RUNS: int = Field(default=1)
     AUTOMATION_DEFAULT_SLOW_MO_MS: int = Field(default=1000)
     # A walk (Knowledge Base > Walk & dry run) also pauses between steps, a

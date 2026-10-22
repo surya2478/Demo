@@ -39,6 +39,7 @@ import TestData from './pages/automation/TestData'
 import KnowledgeBase from './pages/automation/KnowledgeBase'
 import CaptureReceive from './pages/automation/CaptureReceive'
 import RndLab from './pages/automation/RndLab'
+import KatalonImport from './pages/automation/KatalonImport'
 import Visual from './pages/test-assistant/Visual'
 import DataTab from './pages/test-assistant/DataTab'
 import Changes from './pages/test-assistant/Changes'
@@ -323,6 +324,17 @@ const AppRoutes: React.FC = () => {
           element={
             <ProtectedRoute allowedPermissions={['automation.view']}>
               <RndLab />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Katalon Import: the QA team's Katalon exports -> KB draft, test cases
+            and scripts from the same steps. Writes only a draft KB change set. */}
+        <Route
+          path="automation/katalon-import"
+          element={
+            <ProtectedRoute allowedPermissions={['automation.view']}>
+              <KatalonImport />
             </ProtectedRoute>
           }
         />

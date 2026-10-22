@@ -1,0 +1,79 @@
+{
+  "flow_id": "flow_discovered_v2",
+  "flow_name": "Discovered walkthrough (draft, crawl v2)",
+  "category": "Discovered",
+  "target_match_keywords": [],
+  "catalog_entrypoint": "https://devnew-sas.etisalat.ae/en/smb/products/mobile/add-ons.html",
+  "canonical_steps": [
+    {
+      "step_number": 1,
+      "action": "Navigate to etisalat UAE | Business Mobile Add-Ons | Etisalat UAE Business",
+      "target": "/en/smb/products/mobile/add-ons.html",
+      "href": null,
+      "expected_result": "etisalat UAE | Business Mobile Add-Ons | Etisalat UAE Business loads (HTTP 200 when crawled)."
+    },
+    {
+      "step_number": 2,
+      "action": "Click 'Consumer' to reach etisalat UAE | Mobile plans, TV & Internet plans, WiFi & Smartphones",
+      "target": "/en/c/index.html",
+      "href": "/en/c/index.html",
+      "expected_result": "etisalat UAE | Mobile plans, TV & Internet plans, WiFi & Smartphones loads (HTTP 200 when crawled)."
+    },
+    {
+      "step_number": 3,
+      "action": "Click 'Small & Medium Business' to reach etisalat UAE | SMB Business Solutions UAE | Mobile, Internet & AI",
+      "target": "/en/smb/index.html",
+      "href": "/en/smb/index.html",
+      "expected_result": "etisalat UAE | SMB Business Solutions UAE | Mobile, Internet & AI loads (HTTP 200 when crawled)."
+    },
+    {
+      "step_number": 4,
+      "action": "Click 'Enterprise & Government' to reach etisalat UAE | index",
+      "target": "/en/enterprise-and-government/index.html",
+      "href": "/en/enterprise-and-government/index.html",
+      "expected_result": "etisalat UAE | index loads (HTTP 200 when crawled)."
+    },
+    {
+      "step_number": 5,
+      "action": "Click 'Carrier & wholesale' to reach etisalat | index",
+      "target": "/en/carrier-and-wholesale/index.html",
+      "href": "/en/carrier-and-wholesale/index.html",
+      "expected_result": "etisalat | index loads (HTTP 200 when crawled)."
+    },
+    {
+      "step_number": 6,
+      "action": "Click 'Quick Pay & Recharge' to reach Etisalat UAE | Etisalat Business",
+      "target": "/b2bportal/quick-payment.html?locale=en",
+      "href": "/b2bportal/quick-payment.html?locale=en",
+      "expected_result": "Etisalat UAE | Etisalat Business loads (HTTP 200 when crawled)."
+    },
+    {
+      "step_number": 7,
+      "action": "Click 'Advance Plans' to reach etisalat UAE | Best business mobile plans UAE | Business First Plus",
+      "target": "/en/smb/products/mobile/mobile-plans/business-first-plus.html",
+      "href": "/en/smb/products/mobile/mobile-plans/business-first-plus.html",
+      "expected_result": "etisalat UAE | Best business mobile plans UAE | Business First Plus loads (HTTP 200 when crawled)."
+    },
+    {
+      "step_number": 8,
+      "action": "Click 'Unlimited Plans' to reach etisalat UAE | Business Xtreme | Premium Plans",
+      "target": "/en/smb/products/mobile/mobile-plans/business-xtreme.html",
+      "href": "/en/smb/products/mobile/mobile-plans/business-xtreme.html",
+      "expected_result": "etisalat UAE | Business Xtreme | Premium Plans loads (HTTP 200 when crawled)."
+    },
+    {
+      "step_number": 9,
+      "action": "Click 'Data Only Plans' to reach etisalat UAE | Data SIM for UAE Businesses | High-Speed Mobile Data Plans",
+      "target": "/en/smb/products/mobile/data-sim.html",
+      "href": "/en/smb/products/mobile/data-sim.html",
+      "expected_result": "etisalat UAE | Data SIM for UAE Businesses | High-Speed Mobile Data Plans loads (HTTP 200 when crawled)."
+    }
+  ],
+  "known_products": {},
+  "graph_edges": [],
+  "_draft": {
+    "generated_by": "Application Discovery crawl v2",
+    "generated_at": "2026-10-21T12:49:46.658968Z",
+    "status": "DRAFT -- the steps are pages the crawler reached, in the order it reached them, not a journey anybody designed. Rename, reorder, delete what is noise, and add known_products before using it."
+  }
+}

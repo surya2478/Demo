@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 HOST, PORT = "127.0.0.1", 8765
-VERSION = "1.3.2"
+VERSION = "1.4.0"
 running_lock = threading.Lock()
 
 
@@ -342,6 +342,10 @@ def run(pair):
                                    cwd=workspace, env=env, stdout=log, stderr=subprocess.STDOUT)
         last = None
         started = time.monotonic()
+        posted_at = started
+        # A recording keeps calling in even when nothing changed, so Studio's
+        # Finish (answered as stop) reaches it within a few seconds.
+        heartbeat = float(cfg.get("heartbeat_seconds") or 0)
         while process.poll() is None:
             progress_file = workspace / cfg["progress_file"]
             if progress_file.exists():
@@ -365,15 +369,17 @@ def run(pair):
                     if cfg.get("run_kind") == "automation" and not live_log.strip():
                         live_log = progress_log(current)
                     encoded = json.dumps({"progress": current, "log": live_log}, sort_keys=True)
-                    if encoded != last:
+                    if encoded != last or (heartbeat and time.monotonic() - posted_at >= heartbeat):
                         payload = {"message": "Running Playwright on this device.", "progress": current}
                         if cfg.get("run_kind") == "automation":
                             payload["log_tail"] = live_log
                         if cfg.get("run_kind") != "automation" and cfg.get("stream_frame", True):
                             frame_file = workspace / cfg["frame_file"]
                             payload["frame"] = base64.b64encode(frame_file.read_bytes()).decode("ascii") if frame_file.exists() else None
-                        api(pair, f"{endpoint}/progress", "POST", payload)
-                        last = encoded
+                        answer = api(pair, f"{endpoint}/progress", "POST", payload)
+                        last, posted_at = encoded, time.monotonic()
+                        if cfg.get("stop_file") and isinstance(answer, dict) and answer.get("stop"):
+                            (workspace / cfg["stop_file"]).write_text("finish", encoding="utf-8")
                 except (OSError, ValueError):
                     pass
                 except urllib.error.HTTPError:
@@ -400,8 +406,14 @@ def run(pair):
                     )
                 )
                 final_log = progress_log(snapshot)
+            # Files the spec writes for Studio (a discovery crawl's catalogue).
+            outputs = {}
+            for name in cfg.get("output_files") or []:
+                source = workspace / Path(str(name)).name
+                if source.is_file():
+                    outputs[source.name] = base64.b64encode(source.read_bytes()).decode("ascii")
             api(pair, f"{endpoint}/finish", "POST", {
-                "report": report, "artifacts": artifacts,
+                "report": report, "artifacts": artifacts, "outputs": outputs,
                 "log": final_log,
                 "exit_code": int(process.returncode or 0), "duration_seconds": time.monotonic() - started,
             })

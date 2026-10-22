@@ -1158,7 +1158,7 @@ const JourneyCrawlStage: React.FC<{
       .then(setDetailPlan).catch(() => setDetailPlan(null))
   }, [appKey, detail?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [busy, setBusy] = useState<null | 'start' | 'local' | 'download' | 'record' | 'propose' | 'generate' | 'continue' | 'recapture'>(null)
+  const [busy, setBusy] = useState<null | 'start' | 'local' | 'download' | 'record' | 'local-record' | 'propose' | 'generate' | 'continue' | 'recapture'>(null)
   const [recaptureStep, setRecaptureStep] = useState<number | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionNote, setActionNote] = useState<string | null>(null)
@@ -1251,6 +1251,33 @@ const JourneyCrawlStage: React.FC<{
       loadCrawls()
     } catch (err) {
       setActionError(errorText(err))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  // Record it myself on this device: the loopback runner opens the browser
+  // here, so recording works where the server has no screen or is blocked.
+  const startLocalRecording = async () => {
+    setBusy('local-record')
+    setActionError(null)
+    setActionNote(null)
+    let crawlId: number | null = null
+    try {
+      const made = await knowledgeBaseService.startLocalRecording(appKey, { journey_id: journeyId, application_id: application.id, environment: application.environment })
+      crawlId = made.crawl.id
+      setSelectedId(crawlId)
+      loadCrawls()
+      try {
+        await startDeviceRunner(made.pairing)
+      } catch {
+        await knowledgeBaseService.cancelLocalCrawl(crawlId).catch(() => undefined)
+        throw new Error('The local Playwright runner is not available. Download it once, start it on this device, then click Record on this device again.')
+      }
+      setActionNote('A browser window is opening on this device. Do the journey there, then press Finish recording below.')
+    } catch (err) {
+      setActionError(errorText(err))
+      loadCrawls()
     } finally {
       setBusy(null)
     }
@@ -1509,6 +1536,22 @@ const JourneyCrawlStage: React.FC<{
                 {busy === 'record' ? 'Opening the browser…' : 'Start recording'}
               </button>
             )}
+            {recording && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void startLocalRecording()}
+                  disabled={!canExecute || !journeyId || busy !== null || active || blocked}
+                  title={!canExecute ? 'Needs the automation.execute permission' : active ? 'A walk or recording is already running' : 'Opens a browser window on this device with its installed Playwright; nothing runs on the backend server'}
+                  className="h-[34px] rounded-[10px] border border-[#B71920] bg-white px-4 text-[13px] font-bold text-[#B71920] hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {busy === 'local-record' ? 'Connecting…' : 'Record on this device'}
+                </button>
+                <button type="button" onClick={() => void downloadLocalRunner()} disabled={busy !== null} className={PLAIN}>
+                  {busy === 'download' ? 'Downloading…' : 'Download device runner'}
+                </button>
+              </>
+            )}
           </div>
           {browserCrawling && (
             <div className="flex flex-col gap-3">
@@ -1533,8 +1576,8 @@ const JourneyCrawlStage: React.FC<{
           {recording && (
             <Note tone={caps && !caps.headed_available ? 'warn' : undefined}>
               {caps && !caps.headed_available
-                ? 'Recording opens a browser window for you to use, and this server has no screen. Record from a backend running on your own machine.'
-                : `Opens a browser window on this machine at ${application.base_url} (${application.environment}). Do the journey yourself: every click, field and choice becomes a step with the selector it used, and nothing you type is kept. Afterwards you review the steps and save them as this journey's steps.`}
+                ? `This server has no screen, so Start recording is not available. Use Record on this device: the device runner opens ${application.base_url} (${application.environment}) in a browser window here, and every click, field and choice becomes a step with the selector it used. Nothing you type is kept.`
+                : `Start recording opens a browser window on the machine the backend runs on; Record on this device opens it here with the device runner. Either way it starts at ${application.base_url} (${application.environment}). Do the journey yourself: every click, field and choice becomes a step with the selector it used, and nothing you type is kept. Afterwards you review the steps and save them as this journey's steps.`}
             </Note>
           )}
           {capturing && (

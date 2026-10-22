@@ -32,10 +32,12 @@ import {
   HiOutlineClipboardCheck,
   HiOutlineChip,
   HiOutlineHand,
-  HiOutlineBadgeCheck
+  HiOutlineBadgeCheck,
+  HiOutlineDeviceMobile
 } from 'react-icons/hi'
 import { useNavigate } from 'react-router-dom'
 import automationService from '../../services/automationService'
+import { startDeviceRunner } from '../../services/localRunner'
 import { useAutomationContext } from '../../components/automation/AutomationContext'
 import SectionCard from '../../components/ui/SectionCard'
 import EmptyState from '../../components/ui/EmptyState'
@@ -170,6 +172,9 @@ const Workbench: React.FC = () => {
 
   const [activeDiscoveryCase, setActiveDiscoveryCase] = useState<WorkbenchCase | null>(null)
   const [activeDiscoveryStatus, setActiveDiscoveryStatus] = useState<string | null>(null)
+  // Set while the guided browser is the device runner's rather than the server's.
+  const [activeDiscoveryRunKey, setActiveDiscoveryRunKey] = useState<string | null>(null)
+  const [stoppingDiscovery, setStoppingDiscovery] = useState(false)
   const [flowObjectsCase, setFlowObjectsCase] = useState<WorkbenchCase | null>(null)
   const [flowObjects, setFlowObjects] = useState<RecordedFlowObject[]>([])
   const [loadingObjects, setLoadingObjects] = useState<boolean>(false)
@@ -326,7 +331,71 @@ const Workbench: React.FC = () => {
     }
   }
 
+  const pollDeviceDiscovery = useCallback(
+    async (runKey: string) => {
+      try {
+        const res = await automationService.getDeviceGuidedDiscovery(runKey)
+        setActiveDiscoveryStatus(res.status)
+        if (res.status !== 'starting' && res.status !== 'recording') {
+          setActiveDiscoveryCase(null)
+          setActiveDiscoveryRunKey(null)
+          setStoppingDiscovery(false)
+          await load()
+          if (res.status === 'completed') {
+            setNotice(`Guided Discovery on this device completed: ${res.objects_count} flow objects captured for ${res.display_id ?? 'the test case'}`)
+          } else if (res.status === 'error') {
+            setError(`${res.error ?? 'The device runner stopped.'}${res.objects_count ? ` The ${res.objects_count} objects captured before it stopped are saved.` : ''}`)
+          }
+          return
+        }
+        discoveryPollRef.current = window.setTimeout(() => void pollDeviceDiscovery(runKey), 2000)
+      } catch {
+        setActiveDiscoveryCase(null)
+        setActiveDiscoveryRunKey(null)
+        setStoppingDiscovery(false)
+        await load()
+      }
+    },
+    [load]
+  )
+
+  // The same recorder in a browser the loopback runner opens on this device,
+  // for servers that cannot show a browser (enterprise deployments).
+  const handleStartGuidedDiscoveryOnDevice = async (testCase: WorkbenchCase) => {
+    setError(null)
+    setNotice(null)
+    try {
+      const started = await automationService.startDeviceGuidedDiscovery(testCase.id)
+      try {
+        await startDeviceRunner(started.pairing)
+      } catch {
+        await automationService.stopDeviceGuidedDiscovery(started.run_key).catch(() => undefined)
+        throw new Error('The local Playwright runner is not available. Download it from Knowledge Base > Walk & Dry run, start it on this device, then try again.')
+      }
+      setActiveDiscoveryCase(testCase)
+      setActiveDiscoveryRunKey(started.run_key)
+      setActiveDiscoveryStatus('starting')
+      setNotice(
+        `Opening a browser on this device for ${testCase.tc_display_id}. Interact with the web page to record flow objects, then click 'Finish & Save' in the browser overlay or here.`
+      )
+      discoveryPollRef.current = window.setTimeout(() => void pollDeviceDiscovery(started.run_key), 2000)
+    } catch (err: any) {
+      setError(err?.message ?? 'Failed to start Guided Discovery on this device.')
+    }
+  }
+
   const handleStopGuidedDiscovery = async (caseId: number) => {
+    if (activeDiscoveryRunKey) {
+      // The device saves what it captured, then the poll reports the result.
+      setStoppingDiscovery(true)
+      try {
+        await automationService.stopDeviceGuidedDiscovery(activeDiscoveryRunKey)
+      } catch (err: any) {
+        setStoppingDiscovery(false)
+        setError(err?.message ?? 'Failed to stop Guided Discovery.')
+      }
+      return
+    }
     if (discoveryPollRef.current !== null) window.clearTimeout(discoveryPollRef.current)
     try {
       const res = await automationService.stopGuidedDiscovery(caseId)
@@ -1069,17 +1138,20 @@ const Workbench: React.FC = () => {
                   </span>
                 </div>
                 <p className="text-xs text-amber-800 mt-0.5">
-                  Live headed browser is recording user interactions on <strong>{activeDiscoveryCase.application_url}</strong>. Click <strong>"Finish & Save"</strong> in the browser overlay when your flow is completed.
+                  {activeDiscoveryRunKey
+                    ? activeDiscoveryStatus === 'starting' ? 'Waiting for the device runner to open the browser on this device' : 'A browser on this device is recording user interactions'
+                    : 'Live headed browser is recording user interactions'} on <strong>{activeDiscoveryCase.application_url}</strong>. Click <strong>"Finish & Save"</strong> in the browser overlay when your flow is completed.
                 </p>
               </div>
             </div>
             <button
               type="button"
               onClick={() => handleStopGuidedDiscovery(activeDiscoveryCase.id)}
-              className="app-btn bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-4 rounded-xl shadow inline-flex items-center gap-1.5 flex-shrink-0"
+              disabled={stoppingDiscovery}
+              className="app-btn bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-4 rounded-xl shadow inline-flex items-center gap-1.5 flex-shrink-0 disabled:opacity-60"
             >
               <HiOutlineCheck className="h-4 w-4" />
-              Finish & Save Objects
+              {stoppingDiscovery ? 'Saving…' : 'Finish & Save Objects'}
             </button>
           </div>
         ) : null}
@@ -1358,6 +1430,15 @@ const Workbench: React.FC = () => {
                         >
                           <HiOutlineCursorClick className="h-4 w-4" />
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => handleStartGuidedDiscoveryOnDevice(testCase)}
+                          disabled={!canExecute || busy !== null || activeDiscoveryCase !== null}
+                          className="rounded-md p-1.5 text-app-secondary transition hover:bg-emerald-500/10 hover:text-emerald-600 disabled:opacity-40"
+                          title={`Guided Discovery on this device: the device runner opens the browser here to record page objects for ${testCase.tc_display_id}`}
+                        >
+                          <HiOutlineDeviceMobile className="h-4 w-4" />
+                        </button>
                         {testCase.approval_status === 'approved' ? (
                           <button
                             type="button"
@@ -1562,6 +1643,19 @@ const Workbench: React.FC = () => {
                 >
                   <HiOutlineCursorClick className="h-4 w-4 text-emerald-600" />
                   Re-record Flow
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = flowObjectsCase
+                    setFlowObjectsCase(null)
+                    void handleStartGuidedDiscoveryOnDevice(target)
+                  }}
+                  disabled={activeDiscoveryCase !== null}
+                  className="app-btn app-btn-secondary inline-flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <HiOutlineDeviceMobile className="h-4 w-4 text-emerald-600" />
+                  Re-record on this device
                 </button>
                 <button
                   type="button"

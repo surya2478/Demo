@@ -48,6 +48,17 @@ def _strip_ansi(value):
 
 logger = logging.getLogger(__name__)
 
+
+def _log_tail(path: Path, *, lines: int = 15, limit: int = 2000) -> str | None:
+    """The last non-blank lines of run.log, ANSI-stripped, or None."""
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    kept = [line.rstrip() for line in _strip_ansi(text).splitlines() if line.strip()]
+    tail = "\n".join(kept[-lines:])
+    return tail[-limit:] or None
+
 # ── Spawning on a loop that cannot spawn ─────────────────────────────────────
 # asyncio.create_subprocess_exec needs a loop with a subprocess transport. On
 # Windows only the Proactor loop has one, and uvicorn selects a SelectorEventLoop
@@ -457,6 +468,13 @@ class LocalPlaywrightRunner(AutomationRunner):
         if parse_failure:
             run_status = "failed"
             error_message = f"{parse_failure} (exit code {exit_code}; see run.log)"
+            # No report on stdout means Playwright died before any reporter
+            # ran (config or module load, npx, browser launch), and the reason
+            # is only on stderr. Carry its tail so the run says why.
+            if not json_stdout:
+                stderr_tail = _log_tail(log_path)
+                if stderr_tail:
+                    error_message = f"{error_message}\n{stderr_tail}"
 
         return RunnerResult(
             run_status=run_status,

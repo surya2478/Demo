@@ -1539,6 +1539,22 @@ def start_recording(app_id: str, body: RecordIn, db: Session = Depends(get_db),
     return crawl_runs.view(crawl)
 
 
+@router.post("/{app_id}/local-journey-record", status_code=201)
+def start_local_recording(app_id: str, body: RecordIn, db: Session = Depends(get_db),
+                          current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:
+    """Record it myself, in a browser the loopback runner opens on this device."""
+    try:
+        crawl, token = local_runner.start_recording(db, app_id=app_id, actor=_actor(current_user), **body.model_dump())
+    except crawl_runs.Unavailable as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    except (local_runner.LocalRunnerError, journey_record.RecordError, LookupError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        _fail(exc)
+    return {"crawl": crawl_runs.view(crawl), "runner_token": token,
+            "expires_in_minutes": local_runner.SESSION_MINUTES + int((crawl.plan or {}).get("max_minutes") or 0)}
+
+
 @router.post("/journey-crawls/{crawl_id}/finish")
 def finish_recording(crawl_id: int, db: Session = Depends(get_db),
                      current_user: dict = Depends(require_permission(PERM_EXECUTE))) -> dict[str, Any]:

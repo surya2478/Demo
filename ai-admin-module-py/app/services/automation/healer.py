@@ -467,6 +467,32 @@ def _reject_if_broken(
     )
 
 
+# --- Automation Module: a heal that cannot fit the model is not attempted -----
+#
+# The reply is the whole script again, so a heal needs room for the prompt AND
+# a script-sized answer. On a small-context model (the enterprise AI service's
+# is 8192 tokens) a large script overflows it, the service answers 400 twice,
+# and the run waits on two doomed calls before falling back anyway. Estimating
+# up front skips straight to the fallback. Three characters per token is
+# deliberately pessimistic for code; guessing short is what caused the 400s.
+_CHARS_PER_TOKEN = 3
+_REPLY_OVERHEAD_TOKENS = 600  # diagnosis, changes list, JSON framing
+_MAX_REPLY_TOKENS = 8000
+
+
+def _reply_budget(prompt: str, code: str) -> int | None:
+    """max_tokens for the heal call, or None when it cannot fit the context."""
+    context = int(settings.AUTOMATION_HEAL_CONTEXT_TOKENS or 0)
+    if context <= 0:
+        return _MAX_REPLY_TOKENS
+    prompt_tokens = len(prompt) // _CHARS_PER_TOKEN
+    needed = len(code) // _CHARS_PER_TOKEN + _REPLY_OVERHEAD_TOKENS
+    room = context - prompt_tokens
+    if room < needed:
+        return None
+    return min(room, _MAX_REPLY_TOKENS)
+
+
 def diagnose_and_heal(
     *,
     code: str,
@@ -526,12 +552,21 @@ def diagnose_and_heal(
         "knowledge_base_flow": kb_context,
     }
 
+    user_input = llm.wrap_user_content(str(user_payload))
+    reply_budget = _reply_budget(HEALER_SYSTEM_PROMPT + user_input, code)
+
     try:
+        if reply_budget is None:
+            raise ValueError(
+                f"the prompt and a full healed script will not fit the model's "
+                f"{settings.AUTOMATION_HEAL_CONTEXT_TOKENS}-token context "
+                f"(AUTOMATION_HEAL_CONTEXT_TOKENS)"
+            )
         response: HealResponse = llm.complete_json(
             system_prompt=HEALER_SYSTEM_PROMPT,
-            user_input=llm.wrap_user_content(str(user_payload)),
+            user_input=user_input,
             model_cls=HealResponse,
-            max_tokens=8000,
+            max_tokens=reply_budget,
             temperature=0.1,
             timeout=45.0,
         )
