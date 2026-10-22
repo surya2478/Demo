@@ -241,7 +241,9 @@
         "18 months AED 461.00 /month",
         "12 months AED 685.00 /month"
       ],
-      "stock": "All 24 SKUs out of stock on dev (2026-10-20)"
+      "stock": "All 24 SKUs out of stock on dev (2026-10-20)",
+      "title": "Apple iPad Pro M4, 11-inch",
+      "stock_state": "out"
     },
     "iPad Pro M4, 13-inch": {
       "productId": "prod2450056",
@@ -273,7 +275,9 @@
         "18 months AED 490.00 /month",
         "12 months AED 729.00 /month"
       ],
-      "stock": "All 24 SKUs out of stock on dev (2026-10-20)"
+      "stock": "All 24 SKUs out of stock on dev (2026-10-20)",
+      "title": "Apple iPad Pro M4, 13-inch",
+      "stock_state": "out"
     },
     "11\" New iPad Pro, Wi-Fi": {
       "productId": "prod830189",
@@ -296,13 +300,16 @@
         "18 months AED 183.75 /month",
         "12 months AED 271.95 /month"
       ],
-      "stock": "In stock on 2026-10-20, OUT OF STOCK again on 2026-10-21: dev stock changes daily, so no case depends on it."
+      "stock": "In stock on 2026-10-20, OUT OF STOCK again on 2026-10-21: dev stock changes daily, so no case depends on it.",
+      "title": "New iPad Pro, Wi-Fi",
+      "stock_state": "varies"
     },
     "12.9\" New iPad Pro": {
       "productId": "prod830194",
       "skuId": "bgSku3820203575",
       "default_price": "AED 3,768.45",
-      "stock": "In stock on 2026-10-20, OUT OF STOCK again on 2026-10-21: dev stock changes daily, so no case depends on it."
+      "stock": "In stock on 2026-10-20, OUT OF STOCK again on 2026-10-21: dev stock changes daily, so no case depends on it.",
+      "stock_state": "varies"
     }
   },
   "unverified_from_brd": {

@@ -1,6 +1,6 @@
 """Dry-run the board-demo scripts through Automation Lab's own run pipeline, one at a time.
 
-    python scripts/dry_run_demo_cases.py [TAB-001 TAB-002 ...]
+    python scripts/dry_run_demo_cases.py [--ppm PPM_ID] [TAB-001 TAB-002 ...]
 
 Each run is an ordinary AutomationRun (mode dry_run), so its result, log,
 screenshots, trace and video appear in Automation Lab / Runs exactly as if
@@ -26,11 +26,11 @@ from app.models.database import Project  # noqa: E402
 PPM_ID = "BOARD-DEMO-TABLETS"
 
 
-async def main(only: list[str]) -> int:
+async def main(only: list[str], ppm_id: str = PPM_ID) -> int:
     from app.routers.automation import DryRunRequest, dry_run_scripts
 
     db = SessionLocal()
-    project = db.query(Project).filter(Project.ppm_id == PPM_ID).first()
+    project = db.query(Project).filter(Project.ppm_id == ppm_id).first()
     if project is None:
         print("Load the cases first: python scripts/load_demo_cases.py")
         return 1
@@ -71,4 +71,10 @@ async def main(only: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(asyncio.run(main(sys.argv[1:])))
+    args = sys.argv[1:]
+    ppm = PPM_ID
+    if "--ppm" in args:
+        at = args.index("--ppm")
+        ppm = args[at + 1]
+        del args[at:at + 2]
+    raise SystemExit(asyncio.run(main(args, ppm)))

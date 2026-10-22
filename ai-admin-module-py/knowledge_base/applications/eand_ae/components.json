@@ -1,0 +1,660 @@
+{
+  "_about": "Reusable business components for KB-constrained generation (services/automation/kb_compose.py). Every target was verified on https://devnew.eand.ae on 2026-10-20/21 (crawl + the 20 passing board-demo cases). A test case is a sequence of these components; the model chooses components and parameter values, code assembles the steps. `requires` is the page a component must start on, `leaves` the page it ends on ('any' = unchanged). {param} is substituted; {product.*} reads the product's KB record (flows/*.json known_products).",
+  "app_key": "eand_ae",
+  "pages": [
+    "landing",
+    "landing_ar",
+    "listing",
+    "product",
+    "cart"
+  ],
+  "params": {
+    "product": {
+      "type": "product",
+      "values": [
+        "iPad Pro M4, 11-inch",
+        "iPad Pro M4, 13-inch",
+        "11\" New iPad Pro, Wi-Fi"
+      ]
+    },
+    "listed_product": {
+      "type": "product",
+      "values": [
+        "iPad Pro M4, 11-inch",
+        "iPad Pro M4, 13-inch"
+      ],
+      "_note": "Only these two have a complete card on the Tablets listing (DEV-TAB-01)."
+    },
+    "section": {
+      "values": [
+        "Accessories For",
+        "Smartphone Accessories",
+        "Music Accessories",
+        "Tablets Accessories",
+        "Laptops Accessories"
+      ]
+    },
+    "category": {
+      "values": [
+        "Smartphones",
+        "Music",
+        "Powerbanks",
+        "Tablets",
+        "Laptops"
+      ]
+    },
+    "sort_option": {
+      "values": [
+        "Price (Low to High)"
+      ]
+    },
+    "storage_filter": {
+      "values": [
+        "32gb",
+        "64gb",
+        "128gb",
+        "256gb",
+        "512gb"
+      ]
+    },
+    "storage": {
+      "values": [
+        "256GB",
+        "512GB",
+        "1TB",
+        "2TB"
+      ]
+    },
+    "connectivity": {
+      "values": [
+        "Wi-Fi",
+        "Wi-Fi + Cellular"
+      ]
+    },
+    "display_glass": {
+      "values": [
+        "Standard glass",
+        "Nano-Texture Glass"
+      ]
+    },
+    "colour": {
+      "values": [
+        "Silver",
+        "Space Black"
+      ]
+    },
+    "plan": {
+      "values": [
+        "One time",
+        "24 months",
+        "18 months",
+        "12 months"
+      ]
+    },
+    "spec": {
+      "values": [
+        "Processor/Chip",
+        "Battery",
+        "Warranty",
+        "Display"
+      ]
+    },
+    "search_term": {
+      "type": "text",
+      "_note": "Free text typed into the listing Search box. Use the product wording, e.g. 11-inch."
+    }
+  },
+  "components": [
+    {
+      "id": "open_accessories_page",
+      "description": "Open the Accessories landing page and accept cookies.",
+      "requires": "none",
+      "leaves": "landing",
+      "steps": [
+        [
+          "Navigate to the e& Accessories page",
+          "navigate",
+          "/en/c/devices/accessories.html",
+          "The Accessories page loads"
+        ],
+        [
+          "Accept the cookie consent banner",
+          "click",
+          "#usercentrics-root",
+          "The cookie banner is dismissed"
+        ]
+      ]
+    },
+    {
+      "id": "open_tablets_listing",
+      "description": "Open the Tablets listing directly, accept cookies and wait for product cards.",
+      "requires": "none",
+      "leaves": "listing",
+      "steps": [
+        [
+          "Navigate to the Tablets listing page",
+          "navigate",
+          "/eshop/devices/listing/tablets?category=mobileDevices&subCategory=cat1100019&catName=Tablets&listVal=MegaMenu&locale=EN",
+          "The Tablets listing page loads"
+        ],
+        [
+          "Accept the cookie consent banner",
+          "click",
+          "#usercentrics-root",
+          "The cookie banner is dismissed"
+        ],
+        [
+          "Verify the Tablets listing shows product cards",
+          "assert",
+          "(//app-d-device-card//a[contains(@class,'device-card')])[1]",
+          "Product cards are displayed"
+        ]
+      ]
+    },
+    {
+      "id": "open_product_page",
+      "description": "Open a product's configuration page directly by its KB product id.",
+      "params": [
+        "product"
+      ],
+      "requires": "none",
+      "leaves": "product",
+      "steps": [
+        [
+          "Navigate to the {product} configuration page",
+          "navigate",
+          "/eshop/devices/configuration?productId={product.productId}&skuId={product.skuId}&catName=Tablets&listVal=MegaMenu&showDefault=true",
+          "The configuration page loads"
+        ],
+        [
+          "Accept the cookie consent banner",
+          "click",
+          "#usercentrics-root",
+          "The cookie banner is dismissed"
+        ],
+        [
+          "Verify the product title '{product.title}'",
+          "assert",
+          "//h2[contains(normalize-space(.),'{product.title}')]",
+          "The product title is displayed"
+        ]
+      ]
+    },
+    {
+      "id": "open_cart",
+      "description": "Open the shopping cart page as a guest.",
+      "requires": "none",
+      "leaves": "cart",
+      "steps": [
+        [
+          "Navigate to the shopping cart page",
+          "navigate",
+          "/eshop/checkout/cart",
+          "The cart page loads"
+        ],
+        [
+          "Accept the cookie consent banner",
+          "click",
+          "#usercentrics-root",
+          "The cookie banner is dismissed"
+        ]
+      ]
+    },
+    {
+      "id": "go_to_tablets_via_menu",
+      "description": "Use the main menu Devices > Tablets to reach the Tablets listing.",
+      "requires": "landing",
+      "leaves": "listing",
+      "steps": [
+        [
+          "Click 'Devices' in the main menu",
+          "click",
+          "//a[contains(@class,'py-16')][normalize-space(.)='Devices']",
+          "The Devices mega menu opens"
+        ],
+        [
+          "Click 'Tablets' in the Devices menu",
+          "click",
+          "//a[contains(@class,'w-100 align-items-center')][normalize-space(.)='Tablets']",
+          "The listing opens at /eshop/devices/listing/tablets"
+        ],
+        [
+          "Verify the Tablets listing shows product cards",
+          "assert",
+          "(//app-d-device-card//a[contains(@class,'device-card')])[1]",
+          "Product cards are displayed"
+        ]
+      ]
+    },
+    {
+      "id": "switch_to_arabic",
+      "description": "Switch the Accessories page to Arabic; asserts the Arabic URL.",
+      "requires": "landing",
+      "leaves": "landing_ar",
+      "steps": [
+        [
+          "Click the Arabic language switch",
+          "click",
+          "//a[contains(@class,'toggle-lang')]",
+          "The page reloads at /ar/c/devices/accessories.html"
+        ]
+      ]
+    },
+    {
+      "id": "assert_section",
+      "description": "Assert an Accessories page section heading is shown.",
+      "params": [
+        "section"
+      ],
+      "requires": "landing",
+      "leaves": "any",
+      "steps": [
+        [
+          "Verify the '{section}' section heading",
+          "assert",
+          "//h2[normalize-space(.)='{section}']",
+          "'{section}' is displayed"
+        ]
+      ]
+    },
+    {
+      "id": "assert_category",
+      "description": "Assert an 'Accessories For' category is shown.",
+      "params": [
+        "category"
+      ],
+      "requires": "landing",
+      "leaves": "any",
+      "steps": [
+        [
+          "Verify the '{category}' category",
+          "assert",
+          "//h4[normalize-space(.)='{category}']",
+          "'{category}' is displayed"
+        ]
+      ]
+    },
+    {
+      "id": "assert_product_listed",
+      "description": "Assert a product's card is on the listing.",
+      "params": [
+        "listed_product"
+      ],
+      "requires": "listing",
+      "leaves": "any",
+      "steps": [
+        [
+          "Verify the '{listed_product}' product card",
+          "assert",
+          "//app-d-device-card//a[contains(@href,'productId={listed_product.productId}')]",
+          "The card is displayed"
+        ]
+      ]
+    },
+    {
+      "id": "assert_listed_full_price",
+      "description": "Assert a product card shows its KB full (one time) price.",
+      "params": [
+        "listed_product"
+      ],
+      "requires": "listing",
+      "leaves": "any",
+      "steps": [
+        [
+          "Verify the '{listed_product}' card shows 'AED {listed_product.price.One time}'",
+          "assert",
+          "//app-d-device-card//a[contains(@href,'productId={listed_product.productId}')]//span[normalize-space(.)='AED {listed_product.price.One time}']",
+          "The full price is displayed"
+        ]
+      ]
+    },
+    {
+      "id": "search_listing",
+      "description": "Type a term into the listing Search box.",
+      "params": [
+        "search_term"
+      ],
+      "requires": "listing",
+      "leaves": "listing",
+      "steps": [
+        [
+          "Type '{search_term}' in the listing Search box",
+          "fill",
+          "//app-device-search-and-sort//div[contains(@class,'d-lg-flex')]//input[@placeholder='Search']",
+          "The search term is entered"
+        ],
+        [
+          "Press Enter in the listing Search box",
+          "click",
+          "//app-device-search-and-sort//div[contains(@class,'d-lg-flex')]//input[@placeholder='Search']",
+          "The results update"
+        ]
+      ]
+    },
+    {
+      "id": "sort_listing",
+      "description": "Sort the listing and assert the sort label.",
+      "params": [
+        "sort_option"
+      ],
+      "requires": "listing",
+      "leaves": "listing",
+      "steps": [
+        [
+          "Open the 'Sort by' menu",
+          "click",
+          "//div[contains(@class,'device-sort')][contains(.,'Sort by')]",
+          "Sort options are shown"
+        ],
+        [
+          "Click '{sort_option}'",
+          "click",
+          "//ul[contains(@class,'device-sort__menu')]//button[normalize-space(.)='{sort_option}']",
+          "The listing reloads"
+        ],
+        [
+          "Verify the sort label reads '{sort_option}'",
+          "assert",
+          "//div[contains(@class,'device-sort')]//span[normalize-space(.)='{sort_option}']",
+          "The active sort is {sort_option}"
+        ]
+      ]
+    },
+    {
+      "id": "filter_storage",
+      "description": "Filter the listing by Device Storage and assert cards remain.",
+      "params": [
+        "storage_filter"
+      ],
+      "requires": "listing",
+      "leaves": "listing",
+      "steps": [
+        [
+          "Expand the 'Device Storage' filter",
+          "click",
+          "//app-device-filters//mat-expansion-panel-header[contains(normalize-space(.),'Device Storage')]",
+          "Storage options are listed"
+        ],
+        [
+          "Verify the '{storage_filter}' storage option is listed",
+          "assert",
+          "//app-device-filters//span[normalize-space(.)='{storage_filter}']",
+          "The option is displayed"
+        ],
+        [
+          "Tick the '{storage_filter}' storage filter",
+          "click",
+          "//app-device-filters//span[normalize-space(.)='{storage_filter}']/preceding-sibling::mat-checkbox",
+          "The listing is filtered"
+        ],
+        [
+          "Verify the listing still shows product cards",
+          "assert",
+          "(//app-d-device-card//a[contains(@class,'device-card')])[1]",
+          "Filtered product cards are displayed"
+        ]
+      ]
+    },
+    {
+      "id": "load_more",
+      "description": "Click Load more and assert a 13th card appears.",
+      "requires": "listing",
+      "leaves": "listing",
+      "steps": [
+        [
+          "Click 'Load more'",
+          "click",
+          "//button[normalize-space(.)='Load more']",
+          "More product cards are appended"
+        ],
+        [
+          "Verify a 13th product card is displayed",
+          "assert",
+          "(//app-d-device-card)[13]",
+          "At least 13 cards are listed"
+        ]
+      ]
+    },
+    {
+      "id": "open_product_from_listing",
+      "description": "Open a product by clicking its listing card.",
+      "params": [
+        "listed_product"
+      ],
+      "requires": "listing",
+      "leaves": "product_from_listing",
+      "steps": [
+        [
+          "Open the '{listed_product}' product card",
+          "click",
+          "//app-d-device-card//a[contains(@href,'productId={listed_product.productId}')]",
+          "The configuration page opens at /eshop/devices/configuration"
+        ],
+        [
+          "Verify the product title '{listed_product.title}'",
+          "assert",
+          "//h2[contains(normalize-space(.),'{listed_product.title}')]",
+          "The product title is displayed"
+        ]
+      ]
+    },
+    {
+      "id": "select_storage",
+      "description": "Choose a storage option and assert it is the active one.",
+      "params": [
+        "storage"
+      ],
+      "requires": "product",
+      "leaves": "any",
+      "steps": [
+        [
+          "Click storage option '{storage}'",
+          "click",
+          "//a[contains(@class,'device-configurations__pill')][normalize-space(.)='{storage}']",
+          "{storage} is selected"
+        ],
+        [
+          "Verify '{storage}' is the active storage option",
+          "assert",
+          "//a[contains(@class,'device-configurations__pill--active')][normalize-space(.)='{storage}']",
+          "{storage} is highlighted as active"
+        ]
+      ],
+      "state_param": "storage",
+      "_already_selected": "The option that is already selected cannot be clicked (a wrapper intercepts it); when the case asks for the current value, only the assertion is kept."
+    },
+    {
+      "id": "select_connectivity",
+      "description": "Choose a connectivity option and assert it is the active one.",
+      "params": [
+        "connectivity"
+      ],
+      "requires": "product",
+      "leaves": "any",
+      "steps": [
+        [
+          "Click connectivity option '{connectivity}'",
+          "click",
+          "//a[contains(@class,'device-configurations__pill')][normalize-space(.)='{connectivity}']",
+          "{connectivity} is selected"
+        ],
+        [
+          "Verify '{connectivity}' is the active connectivity option",
+          "assert",
+          "//a[contains(@class,'device-configurations__pill--active')][normalize-space(.)='{connectivity}']",
+          "{connectivity} is highlighted as active"
+        ]
+      ],
+      "state_param": "connectivity",
+      "_already_selected": "The option that is already selected cannot be clicked (a wrapper intercepts it); when the case asks for the current value, only the assertion is kept."
+    },
+    {
+      "id": "select_display_glass",
+      "description": "Choose a display glass option and assert it is the active one. Only possible on 1TB and 2TB storage: on 256GB/512GB the glass is fixed to Standard glass and locked.",
+      "params": [
+        "display_glass"
+      ],
+      "requires": "product",
+      "leaves": "any",
+      "steps": [
+        [
+          "Click display glass option '{display_glass}'",
+          "click",
+          "//a[contains(@class,'device-configurations__pill')][normalize-space(.)='{display_glass}']",
+          "{display_glass} is selected"
+        ],
+        [
+          "Verify '{display_glass}' is the active display glass option",
+          "assert",
+          "//a[contains(@class,'device-configurations__pill--active')][normalize-space(.)='{display_glass}']",
+          "{display_glass} is highlighted as active"
+        ]
+      ],
+      "requires_selected": {
+        "storage": [
+          "1TB",
+          "2TB"
+        ]
+      },
+      "_why": "Verified 2026-10-21: after 256GB the glass pills are locked (a wrapper intercepts the click); the product spec says the Nano-texture option exists on 1TB and 2TB models only. The default iPad Pro M4 variant is 1TB.",
+      "state_param": "display_glass",
+      "_already_selected": "The option that is already selected cannot be clicked (a wrapper intercepts it); when the case asks for the current value, only the assertion is kept."
+    },
+    {
+      "id": "select_colour",
+      "description": "Choose a colour swatch and assert the selected colour name.",
+      "params": [
+        "colour"
+      ],
+      "requires": "product",
+      "leaves": "any",
+      "steps": [
+        [
+          "Click the '{colour}' colour swatch",
+          "click",
+          "//input[@id='color-{colour}']/following-sibling::label",
+          "{colour} is selected"
+        ],
+        [
+          "Verify the selected colour reads '{colour}'",
+          "assert",
+          "//app-devices-configuration-page//*[normalize-space(text())='{colour}']",
+          "{colour} is shown as the selected colour"
+        ]
+      ],
+      "state_param": "colour",
+      "_already_selected": "The option that is already selected cannot be clicked (a wrapper intercepts it); when the case asks for the current value, only the assertion is kept."
+    },
+    {
+      "id": "assert_plan_price",
+      "description": "Assert a payment plan shows the product's KB price for that plan (price is read from the KB, never chosen).",
+      "params": [
+        "plan"
+      ],
+      "requires": "product",
+      "uses_current_product": true,
+      "leaves": "any",
+      "steps": [
+        [
+          "Verify the '{plan}' plan shows 'AED {current_product.price.{plan}}'",
+          "assert",
+          "//button[contains(@class,'segment-tab')][contains(normalize-space(.),'{plan}')][contains(normalize-space(.),'{current_product.price.{plan}}')]",
+          "{plan} price is displayed"
+        ]
+      ]
+    },
+    {
+      "id": "open_specs",
+      "description": "Open the Specs tab.",
+      "requires": "product",
+      "leaves": "any",
+      "steps": [
+        [
+          "Click the 'Specs' tab",
+          "click",
+          "//a[contains(@class,'product-details__tab')][normalize-space(.)='Specs']",
+          "Specifications are shown"
+        ]
+      ]
+    },
+    {
+      "id": "assert_spec",
+      "description": "Assert a specification name is listed (after open_specs).",
+      "params": [
+        "spec"
+      ],
+      "requires": "product",
+      "leaves": "any",
+      "steps": [
+        [
+          "Verify the '{spec}' specification",
+          "assert",
+          "//app-devices-configuration-page//*[normalize-space(text())='{spec}']",
+          "{spec} is displayed"
+        ]
+      ]
+    },
+    {
+      "id": "assert_out_of_stock",
+      "description": "Assert the product is out of stock: 'Out of stock' status, Add to cart and Checkout Now disabled. Valid only for a product whose KB stock says out of stock.",
+      "requires": "product",
+      "uses_current_product": true,
+      "only_if_product_stock": "out",
+      "leaves": "any",
+      "steps": [
+        [
+          "Verify the 'Out of stock' status is displayed",
+          "assert",
+          "//div[contains(@class,'availability-status')][normalize-space(.)='Out of stock']",
+          "The stock status reads Out of stock"
+        ],
+        [
+          "Verify the 'Add to cart' button is disabled",
+          "assert",
+          "//div[contains(@class,'pay-now-section')]//button[normalize-space(.)='Add to cart']",
+          "Add to cart is disabled"
+        ],
+        [
+          "Verify the 'Checkout Now' button is disabled",
+          "assert",
+          "//div[contains(@class,'pay-now-section')]//button[normalize-space(.)='Checkout Now']",
+          "Checkout Now is disabled"
+        ]
+      ]
+    },
+    {
+      "id": "breadcrumb_to_tablets",
+      "description": "Return to the Tablets listing with the breadcrumb. Only after open_product_from_listing (on a deep-linked product page it goes to Smartphones, DEV-TAB-03).",
+      "requires": "product_from_listing",
+      "leaves": "listing",
+      "steps": [
+        [
+          "Click the 'Tablets' breadcrumb",
+          "click",
+          "//app-breadcrumbs//a[normalize-space(.)='Tablets']",
+          "The listing opens at /eshop/devices/listing/tablets"
+        ],
+        [
+          "Verify the Tablets listing shows product cards",
+          "assert",
+          "(//app-d-device-card//a[contains(@class,'device-card')])[1]",
+          "Product cards are displayed"
+        ]
+      ]
+    },
+    {
+      "id": "assert_empty_cart",
+      "description": "Assert the guest cart is empty.",
+      "requires": "cart",
+      "leaves": "any",
+      "steps": [
+        [
+          "Verify the empty cart message 'You don't have any items in your cart'",
+          "assert",
+          "//*[normalize-space(text())=\"You don't have any items in your cart\"]",
+          "The empty cart message is displayed"
+        ]
+      ]
+    }
+  ]
+}
